@@ -1,0 +1,246 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  Res,
+  ParseUUIDPipe,
+} from '@nestjs/common';
+import { Response } from 'express';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiProduces } from '@nestjs/swagger';
+import { InvoicesService } from './invoices.service';
+import { InvoicePdfService } from './invoice-pdf.service';
+import { PaystackService } from '../paystack/paystack.service';
+import { CreateInvoiceDto, UpdateInvoiceDto, InvoiceFilterDto } from './dto';
+import { CurrentUser, CurrentUserData, Roles, Role, Public } from '../../common';
+
+@ApiTags('Invoices')
+@ApiBearerAuth()
+@Controller('invoices')
+export class InvoicesController {
+  constructor(
+    private readonly invoicesService: InvoicesService,
+    private readonly invoicePdfService: InvoicePdfService,
+    private readonly paystackService: PaystackService,
+  ) {}
+
+  @Get()
+  @ApiOperation({ summary: 'List all invoices with filters' })
+  @ApiResponse({ status: 200, description: 'List of invoices' })
+  async findAll(
+    @CurrentUser('organizationId') organizationId: string,
+    @Query() filter: InvoiceFilterDto,
+  ) {
+    return this.invoicesService.findAll(organizationId, filter);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get invoice by ID with items and payments' })
+  @ApiResponse({ status: 200, description: 'Invoice details' })
+  @ApiResponse({ status: 404, description: 'Invoice not found' })
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.invoicesService.findOne(id, organizationId);
+  }
+
+  @Post()
+  @ApiOperation({ summary: 'Create a new invoice' })
+  @ApiResponse({ status: 201, description: 'Invoice created' })
+  @ApiResponse({ status: 404, description: 'Client not found' })
+  async create(
+    @Body() dto: CreateInvoiceDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.invoicesService.create(user.organizationId, user.id, dto);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update invoice (draft only)' })
+  @ApiResponse({ status: 200, description: 'Invoice updated' })
+  @ApiResponse({ status: 403, description: 'Only draft invoices can be edited' })
+  @ApiResponse({ status: 404, description: 'Invoice not found' })
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateInvoiceDto,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.invoicesService.update(id, organizationId, dto);
+  }
+
+  @Post(':id/send')
+  @ApiOperation({ summary: 'Mark invoice as sent' })
+  @ApiResponse({ status: 200, description: 'Invoice marked as sent' })
+  @ApiResponse({ status: 400, description: 'Invoice is not in draft status' })
+  async markAsSent(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.invoicesService.markAsSent(id, organizationId);
+  }
+
+  @Post(':id/cancel')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'Cancel invoice' })
+  @ApiResponse({ status: 200, description: 'Invoice cancelled' })
+  @ApiResponse({ status: 400, description: 'Cannot cancel paid invoice' })
+  async cancel(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.invoicesService.cancel(id, organizationId);
+  }
+
+  @Delete(':id')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'Delete invoice (draft only)' })
+  @ApiResponse({ status: 200, description: 'Invoice deleted' })
+  @ApiResponse({ status: 403, description: 'Only draft invoices can be deleted' })
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.invoicesService.remove(id, organizationId);
+  }
+
+  @Get(':id/pdf')
+  @ApiOperation({ summary: 'Download invoice as PDF' })
+  @ApiResponse({ status: 200, description: 'PDF file' })
+  @ApiResponse({ status: 404, description: 'Invoice not found' })
+  @ApiProduces('application/pdf')
+  async downloadPdf(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('organizationId') organizationId: string,
+    @Res() res: Response,
+  ) {
+    let invoice = await this.invoicesService.findOneWithOrganization(id, organizationId);
+    
+    // Generate payment links for unpaid installments
+    const balanceDue = invoice.total - invoice.amountPaid;
+    if (balanceDue > 0 && invoice.client.email) {
+      try {
+        if (invoice.installments && invoice.installments.length > 0) {
+          // Use installment-based payment links
+          for (const inst of invoice.installments) {
+            if (!inst.isPaid && !inst.paymentUrl) {
+              await this.paystackService.initializeInstallmentTransaction(
+                organizationId,
+                id,
+                inst.id,
+                invoice.client.email,
+                inst.amount,
+              );
+            }
+          }
+          // Refresh invoice to get the new payment URLs
+          invoice = await this.invoicesService.findOneWithOrganization(id, organizationId);
+        } else if (!invoice.paymentUrl) {
+          // No installments - generate single payment link for full balance
+          await this.paystackService.initializeTransaction(
+            organizationId,
+            id,
+            invoice.client.email,
+            balanceDue,
+          );
+          invoice = await this.invoicesService.findOneWithOrganization(id, organizationId);
+        }
+      } catch (error) {
+        // If payment link generation fails, continue without it
+        console.error('Failed to generate payment link for PDF:', error);
+      }
+    }
+    
+    const pdfBuffer = await this.invoicePdfService.generatePdf(invoice as any);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${invoice.invoiceNumber}.pdf"`,
+      'Content-Length': pdfBuffer.length,
+    });
+
+    res.send(pdfBuffer);
+  }
+
+  @Post(':id/share')
+  @ApiOperation({ summary: 'Generate or get share token for invoice' })
+  @ApiResponse({ status: 200, description: 'Share token' })
+  @ApiResponse({ status: 404, description: 'Invoice not found' })
+  async generateShareToken(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.invoicesService.generateShareToken(id, organizationId);
+  }
+
+  @Get('public/:token')
+  @Public()
+  @ApiOperation({ summary: 'Get invoice by public share token' })
+  @ApiResponse({ status: 200, description: 'Invoice details' })
+  @ApiResponse({ status: 404, description: 'Invoice not found' })
+  async findByShareToken(@Param('token') token: string) {
+    return this.invoicesService.findByShareToken(token);
+  }
+
+  @Get('public/:token/pdf')
+  @Public()
+  @ApiOperation({ summary: 'Download invoice PDF by share token' })
+  @ApiResponse({ status: 200, description: 'PDF file' })
+  @ApiResponse({ status: 404, description: 'Invoice not found' })
+  @ApiProduces('application/pdf')
+  async downloadPublicPdf(
+    @Param('token') token: string,
+    @Res() res: Response,
+  ) {
+    let invoice = await this.invoicesService.findByShareToken(token);
+    
+    // Generate payment links for unpaid installments
+    const balanceDue = invoice.total - invoice.amountPaid;
+    if (balanceDue > 0 && invoice.client.email) {
+      try {
+        if (invoice.installments && invoice.installments.length > 0) {
+          // Use installment-based payment links
+          for (const inst of invoice.installments) {
+            if (!inst.isPaid && !inst.paymentUrl) {
+              await this.paystackService.initializeInstallmentTransaction(
+                invoice.organizationId,
+                invoice.id,
+                inst.id,
+                invoice.client.email,
+                inst.amount,
+              );
+            }
+          }
+          // Refresh invoice to get the new payment URLs
+          invoice = await this.invoicesService.findByShareToken(token);
+        } else if (!invoice.paymentUrl) {
+          // No installments - generate single payment link for full balance
+          await this.paystackService.initializeTransaction(
+            invoice.organizationId,
+            invoice.id,
+            invoice.client.email,
+            balanceDue,
+          );
+          invoice = await this.invoicesService.findByShareToken(token);
+        }
+      } catch (error) {
+        // If payment link generation fails, continue without it
+        console.error('Failed to generate payment link for public PDF:', error);
+      }
+    }
+    
+    const pdfBuffer = await this.invoicePdfService.generatePdf(invoice as any);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${invoice.invoiceNumber}.pdf"`,
+      'Content-Length': pdfBuffer.length,
+    });
+
+    res.send(pdfBuffer);
+  }
+}

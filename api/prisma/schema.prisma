@@ -1,0 +1,298 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  ACCOUNTANT
+  STAFF
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  PARTIALLY_PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD
+  PAYSTACK
+  OTHER
+}
+
+// Organizations (tenants)
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  email     String?
+  phone     String?
+  address   String?
+  logo      String?
+  
+  // Paystack integration
+  paystackSubaccountCode String?  @map("paystack_subaccount_code")
+  bankCode               String?  @map("bank_code")
+  bankAccountNumber      String?  @map("bank_account_number")
+  bankAccountName        String?  @map("bank_account_name")
+  settlementBank         String?  @map("settlement_bank")
+  isPaystackVerified     Boolean  @default(false) @map("is_paystack_verified")
+  
+  // Platform settings
+  platformFeePercent     Decimal  @default(5.00) @map("platform_fee_percent") @db.Decimal(5, 2)
+  invoicePrefix          String   @default("INV") @map("invoice_prefix")
+  currency               String   @default("NGN")
+  taxRate                Decimal  @default(0) @map("tax_rate") @db.Decimal(5, 2)
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  users             User[]
+  clients           Client[]
+  invoices          Invoice[]
+  payments          Payment[]
+  expenses          Expense[]
+  expenseCategories ExpenseCategory[]
+
+  @@map("organizations")
+}
+
+// Users
+model User {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  email          String   @unique
+  passwordHash   String   @map("password_hash")
+  firstName      String   @map("first_name")
+  lastName       String   @map("last_name")
+  role           UserRole @default(STAFF)
+  isActive       Boolean  @default(true) @map("is_active")
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdInvoices Invoice[]    @relation("CreatedByUser")
+  recordedPayments Payment[]   @relation("RecordedByUser")
+  recordedExpenses Expense[]   @relation("RecordedByUser")
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+// Clients (customers of the organization)
+model Client {
+  id             String  @id @default(uuid())
+  organizationId String  @map("organization_id")
+  name           String
+  email          String?
+  phone          String?
+  address        String?
+  notes          String?
+  isActive       Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoices     Invoice[]
+
+  @@index([organizationId])
+  @@map("clients")
+}
+
+// Invoices
+model Invoice {
+  id              String        @id @default(uuid())
+  organizationId  String        @map("organization_id")
+  clientId        String        @map("client_id")
+  createdById     String        @map("created_by")
+  
+  invoiceNumber   String        @map("invoice_number")
+  status          InvoiceStatus @default(DRAFT)
+  issueDate       DateTime      @map("issue_date") @db.Date
+  dueDate         DateTime      @map("due_date") @db.Date
+  
+  subtotal        Decimal       @db.Decimal(12, 2)
+  discountPercent Decimal       @default(0) @map("discount_percent") @db.Decimal(5, 2)
+  discountAmount  Decimal       @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  taxAmount       Decimal       @default(0) @map("tax_amount") @db.Decimal(12, 2)
+  total           Decimal       @db.Decimal(12, 2)
+  amountPaid      Decimal       @default(0) @map("amount_paid") @db.Decimal(12, 2)
+  
+  notes           String?
+  terms           String?
+  
+  // Paystack payment link
+  paystackReference  String?   @unique @map("paystack_reference")
+  paystackAccessCode String?   @map("paystack_access_code")
+  paymentUrl         String?   @map("payment_url")
+  paystackPaidAt     DateTime? @map("paystack_paid_at")
+  paystackChannel    String?   @map("paystack_channel")
+  
+  // Public sharing
+  shareToken         String?   @unique @map("share_token")
+  
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Relations
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client        @relation(fields: [clientId], references: [id])
+  createdBy    User          @relation("CreatedByUser", fields: [createdById], references: [id])
+  items        InvoiceItem[]
+  payments     Payment[]
+  installments PaymentInstallment[]
+
+  @@unique([organizationId, invoiceNumber])
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([status])
+  @@map("invoices")
+}
+
+// Payment installments for staged payments
+model PaymentInstallment {
+  id          String  @id @default(uuid())
+  invoiceId   String  @map("invoice_id")
+  
+  label       String  // e.g., "First Payment", "Final Payment"
+  sequence    Int     // Order of installment (1, 2, 3...)
+  percentage  Decimal? @db.Decimal(5, 2) // If percentage-based
+  amount      Decimal  @db.Decimal(12, 2) // Calculated or fixed amount
+  
+  // Payment status
+  isPaid      Boolean  @default(false) @map("is_paid")
+  paidAt      DateTime? @map("paid_at")
+  
+  // Paystack payment link for this installment
+  paystackReference  String?  @unique @map("paystack_reference")
+  paystackAccessCode String?  @map("paystack_access_code")
+  paymentUrl         String?  @map("payment_url")
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  
+  @@index([invoiceId])
+  @@map("payment_installments")
+}
+
+// Invoice line items
+model InvoiceItem {
+  id          String  @id @default(uuid())
+  invoiceId   String  @map("invoice_id")
+  description String
+  quantity    Decimal @db.Decimal(10, 2)
+  unitPrice   Decimal @map("unit_price") @db.Decimal(12, 2)
+  amount      Decimal @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_items")
+}
+
+// Payments
+model Payment {
+  id             String        @id @default(uuid())
+  organizationId String        @map("organization_id")
+  invoiceId      String        @map("invoice_id")
+  recordedById   String?       @map("recorded_by")
+  
+  amount         Decimal       @db.Decimal(12, 2)
+  paymentMethod  PaymentMethod @map("payment_method")
+  paymentDate    DateTime      @map("payment_date") @db.Date
+  reference      String?
+  notes          String?
+  
+  // Auto-recorded via webhook
+  isAutoRecorded    Boolean  @default(false) @map("is_auto_recorded")
+  paystackReference String?  @map("paystack_reference")
+  paystackFees      Decimal? @map("paystack_fees") @db.Decimal(12, 2)
+  platformFees      Decimal? @map("platform_fees") @db.Decimal(12, 2)
+  netAmount         Decimal? @map("net_amount") @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice      Invoice      @relation(fields: [invoiceId], references: [id])
+  recordedBy   User?        @relation("RecordedByUser", fields: [recordedById], references: [id])
+
+  @@index([organizationId])
+  @@index([invoiceId])
+  @@map("payments")
+}
+
+// Expense categories
+model ExpenseCategory {
+  id             String  @id @default(uuid())
+  organizationId String  @map("organization_id")
+  name           String
+  description    String?
+  isActive       Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  expenses     Expense[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("expense_categories")
+}
+
+// Expenses
+model Expense {
+  id             String        @id @default(uuid())
+  organizationId String        @map("organization_id")
+  categoryId     String?       @map("category_id")
+  recordedById   String        @map("recorded_by")
+  
+  description    String
+  amount         Decimal       @db.Decimal(12, 2)
+  expenseDate    DateTime      @map("expense_date") @db.Date
+  recipient      String?
+  paymentMethod  PaymentMethod @map("payment_method")
+  reference      String?
+  notes          String?
+  
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Relations
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category     ExpenseCategory? @relation(fields: [categoryId], references: [id])
+  recordedBy   User             @relation("RecordedByUser", fields: [recordedById], references: [id])
+
+  @@index([organizationId])
+  @@index([categoryId])
+  @@index([expenseDate])
+  @@map("expenses")
+}
