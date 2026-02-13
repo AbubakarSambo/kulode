@@ -1,6 +1,6 @@
-# Chuna Client
+# Kulode Client
 
-React TypeScript frontend for the Chuna invoicing platform.
+React TypeScript frontend for the Kulode invoicing platform.
 
 ## Tech Stack
 

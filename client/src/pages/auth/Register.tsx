@@ -41,7 +41,7 @@ export function RegisterPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mb-4">
-            <span className="text-3xl font-bold text-primary">Chuna</span>
+            <span className="text-3xl font-bold text-primary">Kulode</span>
           </div>
           <CardTitle>Create your account</CardTitle>
           <CardDescription>Start managing your business finances</CardDescription>

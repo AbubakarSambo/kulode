@@ -67,7 +67,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       )}>
         {/* Logo */}
         <div className="flex h-16 items-center justify-between border-b px-6">
-          <span className="text-xl font-bold text-primary">Chuna</span>
+          <span className="text-xl font-bold text-primary">Kulode</span>
           {/* Close button - mobile only */}
           <button 
             onClick={onClose}

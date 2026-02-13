@@ -19,7 +19,7 @@ export function AppLayout() {
           >
             <Menu className="h-6 w-6" />
           </button>
-          <span className="ml-3 text-lg font-bold text-primary">Chuna</span>
+          <span className="ml-3 text-lg font-bold text-primary">Kulode</span>
         </div>
         
         <div className="flex-1 overflow-auto">

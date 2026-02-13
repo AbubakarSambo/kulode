@@ -1,4 +1,4 @@
-# Chuna API
+# Kulode API
 
 Multi-tenant invoicing and financial management API built with NestJS.
 

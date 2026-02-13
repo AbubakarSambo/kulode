@@ -32,7 +32,7 @@ export function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mb-4">
-            <span className="text-3xl font-bold text-primary">Chuna</span>
+            <span className="text-3xl font-bold text-primary">Kulode</span>
           </div>
           <CardTitle>Welcome back</CardTitle>
           <CardDescription>Sign in to your account to continue</CardDescription>
