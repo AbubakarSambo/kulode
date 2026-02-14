@@ -32,10 +32,12 @@ apiClient.interceptors.response.use(
     const message = error.response?.data?.message || 'An error occurred'
     
     if (error.response?.status === 401) {
-      // Clear auth and redirect to login
-      localStorage.removeItem('token')
-      localStorage.removeItem('user')
-      window.location.href = '/login'
+      // Only redirect if not already on login page (to preserve form state on failed login)
+      if (!window.location.pathname.includes('/login')) {
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        window.location.href = '/login'
+      }
       return Promise.reject(error)
     }
 

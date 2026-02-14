@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { Invoice, InvoiceStatus, PaginatedResponse, ApiResponse } from '@/types'
+import type { Invoice, InvoiceStatus, ServiceItem, PaginatedResponse, ApiResponse } from '@/types'
 
 export interface InvoiceFilters {
   page?: number
@@ -76,5 +76,25 @@ export const invoicesApi = {
   generatePaymentLink: async (id: string, email: string, amount: number): Promise<{ paymentUrl: string; reference: string }> => {
     const response = await apiClient.post<ApiResponse<{ paymentUrl: string; reference: string }>>(`/invoices/${id}/generate-payment-link`, { email, amount })
     return response.data.data
+  },
+
+  // Service Items
+  listServiceItems: async (): Promise<ServiceItem[]> => {
+    const response = await apiClient.get<ApiResponse<ServiceItem[]>>('/service-items')
+    return response.data.data
+  },
+
+  createServiceItem: async (data: { name: string; description?: string; unitPrice: number }): Promise<ServiceItem> => {
+    const response = await apiClient.post<ApiResponse<ServiceItem>>('/service-items', data)
+    return response.data.data
+  },
+
+  updateServiceItem: async (id: string, data: { name?: string; description?: string; unitPrice?: number }): Promise<ServiceItem> => {
+    const response = await apiClient.patch<ApiResponse<ServiceItem>>(`/service-items/${id}`, data)
+    return response.data.data
+  },
+
+  deleteServiceItem: async (id: string): Promise<void> => {
+    await apiClient.delete(`/service-items/${id}`)
   },
 }

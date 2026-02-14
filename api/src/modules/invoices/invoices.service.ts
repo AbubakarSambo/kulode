@@ -3,11 +3,18 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateInvoiceDto, UpdateInvoiceDto, InvoiceFilterDto } from './dto';
+import {
+  CreateInvoiceDto,
+  UpdateInvoiceDto,
+  InvoiceFilterDto,
+  CreateServiceItemDto,
+  UpdateServiceItemDto,
+} from './dto';
 import { paginate } from '../../common';
 
 @Injectable()
@@ -386,7 +393,7 @@ export class InvoicesService {
     return updated;
   }
 
-  async remove(id: string, organizationId: string) {
+  async remove(id: string, organizationId: string, userRole?: string) {
     const invoice = await this.prisma.invoice.findFirst({
       where: { id, organizationId, deletedAt: null },
     });
@@ -395,7 +402,9 @@ export class InvoicesService {
       throw new NotFoundException('Invoice not found');
     }
 
-    if (invoice.status !== 'DRAFT') {
+    // Super admins can delete any invoice, others can only delete drafts
+    const isSuperAdmin = userRole === 'SUPER_ADMIN';
+    if (!isSuperAdmin && invoice.status !== 'DRAFT') {
       throw new ForbiddenException('Only draft invoices can be deleted');
     }
 
@@ -514,7 +523,7 @@ export class InvoicesService {
 
   private async generateInvoiceNumber(organizationId: string, prefix: string): Promise<string> {
     const year = new Date().getFullYear();
-    
+
     // Get the last invoice number for this organization and year
     const lastInvoice = await this.prisma.invoice.findFirst({
       where: {
@@ -536,5 +545,89 @@ export class InvoicesService {
     }
 
     return `${prefix}-${year}-${sequence.toString().padStart(4, '0')}`;
+  }
+
+  // Service Items Methods
+  async findAllServiceItems(organizationId: string) {
+    return this.prisma.serviceItem.findMany({
+      where: { organizationId, isActive: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async createServiceItem(organizationId: string, dto: CreateServiceItemDto) {
+    // Check for duplicate name
+    const existing = await this.prisma.serviceItem.findUnique({
+      where: {
+        organizationId_name: { organizationId, name: dto.name },
+      },
+    });
+
+    if (existing) {
+      throw new ConflictException('A service item with this name already exists');
+    }
+
+    return this.prisma.serviceItem.create({
+      data: {
+        organizationId,
+        name: dto.name,
+        description: dto.description,
+        unitPrice: dto.unitPrice,
+      },
+    });
+  }
+
+  async updateServiceItem(
+    id: string,
+    organizationId: string,
+    dto: UpdateServiceItemDto,
+  ) {
+    const serviceItem = await this.prisma.serviceItem.findFirst({
+      where: { id, organizationId },
+    });
+
+    if (!serviceItem) {
+      throw new NotFoundException('Service item not found');
+    }
+
+    // Check for duplicate name if name is being updated
+    if (dto.name && dto.name !== serviceItem.name) {
+      const existing = await this.prisma.serviceItem.findUnique({
+        where: {
+          organizationId_name: { organizationId, name: dto.name },
+        },
+      });
+
+      if (existing) {
+        throw new ConflictException('A service item with this name already exists');
+      }
+    }
+
+    return this.prisma.serviceItem.update({
+      where: { id },
+      data: {
+        ...(dto.name && { name: dto.name }),
+        ...(dto.description !== undefined && { description: dto.description }),
+        ...(dto.unitPrice !== undefined && { unitPrice: dto.unitPrice }),
+      },
+    });
+  }
+
+  async removeServiceItem(id: string, organizationId: string) {
+    const serviceItem = await this.prisma.serviceItem.findFirst({
+      where: { id, organizationId },
+    });
+
+    if (!serviceItem) {
+      throw new NotFoundException('Service item not found');
+    }
+
+    // Soft delete by setting isActive to false
+    await this.prisma.serviceItem.update({
+      where: { id },
+      data: { isActive: false },
+    });
+
+    return { message: 'Service item deleted successfully' };
   }
 }

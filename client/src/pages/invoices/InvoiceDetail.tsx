@@ -27,6 +27,7 @@ import apiClient from '@/api/client'
 import type { ApiResponse } from '@/types'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import type { InvoiceStatus, PaymentMethod } from '@/types'
+import { useAuthStore } from '@/stores/auth'
 
 const statusColors: Record<InvoiceStatus, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
   DRAFT: 'secondary',
@@ -51,8 +52,10 @@ export function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const user = useAuthStore((state) => state.user)
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
   const [isPaymentLinkModalOpen, setIsPaymentLinkModalOpen] = useState(false)
+  const [downloadingReceiptId, setDownloadingReceiptId] = useState<string | null>(null)
 
   const { data: invoice, isLoading } = useQuery({
     queryKey: ['invoices', id],
@@ -185,11 +188,12 @@ export function InvoiceDetailPage() {
   }
 
   const outstanding = Number(invoice.total) - Number(invoice.amountPaid)
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN'
   const canRecordPayment = invoice.status !== 'DRAFT' && invoice.status !== 'CANCELLED' && invoice.status !== 'PAID'
   const canSend = invoice.status === 'DRAFT'
   const canCancel = invoice.status !== 'PAID' && invoice.status !== 'CANCELLED'
-  const canDelete = invoice.status === 'DRAFT'
-  const canGenerateLink = invoice.status !== 'DRAFT' && invoice.status !== 'CANCELLED' && invoice.status !== 'PAID'
+  const canDelete = isSuperAdmin || invoice.status === 'DRAFT'
+  const canGenerateLink = invoice.status !== 'CANCELLED' && invoice.status !== 'PAID'
   const hasPaymentLink = !!(invoice as any).paymentUrl
 
   const copyPaymentLink = () => {
@@ -226,21 +230,40 @@ export function InvoiceDetailPage() {
       // Get or generate share token
       const response = await apiClient.post<ApiResponse<{ shareToken: string }>>(`/invoices/${id}/share`)
       const { shareToken } = response.data.data
-      
+
       // Build the public invoice URL
       const baseUrl = window.location.origin
       const invoiceUrl = `${baseUrl}/i/${shareToken}`
-      
+
       // Build WhatsApp message
       const amount = formatCurrency(outstanding)
-      
+
       const message = `Hi! Here's your invoice ${invoice.invoiceNumber} for ${amount}.\n\nView and pay online: ${invoiceUrl}`
-      
+
       // Open WhatsApp with pre-filled message
       const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`
       window.open(whatsappUrl, '_blank')
     } catch (error) {
       toast.error('Failed to generate share link')
+    }
+  }
+
+  const downloadReceipt = async (paymentId: string) => {
+    setDownloadingReceiptId(paymentId)
+    try {
+      const blob = await paymentsApi.downloadReceipt(paymentId)
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `receipt-${invoice.invoiceNumber}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch {
+      toast.error('Failed to download receipt')
+    } finally {
+      setDownloadingReceiptId(null)
     }
   }
 
@@ -450,9 +473,20 @@ export function InvoiceDetailPage() {
                               {payment.paymentMethod.replace('_', ' ')}
                             </p>
                           </div>
-                          <p className="text-sm text-muted-foreground">
-                            {formatDate(payment.paymentDate)}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm text-muted-foreground">
+                              {formatDate(payment.paymentDate)}
+                            </p>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={() => downloadReceipt(payment.id)}
+                              disabled={downloadingReceiptId === payment.id}
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </div>
                         {payment.reference && (
                           <p className="mt-2 text-xs text-muted-foreground">

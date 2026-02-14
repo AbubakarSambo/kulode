@@ -30,6 +30,7 @@ export { SettingsPage } from './settings/Settings'
 export { UsersPage } from './settings/UsersPage'
 export { PaystackPage } from './settings/PaystackPage'
 export { CategoriesPage } from './settings/CategoriesPage'
+export { ServiceItemsPage } from './settings/ServiceItemsPage'
 
 // Payment (public)
 export { PaymentCallbackPage } from './payment/PaymentCallback'

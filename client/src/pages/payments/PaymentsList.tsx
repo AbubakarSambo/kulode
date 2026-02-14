@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Download } from 'lucide-react'
+import { toast } from 'sonner'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Badge } from '@/components/ui'
 import { paymentsApi } from '@/api'
@@ -7,6 +9,26 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 
 export function PaymentsListPage() {
   const [page, setPage] = useState(1)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
+
+  const handleDownloadReceipt = async (paymentId: string, invoiceNumber: string) => {
+    setDownloadingId(paymentId)
+    try {
+      const blob = await paymentsApi.downloadReceipt(paymentId)
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `receipt-${invoiceNumber}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch {
+      toast.error('Failed to download receipt')
+    } finally {
+      setDownloadingId(null)
+    }
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ['payments', { page }],
@@ -41,6 +63,7 @@ export function PaymentsListPage() {
                     <th className="px-4 py-3 text-left text-sm font-medium">Date</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Reference</th>
                     <th className="px-4 py-3 text-right text-sm font-medium">Amount</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -62,6 +85,16 @@ export function PaymentsListPage() {
                       </td>
                       <td className="px-4 py-3 text-right font-medium text-green-600">
                         +{formatCurrency(payment.amount)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDownloadReceipt(payment.id, payment.invoice?.invoiceNumber || 'unknown')}
+                          disabled={downloadingId === payment.id}
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
                       </td>
                     </tr>
                   ))}

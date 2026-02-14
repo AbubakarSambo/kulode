@@ -141,6 +141,15 @@ export interface Payment {
   createdAt: string
 }
 
+// Service item types
+export interface ServiceItem {
+  id: string
+  name: string
+  description?: string
+  unitPrice: number
+  isActive: boolean
+}
+
 // Expense types
 export interface ExpenseCategory {
   id: string

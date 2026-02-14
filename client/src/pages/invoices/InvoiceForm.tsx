@@ -47,11 +47,17 @@ export function NewInvoicePage() {
     queryFn: () => clientsApi.list({ limit: 100 }),
   })
 
+  const { data: serviceItems } = useQuery({
+    queryKey: ['service-items'],
+    queryFn: () => invoicesApi.listServiceItems(),
+  })
+
   const {
     register,
     control,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<InvoiceFormData>({
     resolver: zodResolver(invoiceSchema),
@@ -76,6 +82,17 @@ export function NewInvoicePage() {
     control,
     name: 'installments',
   })
+
+  const handleServiceItemSelect = (index: number, serviceItemId: string) => {
+    if (serviceItemId === 'custom') {
+      return
+    }
+    const serviceItem = serviceItems?.find((item) => item.id === serviceItemId)
+    if (serviceItem) {
+      setValue(`items.${index}.description`, serviceItem.name)
+      setValue(`items.${index}.unitPrice`, serviceItem.unitPrice)
+    }
+  }
 
   const watchInstallments = watch('installments') || []
   const installmentsTotal = watchInstallments.reduce((sum, inst) => sum + (inst?.percentage || 0), 0)
@@ -203,7 +220,7 @@ export function NewInvoicePage() {
               <div className="space-y-4">
                 {/* Header - hidden on mobile */}
                 <div className="hidden sm:grid sm:grid-cols-12 sm:gap-4 text-sm font-medium text-muted-foreground">
-                  <div className="col-span-5">Description</div>
+                  <div className="col-span-5">Service / Description</div>
                   <div className="col-span-2">Quantity</div>
                   <div className="col-span-2">Unit Price</div>
                   <div className="col-span-2 text-right">Amount</div>
@@ -218,10 +235,22 @@ export function NewInvoicePage() {
 
                   return (
                     <div key={field.id} className="rounded-lg border p-3 space-y-3 sm:border-0 sm:p-0 sm:space-y-0 sm:grid sm:grid-cols-12 sm:gap-4 sm:items-start">
-                      <div className="sm:col-span-5">
-                        <label className="text-xs text-muted-foreground sm:hidden">Description</label>
+                      <div className="sm:col-span-5 space-y-2">
+                        <label className="text-xs text-muted-foreground sm:hidden">Service / Description</label>
+                        <Select
+                          onChange={(e) => handleServiceItemSelect(index, e.target.value)}
+                          defaultValue=""
+                        >
+                          <option value="">Select a service...</option>
+                          {serviceItems?.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.name} - {formatCurrency(item.unitPrice)}
+                            </option>
+                          ))}
+                          <option value="custom">Custom item</option>
+                        </Select>
                         <Input
-                          placeholder="Service description"
+                          placeholder="Description"
                           {...register(`items.${index}.description`)}
                           error={errors.items?.[index]?.description?.message}
                         />

@@ -190,4 +190,61 @@ export class PaymentsService {
 
     return { message: 'Payment deleted successfully' };
   }
+
+  async getReceiptData(id: string, organizationId: string) {
+    const payment = await this.prisma.payment.findFirst({
+      where: { id, organizationId },
+      include: {
+        invoice: {
+          include: {
+            client: {
+              select: {
+                name: true,
+                email: true,
+                phone: true,
+                address: true,
+              },
+            },
+          },
+        },
+        organization: {
+          select: {
+            name: true,
+            email: true,
+            phone: true,
+            address: true,
+          },
+        },
+      },
+    });
+
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+
+    return {
+      receiptNumber: `RCP-${payment.id.slice(0, 8).toUpperCase()}`,
+      paymentDate: payment.paymentDate,
+      amount: Number(payment.amount),
+      paymentMethod: payment.paymentMethod,
+      reference: payment.reference,
+      notes: payment.notes,
+      invoice: {
+        invoiceNumber: payment.invoice.invoiceNumber,
+        total: Number(payment.invoice.total),
+      },
+      client: {
+        name: payment.invoice.client.name,
+        email: payment.invoice.client.email,
+        phone: payment.invoice.client.phone,
+        address: payment.invoice.client.address,
+      },
+      organization: {
+        name: payment.organization.name,
+        email: payment.organization.email,
+        phone: payment.organization.phone,
+        address: payment.organization.address,
+      },
+    };
+  }
 }

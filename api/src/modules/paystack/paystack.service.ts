@@ -198,13 +198,14 @@ export class PaystackService {
       },
     });
 
-    // Update invoice with payment link (for backward compatibility)
+    // Update invoice with payment link and transition DRAFT → SENT
     await this.prisma.invoice.update({
       where: { id: invoiceId },
       data: {
         paystackReference: result.reference,
         paystackAccessCode: result.access_code,
         paymentUrl: result.authorization_url,
+        ...(invoice.status === 'DRAFT' && { status: 'SENT' }),
       },
     });
 

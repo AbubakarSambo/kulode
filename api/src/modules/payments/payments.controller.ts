@@ -6,10 +6,13 @@ import {
   Body,
   Param,
   Query,
+  Res,
   ParseUUIDPipe,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
+import { ReceiptPdfService } from './receipt-pdf.service';
 import { CreatePaymentDto, PaymentFilterDto } from './dto';
 import { CurrentUser, CurrentUserData, Roles, Role } from '../../common';
 
@@ -17,7 +20,10 @@ import { CurrentUser, CurrentUserData, Roles, Role } from '../../common';
 @ApiBearerAuth()
 @Controller()
 export class PaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) {}
+  constructor(
+    private readonly paymentsService: PaymentsService,
+    private readonly receiptPdfService: ReceiptPdfService,
+  ) {}
 
   @Get('payments')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.ACCOUNTANT)
@@ -71,5 +77,31 @@ export class PaymentsController {
     @CurrentUser('organizationId') organizationId: string,
   ) {
     return this.paymentsService.remove(id, organizationId);
+  }
+
+  @Get('payments/:id/receipt')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.ACCOUNTANT)
+  @ApiOperation({ summary: 'Download payment receipt PDF' })
+  @ApiResponse({ status: 200, description: 'Receipt PDF' })
+  @ApiResponse({ status: 404, description: 'Payment not found' })
+  async downloadReceipt(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('organizationId') organizationId: string,
+    @Res() res: Response,
+  ) {
+    const receiptData = await this.paymentsService.getReceiptData(
+      id,
+      organizationId,
+    );
+
+    const pdfBuffer = await this.receiptPdfService.generatePdf(receiptData);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="receipt-${receiptData.receiptNumber}.pdf"`,
+      'Content-Length': pdfBuffer.length,
+    });
+
+    res.end(pdfBuffer);
   }
 }

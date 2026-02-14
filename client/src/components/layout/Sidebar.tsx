@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -35,7 +36,19 @@ interface SidebarProps {
 export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const user = useAuthStore((state) => state.user)
   const logout = useLogout()
-  
+
+  // Lock body scroll when sidebar is open on mobile
+  useEffect(() => {
+    if (isOpen && window.innerWidth < 1024) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [isOpen])
+
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
   const canViewReports = isAdmin || user?.role === 'ACCOUNTANT'
 
@@ -62,7 +75,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       
       {/* Sidebar */}
       <div className={cn(
-        'fixed inset-y-0 left-0 z-50 flex h-screen w-64 flex-col border-r bg-card transition-transform duration-300 lg:static lg:translate-x-0',
+        'fixed inset-y-0 left-0 z-50 flex h-dvh w-64 flex-col border-r bg-card transition-transform duration-300 lg:static lg:h-screen lg:translate-x-0',
         isOpen ? 'translate-x-0' : '-translate-x-full'
       )}>
         {/* Logo */}

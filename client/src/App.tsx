@@ -21,6 +21,7 @@ import {
   UsersPage,
   PaystackPage,
   CategoriesPage,
+  ServiceItemsPage,
   PaymentCallbackPage,
   PublicInvoicePage,
 } from '@/pages'
@@ -76,6 +77,7 @@ function App() {
               <Route path="/settings/users" element={<UsersPage />} />
               <Route path="/settings/paystack" element={<PaystackPage />} />
               <Route path="/settings/categories" element={<CategoriesPage />} />
+              <Route path="/settings/services" element={<ServiceItemsPage />} />
             </Route>
           </Route>
 

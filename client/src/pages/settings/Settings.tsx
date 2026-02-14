@@ -1,7 +1,7 @@
 import { Header } from '@/components/layout'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui'
 import { Link } from 'react-router-dom'
-import { Building, Users, CreditCard, Tags } from 'lucide-react'
+import { Building, Users, CreditCard, Tags, Package } from 'lucide-react'
 
 export function SettingsPage() {
   const settingsCards = [
@@ -28,6 +28,12 @@ export function SettingsPage() {
       description: 'Manage expense categories',
       icon: Tags,
       href: '/settings/categories',
+    },
+    {
+      title: 'Service Items',
+      description: 'Manage services and products for invoices',
+      icon: Package,
+      href: '/settings/services',
     },
   ]
 

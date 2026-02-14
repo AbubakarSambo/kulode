@@ -45,4 +45,11 @@ export const paymentsApi = {
   delete: async (id: string): Promise<void> => {
     await apiClient.delete(`/payments/${id}`)
   },
+
+  downloadReceipt: async (id: string): Promise<Blob> => {
+    const response = await apiClient.get(`/payments/${id}/receipt`, {
+      responseType: 'blob',
+    })
+    return response.data
+  },
 }

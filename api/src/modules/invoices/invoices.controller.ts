@@ -15,7 +15,13 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiProduces } from '
 import { InvoicesService } from './invoices.service';
 import { InvoicePdfService } from './invoice-pdf.service';
 import { PaystackService } from '../paystack/paystack.service';
-import { CreateInvoiceDto, UpdateInvoiceDto, InvoiceFilterDto } from './dto';
+import {
+  CreateInvoiceDto,
+  UpdateInvoiceDto,
+  InvoiceFilterDto,
+  CreateServiceItemDto,
+  UpdateServiceItemDto,
+} from './dto';
 import { CurrentUser, CurrentUserData, Roles, Role, Public } from '../../common';
 
 @ApiTags('Invoices')
@@ -98,14 +104,14 @@ export class InvoicesController {
 
   @Delete(':id')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: 'Delete invoice (draft only)' })
+  @ApiOperation({ summary: 'Delete invoice (super admins can delete any, others draft only)' })
   @ApiResponse({ status: 200, description: 'Invoice deleted' })
   @ApiResponse({ status: 403, description: 'Only draft invoices can be deleted' })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser('organizationId') organizationId: string,
+    @CurrentUser() user: CurrentUserData,
   ) {
-    return this.invoicesService.remove(id, organizationId);
+    return this.invoicesService.remove(id, user.organizationId, user.role);
   }
 
   @Get(':id/pdf')
@@ -242,5 +248,58 @@ export class InvoicesController {
     });
 
     res.send(pdfBuffer);
+  }
+}
+
+@ApiTags('Service Items')
+@ApiBearerAuth()
+@Controller('service-items')
+export class ServiceItemsController {
+  constructor(private readonly invoicesService: InvoicesService) {}
+
+  @Get()
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.ACCOUNTANT, Role.STAFF)
+  @ApiOperation({ summary: 'List all active service items' })
+  @ApiResponse({ status: 200, description: 'List of service items' })
+  async findAll(@CurrentUser('organizationId') organizationId: string) {
+    return this.invoicesService.findAllServiceItems(organizationId);
+  }
+
+  @Post()
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'Create a new service item' })
+  @ApiResponse({ status: 201, description: 'Service item created' })
+  @ApiResponse({ status: 409, description: 'Service item with this name already exists' })
+  async create(
+    @Body() dto: CreateServiceItemDto,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.invoicesService.createServiceItem(organizationId, dto);
+  }
+
+  @Patch(':id')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'Update a service item' })
+  @ApiResponse({ status: 200, description: 'Service item updated' })
+  @ApiResponse({ status: 404, description: 'Service item not found' })
+  @ApiResponse({ status: 409, description: 'Service item with this name already exists' })
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateServiceItemDto,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.invoicesService.updateServiceItem(id, organizationId, dto);
+  }
+
+  @Delete(':id')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'Delete a service item' })
+  @ApiResponse({ status: 200, description: 'Service item deleted' })
+  @ApiResponse({ status: 404, description: 'Service item not found' })
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.invoicesService.removeServiceItem(id, organizationId);
   }
 }
