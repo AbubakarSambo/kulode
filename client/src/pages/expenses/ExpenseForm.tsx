@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Select, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 import { expensesApi } from '@/api'
+import { posthog } from '@/lib/posthog'
 import type { PaymentMethod } from '@/types'
 
 const expenseSchema = z.object({
@@ -56,8 +57,9 @@ export function NewExpensePage() {
       categoryId: data.categoryId || undefined,
       paymentMethod: data.paymentMethod as PaymentMethod,
     }),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] })
+      posthog.capture('expense_recorded', { payment_method: variables.paymentMethod })
       toast.success('Expense recorded')
       navigate('/expenses')
     },

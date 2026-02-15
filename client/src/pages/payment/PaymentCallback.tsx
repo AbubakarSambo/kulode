@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui'
 import apiClient from '@/api/client'
+import { posthog } from '@/lib/posthog'
 
 type PaymentStatus = 'loading' | 'success' | 'failed'
 
@@ -36,8 +37,10 @@ export function PaymentCallbackPage() {
         if (data.status === 'success') {
           setStatus('success')
           setDetails(data)
+          posthog.capture('payment_callback_received', { status: 'success', reference })
         } else {
           setStatus('failed')
+          posthog.capture('payment_callback_received', { status: 'failed', reference })
         }
       } catch (error) {
         // Even if verification fails, the webhook will handle recording

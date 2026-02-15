@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { authApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
+import { posthog } from '@/lib/posthog'
 import type { LoginCredentials, RegisterData } from '@/types'
 
 export function useLogin() {
@@ -13,6 +14,7 @@ export function useLogin() {
     mutationFn: (credentials: LoginCredentials) => authApi.login(credentials),
     onSuccess: (data) => {
       setAuth(data.user, data.accessToken)
+      posthog.capture('user_logged_in')
       toast.success('Welcome back!', {
         description: `Logged in as ${data.user.firstName}`,
       })
@@ -33,6 +35,7 @@ export function useRegister() {
     mutationFn: (data: RegisterData) => authApi.register(data),
     onSuccess: (data) => {
       setAuth(data.user, data.accessToken)
+      posthog.capture('organization_created')
       toast.success('Welcome!', {
         description: 'Your organization has been created',
       })

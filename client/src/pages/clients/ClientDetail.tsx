@@ -6,6 +6,7 @@ import { Header } from '@/components/layout'
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui'
 import { clientsApi } from '@/api'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { posthog } from '@/lib/posthog'
 import type { InvoiceStatus } from '@/types'
 
 const statusColors: Record<InvoiceStatus, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
@@ -32,6 +33,7 @@ export function ClientDetailPage() {
     mutationFn: () => clientsApi.delete(id!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients'] })
+      posthog.capture('client_deleted', { client_id: id })
       toast.success('Client deleted')
       navigate('/clients')
     },

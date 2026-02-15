@@ -10,6 +10,7 @@ import { Button, Input, Label, Textarea, Card, CardContent } from '@/components/
 import { Modal } from '@/components/shared/Modal'
 import { invoicesApi } from '@/api'
 import { formatCurrency } from '@/lib/utils'
+import { posthog } from '@/lib/posthog'
 import type { ServiceItem } from '@/types'
 
 const serviceItemSchema = z.object({
@@ -48,6 +49,7 @@ export function ServiceItemsPage() {
     mutationFn: (data: ServiceItemFormData) => invoicesApi.createServiceItem(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['service-items'] })
+      posthog.capture('service_item_created')
       toast.success('Service item created')
       closeModal()
     },
@@ -62,6 +64,7 @@ export function ServiceItemsPage() {
     mutationFn: (data: ServiceItemFormData) => invoicesApi.updateServiceItem(editingItem!.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['service-items'] })
+      posthog.capture('service_item_updated')
       toast.success('Service item updated')
       closeModal()
     },
@@ -76,6 +79,7 @@ export function ServiceItemsPage() {
     mutationFn: (id: string) => invoicesApi.deleteServiceItem(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['service-items'] })
+      posthog.capture('service_item_deleted')
       toast.success('Service item deleted')
     },
     onError: (error: any) => {

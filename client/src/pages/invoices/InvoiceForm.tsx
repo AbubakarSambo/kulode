@@ -10,6 +10,7 @@ import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Select, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 import { clientsApi, invoicesApi } from '@/api'
 import { formatCurrency } from '@/lib/utils'
+import { posthog } from '@/lib/posthog'
 
 const invoiceItemSchema = z.object({
   description: z.string().min(1, 'Description is required'),
@@ -135,6 +136,11 @@ export function NewInvoicePage() {
     },
     onSuccess: (invoice) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      posthog.capture('invoice_created', {
+        invoice_id: invoice.id,
+        invoice_number: invoice.invoiceNumber,
+        has_installments: enableInstallments,
+      })
       toast.success('Invoice created', { description: `Invoice ${invoice.invoiceNumber} has been created` })
       navigate(`/invoices/${invoice.id}`)
     },

@@ -6,6 +6,7 @@ import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Badge } from '@/components/ui'
 import { paymentsApi } from '@/api'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { posthog } from '@/lib/posthog'
 
 export function PaymentsListPage() {
   const [page, setPage] = useState(1)
@@ -23,6 +24,7 @@ export function PaymentsListPage() {
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
+      posthog.capture('payment_receipt_downloaded', { payment_id: paymentId })
     } catch {
       toast.error('Failed to download receipt')
     } finally {

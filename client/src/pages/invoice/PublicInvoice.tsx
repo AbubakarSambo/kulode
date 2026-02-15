@@ -4,6 +4,7 @@ import { Download, CreditCard, FileText } from 'lucide-react'
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui'
 import apiClient from '@/api/client'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { posthog } from '@/lib/posthog'
 import type { InvoiceStatus } from '@/types'
 
 interface PublicInvoiceData {
@@ -76,6 +77,7 @@ export function PublicInvoicePage() {
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
+      posthog.capture('public_invoice_pdf_downloaded', { invoice_number: invoice?.invoiceNumber })
     } catch (error) {
       console.error('Failed to download PDF')
     }
@@ -119,7 +121,7 @@ export function PublicInvoicePage() {
               Download PDF
             </Button>
             {invoice.paymentUrl && !isPaid && (
-              <a href={invoice.paymentUrl} target="_blank" rel="noopener noreferrer">
+              <a href={invoice.paymentUrl} target="_blank" rel="noopener noreferrer" onClick={() => posthog.capture('public_invoice_pay_now_clicked', { invoice_number: invoice.invoiceNumber })}>
                 <Button>
                   <CreditCard className="mr-2 h-4 w-4" />
                   Pay Now
@@ -257,7 +259,7 @@ export function PublicInvoicePage() {
         {/* Pay Now CTA */}
         {invoice.paymentUrl && !isPaid && (
           <div className="mt-6 text-center">
-            <a href={invoice.paymentUrl} target="_blank" rel="noopener noreferrer">
+            <a href={invoice.paymentUrl} target="_blank" rel="noopener noreferrer" onClick={() => posthog.capture('public_invoice_pay_now_clicked', { invoice_number: invoice.invoiceNumber })}>
               <Button size="lg" className="w-full sm:w-auto">
                 <CreditCard className="mr-2 h-5 w-5" />
                 Pay {formatCurrency(outstanding)} Now

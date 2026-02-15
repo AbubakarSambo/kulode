@@ -5,6 +5,7 @@ import { Header } from '@/components/layout'
 import { Card, CardContent, CardHeader, CardTitle, Select } from '@/components/ui'
 import { reportsApi, type ReportPeriod } from '@/api/reports'
 import { formatCurrency } from '@/lib/utils'
+import { posthog } from '@/lib/posthog'
 
 export function ReportsPage() {
   const [period, setPeriod] = useState<ReportPeriod>('THIS_YEAR')
@@ -27,7 +28,11 @@ export function ReportsPage() {
         action={
           <Select
             value={period}
-            onChange={(e) => setPeriod(e.target.value as ReportPeriod)}
+            onChange={(e) => {
+              const newPeriod = e.target.value as ReportPeriod
+              setPeriod(newPeriod)
+              posthog.capture('report_period_changed', { period: newPeriod })
+            }}
             className="w-40"
           >
             <option value="THIS_MONTH">This Month</option>

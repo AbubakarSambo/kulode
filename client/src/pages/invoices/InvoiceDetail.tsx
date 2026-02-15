@@ -26,6 +26,7 @@ import { invoicesApi, paymentsApi } from '@/api'
 import apiClient from '@/api/client'
 import type { ApiResponse } from '@/types'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { posthog } from '@/lib/posthog'
 import type { InvoiceStatus, PaymentMethod } from '@/types'
 import { useAuthStore } from '@/stores/auth'
 
@@ -67,6 +68,7 @@ export function InvoiceDetailPage() {
     mutationFn: () => invoicesApi.send(id!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices', id] })
+      posthog.capture('invoice_sent', { invoice_id: id })
       toast.success('Invoice sent', { description: 'Invoice has been marked as sent' })
     },
   })
@@ -75,6 +77,7 @@ export function InvoiceDetailPage() {
     mutationFn: () => invoicesApi.cancel(id!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices', id] })
+      posthog.capture('invoice_cancelled', { invoice_id: id })
       toast.success('Invoice cancelled')
     },
   })
@@ -83,6 +86,7 @@ export function InvoiceDetailPage() {
     mutationFn: () => invoicesApi.delete(id!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      posthog.capture('invoice_deleted', { invoice_id: id })
       toast.success('Invoice deleted')
       navigate('/invoices')
     },
@@ -98,6 +102,7 @@ export function InvoiceDetailPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['invoices', id] })
+      posthog.capture('payment_link_generated', { invoice_id: id })
       toast.success('Payment link generated')
       setIsPaymentLinkModalOpen(false)
       // Open in new tab
@@ -131,9 +136,13 @@ export function InvoiceDetailPage() {
       ...data,
       paymentMethod: data.paymentMethod as PaymentMethod,
     }),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['invoices', id] })
       queryClient.invalidateQueries({ queryKey: ['payments'] })
+      posthog.capture('payment_recorded', {
+        invoice_id: id,
+        payment_method: variables.paymentMethod,
+      })
       toast.success('Payment recorded')
       setIsPaymentModalOpen(false)
       reset()
@@ -200,6 +209,7 @@ export function InvoiceDetailPage() {
     const url = (invoice as any).paymentUrl
     if (url) {
       navigator.clipboard.writeText(url)
+      posthog.capture('payment_link_copied', { invoice_id: id })
       toast.success('Payment link copied to clipboard')
     }
   }
@@ -209,7 +219,7 @@ export function InvoiceDetailPage() {
       const response = await apiClient.get(`/invoices/${id}/pdf`, {
         responseType: 'blob',
       })
-      
+
       // Create blob URL and trigger download
       const blob = new Blob([response.data], { type: 'application/pdf' })
       const url = window.URL.createObjectURL(blob)
@@ -220,6 +230,7 @@ export function InvoiceDetailPage() {
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
+      posthog.capture('invoice_pdf_downloaded', { invoice_id: id })
     } catch (error) {
       toast.error('Failed to download PDF')
     }
@@ -243,6 +254,7 @@ export function InvoiceDetailPage() {
       // Open WhatsApp with pre-filled message
       const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`
       window.open(whatsappUrl, '_blank')
+      posthog.capture('invoice_shared_whatsapp', { invoice_id: id })
     } catch (error) {
       toast.error('Failed to generate share link')
     }
@@ -260,6 +272,7 @@ export function InvoiceDetailPage() {
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
+      posthog.capture('payment_receipt_downloaded', { invoice_id: id, payment_id: paymentId })
     } catch {
       toast.error('Failed to download receipt')
     } finally {

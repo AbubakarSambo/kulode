@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 import { clientsApi } from '@/api'
+import { posthog } from '@/lib/posthog'
 
 const clientSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -50,6 +51,7 @@ export function ClientFormPage({ mode = 'create', initialData }: ClientFormPageP
     }),
     onSuccess: (client) => {
       queryClient.invalidateQueries({ queryKey: ['clients'] })
+      posthog.capture('client_created', { client_id: client.id })
       toast.success('Client created', { description: `${client.name} has been added` })
       navigate(`/clients/${client.id}`)
     },
@@ -68,6 +70,7 @@ export function ClientFormPage({ mode = 'create', initialData }: ClientFormPageP
     onSuccess: (client) => {
       queryClient.invalidateQueries({ queryKey: ['clients'] })
       queryClient.invalidateQueries({ queryKey: ['clients', initialData!.id] })
+      posthog.capture('client_updated', { client_id: client.id })
       toast.success('Client updated', { description: 'Changes have been saved' })
       navigate(`/clients/${client.id}`)
     },

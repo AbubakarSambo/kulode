@@ -8,6 +8,7 @@ import { CheckCircle, AlertCircle, Building } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Select, Card, CardContent, CardHeader, CardTitle, CardDescription, Badge } from '@/components/ui'
 import apiClient from '@/api/client'
+import { posthog } from '@/lib/posthog'
 import type { ApiResponse } from '@/types'
 
 interface PaystackStatus {
@@ -96,6 +97,7 @@ export function PaystackPage() {
     mutationFn: (data: SetupFormData) => paystackApi.setup(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['paystack-status'] })
+      posthog.capture('paystack_integration_completed')
       toast.success('Paystack setup complete', {
         description: 'You can now receive payments via Paystack',
       })

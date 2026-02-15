@@ -9,6 +9,7 @@ import { Header } from '@/components/layout'
 import { Button, Input, Label, Select, Card, CardContent, Badge } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import apiClient from '@/api/client'
+import { posthog } from '@/lib/posthog'
 import type { ApiResponse, PaginatedResponse, UserRole } from '@/types'
 
 interface UserData {
@@ -91,8 +92,9 @@ export function UsersPage() {
 
   const createMutation = useMutation({
     mutationFn: (data: UserFormData) => usersApi.create(data as CreateUserData),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
+      posthog.capture('team_member_invited', { role: variables.role })
       toast.success('User created')
       setIsModalOpen(false)
       reset()
@@ -108,6 +110,7 @@ export function UsersPage() {
     mutationFn: (id: string) => usersApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
+      posthog.capture('team_member_deactivated')
       toast.success('User deactivated')
     },
     onError: (error: any) => {

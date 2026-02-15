@@ -9,6 +9,7 @@ import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import apiClient from '@/api/client'
+import { posthog } from '@/lib/posthog'
 import type { ApiResponse } from '@/types'
 
 interface Category {
@@ -70,6 +71,7 @@ export function CategoriesPage() {
     mutationFn: (data: CategoryFormData) => categoriesApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expense-categories'] })
+      posthog.capture('expense_category_created')
       toast.success('Category created')
       closeModal()
     },
@@ -84,6 +86,7 @@ export function CategoriesPage() {
     mutationFn: (data: CategoryFormData) => categoriesApi.update(editingCategory!.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expense-categories'] })
+      posthog.capture('expense_category_updated')
       toast.success('Category updated')
       closeModal()
     },
@@ -98,6 +101,7 @@ export function CategoriesPage() {
     mutationFn: (id: string) => categoriesApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expense-categories'] })
+      posthog.capture('expense_category_deleted')
       toast.success('Category deleted')
     },
     onError: (error: any) => {
