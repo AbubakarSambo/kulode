@@ -103,15 +103,21 @@ export class ClientsService {
   async remove(id: string, organizationId: string) {
     const client = await this.prisma.client.findFirst({
       where: { id, organizationId },
-      include: { invoices: { take: 1 } },
+      include: {
+        invoices: {
+          select: { id: true, deletedAt: true },
+        },
+      },
     });
 
     if (!client) {
       throw new NotFoundException('Client not found');
     }
 
-    // If client has invoices, soft delete by deactivating
-    if (client.invoices.length > 0) {
+    const activeInvoices = client.invoices.filter((inv) => !inv.deletedAt);
+
+    // If client has active (non-deleted) invoices, soft delete by deactivating
+    if (activeInvoices.length > 0) {
       await this.prisma.client.update({
         where: { id },
         data: { isActive: false },
@@ -119,8 +125,23 @@ export class ClientsService {
       return { message: 'Client deactivated (has associated invoices)' };
     }
 
-    // Otherwise, hard delete
-    await this.prisma.client.delete({ where: { id } });
+    // All invoices are soft-deleted (or none exist) — hard delete everything in a transaction
+    const softDeletedInvoiceIds = client.invoices.map((inv) => inv.id);
+
+    await this.prisma.$transaction(async (tx) => {
+      if (softDeletedInvoiceIds.length > 0) {
+        // Delete payments first (no cascade from invoice)
+        await tx.payment.deleteMany({
+          where: { invoiceId: { in: softDeletedInvoiceIds } },
+        });
+        // Delete invoices (items and installments cascade automatically)
+        await tx.invoice.deleteMany({
+          where: { id: { in: softDeletedInvoiceIds } },
+        });
+      }
+      await tx.client.delete({ where: { id } });
+    });
+
     return { message: 'Client deleted successfully' };
   }
 }
