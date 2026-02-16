@@ -24,6 +24,7 @@ export interface CreateInvoiceData {
     quantity: number
     unitPrice: number
   }>
+  discountType?: 'PERCENTAGE' | 'FIXED'
   discountPercent?: number
   installments?: CreateInstallmentData[]
   notes?: string

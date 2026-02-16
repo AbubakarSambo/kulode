@@ -17,6 +17,7 @@ interface InvoiceData {
   dueDate: Date;
   status: string;
   subtotal: number;
+  discountType?: string;
   discountPercent?: number;
   discountAmount?: number;
   taxAmount: number;
@@ -271,7 +272,12 @@ export class InvoicePdfService {
       if (discountAmt > 0) {
         doc
           .fillColor('#10b981') // Green for discount
-          .text(`Discount (${discountPct}%)`, totalsX, currentY, { width: 100 });
+          .text(
+            invoice.discountType === 'FIXED'
+              ? `Discount (${this.formatCurrency(discountPct)})`
+              : `Discount (${discountPct}%)`,
+            totalsX, currentY, { width: 100 },
+          );
         doc
           .fillColor('#10b981')
           .text(`-${this.formatCurrency(discountAmt)}`, totalsX + 100, currentY, { 

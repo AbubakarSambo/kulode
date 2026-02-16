@@ -8,6 +8,7 @@ import {
   IsNumber,
   Min,
   IsOptional,
+  IsIn,
   ArrayMinSize,
   MaxLength,
   IsUUID,
@@ -59,7 +60,12 @@ export class UpdateInvoiceDto {
   @Type(() => UpdateInvoiceItemDto)
   items?: UpdateInvoiceItemDto[];
 
-  @ApiPropertyOptional({ example: 10, description: 'Discount percentage (0-100)' })
+  @ApiPropertyOptional({ enum: ['PERCENTAGE', 'FIXED'], default: 'PERCENTAGE' })
+  @IsOptional()
+  @IsIn(['PERCENTAGE', 'FIXED'])
+  discountType?: string;
+
+  @ApiPropertyOptional({ example: 10, description: 'Discount value (percentage 0-100 or fixed amount)' })
   @IsOptional()
   @IsNumber()
   @Min(0)

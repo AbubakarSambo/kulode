@@ -22,6 +22,7 @@ function ServiceCombobox({
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -38,6 +39,8 @@ function ServiceCombobox({
     (item) => item.name.toLowerCase().includes(query.toLowerCase()),
   )
 
+  const selected = selectedId ? items.find((i) => i.id === selectedId) : null
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -45,8 +48,12 @@ function ServiceCombobox({
         onClick={() => { setOpen(!open); setQuery('') }}
         className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
       >
-        <span className="text-muted-foreground">Select a service...</span>
-        <ChevronDown className="h-4 w-4 opacity-50" />
+        {selected ? (
+          <span className="truncate">{selected.name} - {formatCurrency(selected.unitPrice)}</span>
+        ) : (
+          <span className="text-muted-foreground">Select a service...</span>
+        )}
+        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
       </button>
       {open && (
         <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-lg">
@@ -65,7 +72,7 @@ function ServiceCombobox({
               <button
                 key={item.id}
                 type="button"
-                onClick={() => { onSelect(item.id); setOpen(false); setQuery('') }}
+                onClick={() => { setSelectedId(item.id); onSelect(item.id); setOpen(false); setQuery('') }}
                 className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
               >
                 <span>{item.name}</span>
@@ -77,7 +84,7 @@ function ServiceCombobox({
             )}
             <button
               type="button"
-              onClick={() => { onSelect('custom'); setOpen(false); setQuery('') }}
+              onClick={() => { setSelectedId(null); onSelect('custom'); setOpen(false); setQuery('') }}
               className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             >
               Custom item
@@ -105,7 +112,8 @@ const invoiceSchema = z.object({
   issueDate: z.string().min(1, 'Issue date is required'),
   dueDate: z.string().min(1, 'Due date is required'),
   items: z.array(invoiceItemSchema).min(1, 'At least one item is required'),
-  discountPercent: z.number().min(0).max(100).optional(),
+  discountType: z.enum(['PERCENTAGE', 'FIXED']).optional(),
+  discountPercent: z.number().min(0).optional(),
   installments: z.array(installmentSchema).optional(),
   notes: z.string().optional(),
   terms: z.string().optional(),
@@ -149,6 +157,7 @@ export function NewInvoicePage() {
       issueDate: new Date().toISOString().split('T')[0],
       dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       items: [{ description: '', quantity: 1, unitPrice: 0 }],
+      discountType: 'PERCENTAGE',
       discountPercent: 0,
       installments: [],
       notes: '',
@@ -190,11 +199,14 @@ export function NewInvoicePage() {
   const installmentsTotal = watchInstallments.reduce((sum, inst) => sum + (inst?.percentage || 0), 0)
 
   const watchItems = watch('items')
+  const watchDiscountType = watch('discountType') || 'PERCENTAGE'
   const watchDiscount = watch('discountPercent') || 0
   const subtotal = watchItems.reduce((sum, item) => {
     return sum + (item.quantity || 0) * (item.unitPrice || 0)
   }, 0)
-  const discountAmount = subtotal * (watchDiscount / 100)
+  const discountAmount = watchDiscountType === 'FIXED'
+    ? Math.min(watchDiscount, subtotal)
+    : subtotal * (watchDiscount / 100)
   const afterDiscount = subtotal - discountAmount
   const vat = afterDiscount * 0.075
   const total = afterDiscount + vat
@@ -211,6 +223,7 @@ export function NewInvoicePage() {
       
       return invoicesApi.create({
         ...data,
+        discountType: data.discountType || 'PERCENTAGE',
         discountPercent: Number(data.discountPercent) || 0,
         items: data.items.map(item => ({
           description: item.description,
@@ -404,22 +417,40 @@ export function NewInvoicePage() {
                       {/* Discount Input */}
                       <div className="flex items-center justify-between gap-4">
                         <span className="text-muted-foreground">Discount</span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
                           <Input
                             type="number"
-                            step="1"
+                            step={watchDiscountType === 'PERCENTAGE' ? '1' : '0.01'}
                             min="0"
-                            max="100"
-                            className="w-20 text-right"
+                            max={watchDiscountType === 'PERCENTAGE' ? '100' : undefined}
+                            className="w-24 text-right"
                             {...register('discountPercent', { valueAsNumber: true })}
                           />
-                          <span className="text-muted-foreground">%</span>
+                          <div className="flex rounded-md border">
+                            <button
+                              type="button"
+                              onClick={() => setValue('discountType', 'PERCENTAGE')}
+                              className={`px-2 py-1 text-xs rounded-l-md transition-colors ${watchDiscountType === 'PERCENTAGE' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+                            >
+                              %
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setValue('discountType', 'FIXED')}
+                              className={`px-2 py-1 text-xs rounded-r-md transition-colors ${watchDiscountType === 'FIXED' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+                            >
+                              &#8358;
+                            </button>
+                          </div>
                         </div>
                       </div>
-                      
+
                       {discountAmount > 0 && (
                         <div className="flex justify-between text-success">
-                          <span>Discount ({watchDiscount}%)</span>
+                          <span>
+                            Discount
+                            {watchDiscountType === 'PERCENTAGE' ? ` (${watchDiscount}%)` : ''}
+                          </span>
                           <span>-{formatCurrency(discountAmount)}</span>
                         </div>
                       )}

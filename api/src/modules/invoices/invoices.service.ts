@@ -148,6 +148,7 @@ export class InvoicesService {
       dueDate: invoice.dueDate,
       status: invoice.status,
       subtotal: Number(invoice.subtotal),
+      discountType: invoice.discountType,
       discountPercent: Number(invoice.discountPercent),
       discountAmount: Number(invoice.discountAmount),
       taxAmount: Number(invoice.taxAmount),
@@ -203,8 +204,11 @@ export class InvoicesService {
     }));
 
     const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
+    const discountType = dto.discountType || 'PERCENTAGE';
     const discountPercent = dto.discountPercent || 0;
-    const discountAmount = subtotal * (discountPercent / 100);
+    const discountAmount = discountType === 'FIXED'
+      ? discountPercent
+      : subtotal * (discountPercent / 100);
     const afterDiscount = subtotal - discountAmount;
     const taxAmount = afterDiscount * 0.075; // Fixed 7.5% VAT
     const total = afterDiscount + taxAmount;
@@ -226,6 +230,7 @@ export class InvoicesService {
         issueDate: dto.issueDate,
         dueDate: dto.dueDate,
         subtotal,
+        discountType,
         discountPercent,
         discountAmount,
         taxAmount,
@@ -288,8 +293,13 @@ export class InvoicesService {
     if (typeof dto.discountPercent === 'number') {
       updateData.discountPercent = dto.discountPercent;
     }
+    if (dto.discountType) {
+      updateData.discountType = dto.discountType;
+    }
 
     // If items are being updated or discount changed, recalculate totals
+    const discountChanged = typeof dto.discountPercent === 'number' || dto.discountType !== undefined;
+
     if (dto.items && dto.items.length > 0) {
       // Delete existing items and create new ones
       await this.prisma.invoiceItem.deleteMany({
@@ -307,8 +317,11 @@ export class InvoicesService {
       await this.prisma.invoiceItem.createMany({ data: items });
 
       const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
+      const discountType = dto.discountType ?? invoice.discountType;
       const discountPercent = dto.discountPercent ?? Number(invoice.discountPercent);
-      const discountAmount = subtotal * (discountPercent / 100);
+      const discountAmount = discountType === 'FIXED'
+        ? discountPercent
+        : subtotal * (discountPercent / 100);
       const afterDiscount = subtotal - discountAmount;
       const taxAmount = afterDiscount * 0.075; // Fixed 7.5% VAT
       const total = afterDiscount + taxAmount;
@@ -316,22 +329,27 @@ export class InvoicesService {
       updateData = {
         ...updateData,
         subtotal,
+        discountType,
         discountPercent,
         discountAmount,
         taxAmount,
         total,
       };
-    } else if (typeof dto.discountPercent === 'number') {
+    } else if (discountChanged) {
       // Only discount changed, recalculate
       const subtotal = Number(invoice.subtotal);
-      const discountPercent = dto.discountPercent;
-      const discountAmount = subtotal * (discountPercent / 100);
+      const discountType = dto.discountType ?? invoice.discountType;
+      const discountPercent = dto.discountPercent ?? Number(invoice.discountPercent);
+      const discountAmount = discountType === 'FIXED'
+        ? discountPercent
+        : subtotal * (discountPercent / 100);
       const afterDiscount = subtotal - discountAmount;
       const taxAmount = afterDiscount * 0.075; // Fixed 7.5% VAT
       const total = afterDiscount + taxAmount;
 
       updateData = {
         ...updateData,
+        discountType,
         discountPercent,
         discountAmount,
         taxAmount,
@@ -493,6 +511,7 @@ export class InvoicesService {
       dueDate: invoice.dueDate,
       status: invoice.status,
       subtotal: Number(invoice.subtotal),
+      discountType: invoice.discountType,
       discountPercent: Number(invoice.discountPercent),
       discountAmount: Number(invoice.discountAmount),
       taxAmount: Number(invoice.taxAmount),

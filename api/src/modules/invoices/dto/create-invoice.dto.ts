@@ -11,6 +11,7 @@ import {
   Min,
   Max,
   IsOptional,
+  IsIn,
   ArrayMinSize,
   MaxLength,
 } from 'class-validator';
@@ -72,7 +73,12 @@ export class CreateInvoiceDto {
   @Type(() => CreateInvoiceItemDto)
   items: CreateInvoiceItemDto[];
 
-  @ApiPropertyOptional({ example: 10, description: 'Discount percentage (0-100)' })
+  @ApiPropertyOptional({ enum: ['PERCENTAGE', 'FIXED'], default: 'PERCENTAGE' })
+  @IsOptional()
+  @IsIn(['PERCENTAGE', 'FIXED'])
+  discountType?: string;
+
+  @ApiPropertyOptional({ example: 10, description: 'Discount value (percentage 0-100 or fixed amount)' })
   @IsOptional()
   @IsNumber()
   @Min(0)

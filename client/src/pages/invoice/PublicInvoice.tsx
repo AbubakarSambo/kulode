@@ -13,6 +13,7 @@ interface PublicInvoiceData {
   dueDate: string
   status: InvoiceStatus
   subtotal: number
+  discountType?: string
   discountPercent?: number
   discountAmount?: number
   taxAmount: number
@@ -208,7 +209,9 @@ export function PublicInvoicePage() {
                   </tr>
                   {(invoice.discountAmount || 0) > 0 && (
                     <tr className="text-success">
-                      <td colSpan={3} className="py-1 text-right">Discount ({invoice.discountPercent}%)</td>
+                      <td colSpan={3} className="py-1 text-right">
+                        Discount{invoice.discountType !== 'FIXED' ? ` (${invoice.discountPercent}%)` : ''}
+                      </td>
                       <td className="py-1 text-right">-{formatCurrency(invoice.discountAmount || 0)}</td>
                     </tr>
                   )}
