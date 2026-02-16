@@ -1,16 +1,93 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Search } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Select, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 import { clientsApi, invoicesApi, organizationsApi } from '@/api'
 import { formatCurrency } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
+import type { ServiceItem } from '@/types'
+
+function ServiceCombobox({
+  items,
+  onSelect,
+}: {
+  items: ServiceItem[]
+  onSelect: (id: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const filtered = items.filter(
+    (item) => item.name.toLowerCase().includes(query.toLowerCase()),
+  )
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => { setOpen(!open); setQuery('') }}
+        className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+      >
+        <span className="text-muted-foreground">Select a service...</span>
+        <ChevronDown className="h-4 w-4 opacity-50" />
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-lg">
+          <div className="flex items-center border-b px-3">
+            <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search services..."
+              className="flex h-9 w-full bg-transparent py-2 text-sm outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+          <div className="max-h-48 overflow-y-auto p-1">
+            {filtered.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => { onSelect(item.id); setOpen(false); setQuery('') }}
+                className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+              >
+                <span>{item.name}</span>
+                <span className="text-muted-foreground">{formatCurrency(item.unitPrice)}</span>
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <p className="px-2 py-4 text-center text-sm text-muted-foreground">No services found</p>
+            )}
+            <button
+              type="button"
+              onClick={() => { onSelect('custom'); setOpen(false); setQuery('') }}
+              className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            >
+              Custom item
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 const invoiceItemSchema = z.object({
   description: z.string(),
@@ -257,18 +334,10 @@ export function NewInvoicePage() {
                     <div key={field.id} className="rounded-lg border p-3 space-y-3 sm:border-0 sm:p-0 sm:space-y-0 sm:grid sm:grid-cols-12 sm:gap-4 sm:items-start">
                       <div className="sm:col-span-5 space-y-2">
                         <label className="text-xs text-muted-foreground sm:hidden">Service / Description</label>
-                        <Select
-                          onChange={(e) => handleServiceItemSelect(index, e.target.value)}
-                          defaultValue=""
-                        >
-                          <option value="">Select a service...</option>
-                          {serviceItems?.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.name} - {formatCurrency(item.unitPrice)}
-                            </option>
-                          ))}
-                          <option value="custom">Custom item</option>
-                        </Select>
+                        <ServiceCombobox
+                          items={serviceItems || []}
+                          onSelect={(id) => handleServiceItemSelect(index, id)}
+                        />
                         <Input
                           placeholder="Description"
                           {...register(`items.${index}.description`)}
