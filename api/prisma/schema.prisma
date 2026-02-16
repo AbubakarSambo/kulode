@@ -55,7 +55,9 @@ model Organization {
   invoicePrefix          String   @default("INV") @map("invoice_prefix")
   currency               String   @default("NGN")
   taxRate                Decimal  @default(0) @map("tax_rate") @db.Decimal(5, 2)
-  
+  paymentTerms           String?  @map("payment_terms")
+  defaultNotes           String?  @map("default_notes")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

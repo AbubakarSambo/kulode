@@ -1,8 +1,9 @@
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Select, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
@@ -24,17 +25,34 @@ const expenseSchema = z.object({
 type ExpenseFormData = z.infer<typeof expenseSchema>
 
 export function NewExpensePage() {
+  return <ExpenseForm />
+}
+
+export function EditExpensePage() {
+  const { id } = useParams<{ id: string }>()
+  return <ExpenseForm expenseId={id} />
+}
+
+function ExpenseForm({ expenseId }: { expenseId?: string }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const isEditing = !!expenseId
 
   const { data: categories } = useQuery({
     queryKey: ['expense-categories'],
     queryFn: () => expensesApi.listCategories(),
   })
 
+  const { data: expense, isLoading: isLoadingExpense } = useQuery({
+    queryKey: ['expenses', expenseId],
+    queryFn: () => expensesApi.get(expenseId!),
+    enabled: isEditing,
+  })
+
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors },
   } = useForm<ExpenseFormData>({
     resolver: zodResolver(expenseSchema),
@@ -49,6 +67,21 @@ export function NewExpensePage() {
       notes: '',
     },
   })
+
+  useEffect(() => {
+    if (expense) {
+      reset({
+        description: expense.description,
+        amount: expense.amount,
+        expenseDate: new Date(expense.expenseDate).toISOString().split('T')[0],
+        categoryId: expense.category?.id ?? '',
+        recipient: expense.recipient ?? '',
+        paymentMethod: expense.paymentMethod as ExpenseFormData['paymentMethod'],
+        reference: expense.reference ?? '',
+        notes: expense.notes ?? '',
+      })
+    }
+  }, [expense, reset])
 
   const createMutation = useMutation({
     mutationFn: (data: ExpenseFormData) => expensesApi.create({
@@ -70,15 +103,48 @@ export function NewExpensePage() {
     },
   })
 
+  const updateMutation = useMutation({
+    mutationFn: (data: ExpenseFormData) => expensesApi.update(expenseId!, {
+      ...data,
+      amount: Number(data.amount),
+      categoryId: data.categoryId || undefined,
+      paymentMethod: data.paymentMethod as PaymentMethod,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['expenses'] })
+      toast.success('Expense updated')
+      navigate('/expenses')
+    },
+    onError: (error: any) => {
+      toast.error('Failed to update expense', {
+        description: error.response?.data?.message || 'Please try again',
+      })
+    },
+  })
+
   const onSubmit = (data: ExpenseFormData) => {
-    createMutation.mutate(data)
+    if (isEditing) {
+      updateMutation.mutate(data)
+    } else {
+      createMutation.mutate(data)
+    }
+  }
+
+  const isPending = createMutation.isPending || updateMutation.isPending
+
+  if (isEditing && isLoadingExpense) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    )
   }
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <Header
-        title="New Expense"
-        description="Record a business expense"
+        title={isEditing ? 'Edit Expense' : 'New Expense'}
+        description={isEditing ? 'Update expense details' : 'Record a business expense'}
       />
 
       <div className="flex-1 overflow-auto p-4 sm:p-6">
@@ -181,8 +247,8 @@ export function NewExpensePage() {
               </div>
 
               <div className="flex gap-3 pt-4">
-                <Button type="submit" isLoading={createMutation.isPending}>
-                  Record Expense
+                <Button type="submit" isLoading={isPending}>
+                  {isEditing ? 'Update Expense' : 'Record Expense'}
                 </Button>
                 <Button type="button" variant="outline" onClick={() => navigate(-1)}>
                   Cancel

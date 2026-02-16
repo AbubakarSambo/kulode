@@ -196,7 +196,7 @@ export class InvoicesService {
 
     // Calculate totals
     const items = dto.items.map((item) => ({
-      description: item.description,
+      description: item.description || '',
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       amount: item.quantity * item.unitPrice,
@@ -230,8 +230,8 @@ export class InvoicesService {
         discountAmount,
         taxAmount,
         total,
-        notes: dto.notes,
-        terms: dto.terms,
+        notes: dto.notes || organization!.defaultNotes || null,
+        terms: dto.terms || organization!.paymentTerms || null,
         items: {
           create: items,
         },

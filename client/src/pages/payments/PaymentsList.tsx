@@ -1,16 +1,20 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Download } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Download, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Badge } from '@/components/ui'
 import { paymentsApi } from '@/api'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
+import { useAuthStore } from '@/stores/auth'
 
 export function PaymentsListPage() {
   const [page, setPage] = useState(1)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const user = useAuthStore((s) => s.user)
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN'
 
   const handleDownloadReceipt = async (paymentId: string, invoiceNumber: string) => {
     setDownloadingId(paymentId)
@@ -89,14 +93,23 @@ export function PaymentsListPage() {
                         +{formatCurrency(payment.amount)}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDownloadReceipt(payment.id, payment.invoice?.invoiceNumber || 'unknown')}
-                          disabled={downloadingId === payment.id}
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          {isSuperAdmin && (
+                            <Link to={`/payments/${payment.id}/edit`}>
+                              <Button variant="ghost" size="sm">
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </Link>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDownloadReceipt(payment.id, payment.invoice?.invoiceNumber || 'unknown')}
+                            disabled={downloadingId === payment.id}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}

@@ -8,7 +8,7 @@ export { DashboardPage } from './dashboard/Dashboard'
 // Clients
 export { ClientsListPage } from './clients/ClientsList'
 export { ClientDetailPage } from './clients/ClientDetail'
-export { NewClientPage } from './clients/ClientForm'
+export { NewClientPage, EditClientPage } from './clients/ClientForm'
 
 // Invoices
 export { InvoicesListPage } from './invoices/InvoicesList'
@@ -17,10 +17,11 @@ export { NewInvoicePage } from './invoices/InvoiceForm'
 
 // Payments
 export { PaymentsListPage } from './payments/PaymentsList'
+export { EditPaymentPage } from './payments/PaymentForm'
 
 // Expenses
 export { ExpensesListPage } from './expenses/ExpensesList'
-export { NewExpensePage } from './expenses/ExpenseForm'
+export { NewExpensePage, EditExpensePage } from './expenses/ExpenseForm'
 
 // Reports
 export { ReportsPage } from './reports/Reports'
@@ -31,6 +32,7 @@ export { UsersPage } from './settings/UsersPage'
 export { PaystackPage } from './settings/PaystackPage'
 export { CategoriesPage } from './settings/CategoriesPage'
 export { ServiceItemsPage } from './settings/ServiceItemsPage'
+export { OrganizationPage } from './settings/OrganizationPage'
 
 // Payment (public)
 export { PaymentCallbackPage } from './payment/PaymentCallback'

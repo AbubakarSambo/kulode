@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreatePaymentDto, PaymentFilterDto } from './dto';
+import { CreatePaymentDto, UpdatePaymentDto, PaymentFilterDto } from './dto';
 import { paginate } from '../../common';
 
 @Injectable()
@@ -153,6 +153,85 @@ export class PaymentsService {
     });
 
     return result;
+  }
+
+  async update(id: string, organizationId: string, dto: UpdatePaymentDto) {
+    const payment = await this.prisma.payment.findFirst({
+      where: { id, organizationId },
+      include: { invoice: true },
+    });
+
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+
+    // If amount is changing, update invoice transactionally
+    if (dto.amount !== undefined && dto.amount !== Number(payment.amount)) {
+      const oldAmount = Number(payment.amount);
+      const newAmount = dto.amount;
+      const invoice = payment.invoice;
+
+      // Calculate remaining balance: what the invoice can still accept
+      const remainingBalance =
+        Number(invoice.total) - Number(invoice.amountPaid) + oldAmount;
+
+      if (newAmount > remainingBalance) {
+        throw new BadRequestException(
+          `Payment amount exceeds remaining balance of ${remainingBalance}`,
+        );
+      }
+
+      return this.prisma.$transaction(async (tx) => {
+        const updated = await tx.payment.update({
+          where: { id },
+          data: {
+            ...dto,
+            paymentDate: dto.paymentDate ? new Date(dto.paymentDate) : undefined,
+          },
+          include: {
+            invoice: {
+              select: { id: true, invoiceNumber: true },
+            },
+          },
+        });
+
+        const newAmountPaid =
+          Number(invoice.amountPaid) - oldAmount + newAmount;
+        let newStatus = invoice.status;
+
+        if (newAmountPaid >= Number(invoice.total)) {
+          newStatus = 'PAID';
+        } else if (newAmountPaid > 0) {
+          newStatus = 'PARTIALLY_PAID';
+        } else {
+          newStatus = 'SENT';
+        }
+
+        await tx.invoice.update({
+          where: { id: invoice.id },
+          data: {
+            amountPaid: Math.max(0, newAmountPaid),
+            status: newStatus,
+          },
+        });
+
+        return updated;
+      });
+    }
+
+    // No amount change — simple update
+    return this.prisma.payment.update({
+      where: { id },
+      data: {
+        ...dto,
+        paymentDate: dto.paymentDate ? new Date(dto.paymentDate) : undefined,
+      },
+      include: {
+        invoice: {
+          select: { id: true, invoiceNumber: true },
+        },
+      },
+    });
   }
 
   async remove(id: string, organizationId: string) {

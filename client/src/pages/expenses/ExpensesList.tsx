@@ -1,14 +1,17 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Plus } from 'lucide-react'
+import { Plus, Pencil } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Badge } from '@/components/ui'
 import { expensesApi } from '@/api'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth'
 
 export function ExpensesListPage() {
   const [page, setPage] = useState(1)
+  const user = useAuthStore((s) => s.user)
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN'
 
   const { data, isLoading } = useQuery({
     queryKey: ['expenses', { page }],
@@ -54,6 +57,7 @@ export function ExpensesListPage() {
                     <th className="px-4 py-3 text-left text-sm font-medium">Date</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Method</th>
                     <th className="px-4 py-3 text-right text-sm font-medium">Amount</th>
+                    {isSuperAdmin && <th className="px-4 py-3 text-right text-sm font-medium"></th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -79,6 +83,15 @@ export function ExpensesListPage() {
                       <td className="px-4 py-3 text-right font-medium text-destructive">
                         -{formatCurrency(expense.amount)}
                       </td>
+                      {isSuperAdmin && (
+                        <td className="px-4 py-3 text-right">
+                          <Link to={`/expenses/${expense.id}/edit`}>
+                            <Button variant="ghost" size="sm">
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

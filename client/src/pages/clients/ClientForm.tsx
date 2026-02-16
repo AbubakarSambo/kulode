@@ -1,8 +1,8 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
@@ -175,4 +175,44 @@ export function ClientFormPage({ mode = 'create', initialData }: ClientFormPageP
 
 export function NewClientPage() {
   return <ClientFormPage mode="create" />
+}
+
+export function EditClientPage() {
+  const { id } = useParams<{ id: string }>()
+
+  const { data: client, isLoading } = useQuery({
+    queryKey: ['clients', id],
+    queryFn: () => clientsApi.get(id!),
+    enabled: !!id,
+  })
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (!client) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <p className="text-muted-foreground">Client not found</p>
+      </div>
+    )
+  }
+
+  return (
+    <ClientFormPage
+      mode="edit"
+      initialData={{
+        id: client.id,
+        name: client.name,
+        email: client.email || '',
+        phone: client.phone || '',
+        address: client.address || '',
+        notes: client.notes || '',
+      }}
+    />
+  )
 }

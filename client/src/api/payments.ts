@@ -18,6 +18,8 @@ export interface CreatePaymentData {
   notes?: string
 }
 
+export type UpdatePaymentData = Partial<CreatePaymentData>
+
 export const paymentsApi = {
   list: async (filters: PaymentFilters = {}): Promise<PaginatedResponse<Payment>> => {
     const params = new URLSearchParams()
@@ -39,6 +41,11 @@ export const paymentsApi = {
 
   createForInvoice: async (invoiceId: string, data: CreatePaymentData): Promise<Payment> => {
     const response = await apiClient.post<ApiResponse<Payment>>(`/invoices/${invoiceId}/payments`, data)
+    return response.data.data
+  },
+
+  update: async (id: string, data: UpdatePaymentData): Promise<Payment> => {
+    const response = await apiClient.patch<ApiResponse<Payment>>(`/payments/${id}`, data)
     return response.data.data
   },
 

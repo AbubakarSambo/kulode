@@ -9,10 +9,10 @@ import {
   Query,
   ParseUUIDPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ClientsService } from './clients.service';
-import { CreateClientDto, UpdateClientDto } from './dto';
-import { CurrentUser, PaginationDto } from '../../common';
+import { CreateClientDto, UpdateClientDto, ClientFilterDto } from './dto';
+import { CurrentUser } from '../../common';
 
 @ApiTags('Clients')
 @ApiBearerAuth()
@@ -22,14 +22,12 @@ export class ClientsController {
 
   @Get()
   @ApiOperation({ summary: 'List all clients' })
-  @ApiQuery({ name: 'search', required: false })
   @ApiResponse({ status: 200, description: 'List of clients' })
   async findAll(
     @CurrentUser('organizationId') organizationId: string,
-    @Query() pagination: PaginationDto,
-    @Query('search') search?: string,
+    @Query() filter: ClientFilterDto,
   ) {
-    return this.clientsService.findAll(organizationId, pagination, search);
+    return this.clientsService.findAll(organizationId, filter);
   }
 
   @Get(':id')

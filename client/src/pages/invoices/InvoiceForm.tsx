@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -8,12 +8,12 @@ import { toast } from 'sonner'
 import { Plus, Trash2 } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Select, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
-import { clientsApi, invoicesApi } from '@/api'
+import { clientsApi, invoicesApi, organizationsApi } from '@/api'
 import { formatCurrency } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
 
 const invoiceItemSchema = z.object({
-  description: z.string().min(1, 'Description is required'),
+  description: z.string(),
   quantity: z.number().min(0.01, 'Quantity must be greater than 0'),
   unitPrice: z.number().min(0, 'Price must be 0 or greater'),
 })
@@ -53,6 +53,11 @@ export function NewInvoicePage() {
     queryFn: () => invoicesApi.listServiceItems(),
   })
 
+  const { data: organization } = useQuery({
+    queryKey: ['organization'],
+    queryFn: () => organizationsApi.getCurrent(),
+  })
+
   const {
     register,
     control,
@@ -83,6 +88,15 @@ export function NewInvoicePage() {
     control,
     name: 'installments',
   })
+
+  useEffect(() => {
+    if (organization?.paymentTerms && !watch('terms')) {
+      setValue('terms', organization.paymentTerms)
+    }
+    if (organization?.defaultNotes && !watch('notes')) {
+      setValue('notes', organization.defaultNotes)
+    }
+  }, [organization, setValue, watch])
 
   const handleServiceItemSelect = (index: number, serviceItemId: string) => {
     if (serviceItemId === 'custom') {

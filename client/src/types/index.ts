@@ -40,6 +40,8 @@ export interface Organization {
   invoicePrefix: string
   currency: string
   taxRate: number
+  paymentTerms?: string
+  defaultNotes?: string
   isPaystackVerified: boolean
   bankAccountName?: string
   settlementBank?: string

@@ -61,7 +61,7 @@ export class ExpensesController {
   }
 
   @Patch('expenses/:id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.ACCOUNTANT)
+  @Roles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Update expense' })
   @ApiResponse({ status: 200, description: 'Expense updated' })
   @ApiResponse({ status: 404, description: 'Expense not found' })

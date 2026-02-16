@@ -44,4 +44,16 @@ export class UpdateOrganizationDto {
   @Min(0)
   @Max(100)
   taxRate?: number;
+
+  @ApiPropertyOptional({ example: 'Payment due within 30 days of invoice date.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  paymentTerms?: string;
+
+  @ApiPropertyOptional({ example: 'Thank you for your business!' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  defaultNotes?: string;
 }

@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Delete,
   Body,
   Param,
@@ -13,7 +14,7 @@ import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
 import { ReceiptPdfService } from './receipt-pdf.service';
-import { CreatePaymentDto, PaymentFilterDto } from './dto';
+import { CreatePaymentDto, UpdatePaymentDto, PaymentFilterDto } from './dto';
 import { CurrentUser, CurrentUserData, Roles, Role } from '../../common';
 
 @ApiTags('Payments')
@@ -65,6 +66,19 @@ export class PaymentsController {
       user.id,
       dto,
     );
+  }
+
+  @Patch('payments/:id')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Update payment' })
+  @ApiResponse({ status: 200, description: 'Payment updated' })
+  @ApiResponse({ status: 404, description: 'Payment not found' })
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePaymentDto,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.paymentsService.update(id, organizationId, dto);
   }
 
   @Delete('payments/:id')

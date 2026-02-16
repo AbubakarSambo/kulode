@@ -30,11 +30,11 @@ export class CreateInstallmentDto {
 }
 
 export class CreateInvoiceItemDto {
-  @ApiProperty({ example: 'Carpet cleaning - living room' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ example: 'Carpet cleaning - living room' })
+  @IsOptional()
   @IsString()
   @MaxLength(255)
-  description: string;
+  description?: string;
 
   @ApiProperty({ example: 2 })
   @IsNumber()

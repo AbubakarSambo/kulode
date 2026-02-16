@@ -10,18 +10,22 @@ import {
   ClientsListPage,
   ClientDetailPage,
   NewClientPage,
+  EditClientPage,
   InvoicesListPage,
   InvoiceDetailPage,
   NewInvoicePage,
   PaymentsListPage,
+  EditPaymentPage,
   ExpensesListPage,
   NewExpensePage,
+  EditExpensePage,
   ReportsPage,
   SettingsPage,
   UsersPage,
   PaystackPage,
   CategoriesPage,
   ServiceItemsPage,
+  OrganizationPage,
   PaymentCallbackPage,
   PublicInvoicePage,
 } from '@/pages'
@@ -56,6 +60,7 @@ function App() {
               <Route path="/clients" element={<ClientsListPage />} />
               <Route path="/clients/new" element={<NewClientPage />} />
               <Route path="/clients/:id" element={<ClientDetailPage />} />
+              <Route path="/clients/:id/edit" element={<EditClientPage />} />
               
               {/* Invoices */}
               <Route path="/invoices" element={<InvoicesListPage />} />
@@ -64,16 +69,23 @@ function App() {
               
               {/* Payments */}
               <Route path="/payments" element={<PaymentsListPage />} />
-              
+
               {/* Expenses */}
               <Route path="/expenses" element={<ExpensesListPage />} />
               <Route path="/expenses/new" element={<NewExpensePage />} />
+
+              {/* Super Admin only */}
+              <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']} />}>
+                <Route path="/payments/:id/edit" element={<EditPaymentPage />} />
+                <Route path="/expenses/:id/edit" element={<EditExpensePage />} />
+              </Route>
               
               {/* Reports */}
               <Route path="/reports" element={<ReportsPage />} />
               
               {/* Settings */}
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/settings/organization" element={<OrganizationPage />} />
               <Route path="/settings/users" element={<UsersPage />} />
               <Route path="/settings/paystack" element={<PaystackPage />} />
               <Route path="/settings/categories" element={<CategoriesPage />} />

@@ -1,14 +1,33 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { FileText, CreditCard, TrendingUp, TrendingDown, AlertCircle } from 'lucide-react'
 import { Header } from '@/components/layout'
-import { Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui'
-import { reportsApi } from '@/api'
+import { Card, CardContent, CardHeader, CardTitle, Badge, Select, Input } from '@/components/ui'
+import { reportsApi, type ReportPeriod } from '@/api/reports'
 import { formatCurrency } from '@/lib/utils'
 
+const periodLabels: Record<ReportPeriod, string> = {
+  THIS_MONTH: 'this month',
+  LAST_MONTH: 'last month',
+  THIS_QUARTER: 'this quarter',
+  LAST_QUARTER: 'last quarter',
+  THIS_YEAR: 'this year',
+  LAST_YEAR: 'last year',
+  CUSTOM: 'the selected period',
+}
+
 export function DashboardPage() {
+  const [period, setPeriod] = useState<ReportPeriod>('THIS_MONTH')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+
+  const filters = period === 'CUSTOM'
+    ? { period, startDate: startDate || undefined, endDate: endDate || undefined }
+    : { period }
+
   const { data: summary } = useQuery({
-    queryKey: ['reports', 'summary'],
-    queryFn: () => reportsApi.getSummary({ period: 'THIS_MONTH' }),
+    queryKey: ['reports', 'summary', period, startDate, endDate],
+    queryFn: () => reportsApi.getSummary(filters),
   })
 
   const { data: outstanding } = useQuery({
@@ -53,9 +72,42 @@ export function DashboardPage() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <Header 
-        title="Dashboard" 
-        description="Overview of your business performance this month"
+      <Header
+        title="Dashboard"
+        description={`Overview of your business performance ${periodLabels[period]}`}
+        action={
+          <div className="flex items-center gap-2">
+            <Select
+              value={period}
+              onChange={(e) => setPeriod(e.target.value as ReportPeriod)}
+              className="w-40"
+            >
+              <option value="THIS_MONTH">This Month</option>
+              <option value="LAST_MONTH">Last Month</option>
+              <option value="THIS_QUARTER">This Quarter</option>
+              <option value="LAST_QUARTER">Last Quarter</option>
+              <option value="THIS_YEAR">This Year</option>
+              <option value="LAST_YEAR">Last Year</option>
+              <option value="CUSTOM">Custom</option>
+            </Select>
+            {period === 'CUSTOM' && (
+              <>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-36"
+                />
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-36"
+                />
+              </>
+            )}
+          </div>
+        }
       />
       
       <div className="flex-1 overflow-auto p-4 sm:p-6">

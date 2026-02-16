@@ -128,7 +128,7 @@ export class ReportsService {
         SUM(amount)::numeric as total,
         COUNT(*)::integer as count
       FROM payments
-      WHERE organization_id = ${organizationId}::uuid
+      WHERE organization_id = ${organizationId}
         AND payment_date >= ${startDate}
         AND payment_date <= ${endDate}
       GROUP BY TO_CHAR(payment_date, 'YYYY-MM')
@@ -158,7 +158,7 @@ export class ReportsService {
       FROM payments p
       JOIN invoices i ON p.invoice_id = i.id
       JOIN clients c ON i.client_id = c.id
-      WHERE p.organization_id = ${organizationId}::uuid
+      WHERE p.organization_id = ${organizationId}
         AND p.payment_date >= ${startDate}
         AND p.payment_date <= ${endDate}
       GROUP BY c.id, c.name
@@ -195,7 +195,7 @@ export class ReportsService {
         SUM(amount)::numeric as total,
         COUNT(*)::integer as count
       FROM expenses
-      WHERE organization_id = ${organizationId}::uuid
+      WHERE organization_id = ${organizationId}
         AND expense_date >= ${startDate}
         AND expense_date <= ${endDate}
         AND deleted_at IS NULL
@@ -214,7 +214,7 @@ export class ReportsService {
         COUNT(*)::integer as count
       FROM expenses e
       LEFT JOIN expense_categories ec ON e.category_id = ec.id
-      WHERE e.organization_id = ${organizationId}::uuid
+      WHERE e.organization_id = ${organizationId}
         AND e.expense_date >= ${startDate}
         AND e.expense_date <= ${endDate}
         AND e.deleted_at IS NULL
@@ -296,7 +296,7 @@ export class ReportsService {
         TO_CHAR(payment_date, 'YYYY-MM') as month,
         SUM(amount)::numeric as total
       FROM payments
-      WHERE organization_id = ${organizationId}::uuid
+      WHERE organization_id = ${organizationId}
         AND payment_date >= ${startDate}
         AND payment_date <= ${endDate}
       GROUP BY TO_CHAR(payment_date, 'YYYY-MM')
@@ -309,7 +309,7 @@ export class ReportsService {
         TO_CHAR(expense_date, 'YYYY-MM') as month,
         SUM(amount)::numeric as total
       FROM expenses
-      WHERE organization_id = ${organizationId}::uuid
+      WHERE organization_id = ${organizationId}
         AND expense_date >= ${startDate}
         AND expense_date <= ${endDate}
         AND deleted_at IS NULL
