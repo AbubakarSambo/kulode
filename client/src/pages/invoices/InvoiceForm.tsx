@@ -334,15 +334,21 @@ export function NewInvoicePage() {
                     <div key={field.id} className="rounded-lg border p-3 space-y-3 sm:border-0 sm:p-0 sm:space-y-0 sm:grid sm:grid-cols-12 sm:gap-4 sm:items-start">
                       <div className="sm:col-span-5 space-y-2">
                         <label className="text-xs text-muted-foreground sm:hidden">Service / Description</label>
-                        <ServiceCombobox
-                          items={serviceItems || []}
-                          onSelect={(id) => handleServiceItemSelect(index, id)}
-                        />
-                        <Input
-                          placeholder="Description"
-                          {...register(`items.${index}.description`)}
-                          error={errors.items?.[index]?.description?.message}
-                        />
+                        <div className="flex flex-col gap-3 sm:flex-row sm:gap-2 sm:items-start">
+                          <div className="sm:basis-44 sm:shrink-0">
+                            <ServiceCombobox
+                              items={serviceItems || []}
+                              onSelect={(id) => handleServiceItemSelect(index, id)}
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <Input
+                              placeholder="Description"
+                              {...register(`items.${index}.description`)}
+                              error={errors.items?.[index]?.description?.message}
+                            />
+                          </div>
+                        </div>
                       </div>
                       <div className="grid grid-cols-2 gap-3 sm:contents">
                         <div className="sm:col-span-2">
