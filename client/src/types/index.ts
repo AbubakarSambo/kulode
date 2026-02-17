@@ -7,6 +7,7 @@ export interface User {
   role: UserRole
   organizationId: string
   organizationName: string
+  isEmailVerified?: boolean
 }
 
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'ACCOUNTANT' | 'STAFF'
@@ -14,6 +15,17 @@ export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'ACCOUNTANT' | 'STAFF'
 export interface AuthResponse {
   accessToken: string
   user: User
+}
+
+export interface RegisterResponse {
+  message: string
+  email: string
+}
+
+export interface TokenValidation {
+  valid: boolean
+  email?: string
+  firstName?: string
 }
 
 export interface LoginCredentials {

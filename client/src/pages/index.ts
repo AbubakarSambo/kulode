@@ -1,6 +1,9 @@
 // Auth
 export { LoginPage } from './auth/Login'
 export { RegisterPage } from './auth/Register'
+export { CheckEmailPage } from './auth/CheckEmail'
+export { VerifyEmailPage } from './auth/VerifyEmail'
+export { SetPasswordPage } from './auth/SetPassword'
 
 // Dashboard
 export { DashboardPage } from './dashboard/Dashboard'

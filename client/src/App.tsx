@@ -6,6 +6,9 @@ import { ProtectedRoute } from '@/components/shared'
 import {
   LoginPage,
   RegisterPage,
+  CheckEmailPage,
+  VerifyEmailPage,
+  SetPasswordPage,
   DashboardPage,
   ClientsListPage,
   ClientDetailPage,
@@ -47,6 +50,9 @@ function App() {
           {/* Public routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/check-email" element={<CheckEmailPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/set-password" element={<SetPasswordPage />} />
           <Route path="/payment/callback" element={<PaymentCallbackPage />} />
           <Route path="/i/:token" element={<PublicInvoicePage />} />
 

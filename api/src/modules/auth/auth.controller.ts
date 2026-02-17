@@ -1,7 +1,7 @@
-import { Controller, Post, Get, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Body, Query, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { RegisterDto, LoginDto, AuthResponseDto } from './dto';
+import { RegisterDto, LoginDto, AuthResponseDto, VerifyEmailDto, SetPasswordDto, ResendVerificationDto } from './dto';
 import { Public, CurrentUser, CurrentUserData } from '../../common';
 
 @ApiTags('Auth')
@@ -12,9 +12,9 @@ export class AuthController {
   @Public()
   @Post('register')
   @ApiOperation({ summary: 'Register a new organization and super admin' })
-  @ApiResponse({ status: 201, description: 'Registration successful', type: AuthResponseDto })
+  @ApiResponse({ status: 201, description: 'Registration successful' })
   @ApiResponse({ status: 409, description: 'Email or organization already exists' })
-  async register(@Body() dto: RegisterDto): Promise<AuthResponseDto> {
+  async register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
@@ -26,6 +26,46 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(@Body() dto: LoginDto): Promise<AuthResponseDto> {
     return this.authService.login(dto);
+  }
+
+  @Public()
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify email with token' })
+  @ApiResponse({ status: 200, description: 'Email verified', type: AuthResponseDto })
+  @ApiResponse({ status: 400, description: 'Invalid or expired token' })
+  async verifyEmail(@Body() dto: VerifyEmailDto): Promise<AuthResponseDto> {
+    return this.authService.verifyEmail(dto);
+  }
+
+  @Public()
+  @Post('set-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Set password for invited user' })
+  @ApiResponse({ status: 200, description: 'Password set successfully', type: AuthResponseDto })
+  @ApiResponse({ status: 400, description: 'Invalid or expired token' })
+  async setPassword(@Body() dto: SetPasswordDto): Promise<AuthResponseDto> {
+    return this.authService.setPassword(dto);
+  }
+
+  @Public()
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Resend verification email' })
+  @ApiResponse({ status: 200, description: 'Verification email sent if account exists' })
+  async resendVerification(@Body() dto: ResendVerificationDto) {
+    return this.authService.resendVerification(dto);
+  }
+
+  @Public()
+  @Get('validate-token')
+  @ApiOperation({ summary: 'Validate a verification/setup token' })
+  @ApiResponse({ status: 200, description: 'Token validation result' })
+  async validateToken(
+    @Query('token') token: string,
+    @Query('type') type: string,
+  ) {
+    return this.authService.validateToken(token, type);
   }
 
   @Get('me')

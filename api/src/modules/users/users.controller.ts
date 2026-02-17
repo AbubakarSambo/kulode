@@ -68,6 +68,18 @@ export class UsersController {
     return this.usersService.update(id, user.organizationId, dto, user.id);
   }
 
+  @Post(':id/resend-invite')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'Resend invite email to user' })
+  @ApiResponse({ status: 200, description: 'Invite resent' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async resendInvite(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.usersService.resendInvite(id, organizationId);
+  }
+
   @Delete(':id')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: 'Deactivate user' })

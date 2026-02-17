@@ -7,8 +7,11 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { RegisterDto, LoginDto, AuthResponseDto } from './dto';
+import { EmailService } from '../email/email.service';
+import { RegisterDto, LoginDto, AuthResponseDto, VerifyEmailDto, SetPasswordDto, ResendVerificationDto } from './dto';
+import { TokenType } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -16,9 +19,10 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private emailService: EmailService,
   ) {}
 
-  async register(dto: RegisterDto): Promise<AuthResponseDto> {
+  async register(dto: RegisterDto): Promise<{ message: string; email: string }> {
     // Check if email already exists
     const existingUser = await this.prisma.user.findUnique({
       where: { email: dto.email.toLowerCase() },
@@ -30,7 +34,7 @@ export class AuthService {
 
     // Generate organization slug
     const slug = this.generateSlug(dto.organizationName);
-    
+
     // Check if slug exists
     const existingOrg = await this.prisma.organization.findUnique({
       where: { slug },
@@ -43,7 +47,7 @@ export class AuthService {
     // Hash password
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
-    // Create organization and user in a transaction
+    // Create organization, user, and verification token in a transaction
     const result = await this.prisma.$transaction(async (tx) => {
       // Create organization
       const organization = await tx.organization.create({
@@ -63,8 +67,8 @@ export class AuthService {
           firstName: dto.firstName,
           lastName: dto.lastName,
           role: 'SUPER_ADMIN',
+          isEmailVerified: false,
         },
-        include: { organization: true },
       });
 
       // Create default expense categories
@@ -80,23 +84,30 @@ export class AuthService {
         ],
       });
 
-      return user;
+      // Create verification token
+      const token = crypto.randomBytes(32).toString('hex');
+      await tx.emailVerificationToken.create({
+        data: {
+          userId: user.id,
+          token,
+          type: TokenType.EMAIL_VERIFICATION,
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+        },
+      });
+
+      return { user, token };
     });
 
-    // Generate JWT
-    const accessToken = this.generateToken(result);
+    // Send verification email (fire-and-forget)
+    this.emailService.sendVerificationEmail(
+      dto.email.toLowerCase(),
+      dto.firstName,
+      result.token,
+    );
 
     return {
-      accessToken,
-      user: {
-        id: result.id,
-        email: result.email,
-        firstName: result.firstName,
-        lastName: result.lastName,
-        role: result.role,
-        organizationId: result.organizationId,
-        organizationName: result.organization.name,
-      },
+      message: 'Registration successful. Please check your email to verify your account.',
+      email: dto.email.toLowerCase(),
     };
   }
 
@@ -112,6 +123,14 @@ export class AuthService {
 
     if (!user.isActive) {
       throw new UnauthorizedException('Account is deactivated');
+    }
+
+    if (!user.isEmailVerified) {
+      throw new UnauthorizedException('Please verify your email before logging in');
+    }
+
+    if (!user.passwordHash) {
+      throw new UnauthorizedException('Please check your email for an activation link to set your password');
     }
 
     const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
@@ -133,6 +152,175 @@ export class AuthService {
         organizationId: user.organizationId,
         organizationName: user.organization.name,
       },
+    };
+  }
+
+  async verifyEmail(dto: VerifyEmailDto): Promise<AuthResponseDto> {
+    const tokenRecord = await this.prisma.emailVerificationToken.findUnique({
+      where: { token: dto.token },
+      include: { user: { include: { organization: true } } },
+    });
+
+    if (!tokenRecord) {
+      throw new BadRequestException('Invalid verification token');
+    }
+
+    if (tokenRecord.usedAt) {
+      throw new BadRequestException('This token has already been used');
+    }
+
+    if (tokenRecord.expiresAt < new Date()) {
+      throw new BadRequestException('This verification link has expired. Please request a new one.');
+    }
+
+    if (tokenRecord.type !== TokenType.EMAIL_VERIFICATION) {
+      throw new BadRequestException('Invalid token type');
+    }
+
+    // Mark user as verified and token as used
+    const user = await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: tokenRecord.userId },
+        data: { isEmailVerified: true },
+      });
+
+      await tx.emailVerificationToken.update({
+        where: { id: tokenRecord.id },
+        data: { usedAt: new Date() },
+      });
+
+      return tokenRecord.user;
+    });
+
+    const accessToken = this.generateToken(user);
+
+    return {
+      accessToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        organizationId: user.organizationId,
+        organizationName: user.organization.name,
+      },
+    };
+  }
+
+  async setPassword(dto: SetPasswordDto): Promise<AuthResponseDto> {
+    const tokenRecord = await this.prisma.emailVerificationToken.findUnique({
+      where: { token: dto.token },
+      include: { user: { include: { organization: true } } },
+    });
+
+    if (!tokenRecord) {
+      throw new BadRequestException('Invalid token');
+    }
+
+    if (tokenRecord.usedAt) {
+      throw new BadRequestException('This token has already been used');
+    }
+
+    if (tokenRecord.expiresAt < new Date()) {
+      throw new BadRequestException('This invitation link has expired. Please ask your admin to resend the invite.');
+    }
+
+    if (tokenRecord.type !== TokenType.PASSWORD_SETUP) {
+      throw new BadRequestException('Invalid token type');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, 12);
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: tokenRecord.userId },
+        data: { passwordHash, isEmailVerified: true },
+      });
+
+      await tx.emailVerificationToken.update({
+        where: { id: tokenRecord.id },
+        data: { usedAt: new Date() },
+      });
+
+      return tokenRecord.user;
+    });
+
+    const accessToken = this.generateToken(user);
+
+    return {
+      accessToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        organizationId: user.organizationId,
+        organizationName: user.organization.name,
+      },
+    };
+  }
+
+  async resendVerification(dto: ResendVerificationDto): Promise<{ message: string }> {
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email.toLowerCase() },
+    });
+
+    // Always return same message to prevent email enumeration
+    const message = 'If an account with that email exists, a verification email has been sent.';
+
+    if (!user || user.isEmailVerified) {
+      return { message };
+    }
+
+    // Invalidate old tokens
+    await this.prisma.emailVerificationToken.updateMany({
+      where: {
+        userId: user.id,
+        type: TokenType.EMAIL_VERIFICATION,
+        usedAt: null,
+      },
+      data: { usedAt: new Date() },
+    });
+
+    // Create new token
+    const token = crypto.randomBytes(32).toString('hex');
+    await this.prisma.emailVerificationToken.create({
+      data: {
+        userId: user.id,
+        token,
+        type: TokenType.EMAIL_VERIFICATION,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      },
+    });
+
+    // Send email (fire-and-forget)
+    this.emailService.sendVerificationEmail(
+      user.email,
+      user.firstName,
+      token,
+    );
+
+    return { message };
+  }
+
+  async validateToken(token: string, type: string): Promise<{ valid: boolean; email?: string; firstName?: string }> {
+    const tokenType = type === 'PASSWORD_SETUP' ? TokenType.PASSWORD_SETUP : TokenType.EMAIL_VERIFICATION;
+
+    const tokenRecord = await this.prisma.emailVerificationToken.findUnique({
+      where: { token },
+      include: { user: true },
+    });
+
+    if (!tokenRecord || tokenRecord.usedAt || tokenRecord.expiresAt < new Date() || tokenRecord.type !== tokenType) {
+      return { valid: false };
+    }
+
+    return {
+      valid: true,
+      email: tokenRecord.user.email,
+      firstName: tokenRecord.user.firstName,
     };
   }
 

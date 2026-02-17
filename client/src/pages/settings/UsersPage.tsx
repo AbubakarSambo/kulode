@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, UserX } from 'lucide-react'
+import { Plus, UserX, Send } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Select, Card, CardContent, Badge } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
@@ -19,6 +19,7 @@ interface UserData {
   lastName: string
   role: UserRole
   isActive: boolean
+  isEmailVerified: boolean
   createdAt: string
 }
 
@@ -38,13 +39,16 @@ const usersApi = {
   delete: async (id: string): Promise<void> => {
     await apiClient.delete(`/users/${id}`)
   },
+  resendInvite: async (id: string): Promise<{ message: string }> => {
+    const response = await apiClient.post<ApiResponse<{ message: string }>>(`/users/${id}/resend-invite`)
+    return response.data.data
+  },
 }
 
 interface CreateUserData {
   email: string
   firstName: string
   lastName: string
-  password: string
   role: UserRole
 }
 
@@ -52,7 +56,6 @@ const userSchema = z.object({
   email: z.string().email('Invalid email'),
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
   role: z.enum(['ADMIN', 'ACCOUNTANT', 'STAFF']),
 })
 
@@ -85,7 +88,6 @@ export function UsersPage() {
       email: '',
       firstName: '',
       lastName: '',
-      password: '',
       role: 'STAFF',
     },
   })
@@ -95,12 +97,14 @@ export function UsersPage() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       posthog.capture('team_member_invited', { role: variables.role })
-      toast.success('User created')
+      toast.success('Invitation sent', {
+        description: `Invitation sent to ${variables.email}`,
+      })
       setIsModalOpen(false)
       reset()
     },
     onError: (error: any) => {
-      toast.error('Failed to create user', {
+      toast.error('Failed to invite user', {
         description: error.response?.data?.message,
       })
     },
@@ -115,6 +119,20 @@ export function UsersPage() {
     },
     onError: (error: any) => {
       toast.error('Failed to deactivate user', {
+        description: error.response?.data?.message,
+      })
+    },
+  })
+
+  const resendInviteMutation = useMutation({
+    mutationFn: (id: string) => usersApi.resendInvite(id),
+    onSuccess: (data) => {
+      toast.success('Invite resent', {
+        description: data.message,
+      })
+    },
+    onError: (error: any) => {
+      toast.error('Failed to resend invite', {
         description: error.response?.data?.message,
       })
     },
@@ -138,7 +156,7 @@ export function UsersPage() {
         action={
           <Button onClick={() => setIsModalOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            Add User
+            Invite User
           </Button>
         }
       />
@@ -173,11 +191,26 @@ export function UsersPage() {
                         <Badge variant="secondary">{roleLabels[user.role]}</Badge>
                       </td>
                       <td className="px-4 py-3">
-                        <Badge variant={user.isActive ? 'success' : 'secondary'}>
-                          {user.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
+                        {!user.isActive ? (
+                          <Badge variant="secondary">Inactive</Badge>
+                        ) : !user.isEmailVerified ? (
+                          <Badge variant="outline">Pending Invite</Badge>
+                        ) : (
+                          <Badge variant="success">Active</Badge>
+                        )}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right space-x-1">
+                        {user.isActive && !user.isEmailVerified && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => resendInviteMutation.mutate(user.id)}
+                            disabled={resendInviteMutation.isPending}
+                            title="Resend invite"
+                          >
+                            <Send className="h-4 w-4" />
+                          </Button>
+                        )}
                         {user.isActive && user.role !== 'SUPER_ADMIN' && (
                           <Button
                             variant="ghost"
@@ -198,12 +231,12 @@ export function UsersPage() {
         )}
       </div>
 
-      {/* Create User Modal */}
+      {/* Invite User Modal */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Add User"
-        description="Create a new team member"
+        title="Invite User"
+        description="Send an invitation to a new team member"
       >
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -236,16 +269,6 @@ export function UsersPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password" required>Password</Label>
-            <Input
-              id="password"
-              type="password"
-              {...register('password')}
-              error={errors.password?.message}
-            />
-          </div>
-
-          <div className="space-y-2">
             <Label htmlFor="role" required>Role</Label>
             <Select
               id="role"
@@ -260,7 +283,7 @@ export function UsersPage() {
 
           <div className="flex gap-3 pt-2">
             <Button type="submit" isLoading={createMutation.isPending}>
-              Create User
+              Send Invitation
             </Button>
             <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
               Cancel

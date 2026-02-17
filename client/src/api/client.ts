@@ -32,8 +32,11 @@ apiClient.interceptors.response.use(
     const message = error.response?.data?.message || 'An error occurred'
     
     if (error.response?.status === 401) {
-      // Only redirect if not already on login page (to preserve form state on failed login)
-      if (!window.location.pathname.includes('/login')) {
+      const url = error.config?.url || ''
+      const authEndpoints = ['/auth/login', '/auth/verify-email', '/auth/set-password', '/auth/resend-verification']
+      const isAuthEndpoint = authEndpoints.some(ep => url.includes(ep))
+      // Only redirect if not on login/auth pages (to preserve form state on failed login)
+      if (!window.location.pathname.includes('/login') && !isAuthEndpoint) {
         localStorage.removeItem('token')
         localStorage.removeItem('user')
         window.location.href = '/login'

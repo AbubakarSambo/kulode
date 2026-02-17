@@ -29,21 +29,67 @@ export function useLogin() {
 
 export function useRegister() {
   const navigate = useNavigate()
-  const setAuth = useAuthStore((state) => state.setAuth)
 
   return useMutation({
     mutationFn: (data: RegisterData) => authApi.register(data),
     onSuccess: (data) => {
-      setAuth(data.user, data.accessToken)
       posthog.capture('organization_created')
-      toast.success('Welcome!', {
-        description: 'Your organization has been created',
-      })
-      navigate('/dashboard')
+      navigate('/check-email', { state: { email: data.email } })
     },
     onError: (error: any) => {
       const message = error.response?.data?.message || 'Registration failed'
       toast.error('Registration failed', { description: message })
+    },
+  })
+}
+
+export function useVerifyEmail() {
+  const navigate = useNavigate()
+  const setAuth = useAuthStore((state) => state.setAuth)
+
+  return useMutation({
+    mutationFn: (token: string) => authApi.verifyEmail(token),
+    onSuccess: (data) => {
+      setAuth(data.user, data.accessToken)
+      toast.success('Email verified!', {
+        description: 'Welcome to Kulode',
+      })
+      navigate('/dashboard')
+    },
+  })
+}
+
+export function useSetPassword() {
+  const navigate = useNavigate()
+  const setAuth = useAuthStore((state) => state.setAuth)
+
+  return useMutation({
+    mutationFn: ({ token, password }: { token: string; password: string }) =>
+      authApi.setPassword(token, password),
+    onSuccess: (data) => {
+      setAuth(data.user, data.accessToken)
+      toast.success('Password set!', {
+        description: 'Your account is now active',
+      })
+      navigate('/dashboard')
+    },
+    onError: (error: any) => {
+      const message = error.response?.data?.message || 'Failed to set password'
+      toast.error('Error', { description: message })
+    },
+  })
+}
+
+export function useResendVerification() {
+  return useMutation({
+    mutationFn: (email: string) => authApi.resendVerification(email),
+    onSuccess: () => {
+      toast.success('Verification email sent', {
+        description: 'Please check your inbox',
+      })
+    },
+    onError: () => {
+      toast.error('Failed to resend verification email')
     },
   })
 }

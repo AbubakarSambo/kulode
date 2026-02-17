@@ -5,13 +5,19 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 import { CreateUserDto, UpdateUserDto } from './dto';
 import { PaginationDto, paginate } from '../../common';
+import { TokenType } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private emailService: EmailService,
+  ) {}
 
   async findAll(organizationId: string, pagination: PaginationDto) {
     const { page = 1, limit = 20 } = pagination;
@@ -30,6 +36,7 @@ export class UsersService {
           lastName: true,
           role: true,
           isActive: true,
+          isEmailVerified: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -50,6 +57,7 @@ export class UsersService {
         lastName: true,
         role: true,
         isActive: true,
+        isEmailVerified: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -72,30 +80,104 @@ export class UsersService {
       throw new ConflictException('Email already in use');
     }
 
-    const passwordHash = await bcrypt.hash(dto.password, 12);
+    // Get org name for the invite email
+    const organization = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { name: true },
+    });
 
-    const user = await this.prisma.user.create({
-      data: {
-        organizationId,
-        email: dto.email.toLowerCase(),
-        passwordHash,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        role: dto.role || 'STAFF',
+    // Create user without password and generate invite token
+    const result = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          organizationId,
+          email: dto.email.toLowerCase(),
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          role: dto.role || 'STAFF',
+          isEmailVerified: false,
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          isActive: true,
+          isEmailVerified: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      // Create password setup token (72h expiry)
+      const token = crypto.randomBytes(32).toString('hex');
+      await tx.emailVerificationToken.create({
+        data: {
+          userId: user.id,
+          token,
+          type: TokenType.PASSWORD_SETUP,
+          expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000),
+        },
+      });
+
+      return { user, token };
+    });
+
+    // Send invite email (throws on failure so admin knows)
+    await this.emailService.sendPasswordSetupEmail(
+      dto.email.toLowerCase(),
+      dto.firstName,
+      result.token,
+      organization?.name || 'your organization',
+    );
+
+    return result.user;
+  }
+
+  async resendInvite(userId: string, organizationId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, organizationId },
+      include: { organization: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.isEmailVerified) {
+      throw new ConflictException('User has already been verified');
+    }
+
+    // Invalidate old tokens
+    await this.prisma.emailVerificationToken.updateMany({
+      where: {
+        userId: user.id,
+        type: TokenType.PASSWORD_SETUP,
+        usedAt: null,
       },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
+      data: { usedAt: new Date() },
+    });
+
+    // Create new token
+    const token = crypto.randomBytes(32).toString('hex');
+    await this.prisma.emailVerificationToken.create({
+      data: {
+        userId: user.id,
+        token,
+        type: TokenType.PASSWORD_SETUP,
+        expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000),
       },
     });
 
-    return user;
+    await this.emailService.sendPasswordSetupEmail(
+      user.email,
+      user.firstName,
+      token,
+      user.organization.name,
+    );
+
+    return { message: `Invitation resent to ${user.email}` };
   }
 
   async update(id: string, organizationId: string, dto: UpdateUserDto, currentUserId: string) {
@@ -145,6 +227,7 @@ export class UsersService {
         lastName: true,
         role: true,
         isActive: true,
+        isEmailVerified: true,
         createdAt: true,
         updatedAt: true,
       },

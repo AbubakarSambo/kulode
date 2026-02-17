@@ -68,6 +68,7 @@
     "passport-local": "^1.0.0",
     "pdfkit": "^0.17.2",
     "reflect-metadata": "^0.2.2",
+    "resend": "^6.9.2",
     "rxjs": "^7.8.2",
     "uuid": "^13.0.0"
   }

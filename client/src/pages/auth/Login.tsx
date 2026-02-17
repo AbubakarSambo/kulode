@@ -1,9 +1,10 @@
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link } from 'react-router-dom'
 import { Button, Input, Label, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui'
-import { useLogin } from '@/hooks'
+import { useLogin, useResendVerification } from '@/hooks'
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -14,7 +15,10 @@ type LoginForm = z.infer<typeof loginSchema>
 
 export function LoginPage() {
   const login = useLogin()
-  
+  const resend = useResendVerification()
+  const [showResend, setShowResend] = useState(false)
+  const [loginEmail, setLoginEmail] = useState('')
+
   const {
     register,
     handleSubmit,
@@ -24,7 +28,16 @@ export function LoginPage() {
   })
 
   const onSubmit = (data: LoginForm) => {
-    login.mutate(data)
+    setShowResend(false)
+    setLoginEmail(data.email)
+    login.mutate(data, {
+      onError: (error: any) => {
+        const message = error.response?.data?.message || ''
+        if (message.includes('verify your email')) {
+          setShowResend(true)
+        }
+      },
+    })
   }
 
   return (
@@ -59,6 +72,21 @@ export function LoginPage() {
                 error={errors.password?.message}
               />
             </div>
+            {showResend && (
+              <div className="rounded-md bg-muted p-3 text-sm">
+                <p className="text-muted-foreground">
+                  Your email is not verified yet.{' '}
+                  <button
+                    type="button"
+                    className="text-primary hover:underline font-medium"
+                    onClick={() => resend.mutate(loginEmail)}
+                    disabled={resend.isPending}
+                  >
+                    {resend.isPending ? 'Sending...' : 'Resend verification email'}
+                  </button>
+                </p>
+              </div>
+            )}
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
             <Button type="submit" className="w-full" isLoading={login.isPending}>

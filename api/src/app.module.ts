@@ -11,12 +11,14 @@ import { PaymentsModule } from './modules/payments';
 import { ExpensesModule } from './modules/expenses';
 import { PaystackModule } from './modules/paystack';
 import { ReportsModule } from './modules/reports';
+import { EmailModule } from './modules/email';
 import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor } from './common';
 
 @Module({
   imports: [
     ConfigModule,
     PrismaModule,
+    EmailModule,
     AuthModule,
     UsersModule,
     OrganizationsModule,
