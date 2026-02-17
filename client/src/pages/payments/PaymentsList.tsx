@@ -76,7 +76,7 @@ export function PaymentsListPage() {
                   {data?.data.map((payment) => (
                     <tr key={payment.id} className="border-b last:border-0 hover:bg-muted/25">
                       <td className="px-4 py-3">
-                        <Link to={`/invoices/${payment.invoiceId}`} className="font-medium text-primary hover:underline">
+                        <Link to={`/invoices/${payment.invoice?.id}`} className="font-medium text-primary hover:underline">
                           {payment.invoice?.invoiceNumber}
                         </Link>
                       </td>
