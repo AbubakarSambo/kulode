@@ -16,11 +16,24 @@ export class EmailService {
     this.frontendUrl = this.configService.get<string>('resend.frontendUrl') || 'http://localhost:5173';
   }
 
+  private async sendEmail(options: { to: string; subject: string; html: string }): Promise<void> {
+    const { data, error } = await this.resend.emails.send({
+      from: this.fromEmail,
+      ...options,
+    });
+
+    if (error) {
+      this.logger.error(`Failed to send email to ${options.to}: ${error.name} - ${error.message}`);
+      throw new Error(`Failed to send email: ${error.message}`);
+    }
+
+    this.logger.log(`Email sent to ${options.to} (id: ${data?.id})`);
+  }
+
   async sendVerificationEmail(email: string, firstName: string, token: string): Promise<void> {
     const verifyUrl = `${this.frontendUrl}/verify-email?token=${token}`;
 
-    await this.resend.emails.send({
-      from: this.fromEmail,
+    await this.sendEmail({
       to: email,
       subject: 'Verify your email - Kulode',
       html: `
@@ -37,14 +50,12 @@ export class EmailService {
         </div>
       `,
     });
-    this.logger.log(`Verification email sent to ${email}`);
   }
 
   async sendPasswordSetupEmail(email: string, firstName: string, token: string, orgName: string): Promise<void> {
     const setupUrl = `${this.frontendUrl}/set-password?token=${token}`;
 
-    await this.resend.emails.send({
-      from: this.fromEmail,
+    await this.sendEmail({
       to: email,
       subject: `You've been invited to ${orgName} - Kulode`,
       html: `
@@ -62,6 +73,5 @@ export class EmailService {
         </div>
       `,
     });
-    this.logger.log(`Password setup email sent to ${email}`);
   }
 }
