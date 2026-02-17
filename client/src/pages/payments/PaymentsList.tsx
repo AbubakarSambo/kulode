@@ -76,7 +76,9 @@ export function PaymentsListPage() {
                   {data?.data.map((payment) => (
                     <tr key={payment.id} className="border-b last:border-0 hover:bg-muted/25">
                       <td className="px-4 py-3">
-                        <p className="font-medium">{payment.invoice?.invoiceNumber}</p>
+                        <Link to={`/invoices/${payment.invoiceId}`} className="font-medium text-primary hover:underline">
+                          {payment.invoice?.invoiceNumber}
+                        </Link>
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant={payment.isAutoRecorded ? 'default' : 'secondary'}>
