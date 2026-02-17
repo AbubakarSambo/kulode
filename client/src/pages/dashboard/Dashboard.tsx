@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { FileText, CreditCard, TrendingUp, TrendingDown, AlertCircle } from 'lucide-react'
 import { Header } from '@/components/layout'
+import { OnboardingChecklist } from '@/components/OnboardingChecklist'
 import { Card, CardContent, CardHeader, CardTitle, Badge, Select, Input } from '@/components/ui'
 import { reportsApi, type ReportPeriod } from '@/api/reports'
 import { formatCurrency } from '@/lib/utils'
@@ -111,6 +112,8 @@ export function DashboardPage() {
       />
       
       <div className="flex-1 overflow-auto p-4 sm:p-6">
+        <OnboardingChecklist />
+
         {/* Stats Grid */}
         <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {stats.map((stat) => (

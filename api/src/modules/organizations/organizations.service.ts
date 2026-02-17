@@ -80,6 +80,66 @@ export class OrganizationsService {
     return updated;
   }
 
+  async getOnboardingStatus(organizationId: string) {
+    const [organization, serviceItemCount, clientCount, invoiceCount, expenseCategoryCount] =
+      await Promise.all([
+        this.prisma.organization.findUnique({
+          where: { id: organizationId },
+          select: {
+            email: true,
+            address: true,
+            isPaystackVerified: true,
+            onboardingDismissedAt: true,
+          },
+        }),
+        this.prisma.serviceItem.count({
+          where: { organizationId, isActive: true },
+        }),
+        this.prisma.client.count({
+          where: { organizationId, isActive: true },
+        }),
+        this.prisma.invoice.count({
+          where: { organizationId, deletedAt: null },
+        }),
+        this.prisma.expenseCategory.count({
+          where: { organizationId, isActive: true },
+        }),
+      ]);
+
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    const steps = {
+      businessProfile: !!(organization.email && organization.address),
+      serviceItems: serviceItemCount > 0,
+      firstClient: clientCount > 0,
+      firstInvoice: invoiceCount > 0,
+      onlinePayments: organization.isPaystackVerified,
+      expenseCategories: expenseCategoryCount > 0,
+    };
+
+    const completedCount = Object.values(steps).filter(Boolean).length;
+    const totalSteps = Object.keys(steps).length;
+
+    return {
+      steps,
+      completedCount,
+      totalSteps,
+      allComplete: completedCount === totalSteps,
+      dismissed: !!organization.onboardingDismissedAt,
+    };
+  }
+
+  async dismissOnboarding(organizationId: string) {
+    await this.prisma.organization.update({
+      where: { id: organizationId },
+      data: { onboardingDismissedAt: new Date() },
+    });
+
+    return { success: true };
+  }
+
   async getPaystackStatus(id: string) {
     const organization = await this.prisma.organization.findUnique({
       where: { id },
