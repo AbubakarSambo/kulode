@@ -98,8 +98,8 @@ export class AuthService {
       return { user, token };
     });
 
-    // Send verification email (fire-and-forget)
-    this.emailService.sendVerificationEmail(
+    // Send verification email
+    await this.emailService.sendVerificationEmail(
       dto.email.toLowerCase(),
       dto.firstName,
       result.token,

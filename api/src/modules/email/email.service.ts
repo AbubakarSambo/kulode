@@ -19,29 +19,25 @@ export class EmailService {
   async sendVerificationEmail(email: string, firstName: string, token: string): Promise<void> {
     const verifyUrl = `${this.frontendUrl}/verify-email?token=${token}`;
 
-    try {
-      await this.resend.emails.send({
-        from: this.fromEmail,
-        to: email,
-        subject: 'Verify your email - Kulode',
-        html: `
-          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2>Welcome to Kulode, ${firstName}!</h2>
-            <p>Thanks for signing up. Please verify your email address by clicking the button below:</p>
-            <div style="margin: 32px 0;">
-              <a href="${verifyUrl}" style="background-color: #0f172a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                Verify Email
-              </a>
-            </div>
-            <p style="color: #64748b; font-size: 14px;">This link expires in 24 hours.</p>
-            <p style="color: #64748b; font-size: 14px;">If you didn't create an account, you can safely ignore this email.</p>
+    await this.resend.emails.send({
+      from: this.fromEmail,
+      to: email,
+      subject: 'Verify your email - Kulode',
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>Welcome to Kulode, ${firstName}!</h2>
+          <p>Thanks for signing up. Please verify your email address by clicking the button below:</p>
+          <div style="margin: 32px 0;">
+            <a href="${verifyUrl}" style="background-color: #0f172a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+              Verify Email
+            </a>
           </div>
-        `,
-      });
-      this.logger.log(`Verification email sent to ${email}`);
-    } catch (error) {
-      this.logger.error(`Failed to send verification email to ${email}`, error);
-    }
+          <p style="color: #64748b; font-size: 14px;">This link expires in 24 hours.</p>
+          <p style="color: #64748b; font-size: 14px;">If you didn't create an account, you can safely ignore this email.</p>
+        </div>
+      `,
+    });
+    this.logger.log(`Verification email sent to ${email}`);
   }
 
   async sendPasswordSetupEmail(email: string, firstName: string, token: string, orgName: string): Promise<void> {
