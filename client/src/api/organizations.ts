@@ -8,6 +8,7 @@ export interface UpdateOrganizationData {
   address?: string
   invoicePrefix?: string
   taxRate?: number
+  vatEnabled?: boolean
   paymentTerms?: string
   defaultNotes?: string
 }
