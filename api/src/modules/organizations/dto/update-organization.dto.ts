@@ -5,6 +5,7 @@ import {
   IsOptional,
   MaxLength,
   IsNumber,
+  IsBoolean,
   Min,
   Max,
 } from 'class-validator';
@@ -44,6 +45,11 @@ export class UpdateOrganizationDto {
   @Min(0)
   @Max(100)
   taxRate?: number;
+
+  @ApiPropertyOptional({ example: false, description: 'Enable VAT on invoices' })
+  @IsOptional()
+  @IsBoolean()
+  vatEnabled?: boolean;
 
   @ApiPropertyOptional({ example: 'Payment due within 30 days of invoice date.' })
   @IsOptional()

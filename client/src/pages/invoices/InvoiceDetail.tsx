@@ -430,7 +430,7 @@ export function InvoiceDetailPage() {
                       )}
                       {Number(invoice.taxAmount) > 0 && (
                         <tr>
-                          <td colSpan={3} className="py-1 text-right text-muted-foreground">VAT (7.5%)</td>
+                          <td colSpan={3} className="py-1 text-right text-muted-foreground">VAT ({(invoice as any).taxRate ?? 7.5}%)</td>
                           <td className="py-1 text-right">{formatCurrency(invoice.taxAmount)}</td>
                         </tr>
                       )}

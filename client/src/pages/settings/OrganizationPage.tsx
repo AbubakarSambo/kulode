@@ -14,6 +14,7 @@ const organizationSchema = z.object({
   phone: z.string().max(50).optional(),
   address: z.string().optional(),
   invoicePrefix: z.string().max(10).optional(),
+  vatEnabled: z.boolean().optional(),
   taxRate: z.number().min(0).max(100).optional(),
   paymentTerms: z.string().max(2000).optional(),
   defaultNotes: z.string().max(2000).optional(),
@@ -33,6 +34,8 @@ export function OrganizationPage() {
     register,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     formState: { errors, isDirty },
   } = useForm<OrganizationFormData>({
     resolver: zodResolver(organizationSchema),
@@ -42,6 +45,7 @@ export function OrganizationPage() {
       phone: '',
       address: '',
       invoicePrefix: '',
+      vatEnabled: false,
       taxRate: 0,
       paymentTerms: '',
       defaultNotes: '',
@@ -56,6 +60,7 @@ export function OrganizationPage() {
         phone: organization.phone || '',
         address: organization.address || '',
         invoicePrefix: organization.invoicePrefix,
+        vatEnabled: organization.vatEnabled,
         taxRate: organization.taxRate,
         paymentTerms: organization.paymentTerms || '',
         defaultNotes: organization.defaultNotes || '',
@@ -68,6 +73,7 @@ export function OrganizationPage() {
       organizationsApi.updateCurrent({
         ...data,
         email: data.email || undefined,
+        vatEnabled: !!data.vatEnabled,
         taxRate: Number(data.taxRate) || 0,
         paymentTerms: data.paymentTerms || '',
         defaultNotes: data.defaultNotes || '',
@@ -158,28 +164,49 @@ export function OrganizationPage() {
               <CardTitle>Invoice Defaults</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="invoicePrefix">Invoice Prefix</Label>
-                  <Input
-                    id="invoicePrefix"
-                    placeholder="INV"
-                    {...register('invoicePrefix')}
-                    error={errors.invoicePrefix?.message}
+              <div className="space-y-2">
+                <Label htmlFor="invoicePrefix">Invoice Prefix</Label>
+                <Input
+                  id="invoicePrefix"
+                  placeholder="INV"
+                  {...register('invoicePrefix')}
+                  error={errors.invoicePrefix?.message}
+                />
+              </div>
+
+              <div className="space-y-3">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={watch('vatEnabled') || false}
+                    onChange={(e) => {
+                      setValue('vatEnabled', e.target.checked, { shouldDirty: true })
+                      if (e.target.checked && !watch('taxRate')) {
+                        setValue('taxRate', 7.5, { shouldDirty: true })
+                      }
+                    }}
+                    className="h-4 w-4 rounded border-gray-300"
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="taxRate">Tax Rate (%)</Label>
-                  <Input
-                    id="taxRate"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
-                    {...register('taxRate', { valueAsNumber: true })}
-                    error={errors.taxRate?.message}
-                  />
-                </div>
+                  <span className="text-sm font-medium">Enable VAT on invoices</span>
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  When enabled, VAT will be applied to all new invoices at the rate specified below.
+                </p>
+                {watch('vatEnabled') && (
+                  <div className="space-y-2">
+                    <Label htmlFor="taxRate">VAT Rate (%)</Label>
+                    <Input
+                      id="taxRate"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      className="max-w-[200px]"
+                      {...register('taxRate', { valueAsNumber: true })}
+                      error={errors.taxRate?.message}
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">

@@ -208,7 +208,9 @@ export function NewInvoicePage() {
     ? Math.min(watchDiscount, subtotal)
     : subtotal * (watchDiscount / 100)
   const afterDiscount = subtotal - discountAmount
-  const vat = afterDiscount * 0.075
+  const vatEnabled = organization?.vatEnabled ?? false
+  const orgTaxRate = organization?.taxRate ?? 0
+  const vat = vatEnabled && orgTaxRate > 0 ? afterDiscount * (orgTaxRate / 100) : 0
   const total = afterDiscount + vat
 
   const createMutation = useMutation({
@@ -455,10 +457,12 @@ export function NewInvoicePage() {
                         </div>
                       )}
                       
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>VAT (7.5%)</span>
-                        <span>{formatCurrency(vat)}</span>
-                      </div>
+                      {vat > 0 && (
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>VAT ({orgTaxRate}%)</span>
+                          <span>{formatCurrency(vat)}</span>
+                        </div>
+                      )}
                       
                       <div className="flex justify-between border-t pt-2 text-lg font-semibold">
                         <span>Total</span>

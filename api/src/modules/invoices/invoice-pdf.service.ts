@@ -20,6 +20,7 @@ interface InvoiceData {
   discountType?: string;
   discountPercent?: number;
   discountAmount?: number;
+  taxRate?: number;
   taxAmount: number;
   total: number;
   amountPaid: number;
@@ -291,7 +292,7 @@ export class InvoicePdfService {
       if (Number(invoice.taxAmount) > 0) {
         doc
           .fillColor(mutedColor)
-          .text('VAT (7.5%)', totalsX, currentY, { width: 100 });
+          .text(`VAT (${invoice.taxRate ?? 7.5}%)`, totalsX, currentY, { width: 100 });
         doc
           .fillColor(textColor)
           .text(this.formatCurrency(invoice.taxAmount), totalsX + 100, currentY, { 

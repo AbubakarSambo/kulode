@@ -151,6 +151,7 @@ export class InvoicesService {
       discountType: invoice.discountType,
       discountPercent: Number(invoice.discountPercent),
       discountAmount: Number(invoice.discountAmount),
+      taxRate: Number(invoice.taxRate),
       taxAmount: Number(invoice.taxAmount),
       total: Number(invoice.total),
       amountPaid: Number(invoice.amountPaid),
@@ -187,9 +188,10 @@ export class InvoicesService {
       throw new NotFoundException('Client not found');
     }
 
-    // Get organization for invoice prefix
+    // Get organization for invoice prefix and tax settings
     const organization = await this.prisma.organization.findUnique({
       where: { id: organizationId },
+      select: { invoicePrefix: true, vatEnabled: true, taxRate: true, defaultNotes: true, paymentTerms: true },
     });
 
     // Generate invoice number
@@ -210,7 +212,8 @@ export class InvoicesService {
       ? discountPercent
       : subtotal * (discountPercent / 100);
     const afterDiscount = subtotal - discountAmount;
-    const taxAmount = afterDiscount * 0.075; // Fixed 7.5% VAT
+    const orgTaxRate = organization!.vatEnabled ? Number(organization!.taxRate) : 0;
+    const taxAmount = orgTaxRate > 0 ? afterDiscount * (orgTaxRate / 100) : 0;
     const total = afterDiscount + taxAmount;
 
     // Validate installments if provided
@@ -233,6 +236,7 @@ export class InvoicesService {
         discountType,
         discountPercent,
         discountAmount,
+        taxRate: orgTaxRate,
         taxAmount,
         total,
         notes: dto.notes || organization!.defaultNotes || null,
@@ -280,7 +284,10 @@ export class InvoicesService {
     // Get organization for tax calculation
     const organization = await this.prisma.organization.findUnique({
       where: { id: organizationId },
+      select: { vatEnabled: true, taxRate: true },
     });
+
+    const orgTaxRate = organization!.vatEnabled ? Number(organization!.taxRate) : 0;
 
     let updateData: Prisma.InvoiceUpdateInput = {
       ...(dto.issueDate && { issueDate: dto.issueDate }),
@@ -323,7 +330,7 @@ export class InvoicesService {
         ? discountPercent
         : subtotal * (discountPercent / 100);
       const afterDiscount = subtotal - discountAmount;
-      const taxAmount = afterDiscount * 0.075; // Fixed 7.5% VAT
+      const taxAmount = orgTaxRate > 0 ? afterDiscount * (orgTaxRate / 100) : 0;
       const total = afterDiscount + taxAmount;
 
       updateData = {
@@ -332,6 +339,7 @@ export class InvoicesService {
         discountType,
         discountPercent,
         discountAmount,
+        taxRate: orgTaxRate,
         taxAmount,
         total,
       };
@@ -344,7 +352,7 @@ export class InvoicesService {
         ? discountPercent
         : subtotal * (discountPercent / 100);
       const afterDiscount = subtotal - discountAmount;
-      const taxAmount = afterDiscount * 0.075; // Fixed 7.5% VAT
+      const taxAmount = orgTaxRate > 0 ? afterDiscount * (orgTaxRate / 100) : 0;
       const total = afterDiscount + taxAmount;
 
       updateData = {
@@ -352,6 +360,7 @@ export class InvoicesService {
         discountType,
         discountPercent,
         discountAmount,
+        taxRate: orgTaxRate,
         taxAmount,
         total,
       };
@@ -514,6 +523,7 @@ export class InvoicesService {
       discountType: invoice.discountType,
       discountPercent: Number(invoice.discountPercent),
       discountAmount: Number(invoice.discountAmount),
+      taxRate: Number(invoice.taxRate),
       taxAmount: Number(invoice.taxAmount),
       total: Number(invoice.total),
       amountPaid: Number(invoice.amountPaid),

@@ -52,6 +52,7 @@ export interface Organization {
   invoicePrefix: string
   currency: string
   taxRate: number
+  vatEnabled: boolean
   paymentTerms?: string
   defaultNotes?: string
   isPaystackVerified: boolean
@@ -126,6 +127,7 @@ export interface Invoice {
   subtotal: number
   discountPercent?: number
   discountAmount?: number
+  taxRate?: number
   taxAmount: number
   total: number
   amountPaid: number
