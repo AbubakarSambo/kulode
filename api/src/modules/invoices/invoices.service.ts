@@ -207,10 +207,11 @@ export class InvoicesService {
 
     const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
     const discountType = dto.discountType || 'PERCENTAGE';
-    const discountPercent = dto.discountPercent || 0;
+    const discountValue = dto.discountPercent || 0;
+    const discountPercent = discountType === 'FIXED' ? 0 : discountValue;
     const discountAmount = discountType === 'FIXED'
-      ? discountPercent
-      : subtotal * (discountPercent / 100);
+      ? discountValue
+      : subtotal * (discountValue / 100);
     const afterDiscount = subtotal - discountAmount;
     const orgTaxRate = organization!.vatEnabled ? Number(organization!.taxRate) : 0;
     const taxAmount = orgTaxRate > 0 ? afterDiscount * (orgTaxRate / 100) : 0;
@@ -325,10 +326,11 @@ export class InvoicesService {
 
       const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
       const discountType = dto.discountType ?? invoice.discountType;
-      const discountPercent = dto.discountPercent ?? Number(invoice.discountPercent);
+      const discountValue = dto.discountPercent ?? Number(invoice.discountPercent);
+      const discountPercent = discountType === 'FIXED' ? 0 : discountValue;
       const discountAmount = discountType === 'FIXED'
-        ? discountPercent
-        : subtotal * (discountPercent / 100);
+        ? discountValue
+        : subtotal * (discountValue / 100);
       const afterDiscount = subtotal - discountAmount;
       const taxAmount = orgTaxRate > 0 ? afterDiscount * (orgTaxRate / 100) : 0;
       const total = afterDiscount + taxAmount;
@@ -347,10 +349,11 @@ export class InvoicesService {
       // Only discount changed, recalculate
       const subtotal = Number(invoice.subtotal);
       const discountType = dto.discountType ?? invoice.discountType;
-      const discountPercent = dto.discountPercent ?? Number(invoice.discountPercent);
+      const discountValue = dto.discountPercent ?? Number(invoice.discountPercent);
+      const discountPercent = discountType === 'FIXED' ? 0 : discountValue;
       const discountAmount = discountType === 'FIXED'
-        ? discountPercent
-        : subtotal * (discountPercent / 100);
+        ? discountValue
+        : subtotal * (discountValue / 100);
       const afterDiscount = subtotal - discountAmount;
       const taxAmount = orgTaxRate > 0 ? afterDiscount * (orgTaxRate / 100) : 0;
       const total = afterDiscount + taxAmount;
