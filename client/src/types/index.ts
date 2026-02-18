@@ -8,6 +8,7 @@ export interface User {
   organizationId: string
   organizationName: string
   isEmailVerified?: boolean
+  isPlatformAdmin?: boolean
 }
 
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'ACCOUNTANT' | 'STAFF'
@@ -263,4 +264,40 @@ export interface PaginatedResponse<T> {
 export interface ApiResponse<T> {
   success: boolean
   data: T
+}
+
+// Platform admin types
+export interface PlatformDashboard {
+  organizations: {
+    total: number
+    newThisWeek: number
+    newThisMonth: number
+    active: number
+    inactive: number
+  }
+  users: {
+    total: number
+  }
+  revenue: {
+    gmv: number
+    platformFees: number
+  }
+  invoices: Record<string, { count: number; total: number }>
+  recentSignups: Array<{
+    id: string
+    name: string
+    slug: string
+    userCount: number
+    invoiceCount: number
+    createdAt: string
+  }>
+  topOrganizations: Array<{
+    id: string
+    name: string
+    slug: string
+    userCount: number
+    invoiceCount: number
+    volume: number
+    createdAt: string
+  }>
 }

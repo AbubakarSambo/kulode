@@ -35,6 +35,7 @@ import {
   OrganizationPage,
   PaymentCallbackPage,
   PublicInvoicePage,
+  AdminDashboardPage,
 } from '@/pages'
 
 const queryClient = new QueryClient({
@@ -107,6 +108,9 @@ function App() {
               {/* Reports */}
               <Route path="/reports" element={<ReportsPage />} />
               
+              {/* Platform Admin */}
+              <Route path="/admin" element={<AdminDashboardPage />} />
+
               {/* Settings */}
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/settings/organization" element={<OrganizationPage />} />

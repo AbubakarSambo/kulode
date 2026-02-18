@@ -151,6 +151,7 @@ export class AuthService {
         role: user.role,
         organizationId: user.organizationId,
         organizationName: user.organization.name,
+        isPlatformAdmin: user.isPlatformAdmin,
       },
     };
   }
@@ -204,6 +205,7 @@ export class AuthService {
         role: user.role,
         organizationId: user.organizationId,
         organizationName: user.organization.name,
+        isPlatformAdmin: user.isPlatformAdmin,
       },
     };
   }
@@ -258,6 +260,7 @@ export class AuthService {
         role: user.role,
         organizationId: user.organizationId,
         organizationName: user.organization.name,
+        isPlatformAdmin: user.isPlatformAdmin,
       },
     };
   }
@@ -342,6 +345,7 @@ export class AuthService {
       role: user.role,
       organizationId: user.organizationId,
       organizationName: user.organization.name,
+      isPlatformAdmin: user.isPlatformAdmin,
       organization: {
         id: user.organization.id,
         name: user.organization.name,

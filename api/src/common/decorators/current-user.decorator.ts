@@ -7,6 +7,7 @@ export interface CurrentUserData {
   role: string;
   firstName: string;
   lastName: string;
+  isPlatformAdmin: boolean;
 }
 
 export const CurrentUser = createParamDecorator(

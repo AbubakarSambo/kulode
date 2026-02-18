@@ -21,6 +21,9 @@ export class UserResponseDto {
 
   @ApiProperty()
   organizationName: string;
+
+  @ApiProperty()
+  isPlatformAdmin: boolean;
 }
 
 export class AuthResponseDto {

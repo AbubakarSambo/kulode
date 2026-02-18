@@ -9,6 +9,7 @@ import {
   BarChart3,
   Store,
   Settings,
+  Shield,
   LogOut,
   X,
 } from 'lucide-react'
@@ -134,6 +135,27 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                   {item.name}
                 </NavLink>
               ))}
+            </>
+          )}
+
+          {user?.isPlatformAdmin && (
+            <>
+              <div className="my-4 border-t" />
+              <NavLink
+                to="/admin"
+                onClick={handleNavClick}
+                className={({ isActive }) =>
+                  cn(
+                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                    isActive
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                  )
+                }
+              >
+                <Shield className="h-5 w-5" />
+                Platform Admin
+              </NavLink>
             </>
           )}
         </nav>

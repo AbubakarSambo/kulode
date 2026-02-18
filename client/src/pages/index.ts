@@ -42,6 +42,9 @@ export { CategoriesPage } from './settings/CategoriesPage'
 export { ServiceItemsPage } from './settings/ServiceItemsPage'
 export { OrganizationPage } from './settings/OrganizationPage'
 
+// Admin
+export { AdminDashboardPage } from './admin/AdminDashboard'
+
 // Payment (public)
 export { PaymentCallbackPage } from './payment/PaymentCallback'
 

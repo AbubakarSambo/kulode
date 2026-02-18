@@ -92,6 +92,7 @@ model User {
   role            UserRole @default(STAFF)
   isActive        Boolean  @default(true) @map("is_active")
   isEmailVerified Boolean  @default(false) @map("is_email_verified")
+  isPlatformAdmin Boolean  @default(false) @map("is_platform_admin")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

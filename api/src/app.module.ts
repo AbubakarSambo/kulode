@@ -12,6 +12,7 @@ import { ExpensesModule } from './modules/expenses';
 import { PaystackModule } from './modules/paystack';
 import { ReportsModule } from './modules/reports';
 import { VendorsModule } from './modules/vendors';
+import { PlatformModule } from './modules/platform';
 import { EmailModule } from './modules/email';
 import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor } from './common';
 
@@ -30,6 +31,7 @@ import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor }
     PaystackModule,
     ReportsModule,
     VendorsModule,
+    PlatformModule,
   ],
   providers: [
     // Global JWT Auth Guard
