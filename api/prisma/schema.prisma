@@ -37,6 +37,25 @@ enum TokenType {
   PASSWORD_SETUP
 }
 
+enum PlanTier {
+  FREE
+  PRO
+  BUSINESS
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+enum BillingPeriod {
+  MONTHLY
+  ANNUAL
+}
+
 // Organizations (tenants)
 model Organization {
   id        String   @id @default(uuid())
@@ -65,18 +84,30 @@ model Organization {
   defaultNotes           String?  @map("default_notes")
   onboardingDismissedAt  DateTime? @map("onboarding_dismissed_at")
 
+  // Subscription
+  planTier              PlanTier           @default(FREE) @map("plan_tier")
+  subscriptionStatus    SubscriptionStatus @default(TRIALING) @map("subscription_status")
+  billingPeriod         BillingPeriod?     @map("billing_period")
+  trialStartDate        DateTime?          @map("trial_start_date")
+  trialEndDate          DateTime?          @map("trial_end_date")
+  subscriptionStartDate DateTime?          @map("subscription_start_date")
+  subscriptionEndDate   DateTime?          @map("subscription_end_date")
+  paystackCustomerCode  String?            @map("paystack_customer_code")
+  isGrandfathered       Boolean            @default(false) @map("is_grandfathered")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  users             User[]
-  clients           Client[]
-  invoices          Invoice[]
-  payments          Payment[]
-  expenses          Expense[]
-  expenseCategories ExpenseCategory[]
-  serviceItems      ServiceItem[]
-  vendors           Vendor[]
+  users                User[]
+  clients              Client[]
+  invoices             Invoice[]
+  payments             Payment[]
+  expenses             Expense[]
+  expenseCategories    ExpenseCategory[]
+  serviceItems         ServiceItem[]
+  vendors              Vendor[]
+  subscriptionPayments SubscriptionPayment[]
 
   @@map("organizations")
 }
@@ -372,4 +403,27 @@ model Vendor {
   @@unique([organizationId, name])
   @@index([organizationId])
   @@map("vendors")
+}
+
+// Subscription payments (separate from invoice payments)
+model SubscriptionPayment {
+  id                String        @id @default(uuid())
+  organizationId    String        @map("organization_id")
+  amount            Decimal       @db.Decimal(12, 2)
+  currency          String        @default("NGN")
+  billingPeriod     BillingPeriod @map("billing_period")
+  planTier          PlanTier      @map("plan_tier")
+  paystackReference String        @unique @map("paystack_reference")
+  status            String        @default("success")
+  paidAt            DateTime      @map("paid_at")
+  periodStart       DateTime      @map("period_start")
+  periodEnd         DateTime      @map("period_end")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("subscription_payments")
 }

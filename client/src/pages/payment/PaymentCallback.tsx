@@ -21,6 +21,7 @@ export function PaymentCallbackPage() {
   const [details, setDetails] = useState<VerificationResult | null>(null)
 
   const reference = searchParams.get('reference') || searchParams.get('trxref')
+  const isSubscription = searchParams.get('type') === 'subscription'
 
   useEffect(() => {
     const verifyPayment = async () => {
@@ -30,17 +31,25 @@ export function PaymentCallbackPage() {
       }
 
       try {
-        // Verify the transaction with Paystack via our API
-        const response = await apiClient.get(`/paystack/verify/${reference}`)
-        const data = response.data.data
-        
-        if (data.status === 'success') {
+        if (isSubscription) {
+          // For subscription payments, verify and activate via our API
+          // This handles the case where the webhook hasn't fired yet (e.g. local dev)
+          await apiClient.post('/subscription/verify-payment', { reference })
           setStatus('success')
-          setDetails(data)
-          posthog.capture('payment_callback_received', { status: 'success', reference })
+          posthog.capture('subscription_activated', { reference })
         } else {
-          setStatus('failed')
-          posthog.capture('payment_callback_received', { status: 'failed', reference })
+          // Verify the transaction with Paystack via our API
+          const response = await apiClient.get(`/paystack/verify/${reference}`)
+          const data = response.data.data
+
+          if (data.status === 'success') {
+            setStatus('success')
+            setDetails(data)
+            posthog.capture('payment_callback_received', { status: 'success', reference })
+          } else {
+            setStatus('failed')
+            posthog.capture('payment_callback_received', { status: 'failed', reference })
+          }
         }
       } catch (error) {
         // Even if verification fails, the webhook will handle recording
@@ -50,7 +59,7 @@ export function PaymentCallbackPage() {
     }
 
     verifyPayment()
-  }, [reference])
+  }, [reference, isSubscription])
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
@@ -71,12 +80,16 @@ export function PaymentCallbackPage() {
               <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-success/10">
                 <CheckCircle className="h-12 w-12 text-success" />
               </div>
-              <h1 className="mt-4 text-2xl font-semibold text-success">Payment Successful!</h1>
+              <h1 className="mt-4 text-2xl font-semibold text-success">
+                {isSubscription ? 'Subscription Activated!' : 'Payment Successful!'}
+              </h1>
               <p className="mt-2 text-muted-foreground">
-                Thank you for your payment. A receipt has been sent to your email.
+                {isSubscription
+                  ? 'Your subscription has been activated. Enjoy your upgraded plan!'
+                  : 'Thank you for your payment. A receipt has been sent to your email.'}
               </p>
-              
-              {details && (
+
+              {details && !isSubscription && (
                 <div className="mt-6 rounded-lg border bg-muted/50 p-4 text-left">
                   <div className="space-y-2">
                     <div className="flex justify-between">
@@ -94,7 +107,13 @@ export function PaymentCallbackPage() {
               )}
 
               <p className="mt-6 text-sm text-muted-foreground">
-                You can close this window now.
+                {isSubscription ? (
+                  <a href="/dashboard" className="font-medium text-primary hover:underline">
+                    Go to Dashboard
+                  </a>
+                ) : (
+                  'You can close this window now.'
+                )}
               </p>
             </div>
           )}

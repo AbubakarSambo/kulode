@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigModule } from './config';
 import { PrismaModule } from './modules/prisma';
 import { AuthModule } from './modules/auth';
@@ -14,11 +15,13 @@ import { ReportsModule } from './modules/reports';
 import { VendorsModule } from './modules/vendors';
 import { PlatformModule } from './modules/platform';
 import { EmailModule } from './modules/email';
+import { SubscriptionModule } from './modules/subscription';
 import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor } from './common';
 
 @Module({
   imports: [
     ConfigModule,
+    ScheduleModule.forRoot(),
     PrismaModule,
     EmailModule,
     AuthModule,
@@ -32,6 +35,7 @@ import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor }
     ReportsModule,
     VendorsModule,
     PlatformModule,
+    SubscriptionModule,
   ],
   providers: [
     // Global JWT Auth Guard

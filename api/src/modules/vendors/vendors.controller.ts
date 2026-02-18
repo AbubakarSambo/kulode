@@ -8,14 +8,17 @@ import {
   Param,
   Query,
   ParseUUIDPipe,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { VendorsService } from './vendors.service';
 import { CreateVendorDto, UpdateVendorDto, VendorFilterDto } from './dto';
-import { CurrentUser, Roles, Role } from '../../common';
+import { CurrentUser, Roles, Role, RequiresPlan, PlanGuard } from '../../common';
 
 @ApiTags('Vendors')
 @ApiBearerAuth()
+@UseGuards(PlanGuard)
+@RequiresPlan('PRO')
 @Controller('vendors')
 export class VendorsController {
   constructor(private readonly vendorsService: VendorsService) {}

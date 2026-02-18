@@ -1,11 +1,13 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
 import { ReportFilterDto } from './dto';
-import { CurrentUser, Roles, Role } from '../../common';
+import { CurrentUser, Roles, Role, RequiresPlan, PlanGuard } from '../../common';
 
 @ApiTags('Reports')
 @ApiBearerAuth()
+@UseGuards(PlanGuard)
+@RequiresPlan('PRO')
 @Controller('reports')
 @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.ACCOUNTANT)
 export class ReportsController {

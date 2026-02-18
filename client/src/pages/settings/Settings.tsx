@@ -1,9 +1,12 @@
 import { Header } from '@/components/layout'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui'
 import { Link } from 'react-router-dom'
-import { Building, Users, CreditCard, Tags, Package } from 'lucide-react'
+import { Building, Users, CreditCard, Tags, Package, Crown } from 'lucide-react'
+import { useSubscription } from '@/hooks/useSubscription'
 
 export function SettingsPage() {
+  const { effectivePlan } = useSubscription()
+
   const settingsCards = [
     {
       title: 'Organization',
@@ -18,17 +21,27 @@ export function SettingsPage() {
       href: '/settings/users',
     },
     {
+      title: 'Billing & Plans',
+      description: 'Manage your subscription and billing',
+      icon: Crown,
+      href: '/settings/billing',
+    },
+    {
       title: 'Paystack',
       description: 'Configure payment integration',
       icon: CreditCard,
       href: '/settings/paystack',
     },
-    {
-      title: 'Expense Categories',
-      description: 'Manage expense categories',
-      icon: Tags,
-      href: '/settings/categories',
-    },
+    ...(effectivePlan !== 'FREE'
+      ? [
+          {
+            title: 'Expense Categories',
+            description: 'Manage expense categories',
+            icon: Tags,
+            href: '/settings/categories',
+          },
+        ]
+      : []),
     {
       title: 'Service Items',
       description: 'Manage services and products for invoices',

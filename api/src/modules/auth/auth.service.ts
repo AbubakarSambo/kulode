@@ -49,12 +49,20 @@ export class AuthService {
 
     // Create organization, user, and verification token in a transaction
     const result = await this.prisma.$transaction(async (tx) => {
-      // Create organization
+      // Create organization with Pro trial
+      const now = new Date();
+      const trialEnd = new Date(now);
+      trialEnd.setDate(trialEnd.getDate() + 30);
+
       const organization = await tx.organization.create({
         data: {
           name: dto.organizationName,
           slug,
           platformFeePercent: this.configService.get<number>('app.platformFeePercent') || 5,
+          planTier: 'PRO',
+          subscriptionStatus: 'TRIALING',
+          trialStartDate: now,
+          trialEndDate: trialEnd,
         },
       });
 
@@ -111,7 +119,7 @@ export class AuthService {
     };
   }
 
-  async login(dto: LoginDto): Promise<AuthResponseDto> {
+  async login(dto: LoginDto): Promise<any> {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email.toLowerCase() },
       include: { organization: true },
@@ -152,11 +160,17 @@ export class AuthService {
         organizationId: user.organizationId,
         organizationName: user.organization.name,
         isPlatformAdmin: user.isPlatformAdmin,
+        plan: {
+          planTier: user.organization.planTier,
+          subscriptionStatus: user.organization.subscriptionStatus,
+          trialEndDate: user.organization.trialEndDate,
+          isGrandfathered: user.organization.isGrandfathered,
+        },
       },
     };
   }
 
-  async verifyEmail(dto: VerifyEmailDto): Promise<AuthResponseDto> {
+  async verifyEmail(dto: VerifyEmailDto): Promise<any> {
     const tokenRecord = await this.prisma.emailVerificationToken.findUnique({
       where: { token: dto.token },
       include: { user: { include: { organization: true } } },
@@ -206,11 +220,17 @@ export class AuthService {
         organizationId: user.organizationId,
         organizationName: user.organization.name,
         isPlatformAdmin: user.isPlatformAdmin,
+        plan: {
+          planTier: user.organization.planTier,
+          subscriptionStatus: user.organization.subscriptionStatus,
+          trialEndDate: user.organization.trialEndDate,
+          isGrandfathered: user.organization.isGrandfathered,
+        },
       },
     };
   }
 
-  async setPassword(dto: SetPasswordDto): Promise<AuthResponseDto> {
+  async setPassword(dto: SetPasswordDto): Promise<any> {
     const tokenRecord = await this.prisma.emailVerificationToken.findUnique({
       where: { token: dto.token },
       include: { user: { include: { organization: true } } },
@@ -261,6 +281,12 @@ export class AuthService {
         organizationId: user.organizationId,
         organizationName: user.organization.name,
         isPlatformAdmin: user.isPlatformAdmin,
+        plan: {
+          planTier: user.organization.planTier,
+          subscriptionStatus: user.organization.subscriptionStatus,
+          trialEndDate: user.organization.trialEndDate,
+          isGrandfathered: user.organization.isGrandfathered,
+        },
       },
     };
   }
@@ -346,6 +372,12 @@ export class AuthService {
       organizationId: user.organizationId,
       organizationName: user.organization.name,
       isPlatformAdmin: user.isPlatformAdmin,
+      plan: {
+        planTier: user.organization.planTier,
+        subscriptionStatus: user.organization.subscriptionStatus,
+        trialEndDate: user.organization.trialEndDate,
+        isGrandfathered: user.organization.isGrandfathered,
+      },
       organization: {
         id: user.organization.id,
         name: user.organization.name,

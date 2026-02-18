@@ -1,4 +1,18 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export class PlanInfoDto {
+  @ApiProperty()
+  planTier: string;
+
+  @ApiProperty()
+  subscriptionStatus: string;
+
+  @ApiPropertyOptional()
+  trialEndDate?: Date;
+
+  @ApiProperty()
+  isGrandfathered: boolean;
+}
 
 export class UserResponseDto {
   @ApiProperty()
@@ -24,6 +38,9 @@ export class UserResponseDto {
 
   @ApiProperty()
   isPlatformAdmin: boolean;
+
+  @ApiPropertyOptional({ type: PlanInfoDto })
+  plan?: PlanInfoDto;
 }
 
 export class AuthResponseDto {

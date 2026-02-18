@@ -15,7 +15,7 @@ import {
   CreateServiceItemDto,
   UpdateServiceItemDto,
 } from './dto';
-import { paginate } from '../../common';
+import { paginate, PLAN_LIMITS } from '../../common';
 
 @Injectable()
 export class InvoicesService {
@@ -188,11 +188,53 @@ export class InvoicesService {
       throw new NotFoundException('Client not found');
     }
 
-    // Get organization for invoice prefix and tax settings
+    // Get organization for invoice prefix, tax settings, and plan check
     const organization = await this.prisma.organization.findUnique({
       where: { id: organizationId },
-      select: { invoicePrefix: true, vatEnabled: true, taxRate: true, defaultNotes: true, paymentTerms: true },
+      select: {
+        invoicePrefix: true, vatEnabled: true, taxRate: true, defaultNotes: true, paymentTerms: true,
+        planTier: true, subscriptionStatus: true, trialEndDate: true, isGrandfathered: true,
+      },
     });
+
+    // Enforce invoice limit unless grandfathered
+    if (organization && !organization.isGrandfathered) {
+      let effectivePlan = organization.planTier;
+      if (
+        organization.subscriptionStatus === 'TRIALING' &&
+        organization.trialEndDate &&
+        new Date() > organization.trialEndDate
+      ) {
+        effectivePlan = 'FREE';
+      }
+      if (organization.subscriptionStatus === 'EXPIRED') {
+        effectivePlan = 'FREE';
+      }
+
+      const limits = PLAN_LIMITS[effectivePlan];
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+
+      const invoiceCount = await this.prisma.invoice.count({
+        where: {
+          organizationId,
+          deletedAt: null,
+          createdAt: { gte: startOfMonth },
+        },
+      });
+
+      if (invoiceCount >= limits.maxInvoicesPerMonth) {
+        throw new ForbiddenException({
+          statusCode: 403,
+          code: 'INVOICE_LIMIT_REACHED',
+          message: `Your ${effectivePlan} plan allows up to ${limits.maxInvoicesPerMonth} invoices per month. Please upgrade to create more.`,
+          currentPlan: effectivePlan,
+          limit: limits.maxInvoicesPerMonth,
+          current: invoiceCount,
+        });
+      }
+    }
 
     // Generate invoice number
     const invoiceNumber = await this.generateInvoiceNumber(organizationId, organization!.invoicePrefix);
