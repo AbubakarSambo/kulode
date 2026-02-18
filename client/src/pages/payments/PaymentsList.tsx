@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Download, Pencil } from 'lucide-react'
+import { Download, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Badge } from '@/components/ui'
@@ -15,6 +15,24 @@ export function PaymentsListPage() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const user = useAuthStore((s) => s.user)
   const isSuperAdmin = user?.role === 'SUPER_ADMIN'
+  const queryClient = useQueryClient()
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => paymentsApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['payments'] })
+      toast.success('Payment deleted')
+    },
+    onError: () => {
+      toast.error('Failed to delete payment')
+    },
+  })
+
+  const handleDelete = (paymentId: string) => {
+    if (window.confirm('Are you sure you want to delete this payment? This will update the invoice balance.')) {
+      deleteMutation.mutate(paymentId)
+    }
+  }
 
   const handleDownloadReceipt = async (paymentId: string, invoiceNumber: string) => {
     setDownloadingId(paymentId)
@@ -97,11 +115,21 @@ export function PaymentsListPage() {
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
                           {isSuperAdmin && (
-                            <Link to={`/payments/${payment.id}/edit`}>
-                              <Button variant="ghost" size="sm">
-                                <Pencil className="h-4 w-4" />
+                            <>
+                              <Link to={`/payments/${payment.id}/edit`}>
+                                <Button variant="ghost" size="sm">
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              </Link>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDelete(payment.id)}
+                                disabled={deleteMutation.isPending}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
                               </Button>
-                            </Link>
+                            </>
                           )}
                           <Button
                             variant="ghost"
