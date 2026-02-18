@@ -38,6 +38,7 @@ export class PlanGuard implements CanActivate {
         planTier: true,
         subscriptionStatus: true,
         trialEndDate: true,
+        subscriptionEndDate: true,
         isGrandfathered: true,
       },
     });
@@ -53,20 +54,23 @@ export class PlanGuard implements CanActivate {
 
     // Compute effective plan
     let effectivePlan = org.planTier;
+    const now = new Date();
+
     if (
       org.subscriptionStatus === 'TRIALING' &&
       org.trialEndDate &&
-      new Date() > org.trialEndDate
+      now > org.trialEndDate
     ) {
       effectivePlan = 'FREE';
     }
-    if (org.subscriptionStatus === 'EXPIRED' || org.subscriptionStatus === 'CANCELLED') {
-      // If cancelled but subscription hasn't ended yet, keep current plan
-      // Otherwise downgrade
+    if (org.subscriptionStatus === 'EXPIRED') {
       effectivePlan = 'FREE';
     }
-    if (org.subscriptionStatus === 'ACTIVE') {
-      effectivePlan = org.planTier;
+    if (org.subscriptionStatus === 'CANCELLED') {
+      // Keep current plan if subscription end date hasn't passed yet
+      if (org.subscriptionEndDate && now > org.subscriptionEndDate) {
+        effectivePlan = 'FREE';
+      }
     }
 
     const effectiveLevel = PLAN_HIERARCHY[effectivePlan] ?? 0;
