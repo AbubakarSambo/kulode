@@ -79,36 +79,47 @@ export class PlatformService {
         },
       }),
 
-      // Top 10 organizations by invoice volume
-      this.prisma.organization.findMany({
-        take: 10,
-        include: {
-          _count: {
-            select: { invoices: true, users: true },
-          },
-          invoices: {
-            where: {
-              status: { notIn: ['DRAFT', 'CANCELLED'] },
-              deletedAt: null,
-            },
-            select: { total: true },
-          },
-        },
-      }),
+      // Top 10 organizations by invoice volume (raw query to sort by SUM in DB)
+      this.prisma.$queryRaw<
+        Array<{
+          id: string;
+          name: string;
+          slug: string;
+          createdAt: Date;
+          userCount: number;
+          invoiceCount: number;
+          volume: number;
+        }>
+      >`
+        SELECT
+          o.id,
+          o.name,
+          o.slug,
+          o.created_at AS "createdAt",
+          COUNT(DISTINCT u.id)::int AS "userCount",
+          COUNT(DISTINCT i.id)::int AS "invoiceCount",
+          COALESCE(SUM(i.total), 0)::float8 AS volume
+        FROM organizations o
+        LEFT JOIN users u ON u.organization_id = o.id
+        LEFT JOIN invoices i ON i.organization_id = o.id
+          AND i.status NOT IN ('DRAFT', 'CANCELLED')
+          AND i.deleted_at IS NULL
+        GROUP BY o.id, o.name, o.slug, o.created_at
+        ORDER BY volume DESC
+        LIMIT 10
+      `,
     ]);
 
-    // Process top organizations to calculate volume
-    const topOrgsByVolume = topOrganizations
-      .map((org) => ({
-        id: org.id,
-        name: org.name,
-        slug: org.slug,
-        userCount: org._count.users,
-        invoiceCount: org._count.invoices,
-        volume: org.invoices.reduce((sum, inv) => sum + Number(inv.total), 0),
-        createdAt: org.createdAt,
-      }))
-      .sort((a, b) => b.volume - a.volume);
+    // topOrganizations is already sorted by volume from the DB
+    const topOrgsByVolume = topOrganizations.map((org) => ({
+      id: org.id,
+      name: org.name,
+      slug: org.slug,
+      userCount: org.userCount,
+      invoiceCount: org.invoiceCount,
+      volume: org.volume,
+      createdAt: org.createdAt,
+    }));
 
     // Process invoice status breakdown
     const invoiceStatusBreakdown = invoicesByStatus.reduce(
