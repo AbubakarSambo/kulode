@@ -173,6 +173,21 @@ export interface Payment {
   createdAt: string
 }
 
+// Vendor types
+export interface Vendor {
+  id: string
+  name: string
+  serviceDescription?: string
+  contactPerson?: string
+  phone?: string
+  email?: string
+  bankAccountNumber?: string
+  bankName?: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 // Service item types
 export interface ServiceItem {
   id: string

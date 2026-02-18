@@ -14,6 +14,10 @@ import {
   ClientDetailPage,
   NewClientPage,
   EditClientPage,
+  VendorsListPage,
+  VendorDetailPage,
+  NewVendorPage,
+  EditVendorPage,
   InvoicesListPage,
   InvoiceDetailPage,
   NewInvoicePage,
@@ -68,6 +72,20 @@ function App() {
               <Route path="/clients/:id" element={<ClientDetailPage />} />
               <Route path="/clients/:id/edit" element={<EditClientPage />} />
               
+              {/* Vendors */}
+              <Route path="/vendors" element={<VendorsListPage />} />
+              <Route path="/vendors/:id" element={<VendorDetailPage />} />
+
+              {/* Vendor create - SUPER_ADMIN and ADMIN */}
+              <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']} />}>
+                <Route path="/vendors/new" element={<NewVendorPage />} />
+              </Route>
+
+              {/* Vendor edit - SUPER_ADMIN only */}
+              <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']} />}>
+                <Route path="/vendors/:id/edit" element={<EditVendorPage />} />
+              </Route>
+
               {/* Invoices */}
               <Route path="/invoices" element={<InvoicesListPage />} />
               <Route path="/invoices/new" element={<NewInvoicePage />} />

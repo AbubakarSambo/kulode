@@ -7,6 +7,7 @@ import {
   CreditCard,
   Receipt,
   BarChart3,
+  Store,
   Settings,
   LogOut,
   X,
@@ -20,6 +21,7 @@ const navigation = [
   { name: 'Clients', href: '/clients', icon: Users },
   { name: 'Invoices', href: '/invoices', icon: FileText },
   { name: 'Payments', href: '/payments', icon: CreditCard },
+  { name: 'Vendors', href: '/vendors', icon: Store },
   { name: 'Expenses', href: '/expenses', icon: Receipt },
   { name: 'Reports', href: '/reports', icon: BarChart3 },
 ]
@@ -54,7 +56,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
   const filteredNav = navigation.filter((item) => {
     if (item.href === '/reports' && !canViewReports) return false
-    if ((item.href === '/payments' || item.href === '/expenses') && user?.role === 'STAFF') return false
+    if ((item.href === '/payments' || item.href === '/expenses' || item.href === '/vendors') && user?.role === 'STAFF') return false
     return true
   })
 

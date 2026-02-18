@@ -76,6 +76,7 @@ model Organization {
   expenses          Expense[]
   expenseCategories ExpenseCategory[]
   serviceItems      ServiceItem[]
+  vendors           Vendor[]
 
   @@map("organizations")
 }
@@ -346,4 +347,28 @@ model ServiceItem {
   @@unique([organizationId, name])
   @@index([organizationId])
   @@map("service_items")
+}
+
+// Vendors (external service providers/suppliers)
+model Vendor {
+  id                String  @id @default(uuid())
+  organizationId    String  @map("organization_id")
+  name              String
+  serviceDescription String? @map("service_description")
+  contactPerson     String? @map("contact_person")
+  phone             String?
+  email             String?
+  bankAccountNumber String? @map("bank_account_number")
+  bankName          String? @map("bank_name")
+  isActive          Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("vendors")
 }

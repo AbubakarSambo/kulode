@@ -13,6 +13,11 @@ export { ClientsListPage } from './clients/ClientsList'
 export { ClientDetailPage } from './clients/ClientDetail'
 export { NewClientPage, EditClientPage } from './clients/ClientForm'
 
+// Vendors
+export { VendorsListPage } from './vendors/VendorsList'
+export { VendorDetailPage } from './vendors/VendorDetail'
+export { NewVendorPage, EditVendorPage } from './vendors/VendorForm'
+
 // Invoices
 export { InvoicesListPage } from './invoices/InvoicesList'
 export { InvoiceDetailPage } from './invoices/InvoiceDetail'
