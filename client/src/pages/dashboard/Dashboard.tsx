@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { FileText, CreditCard, TrendingUp, TrendingDown, AlertCircle } from 'lucide-react'
+import { FileText, CreditCard, TrendingUp, TrendingDown, AlertCircle, Trophy } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { Header } from '@/components/layout'
 import { OnboardingChecklist } from '@/components/OnboardingChecklist'
 import { Card, CardContent, CardHeader, CardTitle, Badge, Select, Input } from '@/components/ui'
@@ -35,6 +36,13 @@ export function DashboardPage() {
     queryKey: ['reports', 'outstanding'],
     queryFn: () => reportsApi.getOutstanding(),
   })
+
+  const { data: incomeData } = useQuery({
+    queryKey: ['reports', 'income', period, startDate, endDate],
+    queryFn: () => reportsApi.getIncome(filters),
+  })
+
+  const topClient = incomeData?.topClients?.[0]
 
   const stats = [
     {
@@ -137,7 +145,7 @@ export function DashboardPage() {
         </div>
 
         {/* Invoice Status */}
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-3">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -203,6 +211,39 @@ export function DashboardPage() {
                 </div>
               ) : (
                 <p className="text-center text-muted-foreground">No outstanding invoices</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Top Client */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Trophy className="h-5 w-5" />
+                Top Client
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {topClient ? (
+                <div className="space-y-2">
+                  <p className="text-lg font-bold">
+                    {topClient.clientId ? (
+                      <Link to={`/clients/${topClient.clientId}`} className="hover:underline">
+                        {topClient.clientName}
+                      </Link>
+                    ) : (
+                      topClient.clientName
+                    )}
+                  </p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {formatCurrency(topClient.total)}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {topClient.paymentCount} payment{topClient.paymentCount !== 1 ? 's' : ''} received
+                  </p>
+                </div>
+              ) : (
+                <p className="text-center text-muted-foreground">No payments in this period</p>
               )}
             </CardContent>
           </Card>
