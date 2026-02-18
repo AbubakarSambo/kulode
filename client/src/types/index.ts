@@ -330,6 +330,12 @@ export interface PlatformDashboard {
     gmv: number
     platformFees: number
   }
+  subscriptions: {
+    byPlan: { FREE: number; PRO: number; BUSINESS: number }
+    byStatus: { TRIALING: number; ACTIVE: number; CANCELLED: number; EXPIRED: number }
+    grandfathered: number
+    revenue: number
+  }
   invoices: Record<string, { count: number; total: number }>
   recentSignups: Array<{
     id: string
@@ -338,6 +344,9 @@ export interface PlatformDashboard {
     userCount: number
     invoiceCount: number
     createdAt: string
+    planTier: PlanTier
+    subscriptionStatus: SubscriptionStatus
+    isGrandfathered: boolean
   }>
   topOrganizations: Array<{
     id: string
@@ -347,5 +356,8 @@ export interface PlatformDashboard {
     invoiceCount: number
     volume: number
     createdAt: string
+    planTier: PlanTier
+    subscriptionStatus: SubscriptionStatus
+    isGrandfathered: boolean
   }>
 }

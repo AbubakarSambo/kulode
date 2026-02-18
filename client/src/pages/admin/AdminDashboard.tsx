@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Building2, Users, DollarSign, Coins, FileText } from 'lucide-react'
+import { Building2, Users, DollarSign, Coins, FileText, Crown } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui'
 import { platformApi } from '@/api/platform'
@@ -41,7 +41,7 @@ export function AdminDashboardPage() {
         ) : data ? (
           <>
             {/* Stat Cards */}
-            <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
@@ -109,10 +109,86 @@ export function AdminDashboardPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Subscription Revenue</p>
+                      <p className="mt-1 text-2xl font-bold">{formatCurrency(data.subscriptions.revenue)}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        From subscriptions
+                      </p>
+                    </div>
+                    <div className="rounded-full bg-indigo-50 p-3">
+                      <Crown className="h-5 w-5 text-indigo-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
 
-            {/* 3-column grid */}
-            <div className="grid gap-6 lg:grid-cols-3">
+            {/* 4-column grid */}
+            <div className="grid gap-6 lg:grid-cols-4">
+              {/* Subscription Breakdown */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Crown className="h-5 w-5" />
+                    Subscription Breakdown
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">By Plan</p>
+                      <div className="space-y-2">
+                        {Object.entries(data.subscriptions.byPlan).map(([plan, count]) => (
+                          <div key={plan} className="flex items-center justify-between">
+                            <Badge
+                              variant={
+                                plan === 'BUSINESS' ? 'success' :
+                                plan === 'PRO' ? 'default' :
+                                'secondary'
+                              }
+                            >
+                              {plan}
+                            </Badge>
+                            <span className="font-medium">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">By Status</p>
+                      <div className="space-y-2">
+                        {Object.entries(data.subscriptions.byStatus).map(([status, count]) => (
+                          <div key={status} className="flex items-center justify-between">
+                            <Badge
+                              variant={
+                                status === 'ACTIVE' ? 'success' :
+                                status === 'TRIALING' ? 'default' :
+                                status === 'CANCELLED' ? 'destructive' :
+                                'secondary'
+                              }
+                            >
+                              {status}
+                            </Badge>
+                            <span className="font-medium">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    {data.subscriptions.grandfathered > 0 && (
+                      <div className="flex items-center justify-between border-t pt-3">
+                        <Badge variant="outline">Grandfathered</Badge>
+                        <span className="font-medium">{data.subscriptions.grandfathered}</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Invoice Status Breakdown */}
               <Card>
                 <CardHeader>
@@ -166,7 +242,24 @@ export function AdminDashboardPage() {
                       {data.recentSignups.map((org) => (
                         <div key={org.id} className="flex items-center justify-between">
                           <div>
-                            <p className="font-medium">{org.name}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-medium">{org.name}</p>
+                              <Badge
+                                variant={
+                                  org.planTier === 'BUSINESS' ? 'success' :
+                                  org.planTier === 'PRO' ? 'default' :
+                                  'secondary'
+                                }
+                                className="text-[10px] px-1.5 py-0"
+                              >
+                                {org.planTier}
+                              </Badge>
+                              {org.isGrandfathered && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                  Grandfathered
+                                </Badge>
+                              )}
+                            </div>
                             <p className="text-xs text-muted-foreground">
                               {org.userCount} users &middot; {org.invoiceCount} invoices
                             </p>
@@ -201,7 +294,24 @@ export function AdminDashboardPage() {
                               #{index + 1}
                             </span>
                             <div>
-                              <p className="font-medium">{org.name}</p>
+                              <div className="flex items-center gap-1.5">
+                                <p className="font-medium">{org.name}</p>
+                                <Badge
+                                  variant={
+                                    org.planTier === 'BUSINESS' ? 'success' :
+                                    org.planTier === 'PRO' ? 'default' :
+                                    'secondary'
+                                  }
+                                  className="text-[10px] px-1.5 py-0"
+                                >
+                                  {org.planTier}
+                                </Badge>
+                                {org.isGrandfathered && (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                    Grandfathered
+                                  </Badge>
+                                )}
+                              </div>
                               <p className="text-xs text-muted-foreground">
                                 {org.invoiceCount} invoices
                               </p>
