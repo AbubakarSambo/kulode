@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Plus, Pencil } from 'lucide-react'
+import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Badge } from '@/components/ui'
 import { expensesApi } from '@/api'
@@ -12,6 +13,24 @@ export function ExpensesListPage() {
   const [page, setPage] = useState(1)
   const user = useAuthStore((s) => s.user)
   const isSuperAdmin = user?.role === 'SUPER_ADMIN'
+  const queryClient = useQueryClient()
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => expensesApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['expenses'] })
+      toast.success('Expense deleted')
+    },
+    onError: () => {
+      toast.error('Failed to delete expense')
+    },
+  })
+
+  const handleDelete = (expenseId: string) => {
+    if (window.confirm('Are you sure you want to delete this expense?')) {
+      deleteMutation.mutate(expenseId)
+    }
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ['expenses', { page }],
@@ -85,11 +104,21 @@ export function ExpensesListPage() {
                       </td>
                       {isSuperAdmin && (
                         <td className="px-4 py-3 text-right">
-                          <Link to={`/expenses/${expense.id}/edit`}>
-                            <Button variant="ghost" size="sm">
-                              <Pencil className="h-4 w-4" />
+                          <div className="flex items-center justify-end gap-1">
+                            <Link to={`/expenses/${expense.id}/edit`}>
+                              <Button variant="ghost" size="sm">
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </Link>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(expense.id)}
+                              disabled={deleteMutation.isPending}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
-                          </Link>
+                          </div>
                         </td>
                       )}
                     </tr>
