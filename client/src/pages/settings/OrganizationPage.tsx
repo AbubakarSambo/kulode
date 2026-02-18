@@ -36,7 +36,7 @@ export function OrganizationPage() {
     reset,
     watch,
     setValue,
-    formState: { errors, isDirty },
+    formState: { errors },
   } = useForm<OrganizationFormData>({
     resolver: zodResolver(organizationSchema),
     defaultValues: {
@@ -61,7 +61,7 @@ export function OrganizationPage() {
         address: organization.address || '',
         invoicePrefix: organization.invoicePrefix,
         vatEnabled: organization.vatEnabled,
-        taxRate: organization.taxRate,
+        taxRate: Number(organization.taxRate) || 0,
         paymentTerms: organization.paymentTerms || '',
         defaultNotes: organization.defaultNotes || '',
       })
@@ -241,7 +241,7 @@ export function OrganizationPage() {
 
           {/* Actions */}
           <div className="flex gap-3">
-            <Button type="submit" isLoading={updateMutation.isPending} disabled={!isDirty}>
+            <Button type="submit" isLoading={updateMutation.isPending}>
               Save Changes
             </Button>
           </div>
