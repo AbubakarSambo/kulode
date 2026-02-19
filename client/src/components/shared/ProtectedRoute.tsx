@@ -20,3 +20,14 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
 
   return <Outlet />
 }
+
+// Redirects authenticated users away from guest-only routes (login, register)
+export function GuestRoute() {
+  const { isAuthenticated } = useAuthStore()
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />
+  }
+
+  return <Outlet />
+}
