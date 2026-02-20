@@ -102,7 +102,7 @@ export class PlatformService {
         FROM organizations o
         LEFT JOIN users u ON u.organization_id = o.id
         LEFT JOIN invoices i ON i.organization_id = o.id
-          AND i.status NOT IN ('DRAFT', 'CANCELLED')
+          AND i.status NOT IN ('CANCELLED')
           AND i.deleted_at IS NULL
         GROUP BY o.id, o.name, o.slug, o.created_at
         ORDER BY volume DESC
