@@ -478,8 +478,8 @@ export class InvoicePdfService {
           .text(invoice.terms, 320, termsY + 15, { width: 225 });
       }
 
-      // Footer
-      const footerY = 780;
+      // Footer — positioned safely above the bottom margin to avoid triggering a new page
+      const footerY = doc.page.height - doc.page.margins.bottom - 40;
       doc
         .strokeColor('#e2e8f0')
         .lineWidth(1)
