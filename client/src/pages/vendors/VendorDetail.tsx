@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Edit, Trash2, Mail, Phone, User, Building2, CreditCard, Receipt } from 'lucide-react'
+import { Edit, Trash2, Mail, Phone, User, Building2, CreditCard, FileText } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui'
 import { vendorsApi, expensesApi } from '@/api'
@@ -201,7 +201,7 @@ export function VendorDetailPage() {
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Receipt className="h-5 w-5" />
+                <FileText className="h-5 w-5" />
                 Expenses
               </CardTitle>
             </CardHeader>
