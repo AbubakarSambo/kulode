@@ -1,21 +1,21 @@
 @import "tailwindcss";
 
 @theme {
-  /* Primary - Plum palette */
-  --color-primary-50: #faf5ff;
-  --color-primary-100: #f3e8ff;
-  --color-primary-200: #e9d5ff;
-  --color-primary-300: #d8b4fe;
-  --color-primary-400: #c084fc;
-  --color-primary-500: #a855f7;
-  --color-primary-600: #9333ea;
-  --color-primary-700: #7c3aed;
-  --color-primary-800: #6b21a8;
-  --color-primary-900: #581c87;
-  --color-primary-950: #3b0764;
+  /* Primary - Slate/Black palette */
+  --color-primary-50: #f8fafc;
+  --color-primary-100: #f1f5f9;
+  --color-primary-200: #e2e8f0;
+  --color-primary-300: #cbd5e1;
+  --color-primary-400: #94a3b8;
+  --color-primary-500: #64748b;
+  --color-primary-600: #475569;
+  --color-primary-700: #334155;
+  --color-primary-800: #1e293b;
+  --color-primary-900: #0f172a;
+  --color-primary-950: #020617;
 
   /* Semantic colors */
-  --color-primary: #9333ea;
+  --color-primary: #0f172a;
   --color-primary-foreground: #ffffff;
   --color-success: #10b981;
   --color-warning: #f59e0b;
@@ -30,7 +30,7 @@
   --color-muted-foreground: #64748b;
   --color-border: #e2e8f0;
   --color-input: #e2e8f0;
-  --color-ring: #9333ea;
+  --color-ring: #0f172a;
   --color-secondary: #f1f5f9;
   --color-secondary-foreground: #64748b;
   --color-accent: #f1f5f9;

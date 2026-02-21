@@ -260,6 +260,8 @@ export interface Expense {
   amount: number
   expenseDate: string
   recipient?: string
+  vendorId?: string
+  vendor?: { id: string; name: string }
   paymentMethod: PaymentMethod
   reference?: string
   notes?: string

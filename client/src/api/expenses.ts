@@ -5,6 +5,7 @@ export interface ExpenseFilters {
   page?: number
   limit?: number
   categoryId?: string
+  vendorId?: string
   startDate?: string
   endDate?: string
 }
@@ -14,6 +15,7 @@ export interface CreateExpenseData {
   amount: number
   expenseDate: string
   categoryId?: string
+  vendorId?: string
   recipient?: string
   paymentMethod: PaymentMethod
   reference?: string
@@ -26,6 +28,7 @@ export const expensesApi = {
     if (filters.page) params.append('page', filters.page.toString())
     if (filters.limit) params.append('limit', filters.limit.toString())
     if (filters.categoryId) params.append('categoryId', filters.categoryId)
+    if (filters.vendorId) params.append('vendorId', filters.vendorId)
     if (filters.startDate) params.append('startDate', filters.startDate)
     if (filters.endDate) params.append('endDate', filters.endDate)
     

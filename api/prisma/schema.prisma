@@ -336,8 +336,9 @@ model Expense {
   id             String        @id @default(uuid())
   organizationId String        @map("organization_id")
   categoryId     String?       @map("category_id")
+  vendorId       String?       @map("vendor_id")
   recordedById   String        @map("recorded_by")
-  
+
   description    String
   amount         Decimal       @db.Decimal(12, 2)
   expenseDate    DateTime      @map("expense_date") @db.Date
@@ -345,7 +346,7 @@ model Expense {
   paymentMethod  PaymentMethod @map("payment_method")
   reference      String?
   notes          String?
-  
+
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
@@ -353,10 +354,12 @@ model Expense {
   // Relations
   organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   category     ExpenseCategory? @relation(fields: [categoryId], references: [id])
+  vendor       Vendor?          @relation(fields: [vendorId], references: [id])
   recordedBy   User             @relation("RecordedByUser", fields: [recordedById], references: [id])
 
   @@index([organizationId])
   @@index([categoryId])
+  @@index([vendorId])
   @@index([expenseDate])
   @@map("expenses")
 }
@@ -399,6 +402,7 @@ model Vendor {
 
   // Relations
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  expenses     Expense[]
 
   @@unique([organizationId, name])
   @@index([organizationId])

@@ -67,7 +67,7 @@ export class InvoicePdfService {
       doc.on('error', reject);
 
       // Colors
-      const primaryColor = '#9333ea';
+      const primaryColor = '#0f172a';
       const textColor = '#1e293b';
       const mutedColor = '#64748b';
 
@@ -361,7 +361,7 @@ export class InvoicePdfService {
         for (const inst of unpaidInstallments) {
           // Draw payment box background
           doc
-            .fillColor('#f3e8ff') // Light purple background
+            .fillColor('#f1f5f9') // Light grey background
             .roundedRect(50, paymentBoxY, boxWidth, boxHeight, 8)
             .fill();
           
@@ -408,7 +408,7 @@ export class InvoicePdfService {
         
         // Draw payment box background
         doc
-          .fillColor('#f3e8ff') // Light purple background
+          .fillColor('#f1f5f9') // Light grey background
           .roundedRect(50, paymentBoxY, boxWidth, boxHeight, 8)
           .fill();
         
@@ -478,8 +478,8 @@ export class InvoicePdfService {
           .text(invoice.terms, 320, termsY + 15, { width: 225 });
       }
 
-      // Footer
-      const footerY = 780;
+      // Footer — positioned safely above the bottom margin to avoid triggering a new page
+      const footerY = doc.page.height - doc.page.margins.bottom - 40;
       doc
         .strokeColor('#e2e8f0')
         .lineWidth(1)
