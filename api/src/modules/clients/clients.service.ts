@@ -36,7 +36,7 @@ export class ClientsService {
           isActive: true,
           createdAt: true,
           _count: {
-            select: { invoices: true },
+            select: { invoices: { where: { deletedAt: null } } },
           },
         },
       }),
