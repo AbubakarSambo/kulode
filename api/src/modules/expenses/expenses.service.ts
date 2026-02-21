@@ -46,6 +46,9 @@ export class ExpensesService {
           category: {
             select: { id: true, name: true },
           },
+          vendor: {
+            select: { id: true, name: true },
+          },
           recordedBy: {
             select: { id: true, firstName: true, lastName: true },
           },
@@ -62,6 +65,9 @@ export class ExpensesService {
       where: { id, organizationId, deletedAt: null },
       include: {
         category: true,
+        vendor: {
+          select: { id: true, name: true },
+        },
         recordedBy: {
           select: { id: true, firstName: true, lastName: true },
         },
@@ -87,6 +93,17 @@ export class ExpensesService {
       }
     }
 
+    // Verify vendor belongs to org if provided
+    if (dto.vendorId) {
+      const vendor = await this.prisma.vendor.findFirst({
+        where: { id: dto.vendorId, organizationId },
+      });
+
+      if (!vendor) {
+        throw new NotFoundException('Vendor not found');
+      }
+    }
+
     const expense = await this.prisma.expense.create({
       data: {
         organizationId,
@@ -95,6 +112,7 @@ export class ExpensesService {
         amount: dto.amount,
         expenseDate: dto.expenseDate,
         categoryId: dto.categoryId,
+        vendorId: dto.vendorId,
         recipient: dto.recipient,
         paymentMethod: dto.paymentMethod,
         reference: dto.reference,
@@ -102,6 +120,9 @@ export class ExpensesService {
       },
       include: {
         category: {
+          select: { id: true, name: true },
+        },
+        vendor: {
           select: { id: true, name: true },
         },
       },
@@ -130,11 +151,25 @@ export class ExpensesService {
       }
     }
 
+    // Verify vendor belongs to org if provided
+    if (dto.vendorId) {
+      const vendor = await this.prisma.vendor.findFirst({
+        where: { id: dto.vendorId, organizationId },
+      });
+
+      if (!vendor) {
+        throw new NotFoundException('Vendor not found');
+      }
+    }
+
     const updated = await this.prisma.expense.update({
       where: { id },
       data: dto,
       include: {
         category: {
+          select: { id: true, name: true },
+        },
+        vendor: {
           select: { id: true, name: true },
         },
       },

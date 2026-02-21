@@ -14,6 +14,7 @@ export interface CreateExpenseData {
   amount: number
   expenseDate: string
   categoryId?: string
+  vendorId?: string
   recipient?: string
   paymentMethod: PaymentMethod
   reference?: string

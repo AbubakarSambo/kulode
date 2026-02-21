@@ -42,6 +42,11 @@ export class CreateExpenseDto {
   @IsUUID()
   categoryId?: string;
 
+  @ApiPropertyOptional({ example: 'uuid-of-vendor' })
+  @IsOptional()
+  @IsUUID()
+  vendorId?: string;
+
   @ApiPropertyOptional({ example: 'ABC Supplies Ltd' })
   @IsOptional()
   @IsString()

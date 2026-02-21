@@ -35,6 +35,11 @@ export class UpdateExpenseDto {
   @IsUUID()
   categoryId?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  vendorId?: string;
+
   @ApiPropertyOptional({ example: 'XYZ Supplies Ltd' })
   @IsOptional()
   @IsString()
