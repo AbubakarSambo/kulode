@@ -53,7 +53,7 @@ export class InvoicesService {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { issueDate: 'desc' },
         include: {
           client: {
             select: { id: true, name: true, email: true },

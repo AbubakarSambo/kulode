@@ -42,7 +42,7 @@ export class PaymentsService {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { paymentDate: 'desc' },
         include: {
           invoice: {
             select: { id: true, invoiceNumber: true, total: true },
