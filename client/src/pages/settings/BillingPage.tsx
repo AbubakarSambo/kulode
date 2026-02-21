@@ -60,6 +60,7 @@ export function BillingPage() {
   const { subscription, effectivePlan, isGrandfathered } = useSubscription()
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('MONTHLY')
   const [showCancelModal, setShowCancelModal] = useState(false)
+  const [subscribingPlan, setSubscribingPlan] = useState<PlanTier | null>(null)
 
   const { data: paymentHistory } = useQuery({
     queryKey: ['subscription', 'payment-history'],
@@ -90,6 +91,7 @@ export function BillingPage() {
   })
 
   const handleSubscribe = (planTier: PlanTier) => {
+    setSubscribingPlan(planTier)
     subscribeMutation.mutate({ planTier, period: billingPeriod })
   }
 
@@ -212,7 +214,8 @@ export function BillingPage() {
             <div className="grid gap-4 sm:grid-cols-3">
               {(Object.entries(PLAN_FEATURES) as [PlanTier, typeof PLAN_FEATURES[string]][]).map(
                 ([tier, plan]) => {
-                  const isCurrent = effectivePlan === tier
+                  const isTrialing = subscription?.subscriptionStatus === 'TRIALING'
+                  const isCurrent = !isTrialing && effectivePlan === tier
                   const price = billingPeriod === 'MONTHLY' ? plan.price.monthly : plan.price.annual
                   const isUpgrade = !isCurrent && tier !== 'FREE'
 
@@ -260,10 +263,10 @@ export function BillingPage() {
                         ) : isUpgrade ? (
                           <button
                             onClick={() => handleSubscribe(tier)}
-                            disabled={subscribeMutation.isPending}
+                            disabled={subscribeMutation.isPending && subscribingPlan === tier}
                             className="flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
                           >
-                            {subscribeMutation.isPending ? (
+                            {subscribeMutation.isPending && subscribingPlan === tier ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                               <Crown className="h-4 w-4" />
