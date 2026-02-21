@@ -45,7 +45,7 @@ export class ReceiptPdfService {
       doc.on('error', reject);
 
       // Colors
-      const primaryColor = '#9333ea';
+      const primaryColor = '#0f172a';
       const textColor = '#1e293b';
       const mutedColor = '#64748b';
       const successColor = '#10b981';
@@ -55,21 +55,21 @@ export class ReceiptPdfService {
         .fillColor(primaryColor)
         .fontSize(24)
         .font('Helvetica-Bold')
-        .text(receipt.organization.name, 50, 50);
+        .text(receipt.organization.name, 50, 50, { width: 260, lineBreak: true });
 
       doc.fillColor(mutedColor).fontSize(10).font('Helvetica');
 
-      let yPos = 80;
+      let yPos = doc.y + 6;
       if (receipt.organization.email) {
-        doc.text(receipt.organization.email, 50, yPos);
+        doc.text(receipt.organization.email, 50, yPos, { width: 260 });
         yPos += 14;
       }
       if (receipt.organization.phone) {
-        doc.text(receipt.organization.phone, 50, yPos);
+        doc.text(receipt.organization.phone, 50, yPos, { width: 260 });
         yPos += 14;
       }
       if (receipt.organization.address) {
-        doc.text(receipt.organization.address, 50, yPos, { width: 200 });
+        doc.text(receipt.organization.address, 50, yPos, { width: 260 });
       }
 
       // Receipt title (right-aligned in box from 345 to 545)
@@ -273,6 +273,6 @@ export class ReceiptPdfService {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(num);
-    return `₦${formatted}`;
+    return `NGN ${formatted}`;
   }
 }
