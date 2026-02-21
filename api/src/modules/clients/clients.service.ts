@@ -51,6 +51,7 @@ export class ClientsService {
       where: { id, organizationId },
       include: {
         invoices: {
+          where: { deletedAt: null },
           orderBy: { createdAt: 'desc' },
           take: 10,
           select: {
