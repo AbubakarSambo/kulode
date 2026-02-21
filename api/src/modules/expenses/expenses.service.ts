@@ -14,7 +14,7 @@ export class ExpensesService {
 
   // Expense methods
   async findAll(organizationId: string, filter: ExpenseFilterDto) {
-    const { page = 1, limit = 20, categoryId, startDate, endDate } = filter;
+    const { page = 1, limit = 20, categoryId, vendorId, startDate, endDate } = filter;
     const skip = (page - 1) * limit;
 
     const where: Prisma.ExpenseWhereInput = {
@@ -24,6 +24,10 @@ export class ExpensesService {
 
     if (categoryId) {
       where.categoryId = categoryId;
+    }
+
+    if (vendorId) {
+      where.vendorId = vendorId;
     }
 
     if (startDate || endDate) {

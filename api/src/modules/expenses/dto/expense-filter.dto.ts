@@ -11,6 +11,11 @@ export class ExpenseFilterDto extends PaginationDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsUUID()
+  vendorId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @Type(() => Date)
   startDate?: Date;
 
