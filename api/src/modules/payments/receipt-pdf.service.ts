@@ -273,6 +273,6 @@ export class ReceiptPdfService {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(num);
-    return `NGN ${formatted}`;
+    return `₦${formatted}`;
   }
 }
