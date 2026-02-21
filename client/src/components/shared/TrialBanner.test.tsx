@@ -144,4 +144,90 @@ describe('TrialBanner', () => {
     const link = screen.getByText('Upgrade now')
     expect(link.closest('a')).toHaveAttribute('href', '/settings/billing')
   })
+
+  // ─── Over-user-limit warnings ──────────────────────────────────────
+
+  it('shows user-limit warning when expired trial has more active users than free plan allows', () => {
+    mockUseSubscription.mockReturnValue({
+      subscription: {
+        usage: { activeUsers: 3 },
+        limits: { maxUsers: 1 },
+      },
+      isTrial: true,
+      isExpired: true,
+      isActive: false,
+      isGrandfathered: false,
+      trialDaysRemaining: 0,
+      isLoading: false,
+    })
+
+    renderBanner()
+
+    expect(screen.getByText(/3 active users/)).toBeInTheDocument()
+    expect(screen.getByText(/Free plan allows 1/)).toBeInTheDocument()
+  })
+
+  it('shows remove-users link and upgrade link when over user limit', () => {
+    mockUseSubscription.mockReturnValue({
+      subscription: {
+        usage: { activeUsers: 2 },
+        limits: { maxUsers: 1 },
+      },
+      isTrial: false,
+      isExpired: true,
+      isActive: false,
+      isGrandfathered: false,
+      trialDaysRemaining: null,
+      isLoading: false,
+    })
+
+    renderBanner()
+
+    const removeLink = screen.getByText('Remove users')
+    expect(removeLink.closest('a')).toHaveAttribute('href', '/settings/users')
+
+    const upgradeLinks = screen.getAllByText('upgrade')
+    expect(upgradeLinks[0].closest('a')).toHaveAttribute('href', '/settings/billing')
+  })
+
+  it('does not show user-limit warning when within free plan user limit after trial expires', () => {
+    mockUseSubscription.mockReturnValue({
+      subscription: {
+        usage: { activeUsers: 1 },
+        limits: { maxUsers: 1 },
+      },
+      isTrial: true,
+      isExpired: true,
+      isActive: false,
+      isGrandfathered: false,
+      trialDaysRemaining: 0,
+      isLoading: false,
+    })
+
+    renderBanner()
+
+    expect(screen.queryByText(/active users/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Remove users')).not.toBeInTheDocument()
+  })
+
+  it('does not show user-limit warning during an active trial even if over future free limit', () => {
+    mockUseSubscription.mockReturnValue({
+      subscription: {
+        usage: { activeUsers: 3 },
+        limits: { maxUsers: 1 },
+      },
+      isTrial: true,
+      isExpired: false,
+      isActive: false,
+      isGrandfathered: false,
+      trialDaysRemaining: 5,
+      isLoading: false,
+    })
+
+    renderBanner()
+
+    // Shows the trial countdown banner, NOT the user-limit warning
+    expect(screen.getByText(/5 days left in your Pro trial/)).toBeInTheDocument()
+    expect(screen.queryByText('Remove users')).not.toBeInTheDocument()
+  })
 })
