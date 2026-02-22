@@ -3,6 +3,7 @@ import {
   ConflictException,
   UnauthorizedException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -15,6 +16,8 @@ import { TokenType } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
@@ -340,8 +343,10 @@ export class AuthService {
       },
     });
 
-    // Send email (fire-and-forget)
-    this.emailService.sendPasswordResetEmail(user.email, user.firstName, token);
+    // Send email (fire-and-forget, log errors)
+    this.emailService.sendPasswordResetEmail(user.email, user.firstName, token).catch((err) => {
+      this.logger.error(`Failed to send password reset email to ${user.email}: ${err.message}`);
+    });
 
     return { message };
   }
