@@ -84,47 +84,6 @@ export function ReportsPage() {
               </Card>
             </div>
 
-            {/* Cashflow Chart */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Monthly Cashflow</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={cashflow?.monthly ?? []}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="month" />
-                      <YAxis tickFormatter={(value) => `₦${(value / 1000).toFixed(0)}k`} />
-                      <Tooltip 
-                        formatter={(value) => formatCurrency(Number(value))}
-                        labelFormatter={(label) => `Month: ${label}`}
-                      />
-                      <Bar dataKey="income" name="Income" fill="#10b981" />
-                      <Bar dataKey="expenses" name="Expenses" fill="#ef4444" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Expenses by Category */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Expenses by Category</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {expenseBreakdown?.byCategory?.map((cat: any) => (
-                    <div key={cat.categoryId || 'uncategorized'} className="flex items-center justify-between">
-                      <span className="font-medium">{cat.categoryName}</span>
-                      <span className="text-muted-foreground">{formatCurrency(cat.total)}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
             {/* Top Services by Revenue */}
             <Card>
               <CardHeader>
@@ -166,6 +125,47 @@ export function ReportsPage() {
                     </ResponsiveContainer>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Expenses by Category */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Expenses by Category</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {expenseBreakdown?.byCategory?.map((cat: any) => (
+                    <div key={cat.categoryId || 'uncategorized'} className="flex items-center justify-between">
+                      <span className="font-medium">{cat.categoryName}</span>
+                      <span className="text-muted-foreground">{formatCurrency(cat.total)}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Cashflow Chart */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Monthly Cashflow</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={cashflow?.monthly ?? []}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis tickFormatter={(value) => `₦${(value / 1000).toFixed(0)}k`} />
+                      <Tooltip
+                        formatter={(value) => formatCurrency(Number(value))}
+                        labelFormatter={(label) => `Month: ${label}`}
+                      />
+                      <Bar dataKey="income" name="Income" fill="#10b981" />
+                      <Bar dataKey="expenses" name="Expenses" fill="#ef4444" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </CardContent>
             </Card>
           </div>
