@@ -113,7 +113,7 @@ export function ReportsPage() {
                           tick={{ fontSize: 12 }}
                         />
                         <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                        <Bar dataKey="revenue" name="Revenue" fill="#000000" radius={[0, 4, 4, 0]}>
+                        <Bar dataKey="revenue" name="Revenue" fill="#3b82f6" radius={[0, 4, 4, 0]}>
                           <LabelList
                             dataKey="revenue"
                             position="right"
