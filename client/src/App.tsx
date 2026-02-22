@@ -9,6 +9,8 @@ import {
   CheckEmailPage,
   VerifyEmailPage,
   SetPasswordPage,
+  ForgotPasswordPage,
+  ResetPasswordPage,
   DashboardPage,
   ClientsListPage,
   ClientDetailPage,
@@ -60,6 +62,8 @@ function App() {
           <Route path="/check-email" element={<CheckEmailPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/set-password" element={<SetPasswordPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/payment/callback" element={<PaymentCallbackPage />} />
           <Route path="/i/:token" element={<PublicInvoicePage />} />
 
