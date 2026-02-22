@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from 'recharts'
 import { Header } from '@/components/layout'
 import { Card, CardContent, CardHeader, CardTitle, Select } from '@/components/ui'
 import { reportsApi, type ReportPeriod } from '@/api/reports'
@@ -18,6 +18,11 @@ export function ReportsPage() {
   const { data: expenseBreakdown } = useQuery({
     queryKey: ['reports', 'expenses', period],
     queryFn: () => reportsApi.getExpenses({ period }),
+  })
+
+  const { data: topServicesData } = useQuery({
+    queryKey: ['reports', 'top-services', period],
+    queryFn: () => reportsApi.getTopServices({ period }),
   })
 
   return (
@@ -117,6 +122,50 @@ export function ReportsPage() {
                     </div>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Top Services by Revenue */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Top Services by Revenue</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {topServicesData?.services?.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground">No data for this period</p>
+                ) : (
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        layout="vertical"
+                        data={[...(topServicesData?.services ?? [])].reverse()}
+                        margin={{ left: 8, right: 80, top: 4, bottom: 4 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                        <XAxis
+                          type="number"
+                          tickFormatter={(v) => `₦${(v / 1000).toFixed(0)}k`}
+                          tick={{ fontSize: 11 }}
+                        />
+                        <YAxis
+                          type="category"
+                          dataKey="label"
+                          width={130}
+                          tick={{ fontSize: 12 }}
+                        />
+                        <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                        <Bar dataKey="revenue" name="Revenue" fill="#000000" radius={[0, 4, 4, 0]}>
+                          <LabelList
+                            dataKey="revenue"
+                            position="right"
+                            formatter={(v: number) => formatCurrency(v)}
+                            style={{ fontSize: 11, fill: '#6b7280' }}
+                          />
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

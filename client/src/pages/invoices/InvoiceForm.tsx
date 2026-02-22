@@ -97,6 +97,7 @@ function ServiceCombobox({
 }
 
 const invoiceItemSchema = z.object({
+  serviceItemId: z.string().optional(),
   description: z.string(),
   quantity: z.number().min(0.01, 'Quantity must be greater than 0'),
   unitPrice: z.number().min(0, 'Price must be 0 or greater'),
@@ -156,7 +157,7 @@ export function NewInvoicePage() {
       clientId: preselectedClientId,
       issueDate: new Date().toISOString().split('T')[0],
       dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      items: [{ description: '', quantity: 1, unitPrice: 0 }],
+      items: [{ serviceItemId: undefined, description: '', quantity: 1, unitPrice: 0 }],
       discountType: 'PERCENTAGE',
       discountPercent: 0,
       installments: [],
@@ -186,10 +187,12 @@ export function NewInvoicePage() {
 
   const handleServiceItemSelect = (index: number, serviceItemId: string) => {
     if (serviceItemId === 'custom') {
+      setValue(`items.${index}.serviceItemId`, undefined)
       return
     }
     const serviceItem = serviceItems?.find((item) => item.id === serviceItemId)
     if (serviceItem) {
+      setValue(`items.${index}.serviceItemId`, serviceItem.id)
       setValue(`items.${index}.description`, serviceItem.name)
       setValue(`items.${index}.unitPrice`, serviceItem.unitPrice)
     }
@@ -228,6 +231,7 @@ export function NewInvoicePage() {
         discountType: data.discountType || 'PERCENTAGE',
         discountPercent: Number(data.discountPercent) || 0,
         items: data.items.map(item => ({
+          serviceItemId: item.serviceItemId,
           description: item.description,
           quantity: Number(item.quantity),
           unitPrice: Number(item.unitPrice),
@@ -322,7 +326,7 @@ export function NewInvoicePage() {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => append({ description: '', quantity: 1, unitPrice: 0 })}
+                onClick={() => append({ serviceItemId: undefined, description: '', quantity: 1, unitPrice: 0 })}
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Add Item

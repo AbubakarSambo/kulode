@@ -59,4 +59,14 @@ export class ReportsController {
   ) {
     return this.reportsService.getCashflow(organizationId, filter);
   }
+
+  @Get('top-services')
+  @ApiOperation({ summary: 'Get top 5 service items by revenue' })
+  @ApiResponse({ status: 200, description: 'Top services by revenue' })
+  async getTopServices(
+    @CurrentUser('organizationId') organizationId: string,
+    @Query() filter: ReportFilterDto,
+  ) {
+    return this.reportsService.getTopServices(organizationId, filter);
+  }
 }

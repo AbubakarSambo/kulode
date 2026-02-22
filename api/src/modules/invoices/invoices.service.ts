@@ -203,6 +203,7 @@ export class InvoicesService {
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       amount: item.quantity * item.unitPrice,
+      ...(item.serviceItemId && { serviceItemId: item.serviceItemId }),
     }));
 
     const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
@@ -320,6 +321,7 @@ export class InvoicesService {
         quantity: item.quantity || 1,
         unitPrice: item.unitPrice || 0,
         amount: (item.quantity || 1) * (item.unitPrice || 0),
+        ...(item.serviceItemId && { serviceItemId: item.serviceItemId }),
       }));
 
       await this.prisma.invoiceItem.createMany({ data: items });

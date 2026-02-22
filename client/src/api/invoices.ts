@@ -20,6 +20,7 @@ export interface CreateInvoiceData {
   issueDate: string
   dueDate: string
   items: Array<{
+    serviceItemId?: string
     description: string
     quantity: number
     unitPrice: number

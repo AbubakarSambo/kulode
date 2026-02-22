@@ -287,6 +287,53 @@ export class ReportsService {
     };
   }
 
+  async getTopServices(organizationId: string, filter: ReportFilterDto) {
+    const { startDate, endDate } = this.getDateRange(filter);
+
+    const items = await this.prisma.invoiceItem.findMany({
+      where: {
+        invoice: {
+          organizationId,
+          status: { in: ['PAID', 'PARTIALLY_PAID'] },
+          issueDate: { gte: startDate, lte: endDate },
+          deletedAt: null,
+        },
+      },
+      select: {
+        serviceItemId: true,
+        description: true,
+        amount: true,
+        serviceItem: { select: { name: true } },
+      },
+    });
+
+    const grouped = new Map<string, { label: string; revenue: number; count: number }>();
+
+    for (const item of items) {
+      const key = item.serviceItemId ?? '__other__';
+      const label = item.serviceItem?.name ?? 'Other';
+      const existing = grouped.get(key);
+      if (existing) {
+        existing.revenue += Number(item.amount);
+        existing.count += 1;
+      } else {
+        grouped.set(key, { label, revenue: Number(item.amount), count: 1 });
+      }
+    }
+
+    // Sort descending; cap named services at top 5, keep Other at the end if present
+    const other = grouped.get('__other__');
+    grouped.delete('__other__');
+
+    const sorted = Array.from(grouped.values())
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 5);
+
+    if (other) sorted.push(other);
+
+    return { period: { startDate, endDate }, services: sorted };
+  }
+
   async getCashflow(organizationId: string, filter: ReportFilterDto) {
     const { startDate, endDate } = this.getDateRange(filter);
 
