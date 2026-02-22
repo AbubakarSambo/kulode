@@ -158,7 +158,7 @@ export function ReportsPage() {
                           <LabelList
                             dataKey="revenue"
                             position="right"
-                            formatter={(v: number) => formatCurrency(v)}
+                            formatter={(v) => formatCurrency(Number(v ?? 0))}
                             style={{ fontSize: 11, fill: '#6b7280' }}
                           />
                         </Bar>
