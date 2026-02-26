@@ -9,7 +9,7 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { CreateUserDto, UpdateUserDto } from './dto';
-import { PaginationDto, paginate } from '../../common';
+import { PaginationDto, paginate, PLAN_LIMITS } from '../../common';
 import { TokenType } from '@prisma/client';
 
 @Injectable()
@@ -80,11 +80,42 @@ export class UsersService {
       throw new ConflictException('Email already in use');
     }
 
-    // Get org name for the invite email
+    // Get org for invite email and plan check
     const organization = await this.prisma.organization.findUnique({
       where: { id: organizationId },
-      select: { name: true },
+      select: { name: true, planTier: true, subscriptionStatus: true, trialEndDate: true, isGrandfathered: true },
     });
+
+    // Enforce user limit unless grandfathered
+    if (organization && !organization.isGrandfathered) {
+      let effectivePlan = organization.planTier;
+      if (
+        organization.subscriptionStatus === 'TRIALING' &&
+        organization.trialEndDate &&
+        new Date() > organization.trialEndDate
+      ) {
+        effectivePlan = 'FREE';
+      }
+      if (organization.subscriptionStatus === 'EXPIRED') {
+        effectivePlan = 'FREE';
+      }
+
+      const limits = PLAN_LIMITS[effectivePlan];
+      const activeUserCount = await this.prisma.user.count({
+        where: { organizationId, isActive: true },
+      });
+
+      if (activeUserCount >= limits.maxUsers) {
+        throw new ForbiddenException({
+          statusCode: 403,
+          code: 'USER_LIMIT_REACHED',
+          message: `Your ${effectivePlan} plan allows up to ${limits.maxUsers} user(s). Please upgrade to add more.`,
+          currentPlan: effectivePlan,
+          limit: limits.maxUsers,
+          current: activeUserCount,
+        });
+      }
+    }
 
     // Create user without password and generate invite token
     const result = await this.prisma.$transaction(async (tx) => {

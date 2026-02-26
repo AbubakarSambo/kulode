@@ -1,11 +1,13 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
 import { ReportFilterDto } from './dto';
-import { CurrentUser, Roles, Role } from '../../common';
+import { CurrentUser, Roles, Role, RequiresPlan, PlanGuard } from '../../common';
 
 @ApiTags('Reports')
 @ApiBearerAuth()
+@UseGuards(PlanGuard)
+@RequiresPlan('PRO')
 @Controller('reports')
 @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.ACCOUNTANT)
 export class ReportsController {
@@ -68,5 +70,15 @@ export class ReportsController {
     @Query() filter: ReportFilterDto,
   ) {
     return this.reportsService.getTopServices(organizationId, filter);
+  }
+
+  @Get('top-products')
+  @ApiOperation({ summary: 'Get top 5 inventory products by revenue' })
+  @ApiResponse({ status: 200, description: 'Top products by revenue' })
+  async getTopProducts(
+    @CurrentUser('organizationId') organizationId: string,
+    @Query() filter: ReportFilterDto,
+  ) {
+    return this.reportsService.getTopProducts(organizationId, filter);
   }
 }

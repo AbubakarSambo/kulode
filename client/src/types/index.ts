@@ -1,3 +1,50 @@
+// Plan types
+export type PlanTier = 'FREE' | 'PRO' | 'BUSINESS'
+export type SubscriptionStatus = 'TRIALING' | 'ACTIVE' | 'PAST_DUE' | 'CANCELLED' | 'EXPIRED'
+export type BillingPeriod = 'MONTHLY' | 'ANNUAL'
+
+export interface PlanInfo {
+  planTier: PlanTier
+  subscriptionStatus: SubscriptionStatus
+  trialEndDate?: string
+  isGrandfathered: boolean
+}
+
+export interface SubscriptionDetails {
+  planTier: PlanTier
+  effectivePlan: PlanTier
+  subscriptionStatus: SubscriptionStatus
+  billingPeriod?: BillingPeriod
+  trialEndDate?: string
+  trialDaysRemaining: number | null
+  subscriptionStartDate?: string
+  subscriptionEndDate?: string
+  isGrandfathered: boolean
+  limits: {
+    maxUsers: number
+    maxInvoicesPerMonth: number
+    restrictedPages: string[]
+  }
+  usage: {
+    invoicesThisMonth: number
+    activeUsers: number
+  }
+}
+
+export interface SubscriptionPaymentRecord {
+  id: string
+  amount: number
+  currency: string
+  billingPeriod: BillingPeriod
+  planTier: PlanTier
+  paystackReference: string
+  status: string
+  paidAt: string
+  periodStart: string
+  periodEnd: string
+  createdAt: string
+}
+
 // Auth types
 export interface User {
   id: string
@@ -9,6 +56,7 @@ export interface User {
   organizationName: string
   isEmailVerified?: boolean
   isPlatformAdmin?: boolean
+  plan?: PlanInfo
 }
 
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'ACCOUNTANT' | 'STAFF'
@@ -323,6 +371,12 @@ export interface PlatformDashboard {
     gmv: number
     platformFees: number
   }
+  subscriptions: {
+    byPlan: { FREE: number; PRO: number; BUSINESS: number }
+    byStatus: { TRIALING: number; ACTIVE: number; CANCELLED: number; EXPIRED: number }
+    grandfathered: number
+    revenue: number
+  }
   invoices: Record<string, { count: number; total: number }>
   recentSignups: Array<{
     id: string
@@ -331,6 +385,9 @@ export interface PlatformDashboard {
     userCount: number
     invoiceCount: number
     createdAt: string
+    planTier: PlanTier
+    subscriptionStatus: SubscriptionStatus
+    isGrandfathered: boolean
   }>
   topOrganizations: Array<{
     id: string
@@ -340,5 +397,8 @@ export interface PlatformDashboard {
     invoiceCount: number
     volume: number
     createdAt: string
+    planTier: PlanTier
+    subscriptionStatus: SubscriptionStatus
+    isGrandfathered: boolean
   }>
 }

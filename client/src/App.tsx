@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { AppLayout } from '@/components/layout'
-import { ProtectedRoute, GuestRoute } from '@/components/shared'
+import { ProtectedRoute, GuestRoute, PlanGatedRoute } from '@/components/shared'
 import {
   LoginPage,
   RegisterPage,
@@ -39,6 +39,7 @@ import {
   PaymentCallbackPage,
   PublicInvoicePage,
   AdminDashboardPage,
+  BillingPage,
 } from '@/pages'
 
 const queryClient = new QueryClient({
@@ -71,53 +72,57 @@ function App() {
           {/* Protected routes */}
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
-              {/* Dashboard */}
-              <Route path="/dashboard" element={<DashboardPage />} />
-              
-              {/* Clients */}
+              {/* Plan-gated routes (PRO+) */}
+              <Route element={<PlanGatedRoute requiredPlan="PRO" />}>
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/vendors" element={<VendorsListPage />} />
+                <Route path="/vendors/:id" element={<VendorDetailPage />} />
+                <Route path="/expenses" element={<ExpensesListPage />} />
+                <Route path="/expenses/new" element={<NewExpensePage />} />
+                <Route path="/reports" element={<ReportsPage />} />
+              </Route>
+
+              {/* Clients (available to all plans) */}
               <Route path="/clients" element={<ClientsListPage />} />
               <Route path="/clients/new" element={<NewClientPage />} />
               <Route path="/clients/:id" element={<ClientDetailPage />} />
               <Route path="/clients/:id/edit" element={<EditClientPage />} />
-              
-              {/* Vendors */}
-              <Route path="/vendors" element={<VendorsListPage />} />
-              <Route path="/vendors/:id" element={<VendorDetailPage />} />
 
-              {/* Vendor create - SUPER_ADMIN and ADMIN */}
-              <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']} />}>
-                <Route path="/vendors/new" element={<NewVendorPage />} />
+              {/* Vendor create - SUPER_ADMIN and ADMIN + PRO plan */}
+              <Route element={<PlanGatedRoute requiredPlan="PRO" />}>
+                <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']} />}>
+                  <Route path="/vendors/new" element={<NewVendorPage />} />
+                </Route>
+                <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']} />}>
+                  <Route path="/vendors/:id/edit" element={<EditVendorPage />} />
+                </Route>
               </Route>
 
-              {/* Vendor edit - SUPER_ADMIN only */}
-              <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']} />}>
-                <Route path="/vendors/:id/edit" element={<EditVendorPage />} />
-              </Route>
-
-              {/* Invoices */}
+              {/* Invoices (available to all plans) */}
               <Route path="/invoices" element={<InvoicesListPage />} />
               <Route path="/invoices/new" element={<NewInvoicePage />} />
               <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
-              
-              {/* Payments */}
-              <Route path="/payments" element={<PaymentsListPage />} />
 
-              {/* Expenses */}
-              <Route path="/expenses" element={<ExpensesListPage />} />
-              <Route path="/expenses/new" element={<NewExpensePage />} />
+              {/* Payments (available to all plans) */}
+              <Route path="/payments" element={<PaymentsListPage />} />
 
               {/* Super Admin only */}
               <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']} />}>
                 <Route path="/payments/:id/edit" element={<EditPaymentPage />} />
-                <Route path="/expenses/:id/edit" element={<EditExpensePage />} />
               </Route>
-              
-              {/* Inventory */}
-              <Route path="/inventory" element={<InventoryPage />} />
 
-              {/* Reports */}
-              <Route path="/reports" element={<ReportsPage />} />
-              
+              <Route element={<PlanGatedRoute requiredPlan="PRO" />}>
+                <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']} />}>
+                  <Route path="/expenses/:id/edit" element={<EditExpensePage />} />
+                </Route>
+              </Route>
+
+              {/* Inventory */}
+              <Route element={<PlanGatedRoute requiredPlan="PRO" />}>
+                <Route path="/inventory" element={<InventoryPage />} />
+              </Route>
+
+
               {/* Platform Admin */}
               <Route path="/admin" element={<AdminDashboardPage />} />
 
@@ -125,6 +130,7 @@ function App() {
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/settings/organization" element={<OrganizationPage />} />
               <Route path="/settings/users" element={<UsersPage />} />
+              <Route path="/settings/billing" element={<BillingPage />} />
               <Route path="/settings/paystack" element={<PaystackPage />} />
               <Route path="/settings/categories" element={<CategoriesPage />} />
               <Route path="/settings/services" element={<ServiceItemsPage />} />
@@ -132,8 +138,8 @@ function App() {
           </Route>
 
           {/* Default redirect */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<Navigate to="/invoices" replace />} />
+          <Route path="*" element={<Navigate to="/invoices" replace />} />
         </Routes>
       </BrowserRouter>
       <Toaster position="bottom-right" richColors />

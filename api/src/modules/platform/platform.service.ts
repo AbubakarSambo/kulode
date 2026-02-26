@@ -24,6 +24,10 @@ export class PlatformService {
       invoicesByStatus,
       recentSignups,
       topOrganizations,
+      orgsByPlan,
+      orgsByStatus,
+      grandfatheredCount,
+      subscriptionRevenueResult,
     ] = await Promise.all([
       // Total organizations
       this.prisma.organization.count(),
@@ -72,7 +76,14 @@ export class PlatformService {
       this.prisma.organization.findMany({
         take: 10,
         orderBy: { createdAt: 'desc' },
-        include: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          createdAt: true,
+          planTier: true,
+          subscriptionStatus: true,
+          isGrandfathered: true,
           _count: {
             select: { users: true, invoices: true },
           },
@@ -89,6 +100,9 @@ export class PlatformService {
           userCount: number;
           invoiceCount: number;
           volume: number;
+          planTier: string;
+          subscriptionStatus: string;
+          isGrandfathered: boolean;
         }>
       >`
         SELECT
@@ -96,6 +110,9 @@ export class PlatformService {
           o.name,
           o.slug,
           o.created_at AS "createdAt",
+          o.plan_tier AS "planTier",
+          o.subscription_status AS "subscriptionStatus",
+          o.is_grandfathered AS "isGrandfathered",
           COUNT(DISTINCT u.id)::int AS "userCount",
           COUNT(DISTINCT i.id)::int AS "invoiceCount",
           COALESCE(SUM(i.total), 0)::float8 AS volume
@@ -104,10 +121,32 @@ export class PlatformService {
         LEFT JOIN invoices i ON i.organization_id = o.id
           AND i.status NOT IN ('CANCELLED')
           AND i.deleted_at IS NULL
-        GROUP BY o.id, o.name, o.slug, o.created_at
+        GROUP BY o.id, o.name, o.slug, o.created_at, o.plan_tier, o.subscription_status, o.is_grandfathered
         ORDER BY volume DESC
         LIMIT 10
       `,
+
+      // Orgs grouped by plan tier
+      this.prisma.organization.groupBy({
+        by: ['planTier'],
+        _count: { id: true },
+      }),
+
+      // Orgs grouped by subscription status
+      this.prisma.organization.groupBy({
+        by: ['subscriptionStatus'],
+        _count: { id: true },
+      }),
+
+      // Count of grandfathered orgs
+      this.prisma.organization.count({
+        where: { isGrandfathered: true },
+      }),
+
+      // Total subscription payment revenue
+      this.prisma.subscriptionPayment.aggregate({
+        _sum: { amount: true },
+      }),
     ]);
 
     // topOrganizations is already sorted by volume from the DB
@@ -119,7 +158,24 @@ export class PlatformService {
       invoiceCount: org.invoiceCount,
       volume: org.volume,
       createdAt: org.createdAt,
+      planTier: org.planTier,
+      subscriptionStatus: org.subscriptionStatus,
+      isGrandfathered: org.isGrandfathered,
     }));
+
+    // Process subscription breakdowns
+    const byPlan = { FREE: 0, PRO: 0, BUSINESS: 0 };
+    for (const item of orgsByPlan) {
+      byPlan[item.planTier] = item._count.id;
+    }
+
+    const byStatus = { TRIALING: 0, ACTIVE: 0, CANCELLED: 0, EXPIRED: 0 };
+    for (const item of orgsByStatus) {
+      if (item.subscriptionStatus in byStatus) {
+        byStatus[item.subscriptionStatus as keyof typeof byStatus] =
+          item._count.id;
+      }
+    }
 
     // Process invoice status breakdown
     const invoiceStatusBreakdown = invoicesByStatus.reduce(
@@ -149,6 +205,12 @@ export class PlatformService {
         platformFees: Number(platformFeeResult._sum.platformFees) || 0,
       },
       invoices: invoiceStatusBreakdown,
+      subscriptions: {
+        byPlan,
+        byStatus,
+        grandfathered: grandfatheredCount,
+        revenue: Number(subscriptionRevenueResult._sum.amount) || 0,
+      },
       recentSignups: recentSignups.map((org) => ({
         id: org.id,
         name: org.name,
@@ -156,6 +218,9 @@ export class PlatformService {
         userCount: org._count.users,
         invoiceCount: org._count.invoices,
         createdAt: org.createdAt,
+        planTier: org.planTier,
+        subscriptionStatus: org.subscriptionStatus,
+        isGrandfathered: org.isGrandfathered,
       })),
       topOrganizations: topOrgsByVolume,
     };

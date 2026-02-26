@@ -36,8 +36,11 @@ export interface PaystackTransaction {
   paid_at: string;
   fees: number;
   metadata: {
+    type?: string;
     invoice_id?: string;
     organization_id?: string;
+    plan_tier?: string;
+    billing_period?: string;
   };
 }
 
@@ -329,6 +332,18 @@ export class PaystackService {
     }
 
     const { reference, amount, channel, paid_at, fees, metadata } = data;
+
+    // Route subscription payments to be handled externally
+    if (metadata?.type === 'subscription') {
+      this.logger.log(`Subscription payment received: ${reference}`);
+      return {
+        received: true,
+        type: 'subscription',
+        metadata,
+        amount,
+        reference,
+      };
+    }
 
     if (!metadata?.invoice_id) {
       this.logger.warn(`Webhook received without invoice_id: ${reference}`);

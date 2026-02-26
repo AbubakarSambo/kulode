@@ -8,6 +8,7 @@ import {
   Param,
   Query,
   ParseUUIDPipe,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ExpensesService } from './expenses.service';
@@ -17,10 +18,12 @@ import {
   ExpenseFilterDto,
   CreateExpenseCategoryDto,
 } from './dto';
-import { CurrentUser, CurrentUserData, Roles, Role } from '../../common';
+import { CurrentUser, CurrentUserData, Roles, Role, RequiresPlan, PlanGuard } from '../../common';
 
 @ApiTags('Expenses')
 @ApiBearerAuth()
+@UseGuards(PlanGuard)
+@RequiresPlan('PRO')
 @Controller()
 export class ExpensesController {
   constructor(private readonly expensesService: ExpensesService) {}

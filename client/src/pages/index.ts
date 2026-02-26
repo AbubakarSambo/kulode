@@ -46,6 +46,7 @@ export { PaystackPage } from './settings/PaystackPage'
 export { CategoriesPage } from './settings/CategoriesPage'
 export { ServiceItemsPage } from './settings/ServiceItemsPage'
 export { OrganizationPage } from './settings/OrganizationPage'
+export { BillingPage } from './settings/BillingPage'
 
 // Admin
 export { AdminDashboardPage } from './admin/AdminDashboard'

@@ -9,17 +9,24 @@ import {
   Req,
   ParseUUIDPipe,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
 import { PaystackService } from './paystack.service';
+import { SubscriptionService } from '../subscription/subscription.service';
 import { CreateSubaccountDto, VerifyBankAccountDto } from './dto';
 import { CurrentUser, Public, Roles, Role } from '../../common';
 
 @ApiTags('Paystack')
 @Controller()
 export class PaystackController {
-  constructor(private readonly paystackService: PaystackService) {}
+  private readonly logger = new Logger(PaystackController.name);
+
+  constructor(
+    private readonly paystackService: PaystackService,
+    private readonly subscriptionService: SubscriptionService,
+  ) {}
 
   @Get('paystack/banks')
   @ApiBearerAuth()
@@ -86,7 +93,23 @@ export class PaystackController {
     }
 
     const { event, data } = req.body;
-    return this.paystackService.handleWebhookEvent(event, data);
+    const result = await this.paystackService.handleWebhookEvent(event, data);
+
+    // Route subscription webhooks to SubscriptionService
+    if (result.type === 'subscription' && result.metadata) {
+      const { organization_id, plan_tier, billing_period } = result.metadata;
+      if (organization_id && plan_tier && billing_period) {
+        await this.subscriptionService.activateSubscription(
+          organization_id,
+          plan_tier,
+          billing_period,
+          result.reference,
+          result.amount / 100, // Convert from kobo
+        );
+      }
+    }
+
+    return { received: true };
   }
 
   @Get('paystack/verify/:reference')
