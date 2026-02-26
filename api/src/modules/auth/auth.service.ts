@@ -3,6 +3,7 @@ import {
   ConflictException,
   UnauthorizedException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -10,11 +11,13 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
-import { RegisterDto, LoginDto, AuthResponseDto, VerifyEmailDto, SetPasswordDto, ResendVerificationDto } from './dto';
+import { RegisterDto, LoginDto, AuthResponseDto, VerifyEmailDto, SetPasswordDto, ResendVerificationDto, ForgotPasswordDto, ResetPasswordDto } from './dto';
 import { TokenType } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
@@ -334,8 +337,110 @@ export class AuthService {
     return { message };
   }
 
+  async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string }> {
+    const message = 'If an account with that email exists, a password reset link has been sent.';
+
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email.toLowerCase() },
+    });
+
+    if (!user) {
+      return { message };
+    }
+
+    // Invalidate existing PASSWORD_RESET tokens
+    await this.prisma.emailVerificationToken.updateMany({
+      where: {
+        userId: user.id,
+        type: TokenType.PASSWORD_RESET,
+        usedAt: null,
+      },
+      data: { usedAt: new Date() },
+    });
+
+    // Create new token (1 hour expiry)
+    const token = crypto.randomBytes(32).toString('hex');
+    await this.prisma.emailVerificationToken.create({
+      data: {
+        userId: user.id,
+        token,
+        type: TokenType.PASSWORD_RESET,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      },
+    });
+
+    // Send email (fire-and-forget, log errors)
+    this.emailService.sendPasswordResetEmail(user.email, user.firstName, token).catch((err) => {
+      this.logger.error(`Failed to send password reset email to ${user.email}: ${err.message}`);
+    });
+
+    return { message };
+  }
+
+  async resetPassword(dto: ResetPasswordDto): Promise<AuthResponseDto> {
+    const tokenRecord = await this.prisma.emailVerificationToken.findUnique({
+      where: { token: dto.token },
+      include: { user: { include: { organization: true } } },
+    });
+
+    if (!tokenRecord) {
+      throw new BadRequestException('Invalid or expired reset link');
+    }
+
+    if (tokenRecord.usedAt) {
+      throw new BadRequestException('This reset link has already been used');
+    }
+
+    if (tokenRecord.expiresAt < new Date()) {
+      throw new BadRequestException('This reset link has expired. Please request a new one.');
+    }
+
+    if (tokenRecord.type !== TokenType.PASSWORD_RESET) {
+      throw new BadRequestException('Invalid token type');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, 12);
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: tokenRecord.userId },
+        data: { passwordHash },
+      });
+
+      await tx.emailVerificationToken.update({
+        where: { id: tokenRecord.id },
+        data: { usedAt: new Date() },
+      });
+
+      return tokenRecord.user;
+    });
+
+    const accessToken = this.generateToken(user);
+
+    return {
+      accessToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        organizationId: user.organizationId,
+        organizationName: user.organization.name,
+        isPlatformAdmin: user.isPlatformAdmin,
+      },
+    };
+  }
+
   async validateToken(token: string, type: string): Promise<{ valid: boolean; email?: string; firstName?: string }> {
-    const tokenType = type === 'PASSWORD_SETUP' ? TokenType.PASSWORD_SETUP : TokenType.EMAIL_VERIFICATION;
+    let tokenType: TokenType;
+    if (type === 'PASSWORD_SETUP') {
+      tokenType = TokenType.PASSWORD_SETUP;
+    } else if (type === 'PASSWORD_RESET') {
+      tokenType = TokenType.PASSWORD_RESET;
+    } else {
+      tokenType = TokenType.EMAIL_VERIFICATION;
+    }
 
     const tokenRecord = await this.prisma.emailVerificationToken.findUnique({
       where: { token },

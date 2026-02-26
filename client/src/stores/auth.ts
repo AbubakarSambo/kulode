@@ -7,6 +7,8 @@ interface AuthState {
   user: User | null
   token: string | null
   isAuthenticated: boolean
+  _hasHydrated: boolean
+  setHasHydrated: (hydrated: boolean) => void
   setAuth: (user: User, token: string) => void
   logout: () => void
   updateUser: (user: Partial<User>) => void
@@ -18,6 +20,9 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       token: null,
       isAuthenticated: false,
+      _hasHydrated: false,
+
+      setHasHydrated: (hydrated) => set({ _hasHydrated: hydrated }),
 
       setAuth: (user, token) => {
         localStorage.setItem('token', token)
@@ -44,8 +49,11 @@ export const useAuthStore = create<AuthState>()(
       },
     }),
     {
-      name: 'auth-storage',
+      name: 'auth-storage-v2',
       partialize: (state) => ({ user: state.user, token: state.token, isAuthenticated: state.isAuthenticated }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true)
+      },
     }
   )
 )

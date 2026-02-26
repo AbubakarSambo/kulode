@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSubaccountDto, VerifyBankAccountDto } from './dto';
 import { createHmac } from 'crypto';
+import { InventoryService } from '../inventory/inventory.service';
 
 export interface PaystackBank {
   name: string;
@@ -53,6 +54,7 @@ export class PaystackService {
   constructor(
     private configService: ConfigService,
     private prisma: PrismaService,
+    private inventoryService: InventoryService,
   ) {
     this.baseUrl = this.configService.get<string>('paystack.baseUrl') || 'https://api.paystack.co';
     this.secretKey = this.configService.get<string>('paystack.secretKey') || '';
@@ -401,6 +403,11 @@ export class PaystackService {
             paystackChannel: channel,
           },
         });
+
+        // Deduct inventory stock if invoice is now fully PAID
+        if (newStatus === 'PAID') {
+          await this.inventoryService.deductOnPayment(tx, invoice.id, invoice.organizationId);
+        }
       });
 
       this.logger.log(`Installment payment recorded for invoice ${invoice.invoiceNumber}`);
@@ -459,6 +466,11 @@ export class PaystackService {
           paystackAccessCode: null,
         },
       });
+
+      // Deduct inventory stock if invoice is now fully PAID
+      if (newStatus === 'PAID') {
+        await this.inventoryService.deductOnPayment(tx, invoice.id, invoice.organizationId);
+      }
     });
 
     this.logger.log(`Payment recorded for invoice ${invoice.invoiceNumber}`);

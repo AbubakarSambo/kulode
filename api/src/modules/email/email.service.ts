@@ -74,4 +74,26 @@ export class EmailService {
       `,
     });
   }
+
+  async sendPasswordResetEmail(email: string, firstName: string, token: string): Promise<void> {
+    const resetUrl = `${this.frontendUrl}/reset-password?token=${token}`;
+
+    await this.sendEmail({
+      to: email,
+      subject: 'Reset your password - Kulode',
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>Hi ${firstName},</h2>
+          <p>We received a request to reset your password. Click the button below to choose a new one:</p>
+          <div style="margin: 32px 0;">
+            <a href="${resetUrl}" style="background-color: #0f172a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+              Reset Password
+            </a>
+          </div>
+          <p style="color: #64748b; font-size: 14px;">This link expires in 1 hour.</p>
+          <p style="color: #64748b; font-size: 14px;">If you didn't request a password reset, you can safely ignore this email.</p>
+        </div>
+      `,
+    });
+  }
 }

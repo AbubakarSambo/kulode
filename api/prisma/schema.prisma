@@ -35,6 +35,15 @@ enum PaymentMethod {
 enum TokenType {
   EMAIL_VERIFICATION
   PASSWORD_SETUP
+  PASSWORD_RESET
+}
+
+enum StockMovementType {
+  RESTOCK
+  ADJUSTMENT
+  INVOICE_RESERVED
+  INVOICE_DEDUCTED
+  RESERVATION_RELEASED
 }
 
 enum PlanTier {
@@ -107,6 +116,8 @@ model Organization {
   expenseCategories    ExpenseCategory[]
   serviceItems         ServiceItem[]
   vendors              Vendor[]
+  inventoryItems       InventoryItem[]
+  stockMovements       StockMovement[]
   subscriptionPayments SubscriptionPayment[]
 
   @@map("organizations")
@@ -262,20 +273,26 @@ model PaymentInstallment {
 
 // Invoice line items
 model InvoiceItem {
-  id          String  @id @default(uuid())
-  invoiceId   String  @map("invoice_id")
-  description String
-  quantity    Decimal @db.Decimal(10, 2)
-  unitPrice   Decimal @map("unit_price") @db.Decimal(12, 2)
-  amount      Decimal @db.Decimal(12, 2)
+  id              String  @id @default(uuid())
+  invoiceId       String  @map("invoice_id")
+  serviceItemId   String? @map("service_item_id")
+  inventoryItemId String? @map("inventory_item_id")
+  description     String
+  quantity        Decimal @db.Decimal(10, 2)
+  unitPrice       Decimal @map("unit_price") @db.Decimal(12, 2)
+  amount          Decimal @db.Decimal(12, 2)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice       Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  serviceItem   ServiceItem?   @relation(fields: [serviceItemId], references: [id], onDelete: SetNull)
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
 
   @@index([invoiceId])
+  @@index([serviceItemId])
+  @@index([inventoryItemId])
   @@map("invoice_items")
 }
 
@@ -378,10 +395,61 @@ model ServiceItem {
 
   // Relations
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoiceItems InvoiceItem[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
   @@map("service_items")
+}
+
+// Inventory items (physical goods with stock tracking)
+model InventoryItem {
+  id               String  @id @default(uuid())
+  organizationId   String  @map("organization_id")
+  name             String
+  description      String?
+  unitPrice        Decimal @map("unit_price") @db.Decimal(12, 2)
+  onHandQuantity   Decimal @default(0) @map("on_hand_quantity") @db.Decimal(10, 2)
+  reservedQuantity Decimal @default(0) @map("reserved_quantity") @db.Decimal(10, 2)
+  reorderLevel     Decimal @default(0) @map("reorder_level") @db.Decimal(10, 2)
+  sku              String?
+  isActive         Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoiceItems   InvoiceItem[]
+  stockMovements StockMovement[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("inventory_items")
+}
+
+// Stock movement log
+model StockMovement {
+  id              String            @id @default(uuid())
+  organizationId  String            @map("organization_id")
+  inventoryItemId String            @map("inventory_item_id")
+  invoiceId       String?           @map("invoice_id")
+  type            StockMovementType
+  quantity        Decimal           @db.Decimal(10, 2)
+  onHandBefore    Decimal           @map("on_hand_before") @db.Decimal(10, 2)
+  onHandAfter     Decimal           @map("on_hand_after") @db.Decimal(10, 2)
+  notes           String?
+  createdById     String?           @map("created_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([inventoryItemId])
+  @@map("stock_movements")
 }
 
 // Vendors (external service providers/suppliers)

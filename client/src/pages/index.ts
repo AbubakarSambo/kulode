@@ -4,6 +4,8 @@ export { RegisterPage } from './auth/Register'
 export { CheckEmailPage } from './auth/CheckEmail'
 export { VerifyEmailPage } from './auth/VerifyEmail'
 export { SetPasswordPage } from './auth/SetPassword'
+export { ForgotPasswordPage } from './auth/ForgotPassword'
+export { ResetPasswordPage } from './auth/ResetPassword'
 
 // Dashboard
 export { DashboardPage } from './dashboard/Dashboard'
@@ -30,6 +32,9 @@ export { EditPaymentPage } from './payments/PaymentForm'
 // Expenses
 export { ExpensesListPage } from './expenses/ExpensesList'
 export { NewExpensePage, EditExpensePage } from './expenses/ExpenseForm'
+
+// Inventory
+export { InventoryPage } from './inventory/InventoryPage'
 
 // Reports
 export { ReportsPage } from './reports/Reports'

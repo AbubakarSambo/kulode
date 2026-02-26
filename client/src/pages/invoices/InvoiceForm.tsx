@@ -5,24 +5,30 @@ import { z } from 'zod'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Plus, Trash2, ChevronDown, Search } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Search, AlertTriangle } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Select, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
-import { clientsApi, invoicesApi, organizationsApi } from '@/api'
+import { clientsApi, invoicesApi, organizationsApi, inventoryApi } from '@/api'
 import { formatCurrency } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
-import type { ServiceItem } from '@/types'
+import type { ServiceItem, InventoryItem } from '@/types'
 
-function ServiceCombobox({
-  items,
+type ComboItem =
+  | { kind: 'service'; item: ServiceItem }
+  | { kind: 'inventory'; item: InventoryItem }
+
+function ItemCombobox({
+  serviceItems,
+  inventoryItems,
   onSelect,
 }: {
-  items: ServiceItem[]
-  onSelect: (id: string) => void
+  serviceItems: ServiceItem[]
+  inventoryItems: InventoryItem[]
+  onSelect: (selection: { kind: 'service'; id: string } | { kind: 'inventory'; id: string } | { kind: 'custom' }) => void
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selected, setSelected] = useState<ComboItem | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -35,11 +41,16 @@ function ServiceCombobox({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const filtered = items.filter(
-    (item) => item.name.toLowerCase().includes(query.toLowerCase()),
-  )
+  const q = query.toLowerCase()
+  const filteredServices = serviceItems.filter((i) => i.name.toLowerCase().includes(q))
+  const filteredInventory = inventoryItems.filter((i) => i.name.toLowerCase().includes(q))
+  const hasResults = filteredServices.length > 0 || filteredInventory.length > 0
 
-  const selected = selectedId ? items.find((i) => i.id === selectedId) : null
+  const selectedLabel = selected
+    ? selected.kind === 'service'
+      ? `${selected.item.name} — ${formatCurrency(selected.item.unitPrice)}`
+      : `${selected.item.name} — ${formatCurrency((selected.item as InventoryItem).unitPrice)}`
+    : null
 
   return (
     <div ref={ref} className="relative">
@@ -48,10 +59,10 @@ function ServiceCombobox({
         onClick={() => { setOpen(!open); setQuery('') }}
         className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
       >
-        {selected ? (
-          <span className="truncate">{selected.name} - {formatCurrency(selected.unitPrice)}</span>
+        {selectedLabel ? (
+          <span className="truncate">{selectedLabel}</span>
         ) : (
-          <span className="text-muted-foreground">Select a service...</span>
+          <span className="text-muted-foreground">Select item...</span>
         )}
         <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
       </button>
@@ -63,32 +74,76 @@ function ServiceCombobox({
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search services..."
+              placeholder="Search items..."
               className="flex h-9 w-full bg-transparent py-2 text-sm outline-none placeholder:text-muted-foreground"
             />
           </div>
-          <div className="max-h-48 overflow-y-auto p-1">
-            {filtered.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => { setSelectedId(item.id); onSelect(item.id); setOpen(false); setQuery('') }}
-                className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
-              >
-                <span>{item.name}</span>
-                <span className="text-muted-foreground">{formatCurrency(item.unitPrice)}</span>
-              </button>
-            ))}
-            {filtered.length === 0 && (
-              <p className="px-2 py-4 text-center text-sm text-muted-foreground">No services found</p>
+          <div className="max-h-56 overflow-y-auto p-1">
+            {filteredServices.length > 0 && (
+              <>
+                <p className="px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">Services</p>
+                {filteredServices.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setSelected({ kind: 'service', item })
+                      onSelect({ kind: 'service', id: item.id })
+                      setOpen(false)
+                      setQuery('')
+                    }}
+                    className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                  >
+                    <span>{item.name}</span>
+                    <span className="text-muted-foreground">{formatCurrency(item.unitPrice)}</span>
+                  </button>
+                ))}
+              </>
             )}
-            <button
-              type="button"
-              onClick={() => { setSelectedId(null); onSelect('custom'); setOpen(false); setQuery('') }}
-              className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-            >
-              Custom item
-            </button>
+
+            {filteredInventory.length > 0 && (
+              <>
+                <p className="px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wide mt-1">Inventory</p>
+                {filteredInventory.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setSelected({ kind: 'inventory', item })
+                      onSelect({ kind: 'inventory', id: item.id })
+                      setOpen(false)
+                      setQuery('')
+                    }}
+                    className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                  >
+                    <span>{item.name}</span>
+                    <span className="text-muted-foreground">
+                      {formatCurrency(item.unitPrice)}
+                      <span className="ml-2 text-xs">({item.availableQuantity} avail)</span>
+                    </span>
+                  </button>
+                ))}
+              </>
+            )}
+
+            {!hasResults && (
+              <p className="px-2 py-4 text-center text-sm text-muted-foreground">No items found</p>
+            )}
+
+            <div className="border-t mt-1 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelected(null)
+                  onSelect({ kind: 'custom' })
+                  setOpen(false)
+                  setQuery('')
+                }}
+                className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              >
+                Custom item
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -97,6 +152,8 @@ function ServiceCombobox({
 }
 
 const invoiceItemSchema = z.object({
+  serviceItemId: z.string().optional(),
+  inventoryItemId: z.string().optional(),
   description: z.string(),
   quantity: z.number().min(0.01, 'Quantity must be greater than 0'),
   unitPrice: z.number().min(0, 'Price must be 0 or greater'),
@@ -138,6 +195,11 @@ export function NewInvoicePage() {
     queryFn: () => invoicesApi.listServiceItems(),
   })
 
+  const { data: inventoryItems } = useQuery({
+    queryKey: ['inventory-items'],
+    queryFn: () => inventoryApi.list(),
+  })
+
   const { data: organization } = useQuery({
     queryKey: ['organization'],
     queryFn: () => organizationsApi.getCurrent(),
@@ -156,7 +218,7 @@ export function NewInvoicePage() {
       clientId: preselectedClientId,
       issueDate: new Date().toISOString().split('T')[0],
       dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      items: [{ description: '', quantity: 1, unitPrice: 0 }],
+      items: [{ serviceItemId: undefined, inventoryItemId: undefined, description: '', quantity: 1, unitPrice: 0 }],
       discountType: 'PERCENTAGE',
       discountPercent: 0,
       installments: [],
@@ -184,14 +246,31 @@ export function NewInvoicePage() {
     }
   }, [organization, setValue, watch])
 
-  const handleServiceItemSelect = (index: number, serviceItemId: string) => {
-    if (serviceItemId === 'custom') {
+  const handleItemSelect = (
+    index: number,
+    selection: { kind: 'service'; id: string } | { kind: 'inventory'; id: string } | { kind: 'custom' },
+  ) => {
+    if (selection.kind === 'custom') {
+      setValue(`items.${index}.serviceItemId`, undefined)
+      setValue(`items.${index}.inventoryItemId`, undefined)
       return
     }
-    const serviceItem = serviceItems?.find((item) => item.id === serviceItemId)
-    if (serviceItem) {
-      setValue(`items.${index}.description`, serviceItem.name)
-      setValue(`items.${index}.unitPrice`, serviceItem.unitPrice)
+    if (selection.kind === 'service') {
+      const serviceItem = serviceItems?.find((item) => item.id === selection.id)
+      if (serviceItem) {
+        setValue(`items.${index}.serviceItemId`, serviceItem.id)
+        setValue(`items.${index}.inventoryItemId`, undefined)
+        setValue(`items.${index}.description`, serviceItem.name)
+        setValue(`items.${index}.unitPrice`, serviceItem.unitPrice)
+      }
+    } else {
+      const invItem = inventoryItems?.find((item) => item.id === selection.id)
+      if (invItem) {
+        setValue(`items.${index}.inventoryItemId`, invItem.id)
+        setValue(`items.${index}.serviceItemId`, undefined)
+        setValue(`items.${index}.description`, invItem.name)
+        setValue(`items.${index}.unitPrice`, invItem.unitPrice)
+      }
     }
   }
 
@@ -228,6 +307,8 @@ export function NewInvoicePage() {
         discountType: data.discountType || 'PERCENTAGE',
         discountPercent: Number(data.discountPercent) || 0,
         items: data.items.map(item => ({
+          serviceItemId: item.serviceItemId,
+          inventoryItemId: item.inventoryItemId,
           description: item.description,
           quantity: Number(item.quantity),
           unitPrice: Number(item.unitPrice),
@@ -322,7 +403,7 @@ export function NewInvoicePage() {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => append({ description: '', quantity: 1, unitPrice: 0 })}
+                onClick={() => append({ serviceItemId: undefined, inventoryItemId: undefined, description: '', quantity: 1, unitPrice: 0 })}
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Add Item
@@ -332,7 +413,7 @@ export function NewInvoicePage() {
               <div className="space-y-4">
                 {/* Header - hidden on mobile */}
                 <div className="hidden sm:grid sm:grid-cols-12 sm:gap-4 text-sm font-medium text-muted-foreground">
-                  <div className="col-span-5">Service / Description</div>
+                  <div className="col-span-5">Item / Description</div>
                   <div className="col-span-2">Quantity</div>
                   <div className="col-span-2">Unit Price</div>
                   <div className="col-span-2 text-right">Amount</div>
@@ -344,25 +425,27 @@ export function NewInvoicePage() {
                   const quantity = watchItems[index]?.quantity || 0
                   const unitPrice = watchItems[index]?.unitPrice || 0
                   const amount = quantity * unitPrice
+                  const invItemId = watchItems[index]?.inventoryItemId
+                  const invItem = invItemId ? inventoryItems?.find((i) => i.id === invItemId) : null
+                  const stockWarning = invItem && quantity > invItem.availableQuantity
+                    ? `Only ${invItem.availableQuantity} units available`
+                    : null
 
                   return (
                     <div key={field.id} className="rounded-lg border p-3 space-y-3 sm:border-0 sm:p-0 sm:space-y-0 sm:grid sm:grid-cols-12 sm:gap-4 sm:items-start">
                       <div className="sm:col-span-5 space-y-2">
-                        <label className="text-xs text-muted-foreground sm:hidden">Service / Description</label>
-                        <div className="flex flex-col gap-3 sm:flex-row sm:gap-2 sm:items-start">
-                          <div className="sm:basis-44 sm:shrink-0">
-                            <ServiceCombobox
-                              items={serviceItems || []}
-                              onSelect={(id) => handleServiceItemSelect(index, id)}
-                            />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <Input
-                              placeholder="Description"
-                              {...register(`items.${index}.description`)}
-                              error={errors.items?.[index]?.description?.message}
-                            />
-                          </div>
+                        <label className="text-xs text-muted-foreground sm:hidden">Item / Description</label>
+                        <div className="flex flex-col gap-2">
+                          <ItemCombobox
+                            serviceItems={serviceItems || []}
+                            inventoryItems={inventoryItems || []}
+                            onSelect={(sel) => handleItemSelect(index, sel)}
+                          />
+                          <Input
+                            placeholder="Description"
+                            {...register(`items.${index}.description`)}
+                            error={errors.items?.[index]?.description?.message}
+                          />
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-3 sm:contents">
@@ -375,6 +458,12 @@ export function NewInvoicePage() {
                             {...register(`items.${index}.quantity`, { valueAsNumber: true })}
                             error={errors.items?.[index]?.quantity?.message}
                           />
+                          {stockWarning && (
+                            <p className="mt-1 flex items-center gap-1 text-xs text-orange-500">
+                              <AlertTriangle className="h-3 w-3" />
+                              {stockWarning}
+                            </p>
+                          )}
                         </div>
                         <div className="sm:col-span-2">
                           <label className="text-xs text-muted-foreground sm:hidden">Price</label>
@@ -383,8 +472,8 @@ export function NewInvoicePage() {
                             step="0.01"
                             min="0"
                             {...register(`items.${index}.unitPrice`, { valueAsNumber: true })}
-                          error={errors.items?.[index]?.unitPrice?.message}
-                        />
+                            error={errors.items?.[index]?.unitPrice?.message}
+                          />
                         </div>
                       </div>
                       <div className="flex items-center justify-between sm:col-span-2 sm:h-9 sm:justify-end">

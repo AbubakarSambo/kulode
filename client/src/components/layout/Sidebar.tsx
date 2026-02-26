@@ -13,6 +13,8 @@ import {
   LogOut,
   Lock,
   X,
+  Package,
+  LifeBuoy,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
@@ -27,6 +29,7 @@ const navigation: Array<{ name: string; href: string; icon: any; requiresPlan?: 
   { name: 'Payments', href: '/payments', icon: CreditCard },
   { name: 'Vendors', href: '/vendors', icon: Store, requiresPlan: 'PRO' },
   { name: 'Expenses', href: '/expenses', icon: Receipt, requiresPlan: 'PRO' },
+  { name: 'Inventory', href: '/inventory', icon: Package },
   { name: 'Reports', href: '/reports', icon: BarChart3, requiresPlan: 'PRO' },
 ]
 
@@ -183,6 +186,13 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
               </p>
             </div>
           </div>
+          <a
+            href="mailto:abubakar.sambo@kulode.com"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <LifeBuoy className="h-5 w-5" />
+            Contact Support
+          </a>
           <button
             onClick={() => {
               logout()

@@ -113,7 +113,7 @@ export interface Organization {
 export interface OnboardingStatus {
   steps: {
     businessProfile: boolean
-    serviceItems: boolean
+    inventoryItems: boolean
     firstClient: boolean
     firstInvoice: boolean
     onlinePayments: boolean
@@ -151,6 +151,8 @@ export type InvoiceStatus =
 
 export interface InvoiceItem {
   id?: string
+  serviceItemId?: string
+  inventoryItemId?: string
   description: string
   quantity: number
   unitPrice: number
@@ -244,6 +246,43 @@ export interface ServiceItem {
   description?: string
   unitPrice: number
   isActive: boolean
+}
+
+// Inventory types
+export type StockMovementType =
+  | 'RESTOCK'
+  | 'ADJUSTMENT'
+  | 'INVOICE_RESERVED'
+  | 'INVOICE_DEDUCTED'
+  | 'RESERVATION_RELEASED'
+
+export interface InventoryItem {
+  id: string
+  name: string
+  description?: string
+  unitPrice: number
+  onHandQuantity: number
+  reservedQuantity: number
+  availableQuantity: number
+  reorderLevel: number
+  sku?: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface StockMovement {
+  id: string
+  organizationId: string
+  inventoryItemId: string
+  invoiceId?: string
+  type: StockMovementType
+  quantity: number
+  onHandBefore: number
+  onHandAfter: number
+  notes?: string
+  createdById?: string
+  createdAt: string
 }
 
 // Expense types

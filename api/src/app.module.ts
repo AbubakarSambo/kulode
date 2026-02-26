@@ -16,6 +16,7 @@ import { VendorsModule } from './modules/vendors';
 import { PlatformModule } from './modules/platform';
 import { EmailModule } from './modules/email';
 import { SubscriptionModule } from './modules/subscription';
+import { InventoryModule } from './modules/inventory';
 import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor } from './common';
 
 @Module({
@@ -35,6 +36,7 @@ import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor }
     ReportsModule,
     VendorsModule,
     PlatformModule,
+    InventoryModule,
     SubscriptionModule,
   ],
   providers: [

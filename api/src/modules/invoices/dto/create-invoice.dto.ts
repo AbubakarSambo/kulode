@@ -31,6 +31,16 @@ export class CreateInstallmentDto {
 }
 
 export class CreateInvoiceItemDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  serviceItemId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  inventoryItemId?: string;
+
   @ApiPropertyOptional({ example: 'Carpet cleaning - living room' })
   @IsOptional()
   @IsString()

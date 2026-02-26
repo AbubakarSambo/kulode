@@ -94,6 +94,42 @@ export function useResendVerification() {
   })
 }
 
+export function useForgotPassword() {
+  const navigate = useNavigate()
+
+  return useMutation({
+    mutationFn: (email: string) => authApi.forgotPassword(email),
+    onSuccess: (_data, email) => {
+      navigate('/check-email', { state: { variant: 'reset', email } })
+    },
+    onError: (error: any) => {
+      const message = error.response?.data?.message || 'Failed to send reset email'
+      toast.error('Error', { description: message })
+    },
+  })
+}
+
+export function useResetPassword() {
+  const navigate = useNavigate()
+  const setAuth = useAuthStore((state) => state.setAuth)
+
+  return useMutation({
+    mutationFn: ({ token, password }: { token: string; password: string }) =>
+      authApi.resetPassword(token, password),
+    onSuccess: (data) => {
+      setAuth(data.user, data.accessToken)
+      toast.success('Password reset!', {
+        description: 'You are now logged in',
+      })
+      navigate('/dashboard')
+    },
+    onError: (error: any) => {
+      const message = error.response?.data?.message || 'Failed to reset password'
+      toast.error('Error', { description: message })
+    },
+  })
+}
+
 export function useLogout() {
   const navigate = useNavigate()
   const logout = useAuthStore((state) => state.logout)

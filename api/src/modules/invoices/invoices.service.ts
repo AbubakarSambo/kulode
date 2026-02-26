@@ -16,10 +16,14 @@ import {
   UpdateServiceItemDto,
 } from './dto';
 import { paginate, PLAN_LIMITS } from '../../common';
+import { InventoryService } from '../inventory/inventory.service';
 
 @Injectable()
 export class InvoicesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private inventoryService: InventoryService,
+  ) {}
 
   async findAll(organizationId: string, filter: InvoiceFilterDto) {
     const { page = 1, limit = 20, status, clientId, startDate, endDate } = filter;
@@ -245,6 +249,8 @@ export class InvoicesService {
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       amount: item.quantity * item.unitPrice,
+      ...(item.serviceItemId && { serviceItemId: item.serviceItemId }),
+      ...(item.inventoryItemId && { inventoryItemId: item.inventoryItemId }),
     }));
 
     const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
@@ -267,43 +273,56 @@ export class InvoicesService {
       }
     }
 
-    const invoice = await this.prisma.invoice.create({
-      data: {
-        organizationId,
-        clientId: dto.clientId,
-        createdById: userId,
-        invoiceNumber,
-        issueDate: dto.issueDate,
-        dueDate: dto.dueDate,
-        subtotal,
-        discountType,
-        discountPercent,
-        discountAmount,
-        taxRate: orgTaxRate,
-        taxAmount,
-        total,
-        notes: dto.notes || organization!.defaultNotes || null,
-        terms: dto.terms || organization!.paymentTerms || null,
-        items: {
-          create: items,
+    const invoice = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.invoice.create({
+        data: {
+          organizationId,
+          clientId: dto.clientId,
+          createdById: userId,
+          invoiceNumber,
+          issueDate: dto.issueDate,
+          dueDate: dto.dueDate,
+          subtotal,
+          discountType,
+          discountPercent,
+          discountAmount,
+          taxRate: orgTaxRate,
+          taxAmount,
+          total,
+          notes: dto.notes || organization!.defaultNotes || null,
+          terms: dto.terms || organization!.paymentTerms || null,
+          items: {
+            create: items,
+          },
+          // Create installments if provided
+          installments: dto.installments ? {
+            create: dto.installments.map((inst, index) => ({
+              label: inst.label,
+              sequence: index + 1,
+              percentage: inst.percentage,
+              amount: total * (inst.percentage / 100),
+            })),
+          } : undefined,
         },
-        // Create installments if provided
-        installments: dto.installments ? {
-          create: dto.installments.map((inst, index) => ({
-            label: inst.label,
-            sequence: index + 1,
-            percentage: inst.percentage,
-            amount: total * (inst.percentage / 100),
-          })),
-        } : undefined,
-      },
-      include: {
-        client: true,
-        items: true,
-        installments: {
-          orderBy: { sequence: 'asc' },
+        include: {
+          client: true,
+          items: true,
+          installments: {
+            orderBy: { sequence: 'asc' },
+          },
         },
-      },
+      });
+
+      // Reserve inventory for items with inventoryItemId
+      const inventoryItems = dto.items
+        .filter((item) => item.inventoryItemId)
+        .map((item) => ({ inventoryItemId: item.inventoryItemId!, quantity: item.quantity }));
+
+      if (inventoryItems.length > 0) {
+        await this.inventoryService.reserveForInvoice(tx, created.id, organizationId, inventoryItems);
+      }
+
+      return created;
     });
 
     return invoice;
@@ -351,42 +370,64 @@ export class InvoicesService {
     const discountChanged = typeof dto.discountPercent === 'number' || dto.discountType !== undefined;
 
     if (dto.items && dto.items.length > 0) {
-      // Delete existing items and create new ones
-      await this.prisma.invoiceItem.deleteMany({
-        where: { invoiceId: id },
+      // Release existing inventory reservations, delete items, create new ones, re-reserve
+      await this.prisma.$transaction(async (tx) => {
+        // Release old inventory reservations
+        await this.inventoryService.releaseReservation(tx, id, organizationId);
+
+        // Delete existing items and create new ones
+        await tx.invoiceItem.deleteMany({ where: { invoiceId: id } });
+
+        const items = dto.items!.map((item) => ({
+          invoiceId: id,
+          description: item.description || '',
+          quantity: item.quantity || 1,
+          unitPrice: item.unitPrice || 0,
+          amount: (item.quantity || 1) * (item.unitPrice || 0),
+          ...(item.serviceItemId && { serviceItemId: item.serviceItemId }),
+          ...(item.inventoryItemId && { inventoryItemId: item.inventoryItemId }),
+        }));
+
+        await tx.invoiceItem.createMany({ data: items });
+
+        const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
+        const discountType = dto.discountType ?? invoice.discountType;
+        const discountValue = dto.discountPercent ?? Number(invoice.discountPercent);
+        const discountPercent = discountType === 'FIXED' ? 0 : discountValue;
+        const discountAmount = discountType === 'FIXED'
+          ? discountValue
+          : subtotal * (discountValue / 100);
+        const afterDiscount = subtotal - discountAmount;
+        const taxAmount = orgTaxRate > 0 ? afterDiscount * (orgTaxRate / 100) : 0;
+        const total = afterDiscount + taxAmount;
+
+        updateData = {
+          ...updateData,
+          subtotal,
+          discountType,
+          discountPercent,
+          discountAmount,
+          taxRate: orgTaxRate,
+          taxAmount,
+          total,
+        };
+
+        await tx.invoice.update({ where: { id }, data: updateData });
+
+        // Re-reserve inventory for new items
+        const inventoryItems = dto.items!
+          .filter((item) => item.inventoryItemId)
+          .map((item) => ({ inventoryItemId: item.inventoryItemId!, quantity: item.quantity || 1 }));
+
+        if (inventoryItems.length > 0) {
+          await this.inventoryService.reserveForInvoice(tx, id, organizationId, inventoryItems);
+        }
       });
 
-      const items = dto.items.map((item) => ({
-        invoiceId: id,
-        description: item.description || '',
-        quantity: item.quantity || 1,
-        unitPrice: item.unitPrice || 0,
-        amount: (item.quantity || 1) * (item.unitPrice || 0),
-      }));
-
-      await this.prisma.invoiceItem.createMany({ data: items });
-
-      const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
-      const discountType = dto.discountType ?? invoice.discountType;
-      const discountValue = dto.discountPercent ?? Number(invoice.discountPercent);
-      const discountPercent = discountType === 'FIXED' ? 0 : discountValue;
-      const discountAmount = discountType === 'FIXED'
-        ? discountValue
-        : subtotal * (discountValue / 100);
-      const afterDiscount = subtotal - discountAmount;
-      const taxAmount = orgTaxRate > 0 ? afterDiscount * (orgTaxRate / 100) : 0;
-      const total = afterDiscount + taxAmount;
-
-      updateData = {
-        ...updateData,
-        subtotal,
-        discountType,
-        discountPercent,
-        discountAmount,
-        taxRate: orgTaxRate,
-        taxAmount,
-        total,
-      };
+      return this.prisma.invoice.findFirst({
+        where: { id },
+        include: { client: true, items: true },
+      });
     } else if (discountChanged) {
       // Only discount changed, recalculate
       const subtotal = Number(invoice.subtotal);
@@ -457,9 +498,16 @@ export class InvoicesService {
       throw new BadRequestException('Cannot cancel a paid invoice');
     }
 
-    const updated = await this.prisma.invoice.update({
-      where: { id },
-      data: { status: 'CANCELLED' },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      // Release inventory reservations (only if not already cancelled)
+      if (invoice.status !== 'CANCELLED') {
+        await this.inventoryService.releaseReservation(tx, id, organizationId);
+      }
+
+      return tx.invoice.update({
+        where: { id },
+        data: { status: 'CANCELLED' },
+      });
     });
 
     return updated;
@@ -480,10 +528,17 @@ export class InvoicesService {
       throw new ForbiddenException('Only draft invoices can be deleted');
     }
 
-    // Soft delete
-    await this.prisma.invoice.update({
-      where: { id },
-      data: { deletedAt: new Date() },
+    // Soft delete with inventory cleanup
+    await this.prisma.$transaction(async (tx) => {
+      // Release inventory reservations if invoice has active reservations
+      if (invoice.status !== 'PAID' && invoice.status !== 'CANCELLED') {
+        await this.inventoryService.releaseReservation(tx, id, organizationId);
+      }
+
+      await tx.invoice.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      });
     });
 
     return { message: 'Invoice deleted successfully' };

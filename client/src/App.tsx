@@ -9,6 +9,8 @@ import {
   CheckEmailPage,
   VerifyEmailPage,
   SetPasswordPage,
+  ForgotPasswordPage,
+  ResetPasswordPage,
   DashboardPage,
   ClientsListPage,
   ClientDetailPage,
@@ -27,6 +29,7 @@ import {
   NewExpensePage,
   EditExpensePage,
   ReportsPage,
+  InventoryPage,
   SettingsPage,
   UsersPage,
   PaystackPage,
@@ -61,6 +64,8 @@ function App() {
           <Route path="/check-email" element={<CheckEmailPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/set-password" element={<SetPasswordPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/payment/callback" element={<PaymentCallbackPage />} />
           <Route path="/i/:token" element={<PublicInvoicePage />} />
 
@@ -111,6 +116,10 @@ function App() {
                   <Route path="/expenses/:id/edit" element={<EditExpensePage />} />
                 </Route>
               </Route>
+
+              {/* Inventory */}
+              <Route path="/inventory" element={<InventoryPage />} />
+
 
               {/* Platform Admin */}
               <Route path="/admin" element={<AdminDashboardPage />} />

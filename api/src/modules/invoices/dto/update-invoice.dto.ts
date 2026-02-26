@@ -20,6 +20,16 @@ export class UpdateInvoiceItemDto {
   @IsUUID()
   id?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  serviceItemId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  inventoryItemId?: string;
+
   @ApiPropertyOptional({ example: 'Carpet cleaning - living room' })
   @IsOptional()
   @IsString()

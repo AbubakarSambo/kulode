@@ -57,8 +57,18 @@ export const reportsApi = {
     if (filters.period) params.append('period', filters.period)
     if (filters.startDate) params.append('startDate', filters.startDate)
     if (filters.endDate) params.append('endDate', filters.endDate)
-    
+
     const response = await apiClient.get<ApiResponse<CashflowReport>>(`/reports/cashflow?${params}`)
+    return response.data.data
+  },
+
+  getTopServices: async (filters: ReportFilters = {}) => {
+    const params = new URLSearchParams()
+    if (filters.period) params.append('period', filters.period)
+    if (filters.startDate) params.append('startDate', filters.startDate)
+    if (filters.endDate) params.append('endDate', filters.endDate)
+
+    const response = await apiClient.get<ApiResponse<any>>(`/reports/top-services?${params}`)
     return response.data.data
   },
 }
