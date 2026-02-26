@@ -18,5 +18,5 @@ export const PLAN_LIMITS = {
 
 export const PLAN_PRICES = {
   PRO: { monthly: 9900, annual: 99000 },
-  BUSINESS: { monthly: 40000, annual: 400000 },
+  BUSINESS: { monthly: 24999, annual: 249990 },
 } as const;

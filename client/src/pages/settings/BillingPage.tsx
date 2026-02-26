@@ -31,12 +31,13 @@ const PLAN_FEATURES: Record<string, { name: string; price: { monthly: number; an
       'Everything in Free',
       'Dashboard & Reports',
       'Vendors & Expenses',
+      'Inventory',
       'Expense Categories',
     ],
   },
   BUSINESS: {
     name: 'Business',
-    price: { monthly: 40000, annual: 400000 },
+    price: { monthly: 24999, annual: 249990 },
     features: [
       'Unlimited invoices',
       'Unlimited users',
