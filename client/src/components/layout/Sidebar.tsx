@@ -29,7 +29,7 @@ const navigation: Array<{ name: string; href: string; icon: any; requiresPlan?: 
   { name: 'Payments', href: '/payments', icon: CreditCard },
   { name: 'Vendors', href: '/vendors', icon: Store, requiresPlan: 'PRO' },
   { name: 'Expenses', href: '/expenses', icon: Receipt, requiresPlan: 'PRO' },
-  { name: 'Inventory', href: '/inventory', icon: Package },
+  { name: 'Inventory', href: '/inventory', icon: Package, requiresPlan: 'PRO' },
   { name: 'Reports', href: '/reports', icon: BarChart3, requiresPlan: 'PRO' },
 ]
 

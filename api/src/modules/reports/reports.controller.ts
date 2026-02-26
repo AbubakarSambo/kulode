@@ -71,4 +71,14 @@ export class ReportsController {
   ) {
     return this.reportsService.getTopServices(organizationId, filter);
   }
+
+  @Get('top-products')
+  @ApiOperation({ summary: 'Get top 5 inventory products by revenue' })
+  @ApiResponse({ status: 200, description: 'Top products by revenue' })
+  async getTopProducts(
+    @CurrentUser('organizationId') organizationId: string,
+    @Query() filter: ReportFilterDto,
+  ) {
+    return this.reportsService.getTopProducts(organizationId, filter);
+  }
 }

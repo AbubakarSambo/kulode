@@ -118,7 +118,9 @@ function App() {
               </Route>
 
               {/* Inventory */}
-              <Route path="/inventory" element={<InventoryPage />} />
+              <Route element={<PlanGatedRoute requiredPlan="PRO" />}>
+                <Route path="/inventory" element={<InventoryPage />} />
+              </Route>
 
 
               {/* Platform Admin */}
