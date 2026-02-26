@@ -1,29 +1,41 @@
 -- ============================================================
 -- Migration: Add inventory module
--- This migration reconciles the DB with the Prisma schema and
--- adds the new InventoryItem + StockMovement tables.
 -- ============================================================
 
--- Step 1: Drop old inventory-related tables/enums from prior aborted attempt
+-- Step 1: Drop old inventory-related tables/enums if they exist from prior attempts
 DROP TABLE IF EXISTS "stock_movements";
 DROP TYPE IF EXISTS "StockMovementType";
 
--- Step 2: Rename products → service_items (undo prior rename migration)
-ALTER TABLE "products" RENAME TO "service_items";
+-- Step 2: Rename products → service_items only if products table exists (dev only)
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'products') THEN
+    ALTER TABLE "products" RENAME TO "service_items";
+  END IF;
+END $$;
 
--- Step 3: Rename product_id → service_item_id in invoice_items
-ALTER TABLE "invoice_items" RENAME COLUMN "product_id" TO "service_item_id";
+-- Step 3: Rename product_id → service_item_id in invoice_items if the column exists (dev only)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'invoice_items' AND column_name = 'product_id'
+  ) THEN
+    ALTER TABLE "invoice_items" RENAME COLUMN "product_id" TO "service_item_id";
+  END IF;
+END $$;
 
 -- Step 4: Fix the foreign key constraint on invoice_items to point to service_items
+ALTER TABLE "invoice_items" DROP CONSTRAINT IF EXISTS "invoice_items_product_id_fkey";
 ALTER TABLE "invoice_items" DROP CONSTRAINT IF EXISTS "invoice_items_service_item_id_fkey";
 ALTER TABLE "invoice_items" ADD CONSTRAINT "invoice_items_service_item_id_fkey"
     FOREIGN KEY ("service_item_id") REFERENCES "service_items"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
--- Step 5: Rename the index on invoice_items
+-- Step 5: Clean up old index, ensure correct index exists
 DROP INDEX IF EXISTS "invoice_items_product_id_idx";
 CREATE INDEX IF NOT EXISTS "invoice_items_service_item_id_idx" ON "invoice_items"("service_item_id");
 
--- Step 6: Drop old subscription_payments table (not in current schema)
+-- Step 6: Drop old subscription_payments table if it exists
 DROP TABLE IF EXISTS "subscription_payments";
 
 -- ============================================================
