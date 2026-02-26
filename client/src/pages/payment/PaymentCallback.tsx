@@ -107,7 +107,7 @@ export function PaymentCallbackPage() {
               <h1 className="mt-4 text-2xl font-semibold text-destructive">Payment Failed</h1>
               <p className="mt-2 text-muted-foreground">
                 We couldn't verify your payment. If money was deducted from your account, 
-                please contact support with reference: <span className="font-mono">{reference || 'N/A'}</span>
+                please <a href="mailto:abubakar.sambo@kulode.com" className="underline hover:text-foreground">contact support</a> with reference: <span className="font-mono">{reference || 'N/A'}</span>
               </p>
               <p className="mt-6 text-sm text-muted-foreground">
                 You can close this window and try again.

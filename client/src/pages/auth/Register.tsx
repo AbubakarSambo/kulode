@@ -71,7 +71,7 @@ export function RegisterPage() {
                 <Label htmlFor="lastName" required>Last Name</Label>
                 <Input
                   id="lastName"
-                  placeholder="Abdullahi"
+                  placeholder="Adebayo"
                   {...register('lastName')}
                   error={errors.lastName?.message}
                 />

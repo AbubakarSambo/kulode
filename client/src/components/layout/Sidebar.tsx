@@ -13,6 +13,7 @@ import {
   LogOut,
   X,
   Package,
+  LifeBuoy,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
@@ -177,6 +178,13 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
               </p>
             </div>
           </div>
+          <a
+            href="mailto:abubakar.sambo@kulode.com"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <LifeBuoy className="h-5 w-5" />
+            Contact Support
+          </a>
           <button
             onClick={() => {
               logout()
