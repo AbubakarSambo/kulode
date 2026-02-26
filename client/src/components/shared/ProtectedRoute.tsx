@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/auth'
 import type { UserRole } from '@/types'
@@ -19,21 +18,6 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
   const location = useLocation()
   const { isAuthenticated, user, _hasHydrated } = useAuthStore()
 
-  useEffect(() => {
-    const persistApi = (useAuthStore as any).persist
-    const setHydrated = () => useAuthStore.setState({ _hasHydrated: true })
-    if (persistApi?.hasHydrated?.()) {
-      setHydrated()
-      return
-    }
-    const unsub = persistApi?.onFinishHydration?.(setHydrated)
-    const fallback = setTimeout(setHydrated, 100)
-    return () => {
-      clearTimeout(fallback)
-      unsub?.()
-    }
-  }, [])
-
   if (!_hasHydrated) {
     return <AuthLoadingFallback />
   }
@@ -52,21 +36,6 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
 // Redirects authenticated users away from guest-only routes (login, register)
 export function GuestRoute() {
   const { isAuthenticated, _hasHydrated } = useAuthStore()
-
-  useEffect(() => {
-    const persistApi = (useAuthStore as any).persist
-    const setHydrated = () => useAuthStore.setState({ _hasHydrated: true })
-    if (persistApi?.hasHydrated?.()) {
-      setHydrated()
-      return
-    }
-    const unsub = persistApi?.onFinishHydration?.(setHydrated)
-    const fallback = setTimeout(setHydrated, 100)
-    return () => {
-      clearTimeout(fallback)
-      unsub?.()
-    }
-  }, [])
 
   if (!_hasHydrated) {
     return <AuthLoadingFallback />
