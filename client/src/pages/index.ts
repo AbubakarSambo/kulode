@@ -33,6 +33,9 @@ export { EditPaymentPage } from './payments/PaymentForm'
 export { ExpensesListPage } from './expenses/ExpensesList'
 export { NewExpensePage, EditExpensePage } from './expenses/ExpenseForm'
 
+// Inventory
+export { InventoryPage } from './inventory/InventoryPage'
+
 // Reports
 export { ReportsPage } from './reports/Reports'
 

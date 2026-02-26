@@ -24,10 +24,10 @@ const steps = [
     icon: Building2,
   },
   {
-    key: 'serviceItems' as const,
-    label: 'Set up service items',
-    description: 'Create products or services you offer',
-    href: '/settings/services',
+    key: 'inventoryItems' as const,
+    label: 'Add your first product',
+    description: 'Set up the items you sell and track stock',
+    href: '/inventory',
     icon: Package,
   },
   {

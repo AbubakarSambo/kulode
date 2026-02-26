@@ -21,6 +21,7 @@ export interface CreateInvoiceData {
   dueDate: string
   items: Array<{
     serviceItemId?: string
+    inventoryItemId?: string
     description: string
     quantity: number
     unitPrice: number

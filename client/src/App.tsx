@@ -29,6 +29,7 @@ import {
   NewExpensePage,
   EditExpensePage,
   ReportsPage,
+  InventoryPage,
   SettingsPage,
   UsersPage,
   PaystackPage,
@@ -111,6 +112,9 @@ function App() {
                 <Route path="/expenses/:id/edit" element={<EditExpensePage />} />
               </Route>
               
+              {/* Inventory */}
+              <Route path="/inventory" element={<InventoryPage />} />
+
               {/* Reports */}
               <Route path="/reports" element={<ReportsPage />} />
               

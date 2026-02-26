@@ -12,6 +12,7 @@ import {
   Shield,
   LogOut,
   X,
+  Package,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
@@ -24,6 +25,7 @@ const navigation = [
   { name: 'Payments', href: '/payments', icon: CreditCard },
   { name: 'Vendors', href: '/vendors', icon: Store },
   { name: 'Expenses', href: '/expenses', icon: Receipt },
+  { name: 'Inventory', href: '/inventory', icon: Package },
   { name: 'Reports', href: '/reports', icon: BarChart3 },
 ]
 

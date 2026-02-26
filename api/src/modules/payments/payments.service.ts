@@ -8,10 +8,14 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePaymentDto, UpdatePaymentDto, PaymentFilterDto } from './dto';
 import { paginate } from '../../common';
+import { InventoryService } from '../inventory/inventory.service';
 
 @Injectable()
 export class PaymentsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private inventoryService: InventoryService,
+  ) {}
 
   async findAll(organizationId: string, filter: PaymentFilterDto) {
     const { page = 1, limit = 20, paymentMethod, invoiceId, startDate, endDate } = filter;
@@ -149,6 +153,11 @@ export class PaymentsService {
         },
       });
 
+      // Deduct inventory stock if invoice is now fully PAID
+      if (newStatus === 'PAID') {
+        await this.inventoryService.deductOnPayment(tx, invoiceId, organizationId);
+      }
+
       return payment;
     });
 
@@ -254,6 +263,15 @@ export class PaymentsService {
         newStatus = 'SENT';
       } else if (newAmountPaid < Number(payment.invoice.total)) {
         newStatus = 'PARTIALLY_PAID';
+      }
+
+      // If invoice was PAID and is no longer PAID, reverse inventory deduction and re-reserve
+      if (payment.invoice.status === 'PAID' && newStatus !== 'PAID') {
+        await this.inventoryService.reversePaymentDeduction(
+          tx,
+          payment.invoiceId,
+          payment.invoice.organizationId,
+        );
       }
 
       await tx.invoice.update({
