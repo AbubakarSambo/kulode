@@ -1,5 +1,6 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
 import { toast } from 'sonner'
+import { useAuthStore } from '@/stores/auth'
 
 // In production, use VITE_API_URL env var; in dev, use proxy
 const API_BASE_URL = import.meta.env.VITE_API_URL 
@@ -37,8 +38,7 @@ apiClient.interceptors.response.use(
       const isAuthEndpoint = authEndpoints.some(ep => url.includes(ep))
       // Only redirect if not on login/auth pages (to preserve form state on failed login)
       if (!window.location.pathname.includes('/login') && !isAuthEndpoint) {
-        localStorage.removeItem('token')
-        localStorage.removeItem('user')
+        useAuthStore.getState().logout()
         window.location.href = '/login'
       }
       return Promise.reject(error)
