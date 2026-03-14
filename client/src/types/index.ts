@@ -186,6 +186,7 @@ export interface Invoice {
   notes?: string
   terms?: string
   paymentUrl?: string
+  shareToken?: string
   client: Client
   items: InvoiceItem[]
   installments?: PaymentInstallment[]

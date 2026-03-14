@@ -64,6 +64,7 @@ export function InvoiceDetailPage() {
     enabled: !!id,
   })
 
+
   const sendMutation = useMutation({
     mutationFn: () => invoicesApi.send(id!),
     onSuccess: () => {
@@ -236,27 +237,30 @@ export function InvoiceDetailPage() {
     }
   }
 
-  const shareViaWhatsApp = async () => {
+  const shareInvoice = async () => {
     try {
-      // Get or generate share token
-      const response = await apiClient.post<ApiResponse<{ shareToken: string }>>(`/invoices/${id}/share`)
-      const { shareToken } = response.data.data
+      const response = await apiClient.get(`/invoices/${id}/pdf`, { responseType: 'blob' })
+      const blob = new Blob([response.data], { type: 'application/pdf' })
+      const file = new File([blob], `${invoice.invoiceNumber}.pdf`, { type: 'application/pdf' })
 
-      // Build the public invoice URL
-      const baseUrl = window.location.origin
-      const invoiceUrl = `${baseUrl}/i/${shareToken}`
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: `Invoice ${invoice.invoiceNumber}` })
+      } else {
+        // Fallback: download the PDF
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `${invoice.invoiceNumber}.pdf`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+      }
 
-      // Build WhatsApp message
-      const amount = formatCurrency(outstanding)
-
-      const message = `Hi! Here's your invoice ${invoice.invoiceNumber} for ${amount}.\n\nView and pay online: ${invoiceUrl}`
-
-      // Open WhatsApp with pre-filled message
-      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`
-      window.open(whatsappUrl, '_blank')
-      posthog.capture('invoice_shared_whatsapp', { invoice_id: id })
+      posthog.capture('invoice_shared', { invoice_id: id })
     } catch (error) {
-      toast.error('Failed to generate share link')
+      if (error instanceof Error && error.name === 'AbortError') return
+      toast.error('Failed to share invoice')
     }
   }
 
@@ -288,7 +292,7 @@ export function InvoiceDetailPage() {
         action={
           <div className="flex flex-wrap gap-2">
             {invoice.status !== 'DRAFT' && (
-              <Button variant="outline" onClick={shareViaWhatsApp}>
+              <Button variant="outline" onClick={shareInvoice}>
                 <Share2 className="mr-2 h-4 w-4" />
                 Share
               </Button>
