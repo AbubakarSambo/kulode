@@ -248,10 +248,15 @@ export function InvoiceDetailPage() {
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: `Invoice ${invoice.invoiceNumber}` })
       } else {
-        // Fallback: open PDF in new tab on desktop
+        // Fallback: download the PDF on desktop
         const url = window.URL.createObjectURL(blob)
-        window.open(url, '_blank')
-        setTimeout(() => window.URL.revokeObjectURL(url), 10000)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `${invoice.invoiceNumber}.pdf`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
       }
 
       posthog.capture('invoice_shared', { invoice_id: id })
