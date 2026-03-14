@@ -106,6 +106,20 @@ export function ExpensesListPage() {
       />
 
       <div className="flex-1 overflow-auto p-4 sm:p-6">
+        {data && (
+          <div className="mb-6">
+            <Card>
+              <CardContent className="p-6">
+                <p className="text-sm font-medium text-muted-foreground">Total Expenses</p>
+                <p className="mt-1 text-2xl font-bold text-destructive">
+                  -{formatCurrency(data.meta.totalAmount ?? 0)}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">{data.meta.total} expense{data.meta.total !== 1 ? 's' : ''}</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />

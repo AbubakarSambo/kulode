@@ -40,7 +40,7 @@ export class ExpensesService {
       }
     }
 
-    const [expenses, total] = await Promise.all([
+    const [expenses, total, aggregate] = await Promise.all([
       this.prisma.expense.findMany({
         where,
         skip,
@@ -59,9 +59,11 @@ export class ExpensesService {
         },
       }),
       this.prisma.expense.count({ where }),
+      this.prisma.expense.aggregate({ where, _sum: { amount: true } }),
     ]);
 
-    return paginate(expenses, total, page, limit);
+    const result = paginate(expenses, total, page, limit);
+    return { ...result, meta: { ...result.meta, totalAmount: Number(aggregate._sum.amount ?? 0) } };
   }
 
   async findOne(id: string, organizationId: string) {
