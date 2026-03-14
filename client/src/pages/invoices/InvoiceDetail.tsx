@@ -57,6 +57,7 @@ export function InvoiceDetailPage() {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
   const [isPaymentLinkModalOpen, setIsPaymentLinkModalOpen] = useState(false)
   const [downloadingReceiptId, setDownloadingReceiptId] = useState<string | null>(null)
+  const [isSharing, setIsSharing] = useState(false)
 
   const { data: invoice, isLoading } = useQuery({
     queryKey: ['invoices', id],
@@ -238,6 +239,7 @@ export function InvoiceDetailPage() {
   }
 
   const shareInvoice = async () => {
+    setIsSharing(true)
     try {
       const response = await apiClient.get(`/invoices/${id}/pdf`, { responseType: 'blob' })
       const blob = new Blob([response.data], { type: 'application/pdf' })
@@ -246,21 +248,18 @@ export function InvoiceDetailPage() {
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: `Invoice ${invoice.invoiceNumber}` })
       } else {
-        // Fallback: download the PDF
+        // Fallback: open PDF in new tab on desktop
         const url = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = `${invoice.invoiceNumber}.pdf`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        window.URL.revokeObjectURL(url)
+        window.open(url, '_blank')
+        setTimeout(() => window.URL.revokeObjectURL(url), 10000)
       }
 
       posthog.capture('invoice_shared', { invoice_id: id })
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return
       toast.error('Failed to share invoice')
+    } finally {
+      setIsSharing(false)
     }
   }
 
@@ -292,8 +291,8 @@ export function InvoiceDetailPage() {
         action={
           <div className="flex flex-wrap gap-2">
             {invoice.status !== 'DRAFT' && (
-              <Button variant="outline" onClick={shareInvoice}>
-                <Share2 className="mr-2 h-4 w-4" />
+              <Button variant="outline" onClick={shareInvoice} isLoading={isSharing}>
+                {!isSharing && <Share2 className="mr-2 h-4 w-4" />}
                 Share
               </Button>
             )}
