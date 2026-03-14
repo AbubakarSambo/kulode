@@ -116,6 +116,7 @@ export class InvoicesService {
             phone: true,
             address: true,
             logo: true,
+            planTier: true,
           },
         },
         client: {
@@ -585,6 +586,7 @@ export class InvoicesService {
             phone: true,
             address: true,
             logo: true,
+            planTier: true,
           },
         },
         client: {

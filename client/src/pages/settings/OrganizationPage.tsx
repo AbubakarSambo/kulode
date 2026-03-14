@@ -4,10 +4,12 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { ImagePlus, X } from 'lucide-react'
+import { ImagePlus, X, Lock } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 import { organizationsApi } from '@/api'
+import { useSubscription } from '@/hooks/useSubscription'
 
 const organizationSchema = z.object({
   name: z.string().min(1, 'Organization name is required'),
@@ -26,6 +28,8 @@ type OrganizationFormData = z.infer<typeof organizationSchema>
 export function OrganizationPage() {
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { effectivePlan } = useSubscription()
+  const isPro = effectivePlan === 'PRO' || effectivePlan === 'BUSINESS'
 
   const { data: organization, isLoading } = useQuery({
     queryKey: ['organization'],
@@ -142,47 +146,61 @@ export function OrganizationPage() {
               <p className="mb-4 text-sm text-muted-foreground">
                 Your logo will appear in the top-left of every invoice PDF.
               </p>
-              {organization?.logo ? (
-                <div className="flex items-start gap-4">
-                  <img
-                    src={organization.logo}
-                    alt="Organization logo"
-                    className="h-16 max-w-[160px] rounded-md border object-contain p-1"
+              {isPro ? (
+                <>
+                  {organization?.logo ? (
+                    <div className="flex items-start gap-4">
+                      <img
+                        src={organization.logo}
+                        alt="Organization logo"
+                        className="h-16 max-w-[160px] rounded-md border object-contain p-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        isLoading={removeLogoMutation.isPending}
+                        onClick={() => removeLogoMutation.mutate()}
+                      >
+                        <X className="mr-2 h-4 w-4" />
+                        Remove
+                      </Button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadLogoMutation.isPending}
+                      className="flex h-20 w-full items-center justify-center gap-2 rounded-md border-2 border-dashed border-muted-foreground/30 text-sm text-muted-foreground transition-colors hover:border-muted-foreground/60 hover:text-foreground disabled:opacity-50"
+                    >
+                      <ImagePlus className="h-5 w-5" />
+                      {uploadLogoMutation.isPending ? 'Uploading...' : 'Click to upload logo'}
+                    </button>
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) uploadLogoMutation.mutate(file)
+                      e.target.value = ''
+                    }}
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    isLoading={removeLogoMutation.isPending}
-                    onClick={() => removeLogoMutation.mutate()}
-                  >
-                    <X className="mr-2 h-4 w-4" />
-                    Remove
-                  </Button>
-                </div>
+                  <p className="mt-2 text-xs text-muted-foreground">PNG, JPG or SVG · Max 2MB</p>
+                </>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadLogoMutation.isPending}
-                  className="flex h-20 w-full items-center justify-center gap-2 rounded-md border-2 border-dashed border-muted-foreground/30 text-sm text-muted-foreground transition-colors hover:border-muted-foreground/60 hover:text-foreground disabled:opacity-50"
-                >
-                  <ImagePlus className="h-5 w-5" />
-                  {uploadLogoMutation.isPending ? 'Uploading...' : 'Click to upload logo'}
-                </button>
+                <div className="flex items-center justify-between rounded-md border border-dashed p-4">
+                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                    <Lock className="h-4 w-4 shrink-0" />
+                    <span>Free plan invoices show <strong>"Powered by Kulode"</strong>. Upgrade to add your logo.</span>
+                  </div>
+                  <Link to="/settings/billing">
+                    <Button type="button" size="sm">Upgrade</Button>
+                  </Link>
+                </div>
               )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (file) uploadLogoMutation.mutate(file)
-                  e.target.value = ''
-                }}
-              />
-              <p className="mt-2 text-xs text-muted-foreground">PNG, JPG or SVG · Max 2MB</p>
             </CardContent>
           </Card>
 

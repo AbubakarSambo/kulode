@@ -35,6 +35,7 @@ interface InvoiceData {
     phone?: string | null;
     address?: string | null;
     logo?: string | null;
+    planTier?: string | null;
   };
   client: {
     name: string;
@@ -54,9 +55,11 @@ interface InvoiceData {
 @Injectable()
 export class InvoicePdfService {
   async generatePdf(invoice: InvoiceData): Promise<Buffer> {
-    // Pre-fetch org logo before entering the sync PDF builder
+    // Only PRO/BUSINESS orgs get their logo; FREE orgs get "Powered by Kulode"
+    const isPro = invoice.organization.planTier === 'PRO' || invoice.organization.planTier === 'BUSINESS';
+
     let logoBuffer: Buffer | null = null;
-    if (invoice.organization.logo) {
+    if (isPro && invoice.organization.logo) {
       try {
         logoBuffer = await this.fetchImageBuffer(invoice.organization.logo);
       } catch {
@@ -510,6 +513,17 @@ export class InvoicePdfService {
           width: 495,
           align: 'center'
         });
+
+      if (!isPro) {
+        doc
+          .fillColor('#94a3b8')
+          .fontSize(8)
+          .font('Helvetica')
+          .text('Powered by Kulode', 50, footerY + 24, {
+            width: 495,
+            align: 'center',
+          });
+      }
 
       doc.end();
     });
