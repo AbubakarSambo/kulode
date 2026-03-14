@@ -4,16 +4,38 @@ import { Link } from 'react-router-dom'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Header } from '@/components/layout'
-import { Button, Card, CardContent, Badge } from '@/components/ui'
+import { Button, Card, CardContent, Badge, Select, Input } from '@/components/ui'
 import { expensesApi } from '@/api'
+import { type ReportPeriod } from '@/api/reports'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 
+function getPeriodDates(period: ReportPeriod, customStart: string, customEnd: string) {
+  if (period === 'CUSTOM') return { startDate: customStart || undefined, endDate: customEnd || undefined }
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = now.getMonth()
+  const fmt = (d: Date) => d.toISOString().split('T')[0]
+  if (period === 'THIS_MONTH') return { startDate: fmt(new Date(y, m, 1)), endDate: fmt(now) }
+  if (period === 'LAST_MONTH') return { startDate: fmt(new Date(y, m - 1, 1)), endDate: fmt(new Date(y, m, 0)) }
+  const q = Math.floor(m / 3)
+  if (period === 'THIS_QUARTER') return { startDate: fmt(new Date(y, q * 3, 1)), endDate: fmt(now) }
+  if (period === 'LAST_QUARTER') return { startDate: fmt(new Date(y, (q - 1) * 3, 1)), endDate: fmt(new Date(y, q * 3, 0)) }
+  if (period === 'THIS_YEAR') return { startDate: fmt(new Date(y, 0, 1)), endDate: fmt(now) }
+  if (period === 'LAST_YEAR') return { startDate: fmt(new Date(y - 1, 0, 1)), endDate: fmt(new Date(y - 1, 11, 31)) }
+  return {}
+}
+
 export function ExpensesListPage() {
   const [page, setPage] = useState(1)
+  const [period, setPeriod] = useState<ReportPeriod>('THIS_MONTH')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const user = useAuthStore((s) => s.user)
   const isSuperAdmin = user?.role === 'SUPER_ADMIN'
   const queryClient = useQueryClient()
+
+  const { startDate: filterStart, endDate: filterEnd } = getPeriodDates(period, startDate, endDate)
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => expensesApi.delete(id),
@@ -33,8 +55,8 @@ export function ExpensesListPage() {
   }
 
   const { data, isLoading } = useQuery({
-    queryKey: ['expenses', { page }],
-    queryFn: () => expensesApi.list({ page, limit: 20 }),
+    queryKey: ['expenses', { page, period, filterStart, filterEnd }],
+    queryFn: () => expensesApi.list({ page, limit: 20, startDate: filterStart, endDate: filterEnd }),
   })
 
   return (
@@ -43,12 +65,43 @@ export function ExpensesListPage() {
         title="Expenses"
         description="Track your business expenses"
         action={
-          <Link to="/expenses/new">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Expense
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Select
+              value={period}
+              onChange={(e) => { setPeriod(e.target.value as ReportPeriod); setPage(1) }}
+              className="w-40"
+            >
+              <option value="THIS_MONTH">This Month</option>
+              <option value="LAST_MONTH">Last Month</option>
+              <option value="THIS_QUARTER">This Quarter</option>
+              <option value="LAST_QUARTER">Last Quarter</option>
+              <option value="THIS_YEAR">This Year</option>
+              <option value="LAST_YEAR">Last Year</option>
+              <option value="CUSTOM">Custom</option>
+            </Select>
+            {period === 'CUSTOM' && (
+              <>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => { setStartDate(e.target.value); setPage(1) }}
+                  className="w-36"
+                />
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => { setEndDate(e.target.value); setPage(1) }}
+                  className="w-36"
+                />
+              </>
+            )}
+            <Link to="/expenses/new">
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Expense
+              </Button>
+            </Link>
+          </div>
         }
       />
 
