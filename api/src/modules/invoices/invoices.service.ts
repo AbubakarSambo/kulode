@@ -115,6 +115,7 @@ export class InvoicesService {
             email: true,
             phone: true,
             address: true,
+            logo: true,
           },
         },
         client: {
@@ -571,8 +572,8 @@ export class InvoicesService {
 
   async findByShareToken(token: string) {
     const invoice = await this.prisma.invoice.findFirst({
-      where: { 
-        shareToken: token, 
+      where: {
+        shareToken: token,
         deletedAt: null,
         status: { not: 'DRAFT' }, // Don't allow viewing draft invoices
       },
@@ -583,6 +584,7 @@ export class InvoicesService {
             email: true,
             phone: true,
             address: true,
+            logo: true,
           },
         },
         client: {
@@ -759,4 +761,5 @@ export class InvoicesService {
 
     return { message: 'Service item deleted successfully' };
   }
+
 }

@@ -220,6 +220,9 @@ model Invoice {
   paystackPaidAt     DateTime? @map("paystack_paid_at")
   paystackChannel    String?   @map("paystack_channel")
   
+  // Attached image (e.g. signed document, proof of work)
+  imageUrl           String?   @map("image_url")
+
   // Public sharing
   shareToken         String?   @unique @map("share_token")
   

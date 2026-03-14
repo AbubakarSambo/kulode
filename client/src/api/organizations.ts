@@ -32,4 +32,18 @@ export const organizationsApi = {
   dismissOnboarding: async (): Promise<void> => {
     await apiClient.patch('/organizations/onboarding-dismiss')
   },
+
+  uploadLogo: async (file: File): Promise<Organization> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const response = await apiClient.post<ApiResponse<Organization>>('/organizations/current/logo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response.data.data
+  },
+
+  removeLogo: async (): Promise<Organization> => {
+    const response = await apiClient.delete<ApiResponse<Organization>>('/organizations/current/logo')
+    return response.data.data
+  },
 }

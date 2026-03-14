@@ -98,6 +98,7 @@ export interface Organization {
   email?: string
   phone?: string
   address?: string
+  logo?: string
   invoicePrefix: string
   currency: string
   taxRate: number

@@ -62,4 +62,9 @@ export class UpdateOrganizationDto {
   @IsString()
   @MaxLength(2000)
   defaultNotes?: string;
+
+  @ApiPropertyOptional({ description: 'Logo URL' })
+  @IsOptional()
+  @IsString()
+  logo?: string | null;
 }

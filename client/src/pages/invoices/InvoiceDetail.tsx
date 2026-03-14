@@ -138,7 +138,7 @@ export function InvoiceDetailPage() {
     }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['invoices', id] })
-      queryClient.invalidateQueries({ queryKey: ['payments'] })
+      queryClient.refetchQueries({ queryKey: ['payments'] })
       posthog.capture('payment_recorded', {
         invoice_id: id,
         payment_method: variables.paymentMethod,

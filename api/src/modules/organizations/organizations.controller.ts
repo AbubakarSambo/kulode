@@ -1,6 +1,18 @@
-import { Controller, Get, Patch, Body } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Patch,
+  Post,
+  Delete,
+  Body,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { OrganizationsService } from './organizations.service';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { UpdateOrganizationDto } from './dto';
 import { CurrentUser, Roles, Role } from '../../common';
 
@@ -8,7 +20,10 @@ import { CurrentUser, Roles, Role } from '../../common';
 @ApiBearerAuth()
 @Controller('organizations')
 export class OrganizationsController {
-  constructor(private readonly organizationsService: OrganizationsService) {}
+  constructor(
+    private readonly organizationsService: OrganizationsService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   @Get('current')
   @ApiOperation({ summary: 'Get current organization details' })
@@ -26,6 +41,36 @@ export class OrganizationsController {
     @CurrentUser('organizationId') organizationId: string,
   ) {
     return this.organizationsService.update(organizationId, dto);
+  }
+
+  @Post('current/logo')
+  @Roles(Role.SUPER_ADMIN)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024 } }))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload organization logo' })
+  @ApiResponse({ status: 200, description: 'Logo uploaded' })
+  async uploadLogo(
+    @CurrentUser('organizationId') organizationId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    if (!file.mimetype.startsWith('image/')) throw new BadRequestException('Only image files are allowed');
+
+    const logoUrl = await this.cloudinaryService.uploadImage(
+      file.buffer,
+      'kulode/logos',
+      `org-${organizationId}`,
+    );
+    return this.organizationsService.update(organizationId, { logo: logoUrl });
+  }
+
+  @Delete('current/logo')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Remove organization logo' })
+  @ApiResponse({ status: 200, description: 'Logo removed' })
+  async removeLogo(@CurrentUser('organizationId') organizationId: string) {
+    await this.cloudinaryService.deleteImage('kulode/logos', `org-${organizationId}`);
+    return this.organizationsService.update(organizationId, { logo: null });
   }
 
   @Get('onboarding-status')

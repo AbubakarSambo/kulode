@@ -59,6 +59,7 @@ export class OrganizationsService {
         ...(typeof dto.vatEnabled === 'boolean' && { vatEnabled: dto.vatEnabled }),
         ...(dto.paymentTerms !== undefined && { paymentTerms: dto.paymentTerms }),
         ...(dto.defaultNotes !== undefined && { defaultNotes: dto.defaultNotes }),
+        ...('logo' in dto && { logo: dto.logo }),
       },
       select: {
         id: true,

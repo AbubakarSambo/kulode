@@ -100,7 +100,7 @@ export function ReportsPage() {
                       <CardTitle>Top Services by Revenue</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="h-56">
+                      <div className="h-72">
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
                             <Pie
@@ -108,7 +108,7 @@ export function ReportsPage() {
                               dataKey="revenue"
                               nameKey="label"
                               cx="50%"
-                              cy="50%"
+                              cy="40%"
                               innerRadius={50}
                               outerRadius={80}
                             >

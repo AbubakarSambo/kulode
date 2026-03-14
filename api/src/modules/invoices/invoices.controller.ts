@@ -125,7 +125,7 @@ export class InvoicesController {
     @Res() res: Response,
   ) {
     let invoice = await this.invoicesService.findOneWithOrganization(id, organizationId);
-    
+
     // Generate payment links for unpaid installments
     const balanceDue = invoice.total - invoice.amountPaid;
     if (balanceDue > 0 && invoice.client.email) {
@@ -160,7 +160,7 @@ export class InvoicesController {
         console.error('Failed to generate payment link for PDF:', error);
       }
     }
-    
+
     const pdfBuffer = await this.invoicePdfService.generatePdf(invoice as any);
 
     res.set({
@@ -203,7 +203,7 @@ export class InvoicesController {
     @Res() res: Response,
   ) {
     let invoice = await this.invoicesService.findByShareToken(token);
-    
+
     // Generate payment links for unpaid installments
     const balanceDue = invoice.total - invoice.amountPaid;
     if (balanceDue > 0 && invoice.client.email) {
@@ -238,7 +238,7 @@ export class InvoicesController {
         console.error('Failed to generate payment link for public PDF:', error);
       }
     }
-    
+
     const pdfBuffer = await this.invoicePdfService.generatePdf(invoice as any);
 
     res.set({
