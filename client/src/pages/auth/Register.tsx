@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link } from 'react-router-dom'
+import { Eye, EyeOff } from 'lucide-react'
 import { Button, Input, Label, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui'
 import { useRegister } from '@/hooks'
+import { posthog } from '@/lib/posthog'
 
 const registerSchema = z.object({
   organizationName: z.string().min(2, 'Organization name is required'),
@@ -23,14 +26,30 @@ type RegisterForm = z.infer<typeof registerSchema>
 
 export function RegisterPage() {
   const registerMutation = useRegister()
-  
+  const [showPassword, setShowPassword] = useState(false)
+  const hasTrackedStart = useState(false)
+
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
+    mode: 'onBlur',
   })
+
+  const trackStart = () => {
+    if (!hasTrackedStart[0]) {
+      hasTrackedStart[1](true)
+      posthog.capture('register_form_started')
+    }
+  }
+
+  const trackFieldError = (field: string, error?: string) => {
+    if (error) {
+      posthog.capture('register_form_field_error', { field, error })
+    }
+  }
 
   const onSubmit = (data: RegisterForm) => {
     registerMutation.mutate(data)
@@ -53,7 +72,10 @@ export function RegisterPage() {
               <Input
                 id="organizationName"
                 placeholder="CleanTex"
-                {...register('organizationName')}
+                {...register('organizationName', {
+                  onBlur: () => trackFieldError('organizationName', errors.organizationName?.message),
+                })}
+                onFocus={trackStart}
                 error={errors.organizationName?.message}
               />
             </div>
@@ -63,7 +85,10 @@ export function RegisterPage() {
                 <Input
                   id="firstName"
                   placeholder="Amina"
-                  {...register('firstName')}
+                  {...register('firstName', {
+                    onBlur: () => trackFieldError('firstName', errors.firstName?.message),
+                  })}
+                  onFocus={trackStart}
                   error={errors.firstName?.message}
                 />
               </div>
@@ -72,7 +97,10 @@ export function RegisterPage() {
                 <Input
                   id="lastName"
                   placeholder="Adebayo"
-                  {...register('lastName')}
+                  {...register('lastName', {
+                    onBlur: () => trackFieldError('lastName', errors.lastName?.message),
+                  })}
+                  onFocus={trackStart}
                   error={errors.lastName?.message}
                 />
               </div>
@@ -83,24 +111,45 @@ export function RegisterPage() {
                 id="email"
                 type="email"
                 placeholder="amina@cleantex.com"
-                {...register('email')}
+                {...register('email', {
+                  onBlur: () => trackFieldError('email', errors.email?.message),
+                })}
+                onFocus={trackStart}
                 error={errors.email?.message}
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password" required>Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                {...register('password')}
-                error={errors.password?.message}
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  {...register('password', {
+                    onBlur: () => trackFieldError('password', errors.password?.message),
+                  })}
+                  onFocus={trackStart}
+                  error={errors.password?.message}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  className="absolute right-2 top-1.5 text-muted-foreground hover:text-foreground"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              {!errors.password && (
+                <p className="text-xs text-muted-foreground">
+                  Min 8 characters, with uppercase, lowercase, and a number or symbol.
+                </p>
+              )}
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
             <Button type="submit" className="w-full" isLoading={registerMutation.isPending}>
-              Create account
+              Create free account
             </Button>
             <p className="text-center text-sm text-muted-foreground">
               Already have an account?{' '}
