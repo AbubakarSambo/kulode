@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, UseFormReturn } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link } from 'react-router-dom'
@@ -58,8 +58,8 @@ export function RegisterPage() {
   }
 
   const sharedFields = (
-    form: typeof passwordForm | typeof magicLinkForm,
-    errors: typeof passwordForm.formState.errors | typeof magicLinkForm.formState.errors,
+    form: UseFormReturn<any>,
+    errors: Record<string, any>,
   ) => (
     <>
       <div className="space-y-2">
