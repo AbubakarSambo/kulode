@@ -101,9 +101,9 @@ export function SetPasswordPage() {
           <div className="mb-4">
             <span className="text-3xl font-bold text-primary">Kulode</span>
           </div>
-          <CardTitle>Set your password</CardTitle>
+          <CardTitle>One last step</CardTitle>
           <CardDescription>
-            {tokenInfo.firstName ? `Hi ${tokenInfo.firstName}, c` : 'C'}reate a password to activate your account
+            {tokenInfo.firstName ? `Welcome, ${tokenInfo.firstName}! S` : 'S'}et a password to secure your account
             {tokenInfo.email && <> for <strong>{tokenInfo.email}</strong></>}
           </CardDescription>
         </CardHeader>

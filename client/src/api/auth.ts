@@ -12,6 +12,11 @@ export const authApi = {
     return response.data.data
   },
 
+  registerMagicLink: async (data: Omit<RegisterData, 'password'>): Promise<RegisterResponse> => {
+    const response = await apiClient.post<ApiResponse<RegisterResponse>>('/auth/register-magic-link', data)
+    return response.data.data
+  },
+
   getProfile: async (): Promise<User & { organization: { id: string; name: string; slug: string; isPaystackVerified: boolean } }> => {
     const response = await apiClient.get<ApiResponse<User & { organization: any }>>('/auth/me')
     return response.data.data

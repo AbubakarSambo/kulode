@@ -1,4 +1,5 @@
 export * from './register.dto';
+export * from './magic-link-register.dto';
 export * from './login.dto';
 export * from './auth-response.dto';
 export * from './verify-email.dto';

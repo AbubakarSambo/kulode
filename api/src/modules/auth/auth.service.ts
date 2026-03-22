@@ -11,7 +11,7 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
-import { RegisterDto, LoginDto, AuthResponseDto, VerifyEmailDto, SetPasswordDto, ResendVerificationDto, ForgotPasswordDto, ResetPasswordDto } from './dto';
+import { RegisterDto, LoginDto, AuthResponseDto, VerifyEmailDto, SetPasswordDto, ResendVerificationDto, ForgotPasswordDto, ResetPasswordDto, MagicLinkRegisterDto } from './dto';
 import { TokenType } from '@prisma/client';
 
 @Injectable()
@@ -122,6 +122,91 @@ export class AuthService {
     };
   }
 
+  async registerMagicLink(dto: MagicLinkRegisterDto): Promise<{ message: string; email: string }> {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: dto.email.toLowerCase() },
+    });
+
+    if (existingUser) {
+      throw new ConflictException('Email already registered');
+    }
+
+    const slug = this.generateSlug(dto.organizationName);
+
+    const existingOrg = await this.prisma.organization.findUnique({
+      where: { slug },
+    });
+
+    if (existingOrg) {
+      throw new ConflictException('Organization name already taken');
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const now = new Date();
+      const trialEnd = new Date(now);
+      trialEnd.setDate(trialEnd.getDate() + 30);
+
+      const organization = await tx.organization.create({
+        data: {
+          name: dto.organizationName,
+          slug,
+          platformFeePercent: this.configService.get<number>('app.platformFeePercent') || 5,
+          planTier: 'PRO',
+          subscriptionStatus: 'TRIALING',
+          trialStartDate: now,
+          trialEndDate: trialEnd,
+        },
+      });
+
+      const user = await tx.user.create({
+        data: {
+          organizationId: organization.id,
+          email: dto.email.toLowerCase(),
+          passwordHash: null,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          role: 'SUPER_ADMIN',
+          isEmailVerified: false,
+        },
+      });
+
+      await tx.expenseCategory.createMany({
+        data: [
+          { organizationId: organization.id, name: 'Supplies' },
+          { organizationId: organization.id, name: 'Salary' },
+          { organizationId: organization.id, name: 'Transport' },
+          { organizationId: organization.id, name: 'Utilities' },
+          { organizationId: organization.id, name: 'Equipment' },
+          { organizationId: organization.id, name: 'Marketing' },
+          { organizationId: organization.id, name: 'Other' },
+        ],
+      });
+
+      const token = crypto.randomBytes(32).toString('hex');
+      await tx.emailVerificationToken.create({
+        data: {
+          userId: user.id,
+          token,
+          type: TokenType.EMAIL_VERIFICATION,
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        },
+      });
+
+      return { user, token };
+    });
+
+    await this.emailService.sendMagicLinkEmail(
+      dto.email.toLowerCase(),
+      dto.firstName,
+      result.token,
+    );
+
+    return {
+      message: 'Account created. Please check your email to activate your account.',
+      email: dto.email.toLowerCase(),
+    };
+  }
+
   async login(dto: LoginDto): Promise<any> {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email.toLowerCase() },
@@ -195,8 +280,8 @@ export class AuthService {
       throw new BadRequestException('Invalid token type');
     }
 
-    // Mark user as verified and token as used
-    const user = await this.prisma.$transaction(async (tx) => {
+    // Mark user as verified and token as used; generate password setup token if no password
+    const { user, setupToken } = await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: tokenRecord.userId },
         data: { isEmailVerified: true },
@@ -207,13 +292,28 @@ export class AuthService {
         data: { usedAt: new Date() },
       });
 
-      return tokenRecord.user;
+      let setupToken: string | undefined;
+      if (!tokenRecord.user.passwordHash) {
+        setupToken = crypto.randomBytes(32).toString('hex');
+        await tx.emailVerificationToken.create({
+          data: {
+            userId: tokenRecord.userId,
+            token: setupToken,
+            type: TokenType.PASSWORD_SETUP,
+            expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000),
+          },
+        });
+      }
+
+      return { user: tokenRecord.user, setupToken };
     });
 
     const accessToken = this.generateToken(user);
 
     return {
       accessToken,
+      needsPasswordSetup: !!setupToken,
+      setupToken,
       user: {
         id: user.id,
         email: user.email,

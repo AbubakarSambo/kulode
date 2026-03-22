@@ -1,7 +1,7 @@
 import { Controller, Post, Get, Body, Query, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { RegisterDto, LoginDto, AuthResponseDto, VerifyEmailDto, SetPasswordDto, ResendVerificationDto, ForgotPasswordDto, ResetPasswordDto } from './dto';
+import { RegisterDto, LoginDto, AuthResponseDto, VerifyEmailDto, SetPasswordDto, ResendVerificationDto, ForgotPasswordDto, ResetPasswordDto, MagicLinkRegisterDto } from './dto';
 import { Public, CurrentUser, CurrentUserData } from '../../common';
 
 @ApiTags('Auth')
@@ -16,6 +16,15 @@ export class AuthController {
   @ApiResponse({ status: 409, description: 'Email or organization already exists' })
   async register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
+  }
+
+  @Public()
+  @Post('register-magic-link')
+  @ApiOperation({ summary: 'Register without a password — sends a magic activation link' })
+  @ApiResponse({ status: 201, description: 'Magic link sent' })
+  @ApiResponse({ status: 409, description: 'Email or organization already exists' })
+  async registerMagicLink(@Body() dto: MagicLinkRegisterDto) {
+    return this.authService.registerMagicLink(dto);
   }
 
   @Public()

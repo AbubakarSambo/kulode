@@ -49,12 +49,31 @@ export function useVerifyEmail() {
 
   return useMutation({
     mutationFn: (token: string) => authApi.verifyEmail(token),
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       setAuth(data.user, data.accessToken)
-      toast.success('Email verified!', {
-        description: 'Welcome to Kulode',
-      })
-      navigate('/dashboard')
+      if (data.needsPasswordSetup && data.setupToken) {
+        navigate(`/set-password?token=${data.setupToken}`)
+      } else {
+        toast.success('Email verified!', { description: 'Welcome to Kulode' })
+        navigate('/dashboard')
+      }
+    },
+  })
+}
+
+export function useMagicLinkRegister() {
+  const navigate = useNavigate()
+
+  return useMutation({
+    mutationFn: (data: Omit<import('@/types').RegisterData, 'password'>) =>
+      authApi.registerMagicLink(data),
+    onSuccess: (data) => {
+      posthog.capture('organization_created', { method: 'magic_link' })
+      navigate('/check-email', { state: { email: data.email } })
+    },
+    onError: (error: any) => {
+      const message = error.response?.data?.message || 'Registration failed'
+      toast.error('Registration failed', { description: message })
     },
   })
 }

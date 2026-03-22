@@ -75,6 +75,28 @@ export class EmailService {
     });
   }
 
+  async sendMagicLinkEmail(email: string, firstName: string, token: string): Promise<void> {
+    const verifyUrl = `${this.frontendUrl}/verify-email?token=${token}`;
+
+    await this.sendEmail({
+      to: email,
+      subject: 'Activate your Kulode account',
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>Welcome to Kulode, ${firstName}!</h2>
+          <p>Click the button below to activate your account — no password needed yet.</p>
+          <div style="margin: 32px 0;">
+            <a href="${verifyUrl}" style="background-color: #0f172a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+              Activate my account
+            </a>
+          </div>
+          <p style="color: #64748b; font-size: 14px;">This link expires in 24 hours.</p>
+          <p style="color: #64748b; font-size: 14px;">If you didn't create an account, you can safely ignore this email.</p>
+        </div>
+      `,
+    });
+  }
+
   async sendPasswordResetEmail(email: string, firstName: string, token: string): Promise<void> {
     const resetUrl = `${this.frontendUrl}/reset-password?token=${token}`;
 

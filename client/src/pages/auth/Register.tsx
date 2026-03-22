@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { Link } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { Button, Input, Label, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui'
-import { useRegister } from '@/hooks'
+import { useRegister, useMagicLinkRegister } from '@/hooks'
 import { posthog } from '@/lib/posthog'
 
 const registerSchema = z.object({
@@ -24,24 +24,30 @@ const registerSchema = z.object({
 
 type RegisterForm = z.infer<typeof registerSchema>
 
+const magicLinkSchema = registerSchema.omit({ password: true })
+type MagicLinkForm = z.infer<typeof magicLinkSchema>
+
 export function RegisterPage() {
   const registerMutation = useRegister()
+  const magicLinkMutation = useMagicLinkRegister()
   const [showPassword, setShowPassword] = useState(false)
+  const [useMagicLink, setUseMagicLink] = useState(true)
   const hasTrackedStart = useState(false)
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<RegisterForm>({
+  const passwordForm = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
+    mode: 'onBlur',
+  })
+
+  const magicLinkForm = useForm<MagicLinkForm>({
+    resolver: zodResolver(magicLinkSchema),
     mode: 'onBlur',
   })
 
   const trackStart = () => {
     if (!hasTrackedStart[0]) {
       hasTrackedStart[1](true)
-      posthog.capture('register_form_started')
+      posthog.capture('register_form_started', { method: useMagicLink ? 'magic_link' : 'password' })
     }
   }
 
@@ -51,8 +57,102 @@ export function RegisterPage() {
     }
   }
 
-  const onSubmit = (data: RegisterForm) => {
-    registerMutation.mutate(data)
+  const sharedFields = (
+    form: typeof passwordForm | typeof magicLinkForm,
+    errors: typeof passwordForm.formState.errors | typeof magicLinkForm.formState.errors,
+  ) => (
+    <>
+      <div className="space-y-2">
+        <Label htmlFor="organizationName" required>Organization Name</Label>
+        <Input
+          id="organizationName"
+          placeholder="CleanTex"
+          {...form.register('organizationName', {
+            onBlur: () => trackFieldError('organizationName', errors.organizationName?.message),
+          })}
+          onFocus={trackStart}
+          error={errors.organizationName?.message}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="firstName" required>First Name</Label>
+          <Input
+            id="firstName"
+            placeholder="Amina"
+            {...form.register('firstName', {
+              onBlur: () => trackFieldError('firstName', errors.firstName?.message),
+            })}
+            onFocus={trackStart}
+            error={errors.firstName?.message}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="lastName" required>Last Name</Label>
+          <Input
+            id="lastName"
+            placeholder="Adebayo"
+            {...form.register('lastName', {
+              onBlur: () => trackFieldError('lastName', errors.lastName?.message),
+            })}
+            onFocus={trackStart}
+            error={errors.lastName?.message}
+          />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="email" required>Email</Label>
+        <Input
+          id="email"
+          type="email"
+          placeholder="amina@cleantex.com"
+          {...form.register('email', {
+            onBlur: () => trackFieldError('email', errors.email?.message),
+          })}
+          onFocus={trackStart}
+          error={errors.email?.message}
+        />
+      </div>
+    </>
+  )
+
+  if (useMagicLink) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="mb-4">
+              <span className="text-3xl font-bold text-primary">Kulode</span>
+            </div>
+            <CardTitle>Create your free account</CardTitle>
+            <CardDescription>We'll send you a link to activate your account — no password needed</CardDescription>
+          </CardHeader>
+          <form onSubmit={magicLinkForm.handleSubmit((data) => magicLinkMutation.mutate(data))}>
+            <CardContent className="space-y-4">
+              {sharedFields(magicLinkForm, magicLinkForm.formState.errors)}
+            </CardContent>
+            <CardFooter className="flex flex-col gap-4">
+              <Button type="submit" className="w-full" isLoading={magicLinkMutation.isPending}>
+                Send activation link
+              </Button>
+              <button
+                type="button"
+                onClick={() => setUseMagicLink(false)}
+                className="text-center text-sm text-muted-foreground hover:text-foreground"
+              >
+                Prefer to sign up with a password instead
+              </button>
+              <p className="text-center text-sm text-muted-foreground">
+                Already have an account?{' '}
+                <Link to="/login" className="text-primary hover:underline">
+                  Sign in
+                </Link>
+              </p>
+            </CardFooter>
+          </form>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -62,62 +162,12 @@ export function RegisterPage() {
           <div className="mb-4">
             <span className="text-3xl font-bold text-primary">Kulode</span>
           </div>
-          <CardTitle>Create your account</CardTitle>
+          <CardTitle>Create your free account</CardTitle>
           <CardDescription>Start managing your business finances</CardDescription>
         </CardHeader>
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={passwordForm.handleSubmit((data) => registerMutation.mutate(data))}>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="organizationName" required>Organization Name</Label>
-              <Input
-                id="organizationName"
-                placeholder="CleanTex"
-                {...register('organizationName', {
-                  onBlur: () => trackFieldError('organizationName', errors.organizationName?.message),
-                })}
-                onFocus={trackStart}
-                error={errors.organizationName?.message}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="firstName" required>First Name</Label>
-                <Input
-                  id="firstName"
-                  placeholder="Amina"
-                  {...register('firstName', {
-                    onBlur: () => trackFieldError('firstName', errors.firstName?.message),
-                  })}
-                  onFocus={trackStart}
-                  error={errors.firstName?.message}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="lastName" required>Last Name</Label>
-                <Input
-                  id="lastName"
-                  placeholder="Adebayo"
-                  {...register('lastName', {
-                    onBlur: () => trackFieldError('lastName', errors.lastName?.message),
-                  })}
-                  onFocus={trackStart}
-                  error={errors.lastName?.message}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email" required>Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="amina@cleantex.com"
-                {...register('email', {
-                  onBlur: () => trackFieldError('email', errors.email?.message),
-                })}
-                onFocus={trackStart}
-                error={errors.email?.message}
-              />
-            </div>
+            {sharedFields(passwordForm, passwordForm.formState.errors)}
             <div className="space-y-2">
               <Label htmlFor="password" required>Password</Label>
               <div className="relative">
@@ -125,11 +175,11 @@ export function RegisterPage() {
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
-                  {...register('password', {
-                    onBlur: () => trackFieldError('password', errors.password?.message),
+                  {...passwordForm.register('password', {
+                    onBlur: () => trackFieldError('password', passwordForm.formState.errors.password?.message),
                   })}
                   onFocus={trackStart}
-                  error={errors.password?.message}
+                  error={passwordForm.formState.errors.password?.message}
                 />
                 <button
                   type="button"
@@ -140,7 +190,7 @@ export function RegisterPage() {
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-              {!errors.password && (
+              {!passwordForm.formState.errors.password && (
                 <p className="text-xs text-muted-foreground">
                   Min 8 characters, with uppercase, lowercase, and a number or symbol.
                 </p>
@@ -151,6 +201,13 @@ export function RegisterPage() {
             <Button type="submit" className="w-full" isLoading={registerMutation.isPending}>
               Create free account
             </Button>
+            <button
+              type="button"
+              onClick={() => setUseMagicLink(true)}
+              className="text-center text-sm text-muted-foreground hover:text-foreground"
+            >
+              Sign up with email link instead
+            </button>
             <p className="text-center text-sm text-muted-foreground">
               Already have an account?{' '}
               <Link to="/login" className="text-primary hover:underline">
