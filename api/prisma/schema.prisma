@@ -135,6 +135,7 @@ model User {
   isActive        Boolean  @default(true) @map("is_active")
   isEmailVerified Boolean  @default(false) @map("is_email_verified")
   isPlatformAdmin Boolean  @default(false) @map("is_platform_admin")
+  googleId        String?  @unique @map("google_id")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

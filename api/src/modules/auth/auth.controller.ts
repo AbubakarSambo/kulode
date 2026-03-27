@@ -1,5 +1,7 @@
-import { Controller, Post, Get, Body, Query, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Body, Query, HttpCode, HttpStatus, UseGuards, Req, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { AuthGuard } from '@nestjs/passport';
+import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto, AuthResponseDto, VerifyEmailDto, SetPasswordDto, ResendVerificationDto, ForgotPasswordDto, ResetPasswordDto, MagicLinkRegisterDto } from './dto';
 import { Public, CurrentUser, CurrentUserData } from '../../common';
@@ -7,7 +9,10 @@ import { Public, CurrentUser, CurrentUserData } from '../../common';
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Public()
   @Post('register')
@@ -94,6 +99,28 @@ export class AuthController {
     @Query('type') type: string,
   ) {
     return this.authService.validateToken(token, type);
+  }
+
+  @Public()
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  @ApiOperation({ summary: 'Initiate Google OAuth login' })
+  async googleAuth() {
+    // Passport redirects to Google — no body needed
+  }
+
+  @Public()
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  @ApiOperation({ summary: 'Google OAuth callback' })
+  async googleCallback(@Req() req: any, @Res() res: any) {
+    const frontendUrl = this.configService.get<string>('google.frontendUrl');
+    try {
+      const token = await this.authService.findOrCreateGoogleUser(req.user);
+      return res.redirect(`${frontendUrl}/auth/google/callback?token=${token}`);
+    } catch {
+      return res.redirect(`${frontendUrl}/login?error=google_auth_failed`);
+    }
   }
 
   @Get('me')

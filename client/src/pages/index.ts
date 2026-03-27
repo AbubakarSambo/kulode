@@ -6,6 +6,7 @@ export { VerifyEmailPage } from './auth/VerifyEmail'
 export { SetPasswordPage } from './auth/SetPassword'
 export { ForgotPasswordPage } from './auth/ForgotPassword'
 export { ResetPasswordPage } from './auth/ResetPassword'
+export { GoogleCallbackPage } from './auth/GoogleCallback'
 
 // Dashboard
 export { DashboardPage } from './dashboard/Dashboard'

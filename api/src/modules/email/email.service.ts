@@ -97,6 +97,29 @@ export class EmailService {
     });
   }
 
+  async sendAddPasswordEmail(email: string, firstName: string, token: string): Promise<void> {
+    const setupUrl = `${this.frontendUrl}/set-password?token=${token}`;
+
+    await this.sendEmail({
+      to: email,
+      subject: 'Add a password to your Kulode account',
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>Hi ${firstName},</h2>
+          <p>You signed in with Google, but you can also add a password to your account.</p>
+          <p>Click the button below to set one:</p>
+          <div style="margin: 32px 0;">
+            <a href="${setupUrl}" style="background-color: #0f172a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+              Set Password
+            </a>
+          </div>
+          <p style="color: #64748b; font-size: 14px;">This link expires in 72 hours.</p>
+          <p style="color: #64748b; font-size: 14px;">If you didn't request this, you can safely ignore this email.</p>
+        </div>
+      `,
+    });
+  }
+
   async sendPasswordResetEmail(email: string, firstName: string, token: string): Promise<void> {
     const resetUrl = `${this.frontendUrl}/reset-password?token=${token}`;
 

@@ -11,6 +11,7 @@ import {
   SetPasswordPage,
   ForgotPasswordPage,
   ResetPasswordPage,
+  GoogleCallbackPage,
   DashboardPage,
   ClientsListPage,
   ClientDetailPage,
@@ -66,6 +67,7 @@ function App() {
           <Route path="/set-password" element={<SetPasswordPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
           <Route path="/payment/callback" element={<PaymentCallbackPage />} />
           <Route path="/i/:token" element={<PublicInvoicePage />} />
 

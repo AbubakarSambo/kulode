@@ -226,6 +226,22 @@ export class AuthService {
     }
 
     if (!user.passwordHash) {
+      if (user.googleId) {
+        // Google-only user trying password login — send them a link to add a password
+        const token = crypto.randomBytes(32).toString('hex');
+        await this.prisma.emailVerificationToken.create({
+          data: {
+            userId: user.id,
+            token,
+            type: TokenType.PASSWORD_SETUP,
+            expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000),
+          },
+        });
+        this.emailService.sendAddPasswordEmail(user.email, user.firstName, token).catch((err) => {
+          this.logger.error(`Failed to send add-password email to ${user.email}: ${err.message}`);
+        });
+        throw new UnauthorizedException('Your account uses Google Sign-In. We\'ve emailed you a link to set a password.');
+      }
       throw new UnauthorizedException('Please check your email for an activation link to set your password');
     }
 
@@ -532,6 +548,92 @@ export class AuthService {
     };
   }
 
+  async findOrCreateGoogleUser(googleUser: {
+    googleId: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+  }): Promise<string> {
+    const email = googleUser.email.toLowerCase();
+
+    // Look up by googleId first
+    let user = await this.prisma.user.findFirst({
+      where: { googleId: googleUser.googleId },
+      include: { organization: true },
+    });
+
+    if (!user) {
+      // Look up by email (merge case: existing account registered with email/password or magic link)
+      const existingByEmail = await this.prisma.user.findUnique({
+        where: { email },
+        include: { organization: true },
+      });
+
+      if (existingByEmail) {
+        // Merge: link googleId to existing account and mark email verified
+        user = await this.prisma.user.update({
+          where: { id: existingByEmail.id },
+          data: { googleId: googleUser.googleId, isEmailVerified: true },
+          include: { organization: true },
+        });
+      } else {
+        // New user: create org and account
+        const orgName = `${googleUser.firstName}'s Business`;
+        const slug = await this.generateUniqueSlug(orgName);
+
+        user = await this.prisma.$transaction(async (tx) => {
+          const now = new Date();
+          const trialEnd = new Date(now);
+          trialEnd.setDate(trialEnd.getDate() + 30);
+
+          const organization = await tx.organization.create({
+            data: {
+              name: orgName,
+              slug,
+              platformFeePercent: this.configService.get<number>('app.platformFeePercent') || 5,
+              planTier: 'PRO',
+              subscriptionStatus: 'TRIALING',
+              trialStartDate: now,
+              trialEndDate: trialEnd,
+            },
+          });
+
+          const newUser = await tx.user.create({
+            data: {
+              organizationId: organization.id,
+              email,
+              googleId: googleUser.googleId,
+              firstName: googleUser.firstName,
+              lastName: googleUser.lastName,
+              role: 'SUPER_ADMIN',
+              isEmailVerified: true,
+            },
+          });
+
+          await tx.expenseCategory.createMany({
+            data: [
+              { organizationId: organization.id, name: 'Supplies' },
+              { organizationId: organization.id, name: 'Salary' },
+              { organizationId: organization.id, name: 'Transport' },
+              { organizationId: organization.id, name: 'Utilities' },
+              { organizationId: organization.id, name: 'Equipment' },
+              { organizationId: organization.id, name: 'Marketing' },
+              { organizationId: organization.id, name: 'Other' },
+            ],
+          });
+
+          return { ...newUser, organization };
+        });
+      }
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException('Account is deactivated');
+    }
+
+    return this.generateToken(user);
+  }
+
   async validateToken(token: string, type: string): Promise<{ valid: boolean; email?: string; firstName?: string }> {
     let tokenType: TokenType;
     if (type === 'PASSWORD_SETUP') {
@@ -601,6 +703,16 @@ export class AuthService {
     };
 
     return this.jwtService.sign(payload);
+  }
+
+  private async generateUniqueSlug(name: string): Promise<string> {
+    const baseSlug = this.generateSlug(name);
+    let slug = baseSlug;
+    let counter = 2;
+    while (await this.prisma.organization.findUnique({ where: { slug } })) {
+      slug = `${baseSlug}-${counter++}`;
+    }
+    return slug;
   }
 
   private generateSlug(name: string): string {
