@@ -13,6 +13,7 @@ export function GoogleCallbackPage() {
   useEffect(() => {
     const token = searchParams.get('token')
     const error = searchParams.get('error')
+    const isNewUser = searchParams.get('new') === 'true'
 
     if (error || !token) {
       toast.error('Google sign-in failed', { description: 'Please try again or use email sign-in.' })
@@ -26,6 +27,9 @@ export function GoogleCallbackPage() {
     authApi.getProfile()
       .then((user) => {
         setAuth(user, token)
+        if (isNewUser) {
+          posthog.capture('organization_created', { method: 'google' })
+        }
         posthog.capture('user_logged_in', { method: 'google' })
         toast.success(`Welcome${user.firstName ? `, ${user.firstName}` : ''}!`)
         navigate('/dashboard')

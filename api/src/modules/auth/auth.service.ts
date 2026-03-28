@@ -553,8 +553,9 @@ export class AuthService {
     email: string;
     firstName: string;
     lastName: string;
-  }): Promise<string> {
+  }): Promise<{ token: string; isNewUser: boolean }> {
     const email = googleUser.email.toLowerCase();
+    let isNewUser = false;
 
     // Look up by googleId first
     let user = await this.prisma.user.findFirst({
@@ -577,6 +578,7 @@ export class AuthService {
           include: { organization: true },
         });
       } else {
+        isNewUser = true;
         // New user: create org and account
         const orgName = `${googleUser.firstName}'s Business`;
         const slug = await this.generateUniqueSlug(orgName);
@@ -631,7 +633,7 @@ export class AuthService {
       throw new UnauthorizedException('Account is deactivated');
     }
 
-    return this.generateToken(user);
+    return { token: this.generateToken(user), isNewUser };
   }
 
   async validateToken(token: string, type: string): Promise<{ valid: boolean; email?: string; firstName?: string }> {

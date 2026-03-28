@@ -116,8 +116,8 @@ export class AuthController {
   async googleCallback(@Req() req: any, @Res() res: any) {
     const frontendUrl = this.configService.get<string>('google.frontendUrl');
     try {
-      const token = await this.authService.findOrCreateGoogleUser(req.user);
-      return res.redirect(`${frontendUrl}/auth/google/callback?token=${token}`);
+      const { token, isNewUser } = await this.authService.findOrCreateGoogleUser(req.user);
+      return res.redirect(`${frontendUrl}/auth/google/callback?token=${token}&new=${isNewUser}`);
     } catch {
       return res.redirect(`${frontendUrl}/login?error=google_auth_failed`);
     }
