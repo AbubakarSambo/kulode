@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Link } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2,
   Circle,
@@ -11,76 +11,76 @@ import {
   FileText,
   CreditCard,
   Tags,
-} from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
-import { organizationsApi } from '@/api/organizations'
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
+import { organizationsApi } from "@/api/organizations";
 
 const steps = [
   {
-    key: 'businessProfile' as const,
-    label: 'Complete your business profile',
-    description: 'Add your email and address',
-    href: '/settings/organization',
+    key: "businessProfile" as const,
+    label: "Complete your business profile",
+    description: "Add your email and address",
+    href: "/settings/organization",
     icon: Building2,
   },
   {
-    key: 'inventoryItems' as const,
-    label: 'Add your first product',
-    description: 'Set up the items you sell and track stock',
-    href: '/inventory',
+    key: "inventoryItems" as const,
+    label: "Add a product or service",
+    description: "Set up inventory items or services you sell",
+    href: "/inventory",
     icon: Package,
   },
   {
-    key: 'firstClient' as const,
-    label: 'Add your first client',
-    description: 'Start building your client list',
-    href: '/clients/new',
+    key: "firstClient" as const,
+    label: "Add your first client",
+    description: "Start building your client list",
+    href: "/clients/new",
     icon: Users,
   },
   {
-    key: 'firstInvoice' as const,
-    label: 'Create your first invoice',
-    description: 'Send a professional invoice',
-    href: '/invoices/new',
+    key: "firstInvoice" as const,
+    label: "Create your first invoice",
+    description: "Send a professional invoice",
+    href: "/invoices/new",
     icon: FileText,
   },
   {
-    key: 'onlinePayments' as const,
-    label: 'Set up online payments',
-    description: 'Accept payments via Paystack',
-    href: '/settings/paystack',
+    key: "onlinePayments" as const,
+    label: "Set up online payments",
+    description: "Accept payments via Paystack",
+    href: "/settings/paystack",
     icon: CreditCard,
   },
   {
-    key: 'expenseCategories' as const,
-    label: 'Customize expense categories',
-    description: 'Organize your spending',
-    href: '/settings/categories',
+    key: "expenseCategories" as const,
+    label: "Customize expense categories",
+    description: "Organize your spending",
+    href: "/settings/categories",
     icon: Tags,
   },
-]
+];
 
 export function OnboardingChecklist() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   const { data: status, isLoading } = useQuery({
-    queryKey: ['onboarding-status'],
+    queryKey: ["onboarding-status"],
     queryFn: organizationsApi.getOnboardingStatus,
     staleTime: 30_000,
-  })
+  });
 
   const dismissMutation = useMutation({
     mutationFn: organizationsApi.dismissOnboarding,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
+      queryClient.invalidateQueries({ queryKey: ["onboarding-status"] });
     },
-  })
+  });
 
   if (isLoading || !status || status.dismissed || status.allComplete) {
-    return null
+    return null;
   }
 
-  const progressPercent = (status.completedCount / status.totalSteps) * 100
+  const progressPercent = (status.completedCount / status.totalSteps) * 100;
 
   return (
     <Card className="mb-6">
@@ -110,15 +110,15 @@ export function OnboardingChecklist() {
       <CardContent className="pt-0">
         <ul className="space-y-1">
           {steps.map((step) => {
-            const completed = status.steps[step.key]
-            const Icon = step.icon
+            const completed = status.steps[step.key];
+            const Icon = step.icon;
 
             return (
               <li key={step.key}>
                 <Link
                   to={step.href}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted ${
-                    completed ? 'opacity-60' : ''
+                    completed ? "opacity-60" : ""
                   }`}
                 >
                   {completed ? (
@@ -130,7 +130,7 @@ export function OnboardingChecklist() {
                   <div className="flex-1 min-w-0">
                     <p
                       className={`text-sm font-medium ${
-                        completed ? 'line-through' : ''
+                        completed ? "line-through" : ""
                       }`}
                     >
                       {step.label}
@@ -144,10 +144,10 @@ export function OnboardingChecklist() {
                   )}
                 </Link>
               </li>
-            )
+            );
           })}
         </ul>
       </CardContent>
     </Card>
-  )
+  );
 }

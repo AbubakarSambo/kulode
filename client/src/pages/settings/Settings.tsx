@@ -1,7 +1,7 @@
 import { Header } from '@/components/layout'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui'
 import { Link } from 'react-router-dom'
-import { Building, Users, CreditCard, Tags, Package, Crown } from 'lucide-react'
+import { Building, Users, CreditCard, Tags, Crown } from 'lucide-react'
 import { useSubscription } from '@/hooks/useSubscription'
 
 export function SettingsPage() {
@@ -42,12 +42,6 @@ export function SettingsPage() {
           },
         ]
       : []),
-    {
-      title: 'Service Items',
-      description: 'Manage services and products for invoices',
-      icon: Package,
-      href: '/settings/services',
-    },
   ]
 
   return (

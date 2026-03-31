@@ -15,6 +15,7 @@ import {
   X,
   Package,
   LifeBuoy,
+  Wrench,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
@@ -30,6 +31,7 @@ const navigation: Array<{ name: string; href: string; icon: any; requiresPlan?: 
   { name: 'Vendors', href: '/vendors', icon: Store, requiresPlan: 'PRO' },
   { name: 'Expenses', href: '/expenses', icon: Receipt, requiresPlan: 'PRO' },
   { name: 'Inventory', href: '/inventory', icon: Package, requiresPlan: 'PRO' },
+  { name: 'Services', href: '/settings/services', icon: Wrench },
   { name: 'Reports', href: '/reports', icon: BarChart3, requiresPlan: 'PRO' },
 ]
 
@@ -132,6 +134,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                 <NavLink
                   key={item.name}
                   to={item.href}
+                  end
                   onClick={handleNavClick}
                   className={({ isActive }) =>
                     cn(

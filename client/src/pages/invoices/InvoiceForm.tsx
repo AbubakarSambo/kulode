@@ -9,13 +9,192 @@ import { Plus, Trash2, ChevronDown, Search, AlertTriangle } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Select, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 import { clientsApi, invoicesApi, organizationsApi, inventoryApi } from '@/api'
+import type { CreateInventoryItemData } from '@/api/inventory'
 import { formatCurrency } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
-import type { ServiceItem, InventoryItem } from '@/types'
+import type { Client, ServiceItem, InventoryItem } from '@/types'
+
+function ClientCombobox({
+  clients,
+  value,
+  onChange,
+  error,
+}: {
+  clients: Client[]
+  value: string
+  onChange: (clientId: string) => void
+  error?: string
+}) {
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newEmail, setNewEmail] = useState('')
+  const [newPhone, setNewPhone] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+        setCreating(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const selected = clients.find((c) => c.id === value)
+  const filtered = clients.filter((c) => c.name.toLowerCase().includes(query.toLowerCase()))
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      clientsApi.create({ name: newName.trim(), email: newEmail.trim() || undefined, phone: newPhone.trim() || undefined }),
+    onSuccess: (client) => {
+      queryClient.invalidateQueries({ queryKey: ['clients'] })
+      posthog.capture('client_created', { client_id: client.id, source: 'invoice_form' })
+      toast.success('Client created', { description: `${client.name} has been added` })
+      onChange(client.id)
+      setOpen(false)
+      setCreating(false)
+      setQuery('')
+      setNewName('')
+      setNewEmail('')
+      setNewPhone('')
+    },
+    onError: (err: any) => {
+      toast.error('Failed to create client', { description: err.response?.data?.message || 'Please try again' })
+    },
+  })
+
+  function openDropdown() {
+    setOpen(true)
+    setCreating(false)
+    setQuery('')
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }
+
+  function startCreating() {
+    setCreating(true)
+    setNewName(query)
+    setQuery('')
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={openDropdown}
+        className={`flex h-9 w-full items-center justify-between rounded-md border bg-background px-3 py-1 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground ${error ? 'border-destructive' : 'border-input'}`}
+      >
+        {selected ? (
+          <span className="truncate">{selected.name}</span>
+        ) : (
+          <span className="text-muted-foreground">Select a client</span>
+        )}
+        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+      </button>
+      {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
+
+      {open && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border bg-card shadow-lg">
+          {!creating ? (
+            <>
+              <div className="flex items-center border-b px-3">
+                <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                <input
+                  ref={inputRef}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search clients..."
+                  className="flex h-9 w-full bg-transparent py-2 text-sm outline-none placeholder:text-muted-foreground"
+                />
+              </div>
+              <div className="max-h-56 overflow-y-auto p-1">
+                {filtered.length > 0 ? (
+                  filtered.map((client) => (
+                    <button
+                      key={client.id}
+                      type="button"
+                      onClick={() => { onChange(client.id); setOpen(false); setQuery('') }}
+                      className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                    >
+                      {client.name}
+                    </button>
+                  ))
+                ) : (
+                  <p className="px-2 py-3 text-center text-sm text-muted-foreground">
+                    {query ? `No clients matching "${query}"` : 'No clients yet'}
+                  </p>
+                )}
+                <div className="border-t mt-1 pt-1">
+                  <button
+                    type="button"
+                    onClick={startCreating}
+                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-primary hover:bg-accent"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    {query ? `Create "${query}"` : 'New client'}
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="p-3 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">New client</p>
+              <input
+                autoFocus
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Name *"
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+              />
+              <input
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="Email (optional)"
+                type="email"
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+              />
+              <input
+                value={newPhone}
+                onChange={(e) => setNewPhone(e.target.value)}
+                placeholder="Phone (optional)"
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+              />
+              <p className="text-xs text-muted-foreground">You can add more details from the client page later.</p>
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={!newName.trim() || createMutation.isPending}
+                  onClick={() => createMutation.mutate()}
+                  className="flex-1 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50 hover:bg-primary/90"
+                >
+                  {createMutation.isPending ? 'Creating…' : 'Create client'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCreating(false)}
+                  className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
+                >
+                  Back
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 type ComboItem =
   | { kind: 'service'; item: ServiceItem }
   | { kind: 'inventory'; item: InventoryItem }
+
+type CreatingKind = 'service' | 'inventory' | null
 
 function ItemCombobox({
   serviceItems,
@@ -26,15 +205,21 @@ function ItemCombobox({
   inventoryItems: InventoryItem[]
   onSelect: (selection: { kind: 'service'; id: string } | { kind: 'inventory'; id: string } | { kind: 'custom' }) => void
 }) {
+  const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<ComboItem | null>(null)
+  const [creating, setCreating] = useState<CreatingKind>(null)
+  const [newName, setNewName] = useState('')
+  const [newPrice, setNewPrice] = useState('')
+  const [newStock, setNewStock] = useState('')
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setOpen(false)
+        setCreating(null)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -52,11 +237,65 @@ function ItemCombobox({
       : `${selected.item.name} — ${formatCurrency((selected.item as InventoryItem).unitPrice)}`
     : null
 
+  function startCreating(kind: 'service' | 'inventory') {
+    setCreating(kind)
+    setNewName(query)
+    setNewPrice('')
+    setNewStock('')
+  }
+
+  function resetCreate() {
+    setCreating(null)
+    setNewName('')
+    setNewPrice('')
+    setNewStock('')
+  }
+
+  const createServiceMutation = useMutation({
+    mutationFn: () =>
+      invoicesApi.createServiceItem({ name: newName.trim(), unitPrice: parseFloat(newPrice) }),
+    onSuccess: (item) => {
+      queryClient.invalidateQueries({ queryKey: ['service-items'] })
+      toast.success('Service created', { description: item.name })
+      setSelected({ kind: 'service', item })
+      onSelect({ kind: 'service', id: item.id })
+      setOpen(false)
+      setQuery('')
+      resetCreate()
+    },
+    onError: (err: any) => {
+      toast.error('Failed to create service', { description: err.response?.data?.message || 'Please try again' })
+    },
+  })
+
+  const createInventoryMutation = useMutation({
+    mutationFn: () => {
+      const data: CreateInventoryItemData = { name: newName.trim(), unitPrice: parseFloat(newPrice) }
+      if (newStock) data.initialStock = parseInt(newStock)
+      return inventoryApi.create(data)
+    },
+    onSuccess: (item) => {
+      queryClient.invalidateQueries({ queryKey: ['inventory-items'] })
+      toast.success('Product created', { description: item.name })
+      setSelected({ kind: 'inventory', item })
+      onSelect({ kind: 'inventory', id: item.id })
+      setOpen(false)
+      setQuery('')
+      resetCreate()
+    },
+    onError: (err: any) => {
+      toast.error('Failed to create product', { description: err.response?.data?.message || 'Please try again' })
+    },
+  })
+
+  const isPending = createServiceMutation.isPending || createInventoryMutation.isPending
+  const canSubmit = newName.trim() && newPrice && parseFloat(newPrice) >= 0 && !isPending
+
   return (
     <div ref={ref} className="relative">
       <button
         type="button"
-        onClick={() => { setOpen(!open); setQuery('') }}
+        onClick={() => { setOpen(!open); setQuery(''); setCreating(null) }}
         className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
       >
         {selectedLabel ? (
@@ -68,83 +307,152 @@ function ItemCombobox({
       </button>
       {open && (
         <div className="absolute z-50 mt-1 w-full rounded-md border bg-card shadow-lg">
-          <div className="flex items-center border-b px-3">
-            <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-            <input
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search items..."
-              className="flex h-9 w-full bg-transparent py-2 text-sm outline-none placeholder:text-muted-foreground"
-            />
-          </div>
-          <div className="max-h-56 overflow-y-auto p-1">
-            {filteredServices.length > 0 && (
-              <>
-                <p className="px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">Services</p>
-                {filteredServices.map((item) => (
+          {!creating ? (
+            <>
+              <div className="flex items-center border-b px-3">
+                <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                <input
+                  autoFocus
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search items..."
+                  className="flex h-9 w-full bg-transparent py-2 text-sm outline-none placeholder:text-muted-foreground"
+                />
+              </div>
+              <div className="max-h-56 overflow-y-auto p-1">
+                {filteredServices.length > 0 && (
+                  <>
+                    <p className="px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">Services</p>
+                    {filteredServices.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setSelected({ kind: 'service', item })
+                          onSelect({ kind: 'service', id: item.id })
+                          setOpen(false)
+                          setQuery('')
+                        }}
+                        className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                      >
+                        <span>{item.name}</span>
+                        <span className="text-muted-foreground">{formatCurrency(item.unitPrice)}</span>
+                      </button>
+                    ))}
+                  </>
+                )}
+
+                {filteredInventory.length > 0 && (
+                  <>
+                    <p className="px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wide mt-1">Inventory</p>
+                    {filteredInventory.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setSelected({ kind: 'inventory', item })
+                          onSelect({ kind: 'inventory', id: item.id })
+                          setOpen(false)
+                          setQuery('')
+                        }}
+                        className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                      >
+                        <span>{item.name}</span>
+                        <span className="text-muted-foreground">
+                          {formatCurrency(item.unitPrice)}
+                          <span className="ml-2 text-xs">({item.availableQuantity} avail)</span>
+                        </span>
+                      </button>
+                    ))}
+                  </>
+                )}
+
+                {!hasResults && (
+                  <p className="px-2 py-4 text-center text-sm text-muted-foreground">No items found</p>
+                )}
+
+                <div className="border-t mt-1 pt-1 space-y-0.5">
                   <button
-                    key={item.id}
+                    type="button"
+                    onClick={() => startCreating('service')}
+                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-primary hover:bg-accent"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    {query ? `New service "${query}"` : 'New service'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => startCreating('inventory')}
+                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-primary hover:bg-accent"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    {query ? `New product "${query}"` : 'New product'}
+                  </button>
+                  <button
                     type="button"
                     onClick={() => {
-                      setSelected({ kind: 'service', item })
-                      onSelect({ kind: 'service', id: item.id })
+                      setSelected(null)
+                      onSelect({ kind: 'custom' })
                       setOpen(false)
                       setQuery('')
                     }}
-                    className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                    className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                   >
-                    <span>{item.name}</span>
-                    <span className="text-muted-foreground">{formatCurrency(item.unitPrice)}</span>
+                    Custom item
                   </button>
-                ))}
-              </>
-            )}
-
-            {filteredInventory.length > 0 && (
-              <>
-                <p className="px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wide mt-1">Inventory</p>
-                {filteredInventory.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => {
-                      setSelected({ kind: 'inventory', item })
-                      onSelect({ kind: 'inventory', id: item.id })
-                      setOpen(false)
-                      setQuery('')
-                    }}
-                    className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
-                  >
-                    <span>{item.name}</span>
-                    <span className="text-muted-foreground">
-                      {formatCurrency(item.unitPrice)}
-                      <span className="ml-2 text-xs">({item.availableQuantity} avail)</span>
-                    </span>
-                  </button>
-                ))}
-              </>
-            )}
-
-            {!hasResults && (
-              <p className="px-2 py-4 text-center text-sm text-muted-foreground">No items found</p>
-            )}
-
-            <div className="border-t mt-1 pt-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setSelected(null)
-                  onSelect({ kind: 'custom' })
-                  setOpen(false)
-                  setQuery('')
-                }}
-                className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              >
-                Custom item
-              </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="p-3 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                {creating === 'service' ? 'New service' : 'New product'}
+              </p>
+              <input
+                autoFocus
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Name *"
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+              />
+              <input
+                value={newPrice}
+                onChange={(e) => setNewPrice(e.target.value)}
+                placeholder="Unit price *"
+                type="number"
+                min="0"
+                step="0.01"
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+              />
+              {creating === 'inventory' && (
+                <input
+                  value={newStock}
+                  onChange={(e) => setNewStock(e.target.value)}
+                  placeholder="Initial stock (optional)"
+                  type="number"
+                  min="0"
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+                />
+              )}
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={!canSubmit}
+                  onClick={() => creating === 'service' ? createServiceMutation.mutate() : createInventoryMutation.mutate()}
+                  className="flex-1 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50 hover:bg-primary/90"
+                >
+                  {isPending ? 'Creating…' : `Create ${creating === 'service' ? 'service' : 'product'}`}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetCreate}
+                  className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
+                >
+                  Back
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>
@@ -343,6 +651,7 @@ export function NewInvoicePage() {
   }
 
   return (
+    <>
     <div className="flex flex-1 flex-col overflow-hidden">
       <Header
         title="New Invoice"
@@ -359,19 +668,13 @@ export function NewInvoicePage() {
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
-                  <Label htmlFor="clientId" required>Client</Label>
-                  <Select
-                    id="clientId"
-                    {...register('clientId')}
+                  <Label required>Client</Label>
+                  <ClientCombobox
+                    clients={clientsData?.data ?? []}
+                    value={watch('clientId')}
+                    onChange={(id) => setValue('clientId', id, { shouldValidate: true })}
                     error={errors.clientId?.message}
-                  >
-                    <option value="">Select a client</option>
-                    {clientsData?.data.map((client) => (
-                      <option key={client.id} value={client.id}>
-                        {client.name}
-                      </option>
-                    ))}
-                  </Select>
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="issueDate" required>Issue Date</Label>
@@ -681,5 +984,6 @@ export function NewInvoicePage() {
         </form>
       </div>
     </div>
+    </>
   )
 }

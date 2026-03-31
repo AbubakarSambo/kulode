@@ -6,10 +6,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import { 
-  Send, 
-  Ban, 
-  Trash2, 
-  Plus, 
+  Send,
+  Ban,
+  Trash2,
+  Plus,
   CreditCard,
   FileText,
   CheckCircle,
@@ -17,12 +17,13 @@ import {
   Copy,
   ExternalLink,
   Download,
-  Share2
+  Share2,
+  AlertTriangle,
 } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Select, Textarea, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
-import { invoicesApi, paymentsApi } from '@/api'
+import { invoicesApi, paymentsApi, organizationsApi } from '@/api'
 import apiClient from '@/api/client'
 import type { ApiResponse } from '@/types'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -63,6 +64,11 @@ export function InvoiceDetailPage() {
     queryKey: ['invoices', id],
     queryFn: () => invoicesApi.get(id!),
     enabled: !!id,
+  })
+
+  const { data: organization } = useQuery({
+    queryKey: ['organization'],
+    queryFn: () => organizationsApi.getCurrent(),
   })
 
 
@@ -533,67 +539,89 @@ export function InvoiceDetailPage() {
         title="Generate Payment Link"
         description="Create a Paystack payment link for this invoice"
       >
-        <form 
-          onSubmit={(e) => {
-            e.preventDefault()
-            const formData = new FormData(e.currentTarget)
-            const amount = parseFloat(formData.get('amount') as string)
-            if (amount <= 0) {
-              toast.error('Amount must be greater than 0')
-              return
-            }
-            if (amount > outstanding) {
-              toast.error('Amount cannot exceed outstanding balance')
-              return
-            }
-            generateLinkMutation.mutate({
-              email: formData.get('email') as string,
-              amount,
-            })
-          }}
-          className="space-y-4"
-        >
-          <div className="space-y-2">
-            <Label htmlFor="linkEmail" required>Customer Email</Label>
-            <Input
-              id="linkEmail"
-              name="email"
-              type="email"
-              placeholder="customer@example.com"
-              defaultValue={invoice.client.email || ''}
-              required
-            />
-            <p className="text-xs text-muted-foreground">
-              Paystack will send a receipt to this email
-            </p>
+        {!organization?.isPaystackVerified ? (
+          <div className="space-y-4">
+            <div className="flex gap-3 rounded-lg border border-warning/40 bg-warning/10 p-4">
+              <AlertTriangle className="h-5 w-5 shrink-0 text-warning mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Paystack not set up</p>
+                <p className="text-sm text-muted-foreground">
+                  You need to connect your Paystack account before you can generate payment links.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Link to="/settings/paystack" onClick={() => setIsPaymentLinkModalOpen(false)}>
+                <Button>Go to Paystack Settings</Button>
+              </Link>
+              <Button variant="outline" onClick={() => setIsPaymentLinkModalOpen(false)}>
+                Cancel
+              </Button>
+            </div>
           </div>
+        ) : (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              const formData = new FormData(e.currentTarget)
+              const amount = parseFloat(formData.get('amount') as string)
+              if (amount <= 0) {
+                toast.error('Amount must be greater than 0')
+                return
+              }
+              if (amount > outstanding) {
+                toast.error('Amount cannot exceed outstanding balance')
+                return
+              }
+              generateLinkMutation.mutate({
+                email: formData.get('email') as string,
+                amount,
+              })
+            }}
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="linkEmail" required>Customer Email</Label>
+              <Input
+                id="linkEmail"
+                name="email"
+                type="email"
+                placeholder="customer@example.com"
+                defaultValue={invoice.client.email || ''}
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                Paystack will send a receipt to this email
+              </p>
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="linkAmount" required>Amount</Label>
-            <Input
-              id="linkAmount"
-              name="amount"
-              type="number"
-              step="0.01"
-              min="0.01"
-              max={outstanding}
-              defaultValue={outstanding}
-              required
-            />
-            <p className="text-xs text-muted-foreground">
-              Outstanding balance: {formatCurrency(outstanding)}
-            </p>
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="linkAmount" required>Amount</Label>
+              <Input
+                id="linkAmount"
+                name="amount"
+                type="number"
+                step="0.01"
+                min="0.01"
+                max={outstanding}
+                defaultValue={outstanding}
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                Outstanding balance: {formatCurrency(outstanding)}
+              </p>
+            </div>
 
-          <div className="flex gap-3 pt-2">
-            <Button type="submit" isLoading={generateLinkMutation.isPending}>
-              Generate Link
-            </Button>
-            <Button type="button" variant="outline" onClick={() => setIsPaymentLinkModalOpen(false)}>
-              Cancel
-            </Button>
-          </div>
-        </form>
+            <div className="flex gap-3 pt-2">
+              <Button type="submit" isLoading={generateLinkMutation.isPending}>
+                Generate Link
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setIsPaymentLinkModalOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        )}
       </Modal>
 
       {/* Payment Modal */}
