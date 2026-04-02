@@ -36,6 +36,7 @@ interface InvoiceData {
     address?: string | null;
     logo?: string | null;
     planTier?: string | null;
+    subscriptionStatus?: string | null;
   };
   client: {
     name: string;
@@ -55,8 +56,10 @@ interface InvoiceData {
 @Injectable()
 export class InvoicePdfService {
   async generatePdf(invoice: InvoiceData): Promise<Buffer> {
-    // Only PRO/BUSINESS orgs get their logo; FREE orgs get "Powered by Kulode"
-    const isPro = invoice.organization.planTier === 'PRO' || invoice.organization.planTier === 'BUSINESS';
+    // Paying PRO/BUSINESS orgs don't show "Powered by Kulode"; FREE and trialing orgs do
+    const isPayingPro = (invoice.organization.planTier === 'PRO' || invoice.organization.planTier === 'BUSINESS')
+      && invoice.organization.subscriptionStatus !== 'TRIALING';
+    const isPro = isPayingPro;
 
     let logoBuffer: Buffer | null = null;
     if (isPro && invoice.organization.logo) {

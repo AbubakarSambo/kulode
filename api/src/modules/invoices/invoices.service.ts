@@ -117,6 +117,7 @@ export class InvoicesService {
             address: true,
             logo: true,
             planTier: true,
+            subscriptionStatus: true,
           },
         },
         client: {
@@ -587,6 +588,7 @@ export class InvoicesService {
             address: true,
             logo: true,
             planTier: true,
+            subscriptionStatus: true,
           },
         },
         client: {
