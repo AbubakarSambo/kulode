@@ -15,14 +15,6 @@ const GOOGLE_AUTH_URL = import.meta.env.VITE_API_URL
 function GoogleButton() {
   return (
     <>
-      <div className="relative w-full">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-card px-2 text-muted-foreground">or</span>
-        </div>
-      </div>
       <a href={GOOGLE_AUTH_URL} className="w-full">
         <Button type="button" variant="outline" className="w-full gap-2">
           <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
@@ -34,6 +26,14 @@ function GoogleButton() {
           Continue with Google
         </Button>
       </a>
+      <div className="relative w-full">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-card px-2 text-muted-foreground">or</span>
+        </div>
+      </div>
     </>
   )
 }
@@ -157,6 +157,9 @@ export function RegisterPage() {
             <CardTitle>Create your free account</CardTitle>
             <CardDescription>We'll send you a link to activate your account — no password needed</CardDescription>
           </CardHeader>
+          <CardContent className="space-y-4">
+            <GoogleButton />
+          </CardContent>
           <form onSubmit={magicLinkForm.handleSubmit((data) => magicLinkMutation.mutate(data))}>
             <CardContent className="space-y-4">
               {sharedFields(magicLinkForm, magicLinkForm.formState.errors)}
@@ -165,7 +168,6 @@ export function RegisterPage() {
               <Button type="submit" className="w-full" isLoading={magicLinkMutation.isPending}>
                 Send activation link
               </Button>
-              <GoogleButton />
               <button
                 type="button"
                 onClick={() => setUseMagicLink(false)}
@@ -196,6 +198,9 @@ export function RegisterPage() {
           <CardTitle>Create your free account</CardTitle>
           <CardDescription>Start managing your business finances</CardDescription>
         </CardHeader>
+        <CardContent className="space-y-4">
+          <GoogleButton />
+        </CardContent>
         <form onSubmit={passwordForm.handleSubmit((data) => registerMutation.mutate(data))}>
           <CardContent className="space-y-4">
             {sharedFields(passwordForm, passwordForm.formState.errors)}
@@ -232,7 +237,6 @@ export function RegisterPage() {
             <Button type="submit" className="w-full" isLoading={registerMutation.isPending}>
               Create free account
             </Button>
-            <GoogleButton />
             <button
               type="button"
               onClick={() => setUseMagicLink(true)}
