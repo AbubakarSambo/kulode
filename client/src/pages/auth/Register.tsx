@@ -26,7 +26,7 @@ function GoogleButton() {
           Continue with Google
         </Button>
       </a>
-      <div className="relative w-full">
+      <div className="relative w-full py-1.5">
         <div className="absolute inset-0 flex items-center">
           <span className="w-full border-t" />
         </div>
@@ -155,7 +155,7 @@ export function RegisterPage() {
               <span className="text-3xl font-bold text-primary">Kulode</span>
             </div>
             <CardTitle>Create your free account</CardTitle>
-            <CardDescription>We'll send you a link to activate your account — no password needed</CardDescription>
+            <CardDescription>Sign up for free — no credit card required</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <GoogleButton />
