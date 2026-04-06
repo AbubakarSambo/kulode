@@ -105,6 +105,10 @@ export class PaystackController {
           billing_period,
           result.reference,
           result.amount / 100, // Convert from kobo
+          result.authorization?.reusable ? result.authorization.authorization_code : undefined,
+          result.customerEmail,
+          result.authorization?.card_type,
+          result.authorization?.last4,
         );
       }
     }

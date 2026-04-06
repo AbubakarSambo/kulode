@@ -42,6 +42,15 @@ export interface PaystackTransaction {
     plan_tier?: string;
     billing_period?: string;
   };
+  authorization?: {
+    authorization_code: string;
+    card_type: string;
+    last4: string;
+    reusable: boolean;
+  };
+  customer?: {
+    email: string;
+  };
 }
 
 @Injectable()
@@ -294,6 +303,32 @@ export class PaystackService {
     };
   }
 
+  async chargeAuthorization(
+    email: string,
+    amountInKobo: number,
+    authorizationCode: string,
+    reference: string,
+    metadata: Record<string, unknown>,
+  ): Promise<{ success: boolean; reference: string }> {
+    try {
+      const data = await this.makeRequest<{ status: string; reference: string }>(
+        '/transaction/charge_authorization',
+        'POST',
+        {
+          email,
+          amount: amountInKobo,
+          authorization_code: authorizationCode,
+          reference,
+          metadata,
+        },
+      );
+      return { success: data.status === 'success', reference: data.reference };
+    } catch (error) {
+      this.logger.error(`chargeAuthorization failed for ref ${reference}`, error);
+      return { success: false, reference };
+    }
+  }
+
   verifyWebhookSignature(payload: string, signature: string): boolean {
     const hash = createHmac('sha512', this.secretKey)
       .update(payload)
@@ -342,6 +377,8 @@ export class PaystackService {
         metadata,
         amount,
         reference,
+        authorization: data.authorization,
+        customerEmail: data.customer?.email,
       };
     }
 

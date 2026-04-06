@@ -1,11 +1,14 @@
 import {
   Injectable,
   BadRequestException,
+  Inject,
+  forwardRef,
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { PaystackService } from '../paystack/paystack.service';
 import { PLAN_LIMITS, PLAN_PRICES } from '../../common/plan-limits';
 
 @Injectable()
@@ -18,6 +21,8 @@ export class SubscriptionService {
   constructor(
     private prisma: PrismaService,
     private configService: ConfigService,
+    @Inject(forwardRef(() => PaystackService))
+    private paystackService: PaystackService,
   ) {
     this.paystackSecretKey = this.configService.get<string>('paystack.secretKey') || '';
     this.paystackBaseUrl = this.configService.get<string>('paystack.baseUrl') || 'https://api.paystack.co';
@@ -150,6 +155,10 @@ export class SubscriptionService {
     billingPeriod: string,
     reference: string,
     amount: number,
+    authorizationCode?: string,
+    billingEmail?: string,
+    cardType?: string,
+    cardLast4?: string,
   ) {
     // Idempotent: skip if this reference was already processed
     const existing = await this.prisma.subscriptionPayment.findUnique({
@@ -178,6 +187,10 @@ export class SubscriptionService {
             billingPeriod: billingPeriod as any,
             subscriptionStartDate: now,
             subscriptionEndDate: periodEnd,
+            ...(authorizationCode && { paystackAuthorizationCode: authorizationCode }),
+            ...(billingEmail && { paystackBillingEmail: billingEmail }),
+            ...(cardType && { paystackCardType: cardType }),
+            ...(cardLast4 && { paystackCardLast4: cardLast4 }),
           },
         });
 
@@ -204,6 +217,69 @@ export class SubscriptionService {
       }
       throw error;
     }
+  }
+
+  async renewSubscription(organizationId: string): Promise<boolean> {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: {
+        planTier: true,
+        billingPeriod: true,
+        paystackAuthorizationCode: true,
+        paystackBillingEmail: true,
+        paystackCardType: true,
+        paystackCardLast4: true,
+      },
+    });
+
+    if (
+      !org ||
+      !org.paystackAuthorizationCode ||
+      !org.paystackBillingEmail ||
+      !org.billingPeriod ||
+      org.planTier === 'FREE'
+    ) {
+      return false;
+    }
+
+    const prices = PLAN_PRICES[org.planTier as keyof typeof PLAN_PRICES];
+    if (!prices) return false;
+
+    const amount = org.billingPeriod === 'ANNUAL' ? prices.annual : prices.monthly;
+    const reference = `RENEW-${organizationId.slice(0, 8)}-${Date.now()}`;
+
+    const result = await this.paystackService.chargeAuthorization(
+      org.paystackBillingEmail,
+      amount * 100,
+      org.paystackAuthorizationCode,
+      reference,
+      {
+        type: 'subscription',
+        organization_id: organizationId,
+        plan_tier: org.planTier,
+        billing_period: org.billingPeriod,
+      },
+    );
+
+    if (!result.success) {
+      this.logger.warn(`Auto-renewal failed for org ${organizationId}`);
+      return false;
+    }
+
+    await this.activateSubscription(
+      organizationId,
+      org.planTier,
+      org.billingPeriod,
+      result.reference,
+      amount,
+      org.paystackAuthorizationCode,
+      org.paystackBillingEmail,
+      org.paystackCardType ?? undefined,
+      org.paystackCardLast4 ?? undefined,
+    );
+
+    this.logger.log(`Auto-renewed subscription for org ${organizationId}`);
+    return true;
   }
 
   async verifyAndActivatePayment(organizationId: string, reference: string) {
@@ -280,6 +356,26 @@ export class SubscriptionService {
 
   async checkAndExpireSubscriptions() {
     const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Attempt auto-renewal for ACTIVE subscriptions expiring in the next 24 hours
+    const renewableOrgs = await this.prisma.organization.findMany({
+      where: {
+        subscriptionStatus: 'ACTIVE',
+        subscriptionEndDate: { gte: now, lt: tomorrow },
+        autoRenew: true,
+        paystackAuthorizationCode: { not: null },
+        isGrandfathered: false,
+      },
+      select: { id: true },
+    });
+
+    for (const org of renewableOrgs) {
+      await this.renewSubscription(org.id);
+    }
+
+    // Expire anything that is past its end date and wasn't (or couldn't be) renewed
     const result = await this.prisma.organization.updateMany({
       where: {
         subscriptionStatus: { in: ['CANCELLED', 'ACTIVE'] },

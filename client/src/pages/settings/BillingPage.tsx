@@ -140,7 +140,12 @@ export function BillingPage() {
                   <p className="text-sm text-muted-foreground">
                     {subscription.billingPeriod === 'MONTHLY' ? 'Monthly' : 'Annual'} billing
                     {subscription.subscriptionEndDate && (
-                      <> &middot; Renews {new Date(subscription.subscriptionEndDate).toLocaleDateString()}</>
+                      <>
+                        {' '}&middot;{' '}
+                        {subscription.subscriptionStatus === 'CANCELLED'
+                          ? `Access until ${new Date(subscription.subscriptionEndDate).toLocaleDateString()}`
+                          : `Renews ${new Date(subscription.subscriptionEndDate).toLocaleDateString()}`}
+                      </>
                     )}
                   </p>
                 )}
