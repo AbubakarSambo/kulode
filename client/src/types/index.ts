@@ -287,6 +287,90 @@ export interface StockMovement {
   createdAt: string
 }
 
+// Tax types
+export type TaxCategory =
+  | 'RENT'
+  | 'SALARIES'
+  | 'UTILITIES'
+  | 'MARKETING'
+  | 'TRANSPORT'
+  | 'PROFESSIONAL_FEES'
+  | 'LOAN_INTEREST'
+  | 'CAPITAL_ASSETS'
+  | 'NON_DEDUCTIBLE'
+  | 'UNCATEGORIZED'
+
+export const TAX_CATEGORY_LABELS: Record<TaxCategory, string> = {
+  RENT: 'Rent',
+  SALARIES: 'Salaries & Wages',
+  UTILITIES: 'Utilities',
+  MARKETING: 'Marketing & Advertising',
+  TRANSPORT: 'Transport & Travel',
+  PROFESSIONAL_FEES: 'Professional Fees',
+  LOAN_INTEREST: 'Loan Interest',
+  CAPITAL_ASSETS: 'Capital Assets',
+  NON_DEDUCTIBLE: 'Non-Deductible',
+  UNCATEGORIZED: 'Uncategorized',
+}
+
+export const TAX_CATEGORIES: TaxCategory[] = [
+  'RENT', 'SALARIES', 'UTILITIES', 'MARKETING', 'TRANSPORT',
+  'PROFESSIONAL_FEES', 'LOAN_INTEREST', 'CAPITAL_ASSETS',
+  'NON_DEDUCTIBLE', 'UNCATEGORIZED',
+]
+
+export interface TaxReportLog {
+  id: string
+  organizationId: string
+  userId: string
+  periodStart: string
+  periodEnd: string
+  generatedAt: string
+  user: { firstName: string; lastName: string; email: string }
+}
+
+export interface DeductibleSummary {
+  year: number
+  total: number
+  byCategory: Array<{ category: TaxCategory; label: string; total: number; count: number }>
+}
+
+export interface TaxComplianceItem {
+  id: string
+  label: string
+  status: 'ok' | 'warn' | 'error'
+  hint: string
+}
+
+export interface TaxFilingPreview {
+  period: { startDate: string; endDate: string }
+  organization: { name: string; email?: string; address?: string } | null
+  revenue: {
+    totalRevenue: number
+    totalCollected: number
+    totalOutstanding: number
+    vatCollected: number
+    invoiceCount: number
+    paidInvoiceCount: number
+  }
+  expenses: {
+    deductible: {
+      total: number
+      byCategory: Array<{ category: TaxCategory; label: string; total: number; count: number }>
+    }
+    nonDeductible: { total: number; count: number }
+  }
+  tax: {
+    taxableProfit: number
+    citStatus: string
+    citAmount: number
+    vatCollected: number
+    vatPaidOnExpenses: number
+    netVatLiability: number
+  }
+  compliance: TaxComplianceItem[]
+}
+
 // Expense types
 export interface ExpenseCategory {
   id: string
@@ -306,6 +390,8 @@ export interface Expense {
   paymentMethod: PaymentMethod
   reference?: string
   notes?: string
+  taxCategory: TaxCategory
+  isDeductible: boolean
   category?: ExpenseCategory
   recordedBy?: {
     id: string

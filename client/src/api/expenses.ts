@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { Expense, ExpenseCategory, PaymentMethod, PaginatedResponse, ApiResponse } from '@/types'
+import type { Expense, ExpenseCategory, PaymentMethod, TaxCategory, PaginatedResponse, ApiResponse } from '@/types'
 
 export interface ExpenseFilters {
   page?: number
@@ -8,6 +8,8 @@ export interface ExpenseFilters {
   vendorId?: string
   startDate?: string
   endDate?: string
+  taxCategory?: TaxCategory
+  isDeductible?: boolean
 }
 
 export interface CreateExpenseData {
@@ -20,6 +22,7 @@ export interface CreateExpenseData {
   paymentMethod: PaymentMethod
   reference?: string
   notes?: string
+  taxCategory?: TaxCategory
 }
 
 export const expensesApi = {
@@ -31,7 +34,9 @@ export const expensesApi = {
     if (filters.vendorId) params.append('vendorId', filters.vendorId)
     if (filters.startDate) params.append('startDate', filters.startDate)
     if (filters.endDate) params.append('endDate', filters.endDate)
-    
+    if (filters.taxCategory) params.append('taxCategory', filters.taxCategory)
+    if (filters.isDeductible !== undefined) params.append('isDeductible', String(filters.isDeductible))
+
     const response = await apiClient.get<ApiResponse<PaginatedResponse<Expense>>>(`/expenses?${params}`)
     return response.data.data
   },
@@ -53,6 +58,11 @@ export const expensesApi = {
 
   delete: async (id: string): Promise<void> => {
     await apiClient.delete(`/expenses/${id}`)
+  },
+
+  bulkRecategorize: async (ids: string[], taxCategory: TaxCategory): Promise<{ updated: number }> => {
+    const response = await apiClient.patch<ApiResponse<{ updated: number }>>('/expenses/bulk-recategorize', { ids, taxCategory })
+    return response.data.data
   },
 
   // Categories

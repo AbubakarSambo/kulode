@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateExpenseDto, UpdateExpenseDto, ExpenseFilterDto, CreateExpenseCategoryDto } from './dto';
+import { CreateExpenseDto, UpdateExpenseDto, ExpenseFilterDto, CreateExpenseCategoryDto, BulkRecategorizeDto, TaxCategory, DEDUCTIBLE_CATEGORIES } from './dto';
 import { paginate } from '../../common';
 
 @Injectable()
@@ -28,6 +28,14 @@ export class ExpensesService {
 
     if (vendorId) {
       where.vendorId = vendorId;
+    }
+
+    if (filter.taxCategory) {
+      where.taxCategory = filter.taxCategory;
+    }
+
+    if (filter.isDeductible !== undefined) {
+      where.isDeductible = filter.isDeductible;
     }
 
     if (startDate || endDate) {
@@ -110,6 +118,9 @@ export class ExpensesService {
       }
     }
 
+    const taxCategory = (dto.taxCategory ?? TaxCategory.UNCATEGORIZED) as TaxCategory;
+    const isDeductible = DEDUCTIBLE_CATEGORIES.has(taxCategory);
+
     const expense = await this.prisma.expense.create({
       data: {
         organizationId,
@@ -123,6 +134,8 @@ export class ExpensesService {
         paymentMethod: dto.paymentMethod,
         reference: dto.reference,
         notes: dto.notes,
+        taxCategory,
+        isDeductible,
       },
       include: {
         category: {
@@ -168,9 +181,14 @@ export class ExpensesService {
       }
     }
 
+    const updateData: any = { ...dto };
+    if (dto.taxCategory !== undefined) {
+      updateData.isDeductible = DEDUCTIBLE_CATEGORIES.has(dto.taxCategory as TaxCategory);
+    }
+
     const updated = await this.prisma.expense.update({
       where: { id },
-      data: dto,
+      data: updateData,
       include: {
         category: {
           select: { id: true, name: true },
@@ -200,6 +218,22 @@ export class ExpensesService {
     });
 
     return { message: 'Expense deleted successfully' };
+  }
+
+  async bulkRecategorize(organizationId: string, dto: BulkRecategorizeDto) {
+    const taxCategory = dto.taxCategory as TaxCategory;
+    const isDeductible = DEDUCTIBLE_CATEGORIES.has(taxCategory);
+
+    const result = await this.prisma.expense.updateMany({
+      where: {
+        id: { in: dto.ids },
+        organizationId,
+        deletedAt: null,
+      },
+      data: { taxCategory, isDeductible },
+    });
+
+    return { updated: result.count };
   }
 
   // Category methods

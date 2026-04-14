@@ -1,7 +1,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsUUID } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsOptional, IsUUID, IsEnum, IsArray, ArrayNotEmpty, IsBoolean } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
 import { PaginationDto } from '../../../common';
+import { TaxCategory } from './create-expense.dto';
 
 export class ExpenseFilterDto extends PaginationDto {
   @ApiPropertyOptional()
@@ -23,4 +24,27 @@ export class ExpenseFilterDto extends PaginationDto {
   @IsOptional()
   @Type(() => Date)
   endDate?: Date;
+
+  @ApiPropertyOptional({ enum: TaxCategory })
+  @IsOptional()
+  @IsEnum(TaxCategory)
+  taxCategory?: TaxCategory;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' ? true : value === 'false' ? false : undefined)
+  @IsBoolean()
+  isDeductible?: boolean;
+}
+
+export class BulkRecategorizeDto {
+  @ApiPropertyOptional({ type: [String] })
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsUUID(undefined, { each: true })
+  ids: string[];
+
+  @ApiPropertyOptional({ enum: TaxCategory })
+  @IsEnum(TaxCategory)
+  taxCategory: TaxCategory;
 }

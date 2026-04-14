@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { FileText, CreditCard, TrendingUp, TrendingDown, AlertCircle, Trophy } from 'lucide-react'
+import { FileText, CreditCard, TrendingUp, TrendingDown, AlertCircle, Trophy, ShieldCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Header } from '@/components/layout'
 import { OnboardingChecklist } from '@/components/OnboardingChecklist'
 import { Card, CardContent, CardHeader, CardTitle, Badge, Select, Input } from '@/components/ui'
 import { reportsApi, type ReportPeriod } from '@/api/reports'
+import { taxApi } from '@/api'
 import { formatCurrency } from '@/lib/utils'
+import { useSubscription } from '@/hooks/useSubscription'
 
 const periodLabels: Record<ReportPeriod, string> = {
   THIS_MONTH: 'this month',
@@ -22,6 +24,9 @@ export function DashboardPage() {
   const [period, setPeriod] = useState<ReportPeriod>('THIS_MONTH')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const { hasRequiredPlan } = useSubscription()
+  const isPro = hasRequiredPlan('PRO')
+  const currentYear = new Date().getFullYear()
 
   const filters = period === 'CUSTOM'
     ? { period, startDate: startDate || undefined, endDate: endDate || undefined }
@@ -40,6 +45,12 @@ export function DashboardPage() {
   const { data: incomeData } = useQuery({
     queryKey: ['reports', 'income', period, startDate, endDate],
     queryFn: () => reportsApi.getIncome(filters),
+  })
+
+  const { data: deductibleSummary } = useQuery({
+    queryKey: ['tax', 'deductible-summary', currentYear],
+    queryFn: () => taxApi.getDeductibleSummary(currentYear),
+    enabled: isPro,
   })
 
   const topClient = incomeData?.topClients?.[0]
@@ -143,6 +154,51 @@ export function DashboardPage() {
             </Card>
           ))}
         </div>
+
+        {/* Deductible Expenses YTD */}
+        {isPro && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-green-600" />
+                Deductible Expenses YTD ({currentYear})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {deductibleSummary ? (
+                <div className="flex flex-wrap items-start gap-8">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Deductible</p>
+                    <p className="text-3xl font-bold text-green-600">{formatCurrency(deductibleSummary.total)}</p>
+                    <Link to="/tax" className="mt-1 block text-xs text-primary hover:underline">
+                      View filing pack →
+                    </Link>
+                  </div>
+                  {deductibleSummary.byCategory.length > 0 && (
+                    <div className="flex-1">
+                      <p className="mb-2 text-sm font-medium text-muted-foreground">By Category</p>
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3">
+                        {deductibleSummary.byCategory
+                          .sort((a, b) => b.total - a.total)
+                          .map((cat) => (
+                            <div key={cat.category} className="flex items-center justify-between gap-2">
+                              <span className="truncate text-xs text-muted-foreground">{cat.label}</span>
+                              <span className="shrink-0 text-xs font-medium">{formatCurrency(cat.total)}</span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 py-2">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  <span className="text-sm text-muted-foreground">Loading deductible summary…</span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Invoice Status */}
         <div className="grid gap-6 lg:grid-cols-3">

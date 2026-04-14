@@ -65,6 +65,19 @@ enum BillingPeriod {
   ANNUAL
 }
 
+enum TaxCategory {
+  RENT
+  SALARIES
+  UTILITIES
+  MARKETING
+  TRANSPORT
+  PROFESSIONAL_FEES
+  LOAN_INTEREST
+  CAPITAL_ASSETS
+  NON_DEDUCTIBLE
+  UNCATEGORIZED
+}
+
 // Organizations (tenants)
 model Organization {
   id        String   @id @default(uuid())
@@ -124,6 +137,7 @@ model Organization {
   inventoryItems       InventoryItem[]
   stockMovements       StockMovement[]
   subscriptionPayments SubscriptionPayment[]
+  taxReportLogs        TaxReportLog[]
 
   @@map("organizations")
 }
@@ -151,6 +165,7 @@ model User {
   recordedPayments   Payment[]              @relation("RecordedByUser")
   recordedExpenses   Expense[]              @relation("RecordedByUser")
   verificationTokens EmailVerificationToken[]
+  taxReportLogs      TaxReportLog[]
 
   @@index([organizationId])
   @@map("users")
@@ -372,6 +387,8 @@ model Expense {
   paymentMethod  PaymentMethod @map("payment_method")
   reference      String?
   notes          String?
+  taxCategory    TaxCategory   @default(UNCATEGORIZED) @map("tax_category")
+  isDeductible   Boolean       @default(true) @map("is_deductible")
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -507,4 +524,21 @@ model SubscriptionPayment {
 
   @@index([organizationId])
   @@map("subscription_payments")
+}
+
+// Tax report generation audit log
+model TaxReportLog {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  userId         String   @map("user_id")
+  periodStart    DateTime @map("period_start")
+  periodEnd      DateTime @map("period_end")
+  generatedAt    DateTime @default(now()) @map("generated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("tax_report_logs")
 }

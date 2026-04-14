@@ -10,7 +10,7 @@ import {
   Min,
   MaxLength,
 } from 'class-validator';
-import { PaymentMethod } from './create-expense.dto';
+import { PaymentMethod, TaxCategory } from './create-expense.dto';
 
 export class UpdateExpenseDto {
   @ApiPropertyOptional({ example: 'Updated expense description' })
@@ -61,4 +61,9 @@ export class UpdateExpenseDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({ enum: TaxCategory })
+  @IsOptional()
+  @IsEnum(TaxCategory)
+  taxCategory?: TaxCategory;
 }

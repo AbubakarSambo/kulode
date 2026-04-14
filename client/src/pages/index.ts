@@ -33,6 +33,10 @@ export { EditPaymentPage } from './payments/PaymentForm'
 // Expenses
 export { ExpensesListPage } from './expenses/ExpensesList'
 export { NewExpensePage, EditExpensePage } from './expenses/ExpenseForm'
+export { BulkRecategorizePage } from './expenses/BulkRecategorize'
+
+// Tax
+export { TaxFilingPackPage } from './tax/TaxFilingPack'
 
 // Inventory
 export { InventoryPage } from './inventory/InventoryPage'

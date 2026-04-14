@@ -5,12 +5,14 @@ import { z } from 'zod'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Search } from 'lucide-react'
+import { Search, Lock } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Select, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 import { expensesApi, vendorsApi } from '@/api'
 import { posthog } from '@/lib/posthog'
-import type { PaymentMethod, Vendor } from '@/types'
+import { useSubscription } from '@/hooks/useSubscription'
+import type { PaymentMethod, TaxCategory, Vendor } from '@/types'
+import { TAX_CATEGORY_LABELS, TAX_CATEGORIES } from '@/types'
 
 // VendorCombobox: lets user pick a saved vendor or type free text
 function VendorCombobox({
@@ -125,6 +127,8 @@ const expenseSchema = z.object({
   paymentMethod: z.enum(['CASH', 'BANK_TRANSFER', 'CARD', 'OTHER']),
   reference: z.string().optional(),
   notes: z.string().optional(),
+  taxCategory: z.enum(['RENT', 'SALARIES', 'UTILITIES', 'MARKETING', 'TRANSPORT',
+    'PROFESSIONAL_FEES', 'LOAN_INTEREST', 'CAPITAL_ASSETS', 'NON_DEDUCTIBLE', 'UNCATEGORIZED']).optional(),
 })
 
 type ExpenseFormData = z.infer<typeof expenseSchema>
@@ -142,6 +146,8 @@ function ExpenseForm({ expenseId }: { expenseId?: string }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const isEditing = !!expenseId
+  const { hasRequiredPlan } = useSubscription()
+  const isPro = hasRequiredPlan('PRO')
 
   const { data: categories } = useQuery({
     queryKey: ['expense-categories'],
@@ -198,6 +204,7 @@ function ExpenseForm({ expenseId }: { expenseId?: string }) {
         paymentMethod: expense.paymentMethod as ExpenseFormData['paymentMethod'],
         reference: expense.reference ?? '',
         notes: expense.notes ?? '',
+        taxCategory: expense.taxCategory as ExpenseFormData['taxCategory'],
       })
     }
   }, [expense, reset])
@@ -209,6 +216,7 @@ function ExpenseForm({ expenseId }: { expenseId?: string }) {
       categoryId: data.categoryId || undefined,
       vendorId: data.vendorId || undefined,
       paymentMethod: data.paymentMethod as PaymentMethod,
+      taxCategory: data.taxCategory as TaxCategory | undefined,
     }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] })
@@ -230,6 +238,7 @@ function ExpenseForm({ expenseId }: { expenseId?: string }) {
       categoryId: data.categoryId || undefined,
       vendorId: data.vendorId || undefined,
       paymentMethod: data.paymentMethod as PaymentMethod,
+      taxCategory: data.taxCategory as TaxCategory | undefined,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] })
@@ -337,6 +346,39 @@ function ExpenseForm({ expenseId }: { expenseId?: string }) {
                     <option value="OTHER">Other</option>
                   </Select>
                 </div>
+              </div>
+
+              {/* Tax Category — Pro feature */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="taxCategory">Tax Category</Label>
+                  {!isPro && (
+                    <span className="flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                      <Lock className="h-3 w-3" />
+                      Pro
+                    </span>
+                  )}
+                </div>
+                {isPro ? (
+                  <Select id="taxCategory" {...register('taxCategory')}>
+                    <option value="">Select tax category</option>
+                    {TAX_CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat}>{TAX_CATEGORY_LABELS[cat]}</option>
+                    ))}
+                  </Select>
+                ) : (
+                  <div className="relative">
+                    <Select id="taxCategory" disabled className="cursor-not-allowed opacity-50">
+                      <option>Uncategorized</option>
+                    </Select>
+                    <a
+                      href="/settings/billing"
+                      className="mt-1 block text-xs text-primary hover:underline"
+                    >
+                      Upgrade to Pro to categorize expenses for tax filing
+                    </a>
+                  </div>
+                )}
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
