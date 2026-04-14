@@ -29,6 +29,8 @@ import {
   ExpensesListPage,
   NewExpensePage,
   EditExpensePage,
+  BulkRecategorizePage,
+  TaxFilingPackPage,
   ReportsPage,
   InventoryPage,
   SettingsPage,
@@ -81,7 +83,9 @@ function App() {
                 <Route path="/vendors/:id" element={<VendorDetailPage />} />
                 <Route path="/expenses" element={<ExpensesListPage />} />
                 <Route path="/expenses/new" element={<NewExpensePage />} />
+                <Route path="/expenses/bulk-recategorize" element={<BulkRecategorizePage />} />
                 <Route path="/reports" element={<ReportsPage />} />
+                <Route path="/tax" element={<TaxFilingPackPage />} />
               </Route>
 
               {/* Clients (available to all plans) */}

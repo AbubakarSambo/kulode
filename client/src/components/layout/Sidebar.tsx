@@ -16,6 +16,7 @@ import {
   Package,
   LifeBuoy,
   Wrench,
+  BookOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
@@ -33,6 +34,7 @@ const navigation: Array<{ name: string; href: string; icon: any; requiresPlan?: 
   { name: 'Inventory', href: '/inventory', icon: Package, requiresPlan: 'PRO' },
   { name: 'Services', href: '/settings/services', icon: Wrench },
   { name: 'Reports', href: '/reports', icon: BarChart3, requiresPlan: 'PRO' },
+  { name: 'Tax', href: '/tax', icon: BookOpen, requiresPlan: 'PRO' },
 ]
 
 const adminNavigation = [
@@ -66,7 +68,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
   const filteredNav = navigation.filter((item) => {
     if (item.href === '/reports' && !canViewReports) return false
-    if ((item.href === '/payments' || item.href === '/expenses' || item.href === '/vendors') && user?.role === 'STAFF') return false
+    if ((item.href === '/payments' || item.href === '/expenses' || item.href === '/vendors' || item.href === '/tax') && user?.role === 'STAFF') return false
     return true
   })
 

@@ -9,6 +9,8 @@ import {
   Query,
   ParseUUIDPipe,
   UseGuards,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ExpensesService } from './expenses.service';
@@ -17,6 +19,7 @@ import {
   UpdateExpenseDto,
   ExpenseFilterDto,
   CreateExpenseCategoryDto,
+  BulkRecategorizeDto,
 } from './dto';
 import { CurrentUser, CurrentUserData, Roles, Role, RequiresPlan, PlanGuard } from '../../common';
 
@@ -61,6 +64,18 @@ export class ExpensesController {
     @CurrentUser() user: CurrentUserData,
   ) {
     return this.expensesService.create(user.organizationId, user.id, dto);
+  }
+
+  @Patch('expenses/bulk-recategorize')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.ACCOUNTANT)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Bulk recategorize expenses' })
+  @ApiResponse({ status: 200, description: 'Expenses recategorized' })
+  async bulkRecategorize(
+    @Body() dto: BulkRecategorizeDto,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.expensesService.bulkRecategorize(organizationId, dto);
   }
 
   @Patch('expenses/:id')

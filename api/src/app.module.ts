@@ -17,6 +17,7 @@ import { PlatformModule } from './modules/platform';
 import { EmailModule } from './modules/email';
 import { SubscriptionModule } from './modules/subscription';
 import { InventoryModule } from './modules/inventory';
+import { TaxModule } from './modules/tax';
 import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor } from './common';
 
 @Module({
@@ -38,6 +39,7 @@ import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor }
     PlatformModule,
     InventoryModule,
     SubscriptionModule,
+    TaxModule,
   ],
   providers: [
     // Global JWT Auth Guard

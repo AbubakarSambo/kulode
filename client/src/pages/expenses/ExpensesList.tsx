@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Tags } from 'lucide-react'
 import { toast } from 'sonner'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Badge, Select, Input } from '@/components/ui'
@@ -9,6 +9,7 @@ import { expensesApi } from '@/api'
 import { type ReportPeriod } from '@/api/reports'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
+import { TAX_CATEGORY_LABELS } from '@/types'
 
 function getPeriodDates(period: ReportPeriod, customStart: string, customEnd: string) {
   if (period === 'CUSTOM') return { startDate: customStart || undefined, endDate: customEnd || undefined }
@@ -95,6 +96,12 @@ export function ExpensesListPage() {
                 />
               </>
             )}
+            <Link to="/expenses/bulk-recategorize">
+              <Button variant="outline">
+                <Tags className="mr-2 h-4 w-4" />
+                Bulk Recategorize
+              </Button>
+            </Link>
             <Link to="/expenses/new">
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
@@ -140,6 +147,7 @@ export function ExpensesListPage() {
                   <tr className="border-b bg-muted/50">
                     <th className="px-4 py-3 text-left text-sm font-medium">Description</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Category</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Tax Category</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Date</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Method</th>
                     <th className="px-4 py-3 text-right text-sm font-medium">Amount</th>
@@ -159,6 +167,15 @@ export function ExpensesListPage() {
                         <Badge variant="secondary">
                           {expense.category?.name ?? 'Uncategorized'}
                         </Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        {expense.taxCategory && expense.taxCategory !== 'UNCATEGORIZED' ? (
+                          <Badge variant={expense.isDeductible ? 'success' : 'destructive'}>
+                            {TAX_CATEGORY_LABELS[expense.taxCategory]}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
                         {formatDate(expense.expenseDate)}
