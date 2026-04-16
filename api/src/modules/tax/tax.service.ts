@@ -280,7 +280,7 @@ export class TaxService {
       // Tax calculation
       y = this.pdfSection(doc, 'TAX CALCULATION', y, blue);
       y = this.pdfRow(doc, 'Taxable Profit (Revenue – Deductible Expenses)', data.tax.taxableProfit, y);
-      doc.fontSize(9).fillColor(gray).text(`CIT: ${data.tax.citStatus}`, 50, y, { width: pageW });
+      doc.fontSize(9).fillColor(gray).text(`CIT: ${data.tax.citStatus.replace(/₦/g, 'NGN ')}`, 54, y, { width: pageW });
       y += doc.currentLineHeight() + 4;
       y = this.pdfRow(doc, 'VAT Collected', data.tax.vatCollected, y);
       y = this.pdfRow(doc, 'VAT Paid on Expenses (approx.)', data.tax.vatPaidOnExpenses, y);
@@ -291,15 +291,18 @@ export class TaxService {
       if (y > 680) { doc.addPage(); y = 50; }
       y = this.pdfSection(doc, 'COMPLIANCE CHECKLIST', y, '#7c3aed');
       for (const item of data.compliance) {
-        const icon = item.status === 'ok' ? '✓' : '⚠';
-        const color = item.status === 'ok' ? '#059669' : '#d97706';
-        doc.fontSize(10).fillColor(color).text(icon, 50, y, { continued: true, width: 20 });
-        doc.fillColor('black').text(`  ${item.label}`, { continued: false });
+        const iconColor = item.status === 'ok' ? '#059669' : '#d97706';
+        const iconText = item.status === 'ok' ? 'OK' : '!';
+        doc.fontSize(8).fillColor(iconColor).font('Helvetica-Bold')
+          .text(iconText, 54, y + 1, { width: 20 });
+        doc.fontSize(9.5).fillColor('black').font('Helvetica')
+          .text(item.label, 78, y, { width: pageW - 28 });
+        y += 14;
         if (item.status !== 'ok') {
-          doc.fontSize(8).fillColor(gray).text(`    ${item.hint}`, 66, y + 12, { width: pageW - 16 });
-          y += 10;
+          doc.fontSize(8).fillColor(gray)
+            .text(item.hint, 78, y, { width: pageW - 28 });
+          y += doc.currentLineHeight() + 4;
         }
-        y += 16;
       }
 
       // Footer
@@ -438,18 +441,20 @@ export class TaxService {
   }
 
   private pdfRow(doc: any, label: string, amount: number, y: number, color = 'black'): number {
-    doc.fontSize(9.5).fillColor('black').text(label, 54, y, { width: doc.page.width - 180, continued: false });
-    doc.fillColor(color).text(`₦${this.fmt(amount)}`, { align: 'right', width: doc.page.width - 108 });
-    // Re-position properly
-    doc.text(label, 54, y, { width: doc.page.width - 180 });
-    doc.text(`₦${this.fmt(amount)}`, 54 + (doc.page.width - 180), y, { width: 80, align: 'right' });
+    const pageW = doc.page.width - 100;
+    doc.fontSize(9.5).fillColor('black').font('Helvetica')
+      .text(label, 54, y, { width: pageW - 100 });
+    doc.fillColor(color)
+      .text(`NGN ${this.fmt(amount)}`, 50, y, { width: pageW, align: 'right' });
     return y + 14;
   }
 
   private pdfRowBold(doc: any, label: string, amount: number, y: number, color = 'black'): number {
+    const pageW = doc.page.width - 100;
     doc.fontSize(10).font('Helvetica-Bold').fillColor(color)
-      .text(label, 54, y, { width: doc.page.width - 180 });
-    doc.text(`₦${this.fmt(amount)}`, 54 + (doc.page.width - 180), y, { width: 80, align: 'right' });
+      .text(label, 54, y, { width: pageW - 100 });
+    doc.fillColor(color)
+      .text(`NGN ${this.fmt(amount)}`, 50, y, { width: pageW, align: 'right' });
     doc.font('Helvetica');
     return y + 16;
   }
