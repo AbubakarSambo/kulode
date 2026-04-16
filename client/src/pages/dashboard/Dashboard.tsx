@@ -166,8 +166,8 @@ export function DashboardPage() {
             </CardHeader>
             <CardContent>
               {deductibleSummary ? (
-                <div className="flex flex-wrap items-start gap-8">
-                  <div>
+                <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-10">
+                  <div className="shrink-0">
                     <p className="text-sm text-muted-foreground">Total Deductible</p>
                     <p className="text-3xl font-bold text-green-600">{formatCurrency(deductibleSummary.total)}</p>
                     <Link to="/tax" className="mt-1 block text-xs text-primary hover:underline">
@@ -177,12 +177,12 @@ export function DashboardPage() {
                   {deductibleSummary.byCategory.length > 0 && (
                     <div className="flex-1">
                       <p className="mb-2 text-sm font-medium text-muted-foreground">By Category</p>
-                      <div className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3">
+                      <div className="grid grid-cols-1 gap-y-2 sm:grid-cols-2 sm:gap-x-8 lg:grid-cols-3">
                         {deductibleSummary.byCategory
                           .sort((a, b) => b.total - a.total)
                           .map((cat) => (
-                            <div key={cat.category} className="flex items-center justify-between gap-2">
-                              <span className="truncate text-xs text-muted-foreground">{cat.label}</span>
+                            <div key={cat.category} className="flex items-center justify-between gap-4">
+                              <span className="text-xs text-muted-foreground">{cat.label}</span>
                               <span className="shrink-0 text-xs font-medium">{formatCurrency(cat.total)}</span>
                             </div>
                           ))}
