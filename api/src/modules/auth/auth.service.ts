@@ -26,6 +26,13 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto): Promise<{ message: string; email: string }> {
+    if (dto.website) {
+      return {
+        message: 'Registration successful. Please check your email to verify your account.',
+        email: dto.email.toLowerCase(),
+      };
+    }
+
     // Check if email already exists
     const existingUser = await this.prisma.user.findUnique({
       where: { email: dto.email.toLowerCase() },
@@ -123,6 +130,13 @@ export class AuthService {
   }
 
   async registerMagicLink(dto: MagicLinkRegisterDto): Promise<{ message: string; email: string }> {
+    if (dto.website) {
+      return {
+        message: 'Account created. Please check your email to activate your account.',
+        email: dto.email.toLowerCase(),
+      };
+    }
+
     const existingUser = await this.prisma.user.findUnique({
       where: { email: dto.email.toLowerCase() },
     });
@@ -419,6 +433,20 @@ export class AuthService {
     const message = 'If an account with that email exists, a verification email has been sent.';
 
     if (!user || user.isEmailVerified) {
+      return { message };
+    }
+
+    // Per-email cooldown: don't send if a token was issued in the last 10 minutes
+    const recentToken = await this.prisma.emailVerificationToken.findFirst({
+      where: {
+        userId: user.id,
+        type: TokenType.EMAIL_VERIFICATION,
+        usedAt: null,
+        createdAt: { gte: new Date(Date.now() - 10 * 60 * 1000) },
+      },
+    });
+
+    if (recentToken) {
       return { message };
     }
 

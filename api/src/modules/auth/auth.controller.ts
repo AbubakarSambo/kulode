@@ -1,5 +1,6 @@
 import { Controller, Post, Get, Body, Query, HttpCode, HttpStatus, UseGuards, Req, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
@@ -16,6 +17,7 @@ export class AuthController {
 
   @Public()
   @Post('register')
+  @Throttle({ global: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Register a new organization and super admin' })
   @ApiResponse({ status: 201, description: 'Registration successful' })
   @ApiResponse({ status: 409, description: 'Email or organization already exists' })
@@ -25,6 +27,7 @@ export class AuthController {
 
   @Public()
   @Post('register-magic-link')
+  @Throttle({ global: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Register without a password — sends a magic activation link' })
   @ApiResponse({ status: 201, description: 'Magic link sent' })
   @ApiResponse({ status: 409, description: 'Email or organization already exists' })
@@ -65,6 +68,7 @@ export class AuthController {
   @Public()
   @Post('resend-verification')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ global: { limit: 3, ttl: 60000 } })
   @ApiOperation({ summary: 'Resend verification email' })
   @ApiResponse({ status: 200, description: 'Verification email sent if account exists' })
   async resendVerification(@Body() dto: ResendVerificationDto) {
@@ -74,6 +78,7 @@ export class AuthController {
   @Public()
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ global: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Request a password reset email' })
   @ApiResponse({ status: 200, description: 'Reset email sent if account exists' })
   async forgotPassword(@Body() dto: ForgotPasswordDto) {

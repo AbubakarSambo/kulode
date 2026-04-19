@@ -24,6 +24,7 @@ const registerSchema = z.object({
       /((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/,
       'Password must contain uppercase, lowercase, and a number or special character'
     ),
+  website: z.string().optional(),
 })
 
 type RegisterForm = z.infer<typeof registerSchema>
@@ -233,6 +234,14 @@ function SharedFields({
           error={errors.email?.message}
         />
       </div>
+      <input
+        {...form.register('website')}
+        type="text"
+        autoComplete="off"
+        tabIndex={-1}
+        aria-hidden="true"
+        style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px', opacity: 0 }}
+      />
     </>
   )
 }

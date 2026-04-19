@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigModule } from './config';
 import { PrismaModule } from './modules/prisma';
@@ -23,6 +24,7 @@ import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor }
 @Module({
   imports: [
     ConfigModule,
+    ThrottlerModule.forRoot([{ name: 'global', ttl: 60000, limit: 60 }]),
     ScheduleModule.forRoot(),
     PrismaModule,
     EmailModule,
@@ -42,6 +44,10 @@ import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor }
     TaxModule,
   ],
   providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
     // Global JWT Auth Guard
     {
       provide: APP_GUARD,
