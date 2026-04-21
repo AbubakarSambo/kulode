@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useForm, UseFormReturn } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -24,7 +24,6 @@ const registerSchema = z.object({
       /((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/,
       'Password must contain uppercase, lowercase, and a number or special character'
     ),
-  _hp: z.string().optional(),
 })
 
 type RegisterForm = z.infer<typeof registerSchema>
@@ -234,7 +233,6 @@ function SharedFields({
           error={errors.email?.message}
         />
       </div>
-      <input {...form.register('_hp')} type="hidden" />
     </>
   )
 }
@@ -245,6 +243,7 @@ export function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [useMagicLink, setUseMagicLink] = useState(true)
   const hasTrackedStart = useState(false)
+  const mountedAt = useRef(Date.now())
 
   const passwordForm = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
@@ -296,7 +295,10 @@ export function RegisterPage() {
 
             {useMagicLink ? (
               <form
-                onSubmit={magicLinkForm.handleSubmit((data) => magicLinkMutation.mutate(data))}
+                onSubmit={magicLinkForm.handleSubmit((data) => {
+                  if (Date.now() - mountedAt.current < 1500) return
+                  magicLinkMutation.mutate(data)
+                })}
                 className="space-y-4"
               >
                 <SharedFields
@@ -317,7 +319,10 @@ export function RegisterPage() {
               </form>
             ) : (
               <form
-                onSubmit={passwordForm.handleSubmit((data) => registerMutation.mutate(data))}
+                onSubmit={passwordForm.handleSubmit((data) => {
+                  if (Date.now() - mountedAt.current < 1500) return
+                  registerMutation.mutate(data)
+                })}
                 className="space-y-4"
               >
                 <SharedFields
