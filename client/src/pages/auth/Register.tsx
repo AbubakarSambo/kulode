@@ -234,14 +234,7 @@ function SharedFields({
           error={errors.email?.message}
         />
       </div>
-      <input
-        {...form.register('_hp')}
-        type="text"
-        autoComplete="off"
-        tabIndex={-1}
-        aria-hidden="true"
-        style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px', opacity: 0 }}
-      />
+      <input {...form.register('_hp')} type="hidden" />
     </>
   )
 }
