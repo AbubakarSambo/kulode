@@ -120,6 +120,28 @@ export class EmailService {
     });
   }
 
+  async sendClientReminderEmail(email: string, firstName: string): Promise<void> {
+    const clientsUrl = `${this.frontendUrl}/clients`;
+
+    await this.sendEmail({
+      to: email,
+      subject: "You're one step away from sending your first invoice",
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>Hi ${firstName},</h2>
+          <p>You've set up your Kulode account — great start! The only thing left before you can send your first invoice is adding a client.</p>
+          <p>It takes less than a minute:</p>
+          <div style="margin: 32px 0;">
+            <a href="${clientsUrl}" style="background-color: #0f172a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+              Add your first client
+            </a>
+          </div>
+          <p style="color: #64748b; font-size: 14px;">Once you've added a client, you'll be ready to create and send invoices right away.</p>
+        </div>
+      `,
+    });
+  }
+
   async sendPasswordResetEmail(email: string, firstName: string, token: string): Promise<void> {
     const resetUrl = `${this.frontendUrl}/reset-password?token=${token}`;
 

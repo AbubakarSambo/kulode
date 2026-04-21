@@ -105,6 +105,7 @@ model Organization {
   paymentTerms           String?  @map("payment_terms")
   defaultNotes           String?  @map("default_notes")
   onboardingDismissedAt  DateTime? @map("onboarding_dismissed_at")
+  clientReminderSentAt   DateTime? @map("client_reminder_sent_at")
 
   // Subscription
   planTier              PlanTier           @default(FREE) @map("plan_tier")
