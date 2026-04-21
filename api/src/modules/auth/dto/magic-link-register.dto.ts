@@ -28,5 +28,5 @@ export class MagicLinkRegisterDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  website?: string;
+  _hp?: string;
 }

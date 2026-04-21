@@ -26,7 +26,7 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto): Promise<{ message: string; email: string }> {
-    if (dto.website) {
+    if (dto._hp) {
       return {
         message: 'Registration successful. Please check your email to verify your account.',
         email: dto.email.toLowerCase(),
@@ -130,7 +130,7 @@ export class AuthService {
   }
 
   async registerMagicLink(dto: MagicLinkRegisterDto): Promise<{ message: string; email: string }> {
-    if (dto.website) {
+    if (dto._hp) {
       return {
         message: 'Account created. Please check your email to activate your account.',
         email: dto.email.toLowerCase(),
