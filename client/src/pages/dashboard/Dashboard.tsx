@@ -1,94 +1,115 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { FileText, CreditCard, TrendingUp, TrendingDown, AlertCircle, Trophy, ShieldCheck } from 'lucide-react'
-import { Link } from 'react-router-dom'
-import { Header } from '@/components/layout'
-import { OnboardingChecklist } from '@/components/OnboardingChecklist'
-import { Card, CardContent, CardHeader, CardTitle, Badge, Select, Input } from '@/components/ui'
-import { reportsApi, type ReportPeriod } from '@/api/reports'
-import { taxApi } from '@/api'
-import { formatCurrency } from '@/lib/utils'
-import { useSubscription } from '@/hooks/useSubscription'
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  FileText,
+  CreditCard,
+  TrendingUp,
+  TrendingDown,
+  AlertCircle,
+  Trophy,
+  ShieldCheck,
+} from "lucide-react";
+import { Link } from "react-router-dom";
+import { Header } from "@/components/layout";
+import { OnboardingChecklist } from "@/components/OnboardingChecklist";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Badge,
+  Select,
+  Input,
+} from "@/components/ui";
+import { reportsApi, type ReportPeriod } from "@/api/reports";
+import { taxApi } from "@/api";
+import { formatCurrency } from "@/lib/utils";
+import { useSubscription } from "@/hooks/useSubscription";
 
 const periodLabels: Record<ReportPeriod, string> = {
-  THIS_MONTH: 'this month',
-  LAST_MONTH: 'last month',
-  THIS_QUARTER: 'this quarter',
-  LAST_QUARTER: 'last quarter',
-  THIS_YEAR: 'this year',
-  LAST_YEAR: 'last year',
-  CUSTOM: 'the selected period',
-}
+  THIS_MONTH: "this month",
+  LAST_MONTH: "last month",
+  THIS_QUARTER: "this quarter",
+  LAST_QUARTER: "last quarter",
+  THIS_YEAR: "this year",
+  LAST_YEAR: "last year",
+  CUSTOM: "the selected period",
+};
 
 export function DashboardPage() {
-  const [period, setPeriod] = useState<ReportPeriod>('THIS_MONTH')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
-  const { hasRequiredPlan } = useSubscription()
-  const isPro = hasRequiredPlan('PRO')
-  const currentYear = new Date().getFullYear()
+  const [period, setPeriod] = useState<ReportPeriod>("THIS_MONTH");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const { hasRequiredPlan } = useSubscription();
+  const isPro = hasRequiredPlan("PRO");
+  const currentYear = new Date().getFullYear();
 
-  const filters = period === 'CUSTOM'
-    ? { period, startDate: startDate || undefined, endDate: endDate || undefined }
-    : { period }
+  const filters =
+    period === "CUSTOM"
+      ? {
+          period,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+        }
+      : { period };
 
   const { data: summary } = useQuery({
-    queryKey: ['reports', 'summary', period, startDate, endDate],
+    queryKey: ["reports", "summary", period, startDate, endDate],
     queryFn: () => reportsApi.getSummary(filters),
-  })
+  });
 
   const { data: outstanding } = useQuery({
-    queryKey: ['reports', 'outstanding'],
+    queryKey: ["reports", "outstanding"],
     queryFn: () => reportsApi.getOutstanding(),
-  })
+  });
 
   const { data: incomeData } = useQuery({
-    queryKey: ['reports', 'income', period, startDate, endDate],
+    queryKey: ["reports", "income", period, startDate, endDate],
     queryFn: () => reportsApi.getIncome(filters),
-  })
+  });
 
   const { data: deductibleSummary } = useQuery({
-    queryKey: ['tax', 'deductible-summary', currentYear],
+    queryKey: ["tax", "deductible-summary", currentYear],
     queryFn: () => taxApi.getDeductibleSummary(currentYear),
     enabled: isPro,
-  })
+  });
 
-  const topClient = incomeData?.topClients?.[0]
+  const topClient = incomeData?.topClients?.[0];
 
   const stats = [
     {
-      title: 'Income',
+      title: "Income",
       value: summary?.income.total ?? 0,
       subtext: `${summary?.income.paymentCount ?? 0} payments`,
       icon: TrendingUp,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50',
+      color: "text-green-600",
+      bgColor: "bg-green-50",
     },
     {
-      title: 'Expenses',
+      title: "Expenses",
       value: summary?.expenses.total ?? 0,
       subtext: `${summary?.expenses.expenseCount ?? 0} expenses`,
       icon: TrendingDown,
-      color: 'text-red-600',
-      bgColor: 'bg-red-50',
+      color: "text-red-600",
+      bgColor: "bg-red-50",
     },
     {
-      title: 'Profit',
+      title: "Profit",
       value: summary?.profit ?? 0,
       subtext: `${summary?.profitMargin ?? 0}% margin`,
       icon: CreditCard,
-      color: 'text-primary',
-      bgColor: 'bg-primary/10',
+      color: "text-primary",
+      bgColor: "bg-primary/10",
     },
     {
-      title: 'Outstanding',
+      title: "Outstanding",
       value: outstanding?.summary?.totalOutstanding ?? 0,
       subtext: `${outstanding?.summary?.overdueCount ?? 0} overdue`,
       icon: AlertCircle,
-      color: 'text-amber-600',
-      bgColor: 'bg-amber-50',
+      color: "text-amber-600",
+      bgColor: "bg-amber-50",
     },
-  ]
+  ];
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -110,7 +131,7 @@ export function DashboardPage() {
               <option value="LAST_YEAR">Last Year</option>
               <option value="CUSTOM">Custom</option>
             </Select>
-            {period === 'CUSTOM' && (
+            {period === "CUSTOM" && (
               <>
                 <Input
                   type="date"
@@ -129,7 +150,7 @@ export function DashboardPage() {
           </div>
         }
       />
-      
+
       <div className="flex-1 overflow-auto p-4 sm:p-6">
         <OnboardingChecklist />
 
@@ -140,11 +161,15 @@ export function DashboardPage() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      {stat.title}
+                    </p>
                     <p className="mt-1 text-2xl font-bold">
                       {formatCurrency(stat.value)}
                     </p>
-                    <p className="mt-1 text-xs text-muted-foreground">{stat.subtext}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {stat.subtext}
+                    </p>
                   </div>
                   <div className={`rounded-full p-3 ${stat.bgColor}`}>
                     <stat.icon className={`h-5 w-5 ${stat.color}`} />
@@ -168,22 +193,38 @@ export function DashboardPage() {
               {deductibleSummary ? (
                 <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-10">
                   <div className="shrink-0">
-                    <p className="text-sm text-muted-foreground">Total Deductible</p>
-                    <p className="text-3xl font-bold text-green-600">{formatCurrency(deductibleSummary.total)}</p>
-                    <Link to="/tax" className="mt-1 block text-xs text-primary hover:underline">
+                    <p className="text-sm text-muted-foreground">
+                      Total Deductible
+                    </p>
+                    <p className="text-3xl font-bold text-green-600">
+                      {formatCurrency(deductibleSummary.total)}
+                    </p>
+                    <Link
+                      to="/tax"
+                      className="mt-1 block text-xs text-primary hover:underline"
+                    >
                       View filing pack →
                     </Link>
                   </div>
                   {deductibleSummary.byCategory.length > 0 && (
                     <div className="flex-1">
-                      <p className="mb-2 text-sm font-medium text-muted-foreground">By Category</p>
+                      <p className="mb-2 text-sm font-medium text-muted-foreground">
+                        By Category
+                      </p>
                       <div className="grid grid-cols-1 gap-y-2 sm:grid-cols-2 sm:gap-x-8 lg:grid-cols-3">
                         {deductibleSummary.byCategory
                           .sort((a, b) => b.total - a.total)
                           .map((cat) => (
-                            <div key={cat.category} className="flex items-center justify-between gap-4">
-                              <span className="text-xs text-muted-foreground">{cat.label}</span>
-                              <span className="shrink-0 text-xs font-medium">{formatCurrency(cat.total)}</span>
+                            <div
+                              key={cat.category}
+                              className="flex items-center justify-between gap-4"
+                            >
+                              <span className="text-xs text-muted-foreground">
+                                {cat.label}
+                              </span>
+                              <span className="shrink-0 text-xs font-medium">
+                                {formatCurrency(cat.total)}
+                              </span>
                             </div>
                           ))}
                       </div>
@@ -193,7 +234,9 @@ export function DashboardPage() {
               ) : (
                 <div className="flex items-center gap-3 py-2">
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                  <span className="text-sm text-muted-foreground">Loading deductible summary…</span>
+                  <span className="text-sm text-muted-foreground">
+                    Loading deductible summary…
+                  </span>
                 </div>
               )}
             </CardContent>
@@ -211,28 +254,36 @@ export function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {Object.entries(summary?.invoices ?? {}).map(([status, data]) => (
-                  <div key={status} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge 
-                        variant={
-                          status === 'paid' ? 'success' :
-                          status === 'overdue' ? 'destructive' :
-                          status === 'draft' ? 'secondary' :
-                          'default'
-                        }
-                      >
-                        {status.replace('_', ' ')}
-                      </Badge>
-                      <span className="text-sm text-muted-foreground">
-                        {data.count} invoices
+                {Object.entries(summary?.invoices ?? {}).map(
+                  ([status, data]) => (
+                    <div
+                      key={status}
+                      className="flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant={
+                            status === "paid"
+                              ? "success"
+                              : status === "overdue"
+                                ? "destructive"
+                                : status === "draft"
+                                  ? "secondary"
+                                  : "default"
+                          }
+                        >
+                          {status.replace("_", " ")}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">
+                          {data.count} invoices
+                        </span>
+                      </div>
+                      <span className="font-medium">
+                        {formatCurrency(data.total)}
                       </span>
                     </div>
-                    <span className="font-medium">
-                      {formatCurrency(data.total)}
-                    </span>
-                  </div>
-                ))}
+                  ),
+                )}
               </div>
             </CardContent>
           </Card>
@@ -249,13 +300,20 @@ export function DashboardPage() {
               {outstanding?.invoices?.length > 0 ? (
                 <div className="space-y-3">
                   {outstanding.invoices.slice(0, 5).map((inv: any) => (
-                    <div key={inv.id} className="flex items-center justify-between">
+                    <div
+                      key={inv.id}
+                      className="flex items-center justify-between"
+                    >
                       <div>
                         <p className="font-medium">{inv.invoiceNumber}</p>
-                        <p className="text-sm text-muted-foreground">{inv.client.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {inv.client.name}
+                        </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-medium">{formatCurrency(inv.outstanding)}</p>
+                        <p className="font-medium">
+                          {formatCurrency(inv.outstanding)}
+                        </p>
                         {inv.isOverdue && (
                           <p className="text-xs text-destructive">
                             {inv.daysPastDue} days overdue
@@ -266,7 +324,9 @@ export function DashboardPage() {
                   ))}
                 </div>
               ) : (
-                <p className="text-center text-muted-foreground">No outstanding invoices</p>
+                <p className="text-center text-muted-foreground">
+                  No outstanding invoices
+                </p>
               )}
             </CardContent>
           </Card>
@@ -284,7 +344,10 @@ export function DashboardPage() {
                 <div className="space-y-2">
                   <p className="text-lg font-bold">
                     {topClient.clientId ? (
-                      <Link to={`/clients/${topClient.clientId}`} className="hover:underline">
+                      <Link
+                        to={`/clients/${topClient.clientId}`}
+                        className="hover:underline"
+                      >
                         {topClient.clientName}
                       </Link>
                     ) : (
@@ -295,16 +358,19 @@ export function DashboardPage() {
                     {formatCurrency(topClient.total)}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {topClient.paymentCount} payment{topClient.paymentCount !== 1 ? 's' : ''} received
+                    {topClient.paymentCount} payment
+                    {topClient.paymentCount !== 1 ? "s" : ""} received
                   </p>
                 </div>
               ) : (
-                <p className="text-center text-muted-foreground">No payments in this period</p>
+                <p className="text-center text-muted-foreground">
+                  No payments in this period
+                </p>
               )}
             </CardContent>
           </Card>
         </div>
       </div>
     </div>
-  )
+  );
 }
