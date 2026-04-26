@@ -102,6 +102,7 @@ model Organization {
   currency               String   @default("NGN")
   taxRate                Decimal  @default(0) @map("tax_rate") @db.Decimal(5, 2)
   vatEnabled             Boolean  @default(false) @map("vat_enabled")
+  showQrCode             Boolean  @default(false) @map("show_qr_code")
   paymentTerms           String?  @map("payment_terms")
   defaultNotes           String?  @map("default_notes")
   onboardingDismissedAt  DateTime? @map("onboarding_dismissed_at")

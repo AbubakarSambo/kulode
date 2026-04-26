@@ -118,6 +118,7 @@ export class InvoicesService {
             logo: true,
             planTier: true,
             subscriptionStatus: true,
+            showQrCode: true,
           },
         },
         client: {
@@ -589,6 +590,7 @@ export class InvoicesService {
             logo: true,
             planTier: true,
             subscriptionStatus: true,
+            showQrCode: true,
           },
         },
         client: {

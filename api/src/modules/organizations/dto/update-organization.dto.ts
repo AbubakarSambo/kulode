@@ -63,6 +63,11 @@ export class UpdateOrganizationDto {
   @MaxLength(2000)
   defaultNotes?: string;
 
+  @ApiPropertyOptional({ example: false, description: 'Show business address QR code on invoice PDF' })
+  @IsOptional()
+  @IsBoolean()
+  showQrCode?: boolean;
+
   @ApiPropertyOptional({ description: 'Logo URL' })
   @IsOptional()
   @IsString()

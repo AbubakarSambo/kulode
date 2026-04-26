@@ -9,6 +9,7 @@ export interface UpdateOrganizationData {
   invoicePrefix?: string
   taxRate?: number
   vatEnabled?: boolean
+  showQrCode?: boolean
   paymentTerms?: string
   defaultNotes?: string
 }

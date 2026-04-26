@@ -103,6 +103,7 @@ export interface Organization {
   currency: string
   taxRate: number
   vatEnabled: boolean
+  showQrCode: boolean
   paymentTerms?: string
   defaultNotes?: string
   isPaystackVerified: boolean

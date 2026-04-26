@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import * as PDFDocument from 'pdfkit';
 import * as https from 'https';
 import * as http from 'http';
+import * as QRCode from 'qrcode';
 
 interface Installment {
   id: string;
@@ -37,6 +38,7 @@ interface InvoiceData {
     logo?: string | null;
     planTier?: string | null;
     subscriptionStatus?: string | null;
+    showQrCode?: boolean | null;
   };
   client: {
     name: string;
@@ -67,6 +69,15 @@ export class InvoicePdfService {
         logoBuffer = await this.fetchImageBuffer(invoice.organization.logo);
       } catch {
         // Skip if logo can't be loaded
+      }
+    }
+
+    let qrBuffer: Buffer | null = null;
+    if (invoice.organization.showQrCode && invoice.organization.address) {
+      try {
+        qrBuffer = await QRCode.toBuffer(invoice.organization.address, { width: 80, margin: 1 });
+      } catch {
+        // Skip if QR generation fails
       }
     }
 
@@ -501,6 +512,12 @@ export class InvoicePdfService {
 
       // Footer — positioned safely above the bottom margin to avoid triggering a new page
       const footerY = doc.page.height - doc.page.margins.bottom - 40;
+
+      if (qrBuffer) {
+        // QR code bottom-right, sitting just above the footer line
+        doc.image(qrBuffer, 465, footerY - 90, { width: 80, height: 80 });
+      }
+
       doc
         .strokeColor('#e2e8f0')
         .lineWidth(1)

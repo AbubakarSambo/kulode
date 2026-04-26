@@ -18,6 +18,7 @@ const organizationSchema = z.object({
   address: z.string().optional(),
   invoicePrefix: z.string().max(10).optional(),
   vatEnabled: z.boolean().optional(),
+  showQrCode: z.boolean().optional(),
   taxRate: z.number().min(0).max(100).optional(),
   paymentTerms: z.string().max(2000).optional(),
   defaultNotes: z.string().max(2000).optional(),
@@ -70,6 +71,7 @@ export function OrganizationPage() {
       address: '',
       invoicePrefix: '',
       vatEnabled: false,
+      showQrCode: false,
       taxRate: 0,
       paymentTerms: '',
       defaultNotes: '',
@@ -85,6 +87,7 @@ export function OrganizationPage() {
         address: organization.address || '',
         invoicePrefix: organization.invoicePrefix,
         vatEnabled: organization.vatEnabled,
+        showQrCode: organization.showQrCode ?? false,
         taxRate: Number(organization.taxRate) || 0,
         paymentTerms: organization.paymentTerms || '',
         defaultNotes: organization.defaultNotes || '',
@@ -98,6 +101,7 @@ export function OrganizationPage() {
         ...data,
         email: data.email || undefined,
         vatEnabled: !!data.vatEnabled,
+        showQrCode: !!data.showQrCode,
         taxRate: Number(data.taxRate) || 0,
         paymentTerms: data.paymentTerms || '',
         defaultNotes: data.defaultNotes || '',
@@ -298,6 +302,21 @@ export function OrganizationPage() {
                     />
                   </div>
                 )}
+              </div>
+
+              <div className="space-y-3">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={watch('showQrCode') || false}
+                    onChange={(e) => setValue('showQrCode', e.target.checked, { shouldDirty: true })}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <span className="text-sm font-medium">Show address QR code on invoice PDF</span>
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Adds a scannable QR code of your business address to the bottom-right of every invoice PDF.
+                </p>
               </div>
 
               <div className="space-y-2">
