@@ -4,7 +4,7 @@ import sitemap from '@astrojs/sitemap';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-  site: 'https://kulode.com',
+  site: 'https://www.kulode.com',
   integrations: [sitemap()],
   vite: {
     plugins: [tailwindcss()]
