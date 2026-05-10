@@ -18,7 +18,7 @@ export const jwtConfig = registerAs("jwt", () => ({
 
 export const resendConfig = registerAs("resend", () => ({
   apiKey: process.env.RESEND_API_KEY,
-  fromEmail: process.env.RESEND_FROM_EMAIL || "Kulode <noreply@kulode.com>",
+  fromEmail: process.env.RESEND_FROM_EMAIL || "Kulode <noreply@kulode.app>",
   frontendUrl: process.env.FRONTEND_URL || "http://localhost:5173",
 }));
 
@@ -38,5 +38,5 @@ export const paystackConfig = registerAs("paystack", () => ({
   callbackUrl:
     process.env.PAYSTACK_CALLBACK_URL ||
     "http://localhost:5173/payment/callback",
-  // Production: https://app.kulode.com/payment/callback
+  // Production: https://app.kulode.app/payment/callback
 }));

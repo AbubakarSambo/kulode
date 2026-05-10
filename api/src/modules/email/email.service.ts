@@ -12,7 +12,7 @@ export class EmailService {
   constructor(private configService: ConfigService) {
     const apiKey = this.configService.get<string>('resend.apiKey');
     this.resend = new Resend(apiKey);
-    this.fromEmail = this.configService.get<string>('resend.fromEmail') || 'Kulode <noreply@kulode.com>';
+    this.fromEmail = this.configService.get<string>('resend.fromEmail') || 'Kulode <noreply@kulode.app>';
     this.frontendUrl = this.configService.get<string>('resend.frontendUrl') || 'http://localhost:5173';
   }
 
