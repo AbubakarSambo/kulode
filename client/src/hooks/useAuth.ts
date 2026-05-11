@@ -6,6 +6,8 @@ import { useAuthStore } from '@/stores/auth'
 import { posthog } from '@/lib/posthog'
 import type { LoginCredentials, RegisterData } from '@/types'
 
+declare function gtag(...args: unknown[]): void
+
 export function useLogin() {
   const navigate = useNavigate()
   const setAuth = useAuthStore((state) => state.setAuth)
@@ -34,6 +36,7 @@ export function useRegister() {
     mutationFn: (data: RegisterData) => authApi.register(data),
     onSuccess: (data) => {
       posthog.capture('organization_created')
+      gtag('event', 'conversion', { send_to: 'AW-18047051668/pYdJCPn0uKscEJTPwJ1D' })
       navigate('/check-email', { state: { email: data.email } })
     },
     onError: (error: any) => {
@@ -69,6 +72,7 @@ export function useMagicLinkRegister() {
       authApi.registerMagicLink(data),
     onSuccess: (data) => {
       posthog.capture('organization_created', { method: 'magic_link' })
+      gtag('event', 'conversion', { send_to: 'AW-18047051668/pYdJCPn0uKscEJTPwJ1D' })
       navigate('/check-email', { state: { email: data.email } })
     },
     onError: (error: any) => {
