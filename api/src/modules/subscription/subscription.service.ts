@@ -129,6 +129,7 @@ export class SubscriptionService {
         amount: amount * 100, // Convert to kobo
         reference,
         callback_url: `${this.callbackUrl}?type=subscription`,
+        channels: ['card'],
         metadata: {
           type: 'subscription',
           organization_id: organizationId,
