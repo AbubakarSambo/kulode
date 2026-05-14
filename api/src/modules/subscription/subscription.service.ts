@@ -163,11 +163,29 @@ export class SubscriptionService {
     cardType?: string,
     cardLast4?: string,
   ) {
-    // Idempotent: skip if this reference was already processed
+    // Idempotent: skip if this reference was already processed, but patch auth code if it arrived late
     const existing = await this.prisma.subscriptionPayment.findUnique({
       where: { paystackReference: reference },
     });
     if (existing) {
+      if (authorizationCode) {
+        const org = await this.prisma.organization.findUnique({
+          where: { id: organizationId },
+          select: { paystackAuthorizationCode: true },
+        });
+        if (!org?.paystackAuthorizationCode) {
+          await this.prisma.organization.update({
+            where: { id: organizationId },
+            data: {
+              paystackAuthorizationCode: authorizationCode,
+              ...(billingEmail && { paystackBillingEmail: billingEmail }),
+              ...(cardType && { paystackCardType: cardType }),
+              ...(cardLast4 && { paystackCardLast4: cardLast4 }),
+            },
+          });
+          this.logger.log(`Patched missing auth code for org ${organizationId}`);
+        }
+      }
       this.logger.log(`Subscription payment ${reference} already processed, skipping`);
       return;
     }
@@ -321,7 +339,7 @@ export class SubscriptionService {
       throw new BadRequestException('Payment verification failed');
     }
 
-    const { metadata, amount } = result.data;
+    const { metadata, amount, authorization, customer } = result.data;
 
     if (metadata?.type !== 'subscription') {
       throw new BadRequestException('This is not a subscription payment');
@@ -337,6 +355,10 @@ export class SubscriptionService {
       metadata.billing_period,
       reference,
       amount / 100, // kobo → naira
+      authorization?.reusable ? authorization.authorization_code : undefined,
+      customer?.email,
+      authorization?.card_type,
+      authorization?.last4,
     );
 
     return { activated: true, planTier: metadata.plan_tier, billingPeriod: metadata.billing_period };
