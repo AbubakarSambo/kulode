@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaystackService } from '../paystack/paystack.service';
+import { EmailService } from '../email/email.service';
 import { PLAN_LIMITS, PLAN_PRICES } from '../../common/plan-limits';
 
 @Injectable()
@@ -23,6 +24,7 @@ export class SubscriptionService {
     private configService: ConfigService,
     @Inject(forwardRef(() => PaystackService))
     private paystackService: PaystackService,
+    private emailService: EmailService,
   ) {
     this.paystackSecretKey = this.configService.get<string>('paystack.secretKey') || '';
     this.paystackBaseUrl = this.configService.get<string>('paystack.baseUrl') || 'https://api.paystack.co';
@@ -219,6 +221,13 @@ export class SubscriptionService {
     }
   }
 
+  private async getOrgAdmin(organizationId: string) {
+    return this.prisma.user.findFirst({
+      where: { organizationId, role: 'ADMIN', isActive: true },
+      select: { email: true, firstName: true },
+    });
+  }
+
   async renewSubscription(organizationId: string): Promise<boolean> {
     const org = await this.prisma.organization.findUnique({
       where: { id: organizationId },
@@ -239,6 +248,15 @@ export class SubscriptionService {
       !org.billingPeriod ||
       org.planTier === 'FREE'
     ) {
+      if (org && org.planTier !== 'FREE' && org.billingPeriod && !org.paystackAuthorizationCode) {
+        const admin = await this.getOrgAdmin(organizationId);
+        if (admin) {
+          this.emailService
+            .sendRenewalFailedEmail(admin.email, admin.firstName, org.planTier)
+            .catch((err) => this.logger.error(`Failed to send renewal failed email: ${err.message}`));
+        }
+        this.logger.warn(`Auto-renewal skipped for org ${organizationId}: no payment method on file`);
+      }
       return false;
     }
 
@@ -263,6 +281,12 @@ export class SubscriptionService {
 
     if (!result.success) {
       this.logger.warn(`Auto-renewal failed for org ${organizationId}`);
+      const admin = await this.getOrgAdmin(organizationId);
+      if (admin) {
+        this.emailService
+          .sendRenewalFailedEmail(admin.email, admin.firstName, org.planTier)
+          .catch((err) => this.logger.error(`Failed to send renewal failed email: ${err.message}`));
+      }
       return false;
     }
 

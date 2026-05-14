@@ -142,6 +142,28 @@ export class EmailService {
     });
   }
 
+  async sendRenewalFailedEmail(email: string, firstName: string, planTier: string): Promise<void> {
+    const loginUrl = `${this.frontendUrl}/settings/billing`;
+
+    await this.sendEmail({
+      to: email,
+      subject: 'Your Kulode subscription could not be renewed',
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>Hi ${firstName},</h2>
+          <p>We were unable to automatically renew your <strong>Kulode ${planTier}</strong> subscription. This may be due to an expired card, insufficient funds, or a change in your payment details.</p>
+          <p>To avoid losing access to your account features, please update your payment method and renew your subscription:</p>
+          <div style="margin: 32px 0;">
+            <a href="${loginUrl}" style="background-color: #0f172a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+              Update payment & renew
+            </a>
+          </div>
+          <p style="color: #64748b; font-size: 14px;">If you have any questions, reply to this email and we'll help you out.</p>
+        </div>
+      `,
+    });
+  }
+
   async sendPasswordResetEmail(email: string, firstName: string, token: string): Promise<void> {
     const resetUrl = `${this.frontendUrl}/reset-password?token=${token}`;
 
