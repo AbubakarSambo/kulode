@@ -68,7 +68,7 @@ export class AuthService {
         data: {
           name: dto.organizationName,
           slug,
-          platformFeePercent: this.configService.get<number>('app.platformFeePercent') || 5,
+          platformFeePercent: this.configService.get<number>('app.platformFeePercent') ?? 5,
           planTier: 'PRO',
           subscriptionStatus: 'TRIALING',
           trialStartDate: now,
@@ -164,7 +164,7 @@ export class AuthService {
         data: {
           name: dto.organizationName,
           slug,
-          platformFeePercent: this.configService.get<number>('app.platformFeePercent') || 5,
+          platformFeePercent: this.configService.get<number>('app.platformFeePercent') ?? 5,
           planTier: 'PRO',
           subscriptionStatus: 'TRIALING',
           trialStartDate: now,
@@ -620,7 +620,7 @@ export class AuthService {
             data: {
               name: orgName,
               slug,
-              platformFeePercent: this.configService.get<number>('app.platformFeePercent') || 5,
+              platformFeePercent: this.configService.get<number>('app.platformFeePercent') ?? 5,
               planTier: 'PRO',
               subscriptionStatus: 'TRIALING',
               trialStartDate: now,
