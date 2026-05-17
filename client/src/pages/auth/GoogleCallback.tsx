@@ -16,6 +16,7 @@ export function GoogleCallbackPage() {
     const isNewUser = searchParams.get('new') === 'true'
 
     if (error || !token) {
+      posthog.capture('google_oauth_failed', { reason: 'callback_error', error: error ?? 'missing_token' })
       toast.error('Google sign-in failed', { description: 'Please try again or use email sign-in.' })
       navigate('/login')
       return
@@ -35,6 +36,7 @@ export function GoogleCallbackPage() {
         navigate('/dashboard')
       })
       .catch(() => {
+        posthog.capture('google_oauth_failed', { reason: 'profile_fetch_failed' })
         localStorage.removeItem('token')
         toast.error('Google sign-in failed', { description: 'Please try again.' })
         navigate('/login')

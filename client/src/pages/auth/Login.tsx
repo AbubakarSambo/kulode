@@ -15,6 +15,7 @@ import {
   CardFooter,
 } from "@/components/ui";
 import { useLogin, useResendVerification } from "@/hooks";
+import { posthog } from "@/lib/posthog";
 import { Receipt } from "lucide-react";
 
 const GOOGLE_AUTH_URL = import.meta.env.VITE_API_URL
@@ -73,7 +74,7 @@ export function LoginPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <a href={GOOGLE_AUTH_URL} className="w-full block">
+          <a href={GOOGLE_AUTH_URL} className="w-full block" onClick={() => posthog.capture('google_oauth_initiated', { page: 'login' })}>
             <Button type="button" variant="outline" className="w-full gap-2">
               <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
                 <path
