@@ -164,11 +164,11 @@ export function ReportsPage() {
                 <CardTitle>Expenses by Category</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {expenseBreakdown?.byCategory?.map((cat: any) => (
-                    <div key={cat.categoryId || 'uncategorized'} className="flex items-center justify-between">
+                    <div key={cat.categoryId || 'uncategorized'} className="flex items-center justify-between max-w-sm gap-4">
                       <span className="font-medium">{cat.categoryName}</span>
-                      <span className="text-muted-foreground">{formatCurrency(cat.total)}</span>
+                      <span className="shrink-0 text-muted-foreground">{formatCurrency(cat.total)}</span>
                     </div>
                   ))}
                 </div>
