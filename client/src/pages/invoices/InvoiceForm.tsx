@@ -203,7 +203,7 @@ function ItemCombobox({
 }: {
   serviceItems: ServiceItem[]
   inventoryItems: InventoryItem[]
-  onSelect: (selection: { kind: 'service'; id: string } | { kind: 'inventory'; id: string } | { kind: 'custom' }) => void
+  onSelect: (selection: { kind: 'service'; id: string; item?: ServiceItem } | { kind: 'inventory'; id: string; item?: InventoryItem } | { kind: 'custom' }) => void
 }) {
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
@@ -258,7 +258,7 @@ function ItemCombobox({
       queryClient.invalidateQueries({ queryKey: ['service-items'] })
       toast.success('Service created', { description: item.name })
       setSelected({ kind: 'service', item })
-      onSelect({ kind: 'service', id: item.id })
+      onSelect({ kind: 'service', id: item.id, item })
       setOpen(false)
       setQuery('')
       resetCreate()
@@ -278,7 +278,7 @@ function ItemCombobox({
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] })
       toast.success('Product created', { description: item.name })
       setSelected({ kind: 'inventory', item })
-      onSelect({ kind: 'inventory', id: item.id })
+      onSelect({ kind: 'inventory', id: item.id, item })
       setOpen(false)
       setQuery('')
       resetCreate()
@@ -556,7 +556,7 @@ export function NewInvoicePage() {
 
   const handleItemSelect = (
     index: number,
-    selection: { kind: 'service'; id: string } | { kind: 'inventory'; id: string } | { kind: 'custom' },
+    selection: { kind: 'service'; id: string; item?: ServiceItem } | { kind: 'inventory'; id: string; item?: InventoryItem } | { kind: 'custom' },
   ) => {
     if (selection.kind === 'custom') {
       setValue(`items.${index}.serviceItemId`, undefined)
@@ -564,20 +564,22 @@ export function NewInvoicePage() {
       return
     }
     if (selection.kind === 'service') {
-      const serviceItem = serviceItems?.find((item) => item.id === selection.id)
+      const serviceItem = selection.item ?? serviceItems?.find((item) => item.id === selection.id)
       if (serviceItem) {
         setValue(`items.${index}.serviceItemId`, serviceItem.id)
         setValue(`items.${index}.inventoryItemId`, undefined)
         setValue(`items.${index}.description`, serviceItem.name)
         setValue(`items.${index}.unitPrice`, serviceItem.unitPrice)
+        if (!watch(`items.${index}.quantity`)) setValue(`items.${index}.quantity`, 1)
       }
     } else {
-      const invItem = inventoryItems?.find((item) => item.id === selection.id)
+      const invItem = selection.item ?? inventoryItems?.find((item) => item.id === selection.id)
       if (invItem) {
         setValue(`items.${index}.inventoryItemId`, invItem.id)
         setValue(`items.${index}.serviceItemId`, undefined)
         setValue(`items.${index}.description`, invItem.name)
         setValue(`items.${index}.unitPrice`, invItem.unitPrice)
+        if (!watch(`items.${index}.quantity`)) setValue(`items.${index}.quantity`, 1)
       }
     }
   }
