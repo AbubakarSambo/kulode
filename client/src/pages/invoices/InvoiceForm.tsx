@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
+import type { FieldErrors } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -19,11 +20,13 @@ function ClientCombobox({
   value,
   onChange,
   error,
+  triggerRef,
 }: {
   clients: Client[]
   value: string
   onChange: (clientId: string) => void
   error?: string
+  triggerRef?: React.RefObject<HTMLButtonElement>
 }) {
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
@@ -85,6 +88,7 @@ function ClientCombobox({
   return (
     <div ref={ref} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={openDropdown}
         className={`flex h-9 w-full items-center justify-between rounded-md border bg-background px-3 py-1 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground ${error ? 'border-destructive' : 'border-input'}`}
@@ -513,15 +517,20 @@ export function NewInvoicePage() {
     queryFn: () => organizationsApi.getCurrent(),
   })
 
+  const clientTriggerRef = useRef<HTMLButtonElement>(null)
+  const itemsCardRef = useRef<HTMLDivElement>(null)
+
   const {
     register,
     control,
     handleSubmit,
     watch,
     setValue,
+    setFocus,
     formState: { errors },
   } = useForm<InvoiceFormData>({
     resolver: zodResolver(invoiceSchema),
+    shouldFocusError: false,
     defaultValues: {
       clientId: preselectedClientId,
       issueDate: new Date().toISOString().split('T')[0],
@@ -648,6 +657,43 @@ export function NewInvoicePage() {
     },
   })
 
+  function scrollAndFocus(el: HTMLElement | null) {
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.focus()
+  }
+
+  function focusField(name: Parameters<typeof setFocus>[0]) {
+    setFocus(name)
+    setTimeout(() => scrollAndFocus(document.activeElement as HTMLElement), 0)
+  }
+
+  const onFormError = (errs: FieldErrors<InvoiceFormData>) => {
+    if (errs.clientId) {
+      scrollAndFocus(clientTriggerRef.current)
+      return
+    }
+    if (errs.issueDate) { focusField('issueDate'); return }
+    if (errs.dueDate) { focusField('dueDate'); return }
+    if (errs.items) {
+      const itemsErr = errs.items as any
+      // Array-level error (e.g. min(1))
+      if (itemsErr.message) {
+        itemsCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        return
+      }
+      // Field-level errors — find first row, first field
+      for (let i = 0; i < fields.length; i++) {
+        const row = itemsErr[i]
+        if (!row) continue
+        if (row.description) { focusField(`items.${i}.description`); return }
+        if (row.quantity) { focusField(`items.${i}.quantity`); return }
+        if (row.unitPrice) { focusField(`items.${i}.unitPrice`); return }
+      }
+      itemsCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }
+
   const onSubmit = (data: InvoiceFormData) => {
     createMutation.mutate(data)
   }
@@ -661,7 +707,7 @@ export function NewInvoicePage() {
       />
 
       <div className="flex-1 overflow-auto p-4 sm:p-6">
-        <form onSubmit={handleSubmit(onSubmit)} className="mx-auto max-w-4xl space-y-6">
+        <form onSubmit={handleSubmit(onSubmit, onFormError)} className="mx-auto max-w-4xl space-y-6">
           {/* Client & Dates */}
           <Card>
             <CardHeader>
@@ -676,6 +722,7 @@ export function NewInvoicePage() {
                     value={watch('clientId')}
                     onChange={(id) => setValue('clientId', id, { shouldValidate: true })}
                     error={errors.clientId?.message}
+                    triggerRef={clientTriggerRef}
                   />
                 </div>
                 <div className="space-y-2">
@@ -701,7 +748,7 @@ export function NewInvoicePage() {
           </Card>
 
           {/* Line Items */}
-          <Card>
+          <Card ref={itemsCardRef}>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Line Items</CardTitle>
               <Button
