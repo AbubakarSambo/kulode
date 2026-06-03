@@ -1,7 +1,7 @@
 export const PLAN_LIMITS = {
   FREE: {
     maxUsers: 1,
-    maxInvoicesPerMonth: 50,
+    maxInvoicesPerMonth: 5,
     restrictedPages: ['dashboard', 'vendors', 'expenses', 'reports', 'expense-categories', 'tax'],
   },
   PRO: {

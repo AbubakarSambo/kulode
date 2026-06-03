@@ -5,20 +5,20 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
+import { HugeiconsIcon } from '@hugeicons/react'
 import {
-  Send,
-  Ban,
-  Trash2,
-  Plus,
-  CreditCard,
-  FileText,
-  CheckCircle,
-  Link2,
-  Copy,
-  ExternalLink,
-  Download,
-  AlertTriangle,
-} from 'lucide-react'
+  SentIcon,
+  Cancel01Icon,
+  Delete02Icon,
+  PlusSignIcon,
+  CreditCardIcon,
+  Link02Icon,
+  CopyIcon,
+  Share02Icon,
+  Download02Icon,
+  AlertDiamondIcon,
+  Tick01Icon,
+} from '@hugeicons/core-free-icons'
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
@@ -28,23 +28,74 @@ function WhatsAppIcon({ className }: { className?: string }) {
   )
 }
 import { Header } from '@/components/layout'
-import { Button, Input, Label, Select, Textarea, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui'
+import { Button, Input, Label, Select, Textarea, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { invoicesApi, paymentsApi, organizationsApi } from '@/api'
 import apiClient from '@/api/client'
 import type { ApiResponse } from '@/types'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, cn } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
 import type { InvoiceStatus, PaymentMethod } from '@/types'
 import { useAuthStore } from '@/stores/auth'
 
-const statusColors: Record<InvoiceStatus, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
-  DRAFT: 'secondary',
-  SENT: 'default',
-  PAID: 'success',
-  PARTIALLY_PAID: 'warning',
-  OVERDUE: 'destructive',
-  CANCELLED: 'secondary',
+const renderStatusPill = (status: InvoiceStatus) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const configs: Record<InvoiceStatus, { bg: string; text: string; border: string; label: string; icon?: any }> = {
+    PAID: {
+      bg: 'bg-emerald-500/10',
+      text: 'text-emerald-700',
+      border: 'border-emerald-500/20',
+      label: 'Paid',
+      icon: Tick01Icon,
+    },
+    OVERDUE: {
+      bg: 'bg-rose-500/10',
+      text: 'text-rose-700',
+      border: 'border-rose-500/20',
+      label: 'Overdue',
+      icon: Cancel01Icon,
+    },
+    PARTIALLY_PAID: {
+      bg: 'bg-amber-500/10',
+      text: 'text-amber-700',
+      border: 'border-amber-500/20',
+      label: 'Part Paid',
+      icon: PlusSignIcon,
+    },
+    SENT: {
+      bg: 'bg-blue-500/10',
+      text: 'text-blue-700',
+      border: 'border-blue-500/20',
+      label: 'Sent',
+      icon: SentIcon,
+    },
+    DRAFT: {
+      bg: 'bg-slate-500/10',
+      text: 'text-slate-700',
+      border: 'border-slate-500/20',
+      label: 'Draft',
+    },
+    CANCELLED: {
+      bg: 'bg-slate-500/10',
+      text: 'text-slate-700',
+      border: 'border-slate-500/20',
+      label: 'Cancelled',
+      icon: Cancel01Icon,
+    },
+  }
+
+  const config = configs[status]
+  return (
+    <span className={cn(
+      "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border select-none shadow-sm",
+      config.bg,
+      config.text,
+      config.border
+    )}>
+      {config.icon && <HugeiconsIcon icon={config.icon} size={10} strokeWidth={2.5} />}
+      {config.label}
+    </span>
+  )
 }
 
 const paymentSchema = z.object({
@@ -77,7 +128,6 @@ export function InvoiceDetailPage() {
     queryKey: ['organization'],
     queryFn: () => organizationsApi.getCurrent(),
   })
-
 
   const sendMutation = useMutation({
     mutationFn: () => invoicesApi.send(id!),
@@ -120,9 +170,9 @@ export function InvoiceDetailPage() {
       posthog.capture('payment_link_generated', { invoice_id: id })
       toast.success('Payment link generated')
       setIsPaymentLinkModalOpen(false)
-      // Open in new tab
       window.open(data.paymentUrl, '_blank')
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onError: (error: any) => {
       toast.error('Failed to generate payment link', {
         description: error.response?.data?.message || 'Paystack may not be set up',
@@ -162,6 +212,7 @@ export function InvoiceDetailPage() {
       setIsPaymentModalOpen(false)
       reset()
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onError: (error: any) => {
       toast.error('Failed to record payment', {
         description: error.response?.data?.message,
@@ -218,10 +269,10 @@ export function InvoiceDetailPage() {
   const canCancel = invoice.status !== 'PAID' && invoice.status !== 'CANCELLED'
   const canDelete = isSuperAdmin || invoice.status === 'DRAFT'
   const canGenerateLink = invoice.status !== 'CANCELLED' && invoice.status !== 'PAID'
-  const hasPaymentLink = !!(invoice as any).paymentUrl
+  const hasPaymentLink = !!invoice.paymentUrl
 
   const copyPaymentLink = () => {
-    const url = (invoice as any).paymentUrl
+    const url = invoice.paymentUrl
     if (url) {
       navigator.clipboard.writeText(url)
       posthog.capture('payment_link_copied', { invoice_id: id })
@@ -234,8 +285,6 @@ export function InvoiceDetailPage() {
       const response = await apiClient.get(`/invoices/${id}/pdf`, {
         responseType: 'blob',
       })
-
-      // Create blob URL and trigger download
       const blob = new Blob([response.data], { type: 'application/pdf' })
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -246,7 +295,7 @@ export function InvoiceDetailPage() {
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
       posthog.capture('invoice_pdf_downloaded', { invoice_id: id })
-    } catch (error) {
+    } catch {
       toast.error('Failed to download PDF')
     }
   }
@@ -261,7 +310,6 @@ export function InvoiceDetailPage() {
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: `Invoice ${invoice.invoiceNumber}` })
       } else {
-        // Fallback: download the PDF on desktop
         const url = window.URL.createObjectURL(blob)
         const link = document.createElement('a')
         link.href = url
@@ -302,63 +350,70 @@ export function InvoiceDetailPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    <div className="flex flex-1 flex-col overflow-hidden bg-[#f8f9ff]">
       <Header
         title={invoice.invoiceNumber}
         description={`Invoice for ${invoice.client.name}`}
+        category={
+          <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
+            <Link to="/invoices" className="hover:text-[#0037b0] transition-colors">Invoices</Link>
+            <span className="text-slate-300">/</span>
+            <span className="text-[#0037b0]">Detail</span>
+          </div>
+        }
         action={
           <div className="flex flex-wrap gap-2">
             {invoice.status !== 'DRAFT' && (
-              <Button variant="outline" onClick={shareInvoice} isLoading={isSharing}>
+              <Button variant="outline" onClick={shareInvoice} isLoading={isSharing} className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">
                 {!isSharing && <WhatsAppIcon className="mr-2 h-4 w-4" />}
                 Share
               </Button>
             )}
-            <Button variant="outline" onClick={downloadPdf}>
-              <Download className="mr-2 h-4 w-4" />
+            <Button variant="outline" onClick={downloadPdf} className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">
+              <HugeiconsIcon icon={Download02Icon} size={16} className="mr-2" strokeWidth={1.5} />
               PDF
             </Button>
             {canGenerateLink && !hasPaymentLink && (
-              <Button onClick={() => setIsPaymentLinkModalOpen(true)}>
-                <Link2 className="mr-2 h-4 w-4" />
+              <Button onClick={() => setIsPaymentLinkModalOpen(true)} className="h-10 px-4 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white shadow-[0px_4px_12px_rgba(0,55,176,0.15)] hover:opacity-95">
+                <HugeiconsIcon icon={Link02Icon} size={16} className="mr-2" strokeWidth={1.5} />
                 Generate Payment Link
               </Button>
             )}
             {hasPaymentLink && (
               <>
-                <Button variant="outline" onClick={copyPaymentLink}>
-                  <Copy className="mr-2 h-4 w-4" />
+                <Button variant="outline" onClick={copyPaymentLink} className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">
+                  <HugeiconsIcon icon={CopyIcon} size={16} className="mr-2" strokeWidth={1.5} />
                   Copy Link
                 </Button>
-                <a href={(invoice as any).paymentUrl} target="_blank" rel="noopener noreferrer">
-                  <Button variant="outline">
-                    <ExternalLink className="mr-2 h-4 w-4" />
+                <a href={invoice.paymentUrl} target="_blank" rel="noopener noreferrer">
+                  <Button variant="outline" className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <HugeiconsIcon icon={Share02Icon} size={16} className="mr-2" strokeWidth={1.5} />
                     Open Link
                   </Button>
                 </a>
               </>
             )}
             {canRecordPayment && (
-              <Button onClick={openPaymentModal}>
-                <Plus className="mr-2 h-4 w-4" />
+              <Button onClick={openPaymentModal} className="h-10 px-4 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white shadow-[0px_4px_12px_rgba(0,55,176,0.15)] hover:opacity-95">
+                <HugeiconsIcon icon={PlusSignIcon} size={16} className="mr-2" strokeWidth={1.5} />
                 Record Payment
               </Button>
             )}
             {canSend && (
-              <Button variant="outline" onClick={() => sendMutation.mutate()}>
-                <Send className="mr-2 h-4 w-4" />
+              <Button variant="outline" onClick={() => sendMutation.mutate()} className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">
+                <HugeiconsIcon icon={SentIcon} size={16} className="mr-2" strokeWidth={1.5} />
                 Mark as Sent
               </Button>
             )}
             {canCancel && (
-              <Button variant="outline" onClick={() => cancelMutation.mutate()}>
-                <Ban className="mr-2 h-4 w-4" />
+              <Button variant="outline" onClick={() => cancelMutation.mutate()} className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-rose-600 hover:text-rose-700 transition-colors">
+                <HugeiconsIcon icon={Cancel01Icon} size={16} className="mr-2" strokeWidth={1.5} />
                 Cancel
               </Button>
             )}
             {canDelete && (
-              <Button variant="outline" onClick={handleDelete}>
-                <Trash2 className="mr-2 h-4 w-4" />
+              <Button variant="outline" onClick={handleDelete} className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-rose-600 hover:text-rose-700 transition-colors">
+                <HugeiconsIcon icon={Delete02Icon} size={16} className="mr-2" strokeWidth={1.5} />
                 Delete
               </Button>
             )}
@@ -366,178 +421,336 @@ export function InvoiceDetailPage() {
         }
       />
 
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
-        <div className="mx-auto max-w-4xl space-y-6">
-          {/* Status Bar */}
-          <Card>
-            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-4">
-                <Badge variant={statusColors[invoice.status]} className="text-sm">
-                  {invoice.status.replace('_', ' ')}
-                </Badge>
-                {invoice.status === 'PAID' && (
-                  <span className="flex items-center gap-1 text-sm text-success">
-                    <CheckCircle className="h-4 w-4" />
-                    Fully paid
+      <div className="flex-1 overflow-auto p-4 sm:p-8">
+        <div className="mx-auto max-w-7xl">
+          {/* Mobile Quick Action Strip (only visible on mobile screens) */}
+          <div className="flex flex-wrap gap-2 sm:hidden bg-white p-4 rounded-[20px] shadow-[0px_8px_24px_rgba(0,55,176,0.02)] border border-[#eef4ff]/50 mb-6">
+            {invoice.status !== 'DRAFT' && (
+              <Button variant="outline" size="sm" onClick={shareInvoice} isLoading={isSharing} className="h-9 px-3 text-xs rounded-lg flex-1 min-w-[80px]">
+                {!isSharing && <WhatsAppIcon className="mr-1.5 h-3.5 w-3.5" />}
+                Share
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={downloadPdf} className="h-9 px-3 text-xs rounded-lg flex-1 min-w-[80px]">
+              <HugeiconsIcon icon={Download02Icon} size={14} className="mr-1.5" strokeWidth={1.5} />
+              PDF
+            </Button>
+            {canRecordPayment && (
+              <Button size="sm" onClick={openPaymentModal} className="h-9 px-3 text-xs rounded-lg bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white flex-1 min-w-[120px]">
+                <HugeiconsIcon icon={PlusSignIcon} size={14} className="mr-1.5" strokeWidth={1.5} />
+                Record Payment
+              </Button>
+            )}
+            {canGenerateLink && !hasPaymentLink && (
+              <Button size="sm" onClick={() => setIsPaymentLinkModalOpen(true)} className="h-9 px-3 text-xs rounded-lg bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white flex-1 min-w-[120px]">
+                <HugeiconsIcon icon={Link02Icon} size={14} className="mr-1.5" strokeWidth={1.5} />
+                Pay Link
+              </Button>
+            )}
+            {hasPaymentLink && (
+              <>
+                <Button variant="outline" size="sm" onClick={copyPaymentLink} className="h-9 px-3 text-xs rounded-lg flex-1 min-w-[90px]">
+                  <HugeiconsIcon icon={CopyIcon} size={14} className="mr-1.5" strokeWidth={1.5} />
+                  Copy Link
+                </Button>
+              </>
+            )}
+            {canSend && (
+              <Button variant="outline" size="sm" onClick={() => sendMutation.mutate()} className="h-9 px-3 text-xs rounded-lg flex-1 min-w-[90px]">
+                <HugeiconsIcon icon={SentIcon} size={14} className="mr-1.5" strokeWidth={1.5} />
+                Send
+              </Button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            {/* LEFT COLUMN: THE PHYSICAL INVOICE SHEET (lg:col-span-8) - Sits 2nd on mobile */}
+            <div className="lg:col-span-8 order-2 lg:order-1 bg-white rounded-3xl p-6 sm:p-10 shadow-[0px_16px_48px_rgba(0,55,176,0.03)] border border-[#eef4ff]/50 relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#0037b0] to-[#1d4ed8]" />
+              
+              {/* Document Header */}
+              <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-10 pb-8 border-b border-[#eef4ff]/40">
+                <div>
+                  <h2 className="text-base font-extrabold tracking-tight text-slate-800 uppercase">
+                    {organization?.name || 'Acme Corporation'}
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-1">Corporate Invoice Dossier</p>
+                </div>
+                <div className="sm:text-right">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-[#0037b0] bg-[#0037b0]/6 px-2.5 py-1 rounded-md">
+                    INVOICE
                   </span>
-                )}
+                  <h1 className="text-xl font-black tracking-tight text-slate-900 mt-2.5">{invoice.invoiceNumber}</h1>
+                </div>
               </div>
-              <div className="sm:text-right">
-                <p className="text-sm text-muted-foreground">Outstanding</p>
-                <p className="text-xl font-bold">{formatCurrency(outstanding)}</p>
-              </div>
-            </CardContent>
-          </Card>
 
-          <div className="grid gap-6 lg:grid-cols-3">
-            {/* Invoice Info */}
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Invoice Details
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Client & Dates */}
-                <div className="grid gap-4 sm:grid-cols-3">
+              {/* Bilateral Details Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-10">
+                <div className="bg-[#f8f9ff]/50 p-5 rounded-2xl border border-[#eef4ff]/30">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-2">Billed To</span>
+                  <Link to={`/clients/${invoice.client.id}`} className="text-sm font-bold text-[#0037b0] hover:underline block truncate max-w-[280px]">
+                    {invoice.client.name}
+                  </Link>
+                  {invoice.client.email && (
+                    <span className="text-xs text-slate-500 block mt-1.5 truncate max-w-[280px]">{invoice.client.email}</span>
+                  )}
+                  {invoice.client.phone && (
+                    <span className="text-xs text-slate-500 block mt-0.5">{invoice.client.phone}</span>
+                  )}
+                </div>
+                <div className="bg-[#f8f9ff]/50 p-5 rounded-2xl border border-[#eef4ff]/30 sm:text-right flex flex-col justify-between gap-3">
                   <div>
-                    <p className="text-sm text-muted-foreground">Client</p>
-                    <Link to={`/clients/${invoice.client.id}`} className="font-medium text-primary hover:underline">
-                      {invoice.client.name}
-                    </Link>
+                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">Issue Date</span>
+                    <span className="text-xs font-bold text-slate-700">{formatDate(invoice.issueDate)}</span>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Issue Date</p>
-                    <p className="font-medium">{formatDate(invoice.issueDate)}</p>
+                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">Due Date</span>
+                    <span className="text-xs font-bold text-rose-600">{formatDate(invoice.dueDate)}</span>
                   </div>
+                </div>
+              </div>
+
+              {/* Line Items Table */}
+              <div className="pt-2 overflow-x-auto">
+                <table className="w-full min-w-[400px]">
+                  <thead>
+                    <tr className="text-xs font-bold uppercase tracking-widest text-slate-400 border-b border-[#eef4ff]/40">
+                      <th className="pb-3 text-left font-bold">Description</th>
+                      <th className="pb-3 text-right font-bold w-16">Qty</th>
+                      <th className="pb-3 text-right font-bold w-32">Price</th>
+                      <th className="pb-3 text-right font-bold w-32">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y-0">
+                    {invoice.items.map((item, index) => (
+                      <tr 
+                      key={index} 
+                      className={cn(
+                        "transition-colors hover:bg-[#eef4ff]/20 border-b border-[#eef4ff]/25 last:border-b-0",
+                        index % 2 === 0 ? "bg-transparent" : "bg-[#f8f9ff]/30"
+                      )}
+                    >
+                      <td className="py-4 text-sm font-medium text-slate-800">{item.description}</td>
+                      <td className="py-4 text-right text-sm font-medium text-slate-650 tabular-nums">{item.quantity}</td>
+                      <td className="py-4 text-right text-sm font-medium text-slate-650 tabular-nums">{formatCurrency(item.unitPrice)}</td>
+                      <td className="py-4 text-right text-sm font-bold text-slate-900 tabular-nums">{formatCurrency(item.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="border-t border-[#eef4ff]/50">
+                  <tr>
+                    <td colSpan={3} className="py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-400">Subtotal</td>
+                    <td className="py-3 text-right text-sm font-bold text-slate-900 tabular-nums">{formatCurrency(invoice.subtotal)}</td>
+                  </tr>
+                  {Number(invoice.discountAmount) > 0 && (
+                    <tr className="text-emerald-600">
+                      <td colSpan={3} className="py-1.5 text-right text-xs font-bold uppercase tracking-wider">Discount ({invoice.discountPercent}%)</td>
+                      <td className="py-1.5 text-right text-sm font-bold tabular-nums">-{formatCurrency(invoice.discountAmount ?? 0)}</td>
+                    </tr>
+                  )}
+                  {Number(invoice.taxAmount) > 0 && (
+                    <tr className="text-slate-500">
+                      <td colSpan={3} className="py-1.5 text-right text-xs font-bold uppercase tracking-wider text-slate-400">VAT ({invoice.taxRate ?? 7.5}%)</td>
+                      <td className="py-1.5 text-right text-sm font-semibold text-slate-700 tabular-nums">{formatCurrency(invoice.taxAmount)}</td>
+                    </tr>
+                  )}
+                  <tr className="border-t border-[#eef4ff]/60 bg-[#0037b0]/02">
+                    <td colSpan={3} className="py-4 text-right text-xs font-black uppercase tracking-wider text-slate-700">Total</td>
+                    <td className="py-4 text-right text-lg font-black text-slate-900 tabular-nums">{formatCurrency(invoice.total)}</td>
+                  </tr>
+                  {Number(invoice.amountPaid) > 0 && (
+                    <>
+                      <tr className="text-emerald-600">
+                        <td colSpan={3} className="py-2 text-right text-xs font-bold uppercase tracking-wider">Paid</td>
+                        <td className="py-2 text-right text-sm font-bold tabular-nums">-{formatCurrency(invoice.amountPaid)}</td>
+                      </tr>
+                      <tr className="font-extrabold border-t border-dashed border-slate-200">
+                        <td colSpan={3} className="py-3 text-right text-xs font-black uppercase tracking-wider text-slate-700">Balance Due</td>
+                        <td className="py-3 text-right text-base font-black text-slate-900 tabular-nums">{formatCurrency(outstanding)}</td>
+                      </tr>
+                    </>
+                  )}
+                </tfoot>
+              </table>
+            </div>
+
+            {/* Notes */}
+            {invoice.notes && (
+              <div className="border-t border-[#eef4ff]/30 pt-4 mt-8">
+                <p className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400">Notes</p>
+                <p className="mt-2 text-sm text-slate-605 leading-relaxed bg-[#f8f9ff]/50 p-4 rounded-xl border border-[#eef4ff]/30">{invoice.notes}</p>
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT COLUMN: WORKSPACE SIDEBAR PANEL (lg:col-span-4) - Sits 1st on mobile */}
+          <div className="lg:col-span-4 order-1 lg:order-2 space-y-6">
+            {/* Workflow Stepper */}
+            <div className="bg-white rounded-3xl p-6 shadow-[0px_12px_32px_rgba(0,55,176,0.03)] border border-[#eef4ff]/50">
+              <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#0037b0]" />
+                Lifecycle Progress
+              </h3>
+              <div className="relative pl-6 border-l border-slate-100 space-y-6 ml-3">
+                {/* Step 1: Draft */}
+                <div className="relative">
+                  <span className="absolute -left-[32px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white text-[9px] font-bold shadow-sm">✓</span>
                   <div>
-                    <p className="text-sm text-muted-foreground">Due Date</p>
-                    <p className="font-medium">{formatDate(invoice.dueDate)}</p>
+                    <p className="text-xs font-extrabold text-slate-800">Draft Created</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Initialized on {formatDate(invoice.createdAt)}</p>
                   </div>
                 </div>
 
-                {/* Line Items */}
-                <div className="border-t pt-4 overflow-x-auto">
-                  <table className="w-full min-w-[400px]">
-                    <thead>
-                      <tr className="text-sm text-muted-foreground">
-                        <th className="pb-2 text-left font-medium">Description</th>
-                        <th className="pb-2 text-right font-medium">Qty</th>
-                        <th className="pb-2 text-right font-medium">Price</th>
-                        <th className="pb-2 text-right font-medium">Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {invoice.items.map((item, index) => (
-                        <tr key={index} className="border-t">
-                          <td className="py-3">{item.description}</td>
-                          <td className="py-3 text-right">{item.quantity}</td>
-                          <td className="py-3 text-right">{formatCurrency(item.unitPrice)}</td>
-                          <td className="py-3 text-right font-medium">{formatCurrency(item.amount)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t">
-                        <td colSpan={3} className="py-3 text-right font-medium">Subtotal</td>
-                        <td className="py-3 text-right font-medium">{formatCurrency(invoice.subtotal)}</td>
-                      </tr>
-                      {Number((invoice as any).discountAmount) > 0 && (
-                        <tr className="text-success">
-                          <td colSpan={3} className="py-1 text-right">Discount ({(invoice as any).discountPercent}%)</td>
-                          <td className="py-1 text-right">-{formatCurrency((invoice as any).discountAmount)}</td>
-                        </tr>
-                      )}
-                      {Number(invoice.taxAmount) > 0 && (
-                        <tr>
-                          <td colSpan={3} className="py-1 text-right text-muted-foreground">VAT ({(invoice as any).taxRate ?? 7.5}%)</td>
-                          <td className="py-1 text-right">{formatCurrency(invoice.taxAmount)}</td>
-                        </tr>
-                      )}
-                      <tr className="text-lg">
-                        <td colSpan={3} className="py-3 text-right font-semibold">Total</td>
-                        <td className="py-3 text-right font-semibold">{formatCurrency(invoice.total)}</td>
-                      </tr>
-                      {Number(invoice.amountPaid) > 0 && (
-                        <>
-                          <tr className="text-success">
-                            <td colSpan={3} className="py-1 text-right">Paid</td>
-                            <td className="py-1 text-right">-{formatCurrency(invoice.amountPaid)}</td>
-                          </tr>
-                          <tr className="font-semibold">
-                            <td colSpan={3} className="py-1 text-right">Balance Due</td>
-                            <td className="py-1 text-right">{formatCurrency(outstanding)}</td>
-                          </tr>
-                        </>
-                      )}
-                    </tfoot>
-                  </table>
+                {/* Step 2: Sent */}
+                <div className="relative">
+                  {invoice.status !== 'DRAFT' ? (
+                    <span className="absolute -left-[32px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white text-[9px] font-bold shadow-sm">✓</span>
+                  ) : (
+                    <span className="absolute -left-[32px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-200 text-slate-400 text-[9px] font-bold shadow-sm">•</span>
+                  )}
+                  <div>
+                    <p className={cn("text-xs font-extrabold", invoice.status !== 'DRAFT' ? "text-slate-800" : "text-slate-450")}>Sent to Client</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      {invoice.status !== 'DRAFT' ? "Dispatched successfully" : "Awaiting dispatch"}
+                    </p>
+                  </div>
                 </div>
 
-                {/* Notes */}
-                {invoice.notes && (
-                  <div className="border-t pt-4">
-                    <p className="text-sm text-muted-foreground">Notes</p>
-                    <p className="mt-1">{invoice.notes}</p>
+                {/* Step 3: Settled/Overdue */}
+                <div className="relative">
+                  {invoice.status === 'PAID' ? (
+                    <span className="absolute -left-[32px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white text-[9px] font-bold shadow-sm">✓</span>
+                  ) : invoice.status === 'OVERDUE' ? (
+                    <span className="absolute -left-[32px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-white text-[9px] font-bold shadow-sm">!</span>
+                  ) : (
+                    <span className="absolute -left-[32px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-200 text-slate-400 text-[9px] font-bold shadow-sm">•</span>
+                  )}
+                  <div>
+                    <p className={cn(
+                      "text-xs font-extrabold",
+                      invoice.status === 'PAID' && "text-emerald-700",
+                      invoice.status === 'OVERDUE' && "text-rose-600",
+                      (invoice.status !== 'PAID' && invoice.status !== 'OVERDUE') && "text-slate-450"
+                    )}>
+                      {invoice.status === 'PAID' ? "Fully Settled" : invoice.status === 'OVERDUE' ? "Payment Overdue" : "Settlement"}
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      {invoice.status === 'PAID' ? "Cleared via transaction" : invoice.status === 'OVERDUE' ? `Due since ${formatDate(invoice.dueDate)}` : "Awaiting settlement"}
+                    </p>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                </div>
+              </div>
+            </div>
 
-            {/* Payments */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5" />
+            {/* Ledger Summary Stats */}
+            <div className="bg-white rounded-3xl p-6 shadow-[0px_12px_32px_rgba(0,55,176,0.03)] border border-[#eef4ff]/50 space-y-4">
+              <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#0037b0]" />
+                Ledger Overview
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-[#f8f9ff]/50 p-4 rounded-2xl border border-[#eef4ff]/30">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Billed</span>
+                  <p className="text-sm font-black text-slate-900 mt-1 tabular-nums">{formatCurrency(invoice.total)}</p>
+                </div>
+                <div className="bg-[#f8f9ff]/50 p-4 rounded-2xl border border-[#eef4ff]/30">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Paid To Date</span>
+                  <p className="text-sm font-black text-emerald-600 mt-1 tabular-nums">{formatCurrency(invoice.amountPaid)}</p>
+                </div>
+              </div>
+              
+              {/* Progress bar for partial payments */}
+              {Number(invoice.amountPaid) > 0 && (
+                <div className="space-y-2 pt-3 border-t border-slate-200/40">
+                  <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
+                    <span>Payment Progress</span>
+                    <span className="text-[#0037b0]">{Math.round((Number(invoice.amountPaid) / Number(invoice.total)) * 100)}% paid</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] rounded-full transition-all duration-500" 
+                      style={{ width: `${Math.min(100, (Number(invoice.amountPaid) / Number(invoice.total)) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className={cn(
+                "p-4 rounded-2xl border flex justify-between items-center",
+                outstanding > 0 ? "bg-rose-50/30 border-rose-500/10 text-rose-950" : "bg-emerald-50/30 border-emerald-500/10 text-emerald-950"
+              )}>
+                <div>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Balance Due</span>
+                  <p className="text-base font-black tracking-tight mt-0.5 tabular-nums">{formatCurrency(outstanding)}</p>
+                </div>
+                {renderStatusPill(invoice.status)}
+              </div>
+            </div>
+
+            {/* Payments Ledger Card */}
+            <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.03)] bg-white rounded-[24px]">
+              <CardHeader className="p-6 border-b border-[#eef4ff]/30">
+                <CardTitle className="flex items-center gap-2 text-base font-extrabold text-slate-900">
+                  <HugeiconsIcon icon={CreditCardIcon} size={18} strokeWidth={1.5} className="text-[#0037b0]" />
                   Payments
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-6">
                 {invoice.payments && invoice.payments.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="relative border-l border-slate-200/60 pl-5 ml-2.5 space-y-5 py-1">
                     {invoice.payments.map((payment) => (
-                      <div key={payment.id} className="rounded-lg border p-3">
-                        <div className="flex items-start justify-between">
+                      <div 
+                        key={payment.id} 
+                        className="relative rounded-2xl border border-[#eef4ff]/40 bg-[#f8f9ff]/50 p-4 shadow-[0px_4px_12px_rgba(0,55,176,0.01)] hover:bg-[#eef4ff]/20 transition-all duration-200"
+                      >
+                        {/* Dot indicator on timeline */}
+                        <span className="absolute -left-[25.5px] top-6 flex h-2 w-2 items-center justify-center rounded-full bg-emerald-500 ring-4 ring-white shadow-sm" />
+                        
+                        <div className="flex items-start justify-between gap-2">
                           <div>
-                            <p className="font-medium text-success">
+                            <p className="font-extrabold text-emerald-600 text-base tabular-nums">
                               +{formatCurrency(payment.amount)}
                             </p>
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-1">
                               {payment.paymentMethod.replace('_', ' ')}
                             </p>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm text-muted-foreground">
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[10px] font-bold text-slate-400 tabular-nums">
                               {formatDate(payment.paymentDate)}
-                            </p>
+                            </span>
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 w-7 p-0"
+                              className="h-8 w-8 p-0 rounded-lg hover:bg-slate-200/55 flex items-center justify-center cursor-pointer"
                               onClick={() => downloadReceipt(payment.id)}
                               disabled={downloadingReceiptId === payment.id}
                             >
-                              <Download className="h-3.5 w-3.5" />
+                              <HugeiconsIcon icon={Download02Icon} size={14} className="text-slate-500" strokeWidth={1.5} />
                             </Button>
                           </div>
                         </div>
                         {payment.reference && (
-                          <p className="mt-2 text-xs text-muted-foreground">
-                            Ref: {payment.reference}
-                          </p>
+                          <div className="mt-2.5 pt-2 border-t border-slate-200/40">
+                            <p className="text-[10px] font-semibold text-slate-400">
+                              Ref: <span className="font-bold text-slate-600">{payment.reference}</span>
+                            </p>
+                          </div>
                         )}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-center text-muted-foreground">No payments yet</p>
+                  <div className="py-8 text-center bg-[#f8f9ff]/50 rounded-[20px] border border-dashed border-[#eef4ff]/60">
+                    <p className="text-sm font-semibold text-slate-400">No payments yet</p>
+                  </div>
                 )}
               </CardContent>
             </Card>
           </div>
         </div>
       </div>
+    </div>
 
       {/* Generate Payment Link Modal */}
       <Modal
@@ -548,8 +761,8 @@ export function InvoiceDetailPage() {
       >
         {!organization?.isPaystackVerified ? (
           <div className="space-y-4">
-            <div className="flex gap-3 rounded-lg border border-warning/40 bg-warning/10 p-4">
-              <AlertTriangle className="h-5 w-5 shrink-0 text-warning mt-0.5" />
+            <div className="flex gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+              <HugeiconsIcon icon={AlertDiamondIcon} size={20} className="shrink-0 text-amber-600 mt-0.5" strokeWidth={1.5} />
               <div className="space-y-1">
                 <p className="text-sm font-medium">Paystack not set up</p>
                 <p className="text-sm text-muted-foreground">
@@ -631,7 +844,7 @@ export function InvoiceDetailPage() {
         )}
       </Modal>
 
-      {/* Payment Modal */}
+      {/* Record Payment Modal */}
       <Modal
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}

@@ -26,7 +26,7 @@ function ClientCombobox({
   value: string
   onChange: (clientId: string) => void
   error?: string
-  triggerRef?: React.RefObject<HTMLButtonElement>
+  triggerRef?: React.RefObject<HTMLButtonElement | null>
 }) {
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)

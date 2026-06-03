@@ -1,131 +1,440 @@
 ---
 import Layout from '../layouts/Layout.astro'
 
-const appUrl = 'https://app.kulode.app'
-const features = [
-  {
-    title: 'Invoicing',
-    description: 'Create and send professional invoices in seconds. Track payment status and send reminders automatically.',
-    icon: 'receipt',
-    href: '/invoicing',
-  },
-  {
-    title: 'Tax Filing Pack',
-    description: 'Generate your FIRS-ready annual tax summary in one click. Export a PDF for your accountant or a CSV of all deductible expenses — no spreadsheet wrangling required.',
-    icon: 'tax',
-    badge: 'New',
-    href: '/tax-filing',
-  },
-  {
-    title: 'Online Payments',
-    description: 'Accept payments via Paystack. Your clients can pay directly from the invoice link you share.',
-    icon: 'credit-card',
-  },
-  {
-    title: 'Expense Tracking',
-    description: 'Record and categorise expenses. Stay on top of where your money goes with clear breakdowns.',
-    icon: 'wallet',
-  },
-  {
-    title: 'Financial Reports',
-    description: 'Revenue, expenses, outstanding invoices — see your business health at a glance with visual reports.',
-    icon: 'chart',
-  },
-  {
-    title: 'Client Management',
-    description: 'Keep a clean record of all your clients, their invoices, and payment history in one place.',
-    icon: 'users',
-  },
-] as const
+const appUrl = 'http://localhost:5173'
 ---
 
-<Layout title="Kulode — Invoicing & Financial Management for African Businesses">
+<Layout title="Kulode — Invoicing that gets you paid faster">
   <!-- Nav -->
-  <nav class="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100">
-    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-      <a href="/" class="text-xl font-bold tracking-tight text-gray-900">kulode</a>
+  <nav class="w-full sticky top-0 z-50 bg-background/80 backdrop-blur-xl shadow-[0_12px_32px_rgba(0,55,176,0.08)]">
+    <div class="flex justify-between items-center px-container-padding max-w-7xl mx-auto h-[72px]">
+      <div class="flex items-center gap-12">
+        <a href="/" class="text-[24px] font-extrabold tracking-tighter text-primary">Kulode</a>
+        <div class="hidden md:flex items-center gap-8">
+          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/#features">Features</a>
+          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/how-it-works">How It Works</a>
+          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/pricing">Pricing</a>
+          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/invoicing">Solutions</a>
+          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/tax-filing">Tax Filing</a>
+        </div>
+      </div>
       <div class="flex items-center gap-4">
-        <a href={`${appUrl}/login`} class="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Log in</a>
-        <a href={`${appUrl}/register`} class="text-sm font-medium bg-blue-700 text-white px-4 py-2 rounded-lg hover:bg-blue-800 transition-colors">Get started free</a>
+        <a href={`${appUrl}/login`} class="text-sm font-medium text-text-secondary px-6 py-2 transition-all hover:text-primary active:scale-95">Login</a>
+        <a href={`${appUrl}/register`} class="bg-primary text-on-primary px-6 py-3 rounded-[12px] text-sm font-bold shadow-lg shadow-primary/20 hover:shadow-xl transition-all active:scale-95 btn-gradient">Get Started</a>
       </div>
     </div>
   </nav>
 
-  <!-- Hero -->
-  <section class="pt-32 pb-20 px-6">
-    <div class="max-w-3xl mx-auto text-center">
-      <h1 class="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-gray-900 leading-tight">
-        Invoicing that gets<br />you paid faster
-      </h1>
-      <p class="mt-6 text-lg sm:text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed">
-        Create invoices, accept online payments, track expenses, and file your taxes — all in one place. Built for small businesses.
-      </p>
-      <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-        <a href={`${appUrl}/register`} class="w-full sm:w-auto text-center bg-blue-700 text-white px-8 py-3.5 rounded-lg text-base font-medium hover:bg-blue-800 transition-colors">
-          Start for free
-        </a>
-        <a href="#features" class="w-full sm:w-auto text-center text-gray-600 px-8 py-3.5 rounded-lg text-base font-medium border border-gray-200 hover:border-gray-300 hover:text-gray-900 transition-colors">
-          See features
-        </a>
-      </div>
-    </div>
-  </section>
-
-  <!-- Features -->
-  <section id="features" class="py-20 px-6 bg-gray-50">
-    <div class="max-w-6xl mx-auto">
-      <div class="text-center mb-16">
-        <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900">Everything you need to manage your money</h2>
-        <p class="mt-4 text-lg text-gray-500 max-w-2xl mx-auto">Stop juggling spreadsheets. Kulode brings invoicing, payments, expenses, and reports into one simple tool.</p>
-      </div>
-      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
-        {features.map((feature) => (
-          <a href={'href' in feature ? feature.href : undefined} class={'href' in feature ? 'block group' : undefined}>
-          <div class="bg-white rounded-xl p-8 border border-gray-100 hover:border-gray-200 transition-colors h-full">
-            <div class="w-10 h-10 rounded-lg bg-blue-700 flex items-center justify-center mb-5">
-              {feature.icon === 'receipt' && <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>}
-              {feature.icon === 'credit-card' && <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" /></svg>}
-              {feature.icon === 'wallet' && <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a2.25 2.25 0 0 0-2.25-2.25H15a3 3 0 1 1-6 0H5.25A2.25 2.25 0 0 0 3 12m18 0v6a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 9m18 0V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v3" /></svg>}
-              {feature.icon === 'chart' && <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg>}
-              {feature.icon === 'users' && <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" /></svg>}
-              {feature.icon === 'shield' && <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" /></svg>}
-              {feature.icon === 'tax' && <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 14.25l6-6m4.5-3.493V21.75l-3.75-1.5-3.75 1.5-3.75-1.5-3.75 1.5V4.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0c1.1.128 1.907 1.077 1.907 2.185ZM9.75 9h.008v.008H9.75V9Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm4.125 4.5h.008v.008h-.008V13.5Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" /></svg>}
-            </div>
-            <div class="flex items-center gap-2 mb-2">
-              <h3 class="text-lg font-semibold text-gray-900">{feature.title}</h3>
-              {feature.badge && <span class="text-xs font-bold uppercase tracking-wide bg-blue-700 text-white px-1.5 py-0.5 rounded">{feature.badge}</span>}
-            </div>
-            <p class="text-gray-500 leading-relaxed">{feature.description}</p>
-            {'href' in feature && (
-              <p class="mt-4 text-sm font-medium text-blue-700 group-hover:underline">Learn more →</p>
-            )}
-          </div>
+  <main class="hero-gradient">
+    <!-- Hero Section -->
+    <section class="max-w-7xl mx-auto px-container-padding py-20 md:py-32 grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
+      <div class="stagger-in">
+        <h1 class="text-[56px] md:text-[72px] leading-[1.1] font-extrabold text-primary tracking-tight mb-6">Invoicing that gets you <span class="text-surface-tint">paid faster</span> — and keeps you compliant.</h1>
+        <p class="text-base text-text-secondary mb-10 max-w-lg">Automate your billing, track payments in real-time, and auto-generate tax schedules. Built specifically for the modern Nigerian business, DNFBP car dealer, and social merchant.</p>
+        <div class="flex flex-col sm:flex-row gap-4 items-center">
+          <a href={`${appUrl}/register`} class="w-full sm:w-auto text-center bg-primary text-on-primary px-10 py-5 rounded-[12px] text-lg font-bold shadow-2xl shadow-primary/25 active:scale-95 btn-gradient pulse-primary">
+            Start for free
           </a>
-        ))}
+          <div class="flex items-center gap-3 px-6 py-4">
+            <div class="flex -space-x-3">
+              <div class="w-8 h-8 rounded-full border-2 border-background bg-surface-container"></div>
+              <div class="w-8 h-8 rounded-full border-2 border-background bg-primary-fixed"></div>
+              <div class="w-8 h-8 rounded-full border-2 border-background bg-secondary-fixed"></div>
+            </div>
+            <span class="text-xs text-text-secondary font-medium">Joined by 10k+ freelancers</span>
+          </div>
+        </div>
       </div>
-    </div>
-  </section>
+      <div class="relative stagger-in">
+        <div class="absolute -top-10 -left-10 w-40 h-40 bg-surface-container rounded-full blur-3xl opacity-50 -z-10"></div>
+        <div class="rounded-[48px] overflow-hidden shadow-[0_32px_64px_rgba(0,55,176,0.12)] bg-surface-container-lowest p-4 float-slow">
+          <img alt="Professional Freelancer" class="w-full h-auto rounded-[32px] object-cover aspect-[4/5]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBm892BYSKBxkURBNg_0kDRkED6A5pLwTa-aIiPn_oFbIrJnRI1fnfxjxT_FNVXNvkwLgoo75ruE_yADeplFUKeqvGU0YpPt0jEyHZzSjgxBq_ajOJV8rXGu7gVDSk7MJvihKH2iFwKAnAeeosWTN_lj1L3fKxNattiUB0FI1ahj3xcNyVM01MyApszo0wOl3UtiUU01P3WG8SKWb-b_c4r6CrqefByTLmGCc4Si_I66Wou3Fzl3FTlqLsiyOvYWRZ6Y8SZcX95_sg">
+        </div>
+        <!-- Glass Overlay Element -->
+        <div class="absolute bottom-12 -left-8 glass-card p-6 rounded-[24px] shadow-xl border border-white/20 max-w-[240px]">
+          <div class="flex items-center gap-4 mb-3">
+            <div class="w-10 h-10 rounded-full bg-success/20 flex items-center justify-center text-success">
+              <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+            </div>
+            <div>
+              <p class="text-xs font-bold text-text-primary">Payment Received</p>
+              <p class="text-[10px] text-text-secondary">Just now • invoice #442</p>
+            </div>
+          </div>
+          <p class="text-xl font-bold text-primary tabular-nums">₦240,000.00</p>
+        </div>
+      </div>
+    </section>
 
-  <!-- CTA -->
-  <section class="py-20 px-6">
-    <div class="max-w-3xl mx-auto text-center">
-      <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900">Ready to get started?</h2>
-      <p class="mt-4 text-lg text-gray-500">Create your account in under a minute. No debit card required.</p>
-      <a href={`${appUrl}/register`} class="mt-8 inline-block bg-blue-700 text-white px-8 py-3.5 rounded-lg text-base font-medium hover:bg-blue-800 transition-colors">
-        Get started free
-      </a>
-    </div>
-  </section>
+
+
+    <!-- Interactive Distribution & Payment Demo Section -->
+    <section class="max-w-7xl mx-auto px-container-padding py-24 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+      <div class="stagger-in">
+        <span class="inline-block px-3 py-1 rounded-full bg-success/15 text-success text-[10px] font-bold uppercase tracking-wider mb-4">Instant Distribution</span>
+        <h2 class="text-3xl md:text-5xl font-extrabold text-primary mb-6 leading-tight">Send instantly. Get paid seamlessly.</h2>
+        <p class="text-base text-text-secondary mb-8 leading-relaxed">
+          Create invoices and share them instantly via WhatsApp or Email. Customers receive a direct link to settle invoices securely using cards, USSD, or direct bank transfer via Paystack.
+        </p>
+        <div class="space-y-6">
+          <div class="flex items-start gap-4">
+            <div class="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center text-primary shrink-0">
+              <span class="material-symbols-outlined text-lg">mail</span>
+            </div>
+            <div>
+              <p class="text-sm font-bold text-text-primary">Email Delivery Automation</p>
+              <p class="text-xs text-text-secondary">Kulode auto-sends professional invoices with inline action buttons directly to your customer's inbox.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-4">
+            <div class="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center text-success shrink-0">
+              <span class="material-symbols-outlined text-lg">chat</span>
+            </div>
+            <div>
+              <p class="text-sm font-bold text-text-primary">Direct WhatsApp Sharing</p>
+              <p class="text-xs text-text-secondary">Copy short payment links or use WhatsApp integrations to send custom alerts that clients can click immediately.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-4">
+            <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-800 shrink-0">
+              <span class="material-symbols-outlined text-lg">flash_on</span>
+            </div>
+            <div>
+              <p class="text-sm font-bold text-text-primary">One-Click Paystack Settlement</p>
+              <p class="text-xs text-text-secondary">No complex bank app transfers. Customers pay with bank transfer, card, or USSD via our secured checkout.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Animated illustration container -->
+      <div class="relative flex justify-center items-center py-12 stagger-in">
+        <!-- Background decorative pulse circle -->
+        <div class="absolute w-[360px] h-[360px] rounded-full bg-primary/5 blur-3xl -z-10 animate-pulse"></div>
+
+        <!-- Cutout Image Card of Person Looking at Phone -->
+        <div class="relative w-[280px] h-[380px] rounded-[32px] overflow-visible flex items-center justify-center border border-white/60 shadow-2xl bg-white p-2">
+          <img src="/person_looking_at_phone.png" alt="Person looking at phone" class="w-full h-full object-cover rounded-[24px] filter" />
+          
+          <!-- Animation overlays -->
+          
+          <!-- Email flying card -->
+          <div class="absolute -top-6 -left-12 glass-card p-4 rounded-[20px] shadow-lg border border-white/20 max-w-[200px] flex items-center gap-3 animate-float-email">
+            <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white shrink-0">
+              <span class="material-symbols-outlined text-sm">mail</span>
+            </div>
+            <div>
+              <p class="text-[10px] font-bold text-text-primary leading-tight">Invoice Sent</p>
+              <p class="text-[8px] text-text-secondary leading-tight">via email ✉️</p>
+            </div>
+          </div>
+
+          <!-- WhatsApp Chat bubble -->
+          <div class="absolute top-[35%] -right-16 bg-[#d9fdd3] p-4 rounded-[20px] rounded-tr-none shadow-md border border-[#c2f0b7] max-w-[220px] flex items-start gap-3 animate-slide-whatsapp">
+            <div class="w-6 h-6 rounded-full bg-[#25d366] flex items-center justify-center text-white shrink-0 mt-0.5">
+              <span class="material-symbols-outlined text-xs text-white" style="font-variation-settings: 'FILL' 1;">chat</span>
+            </div>
+            <div>
+              <p class="text-[9px] text-[#128c7e] font-bold">Kulode Notification</p>
+              <p class="text-[10px] text-text-primary leading-snug mt-1">Hello! Here is your invoice. Pay instantly at <span class="text-blue-600 underline">pay.kulode.app/inv-001</span></p>
+            </div>
+          </div>
+
+          <!-- Clicking to pay animation bubble -->
+          <div class="absolute -bottom-6 -left-8 bg-white p-4 rounded-[24px] shadow-2xl border border-outline-variant max-w-[220px] animate-pay-flow">
+            <div class="text-center">
+              <p class="text-[10px] text-text-secondary">Amount Due</p>
+              <p class="text-sm font-extrabold text-primary mb-2">₦150,000.00</p>
+              <div class="relative inline-block w-full">
+                <div class="w-full text-white text-[10px] font-bold py-2.5 rounded-lg flex items-center justify-center gap-1.5 shadow-md shadow-primary/20 relative animate-btn-pay select-none">
+                  <span class="pay-text-paynow absolute inset-0 flex items-center justify-center animate-text-paynow">PAY NOW</span>
+                  <span class="pay-text-paid absolute inset-0 flex items-center justify-center animate-text-paid opacity-0 text-success bg-success-container font-extrabold">PAID ✓</span>
+                </div>
+                <!-- Hand clicking cursor -->
+                <div class="absolute right-4 bottom-[-16px] w-6 h-6 text-primary animate-cursor-click pointer-events-none">
+                  <span class="material-symbols-outlined text-xl" style="font-variation-settings: 'FILL' 1;">touch_app</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="bg-surface-container-low py-32">
+      <div class="max-w-7xl mx-auto px-container-padding">
+        <div class="text-center mb-20 stagger-in">
+          <h2 class="text-3xl font-extrabold text-primary mb-4">Everything you need to manage your money</h2>
+          <p class="text-base text-text-secondary max-w-2xl mx-auto">Stop juggling multiple spreadsheets and apps. Kulode centralizes your entire financial workflow into a single, beautiful dashboard.</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <!-- Feature 1: Compliance -->
+          <div class="bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] hover:shadow-[0_20px_40px_rgba(0,55,176,0.10)] hover:-translate-y-1 transition-all duration-300 stagger-in">
+            <span class="inline-block px-3 py-1 rounded-full bg-[#ffddb8] text-[#121c28] text-[10px] font-bold uppercase tracking-widest mb-4">Compliance</span>
+            <div class="w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
+              <span class="material-symbols-outlined text-[32px]">receipt_long</span>
+            </div>
+            <h3 class="text-lg font-bold text-text-primary mb-4">Automated NFIU Reporting</h3>
+            <p class="text-sm text-text-secondary">Auto-prepare required currency reports for the Nigerian Financial Intelligence Unit (NFIU) when cash sales cross ₦5M (for individuals) or ₦10M (for corporates) seamlessly.</p>
+          </div>
+          <!-- Feature 2: Payments -->
+          <div class="bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] hover:shadow-[0_20px_40px_rgba(0,55,176,0.10)] hover:-translate-y-1 transition-all duration-300 stagger-in">
+            <div class="w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
+              <span class="material-symbols-outlined text-[32px]">contactless</span>
+            </div>
+            <h3 class="text-lg font-bold text-text-primary mb-4">Online Payments & Auto-Reconciliation</h3>
+            <p class="text-sm text-text-secondary">Accept local bank transfers, cards, and copy-paste checkout links for WhatsApp or Instagram DMs. Payments are auto-matched instantly.</p>
+          </div>
+          <!-- Feature 3: Tax -->
+          <div class="bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] hover:shadow-[0_20px_40px_rgba(0,55,176,0.10)] hover:-translate-y-1 transition-all duration-300 stagger-in">
+            <div class="w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
+              <span class="material-symbols-outlined text-[32px]">account_balance_wallet</span>
+            </div>
+            <h3 class="text-lg font-bold text-text-primary mb-4">Tax & FIRS Preparation</h3>
+            <p class="text-sm text-text-secondary">Automatically calculate VAT (7.5%) and WHT (2024 simplified rates) and export ready-to-file FIRS tax schedules.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Collaboration Section -->
+    <section class="max-w-7xl mx-auto px-container-padding py-32 grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+      <div class="order-2 lg:order-1 rounded-[40px] overflow-hidden shadow-2xl shadow-primary/10">
+        <img alt="Team Collaboration" class="w-full h-auto object-cover aspect-video lg:aspect-square" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBANxp1viD2yKWSejL3GhhfiNc0kSIhSMZM7gFJ95M9az-zYzBcd1kX-O5hubYxQnibzr8fjmVrh9cnd3K8eX7x_T9i_HDIgnhsVch5M0a-Rv0DQ2nAQkQxGCauV3Qej3GzUwubxkDhDL83tyYeU2Qtxgm_GkiA8l4lE6R-vXqNos_OANYV9ZKRfrHE1YV2Fkqxh5yxS3IQQF_7u3ulL2sMRTHuVg21hHa2FVNO7m55KeugIILhlcM7PXLH0MHsP4IPCFl6yFxhobY">
+      </div>
+      <div class="order-1 lg:order-2">
+        <span class="bg-surface-container px-4 py-2 rounded-full text-primary text-xs font-bold mb-8 inline-block uppercase tracking-wider">For Teams</span>
+        <h2 class="text-4xl font-extrabold text-primary mb-8">Scale your operations with multi-user access</h2>
+        <p class="text-base text-text-secondary mb-10">Kulode isn't just for solo-preneurs. Grant access to your accountant, business partners, or employees with granular permissions. Manage multiple entities from a single unified profile.</p>
+        <ul class="space-y-6">
+          <li class="flex items-start gap-4">
+            <span class="material-symbols-outlined text-primary mt-1">check_circle</span>
+            <div>
+              <p class="text-lg font-bold text-text-primary">Granular Permissions</p>
+              <p class="text-sm text-text-secondary">Control exactly what each team member can see or edit.</p>
+            </div>
+          </li>
+          <li class="flex items-start gap-4">
+            <span class="material-symbols-outlined text-primary mt-1">check_circle</span>
+            <div>
+              <p class="text-lg font-bold text-text-primary">Accountant Portal</p>
+              <p class="text-sm text-text-secondary">Invite your accountant to pull reports directly, no more emailing files.</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Testimonial Section -->
+    <section class="bg-primary-container text-on-primary py-32 relative overflow-hidden">
+      <!-- Decorative circle -->
+      <div class="absolute -top-20 -right-20 w-96 h-96 bg-white/5 rounded-full blur-3xl"></div>
+      <div class="max-w-7xl mx-auto px-container-padding text-center relative z-10">
+        <div class="flex justify-center mb-10">
+          <span class="material-symbols-outlined text-[64px] opacity-30" style="font-variation-settings: 'FILL' 1;">format_quote</span>
+        </div>
+        <blockquote class="text-3xl md:text-4xl leading-snug mb-12 max-w-4xl mx-auto font-bold">"Kulode has completely transformed how I handle my business finances. I get paid within 24 hours and my tax schedules are automatically ready for FIRS."</blockquote>
+        <div class="flex flex-col items-center">
+          <div class="w-16 h-16 rounded-full bg-surface-container mb-4 overflow-hidden border-2 border-white/20">
+            <div class="w-full h-full bg-accent-gradient"></div>
+          </div>
+          <p class="text-lg font-bold text-white">Adewale Johnson</p>
+          <p class="text-xs opacity-70">Creative Director, Studio Nexus</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="py-32 px-container-padding">
+      <div class="max-w-5xl mx-auto bg-surface-container p-12 md:p-20 rounded-[48px] text-center shadow-xl border border-white/20">
+        <h2 class="text-3xl font-extrabold text-primary mb-6">Ready to get your time back?</h2>
+        <p class="text-base text-text-secondary mb-12 max-w-xl mx-auto">Join thousands of entrepreneurs who trust Kulode to power their financial growth. No credit card required to start.</p>
+        <a href={`${appUrl}/register`} class="inline-block bg-primary text-on-primary px-12 py-5 rounded-[12px] text-base font-bold shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all btn-gradient">
+          Start your 30-day free trial
+        </a>
+      </div>
+    </section>
+  </main>
 
   <!-- Footer -->
-  <footer class="border-t border-gray-100 py-12 px-6">
-    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-      <span class="text-sm text-gray-400">&copy; {new Date().getFullYear()} Kulode. All rights reserved.</span>
-      <div class="flex items-center gap-6">
-        <a href="mailto:abubakar.sambo@kulode.app" class="text-sm text-gray-400 hover:text-gray-600 transition-colors">Contact</a>
-        <a href="/privacy" class="text-sm text-gray-400 hover:text-gray-600 transition-colors">Privacy</a>
-        <a href="/terms" class="text-sm text-gray-400 hover:text-gray-600 transition-colors">Terms</a>
+  <footer class="w-full py-12 bg-surface border-t border-outline-variant">
+    <div class="flex flex-col md:flex-row justify-between items-center gap-element-gap px-container-padding max-w-7xl mx-auto">
+      <div class="flex flex-col gap-4 items-center md:items-start">
+        <span class="text-2xl font-bold tracking-tight text-primary">Kulode</span>
+        <p class="text-sm text-text-secondary text-center md:text-left max-w-xs">
+          © {new Date().getFullYear()} Kulode. All rights reserved. Built for the modern freelancer.
+        </p>
+      </div>
+      <div class="flex flex-wrap justify-center gap-8">
+        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/privacy">Privacy Policy</a>
+        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/terms">Terms of Service</a>
+        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="mailto:abubakar.sambo@kulode.app">Contact Support</a>
       </div>
     </div>
   </footer>
+
+  <script>
+    // Simple Intersection Observer for scroll animations
+    const observerOptions = {
+        threshold: 0.1
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                (entry.target as HTMLElement).style.animationPlayState = 'running';
+                observer.unobserve(entry.target);
+            }
+        });
+    }, observerOptions);
+
+    document.querySelectorAll('.stagger-in').forEach(el => {
+        (el as HTMLElement).style.animationPlayState = 'paused';
+        observer.observe(el);
+    });
+
+    // Sticky Navbar background shift on scroll
+    window.addEventListener('scroll', () => {
+        const nav = document.querySelector('nav');
+        if (nav) {
+            if (window.scrollY > 20) {
+                nav.classList.add('shadow-lg');
+            } else {
+                nav.classList.remove('shadow-lg');
+            }
+        }
+    });
+  </script>
+
+  <style>
+    /* Keyframes for the person look page animations */
+    @keyframes floatEmail {
+      0%, 100% {
+        transform: translate(0, 40px);
+        opacity: 0;
+      }
+      10%, 40% {
+        opacity: 1;
+        transform: translate(0, 0);
+      }
+      50%, 90% {
+        transform: translate(-10px, -20px);
+        opacity: 1;
+      }
+    }
+
+    @keyframes slideWhatsapp {
+      0%, 100% {
+        transform: translate(30px, 10px);
+        opacity: 0;
+      }
+      10%, 40% {
+        opacity: 1;
+        transform: translate(0, 0);
+      }
+      50%, 90% {
+        transform: translate(5px, -5px);
+        opacity: 1;
+      }
+    }
+
+    @keyframes payFlow {
+      0%, 100% {
+        transform: scale(1);
+      }
+      45% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(0.98);
+      }
+      60% {
+        transform: scale(1);
+      }
+    }
+
+    @keyframes cursorClick {
+      0%, 100% {
+        transform: translate(15px, 15px) scale(1);
+        opacity: 0;
+      }
+      40% {
+        transform: translate(5px, 5px) scale(1);
+        opacity: 1;
+      }
+      50% {
+        transform: translate(0, 0) scale(0.85);
+        opacity: 1;
+      }
+      60% {
+        transform: translate(10px, 10px) scale(1);
+        opacity: 0;
+      }
+    }
+
+    @keyframes btnPayBg {
+      0%, 48%, 95%, 100% {
+        background-color: #0037b0;
+      }
+      52%, 90% {
+        background-color: #006c49;
+      }
+    }
+
+    @keyframes textPayNow {
+      0%, 48%, 95%, 100% {
+        opacity: 1;
+      }
+      52%, 90% {
+        opacity: 0;
+      }
+    }
+
+    @keyframes textPaid {
+      0%, 48%, 95%, 100% {
+        opacity: 0;
+      }
+      52%, 90% {
+        opacity: 1;
+      }
+    }
+
+    .animate-float-email {
+      animation: floatEmail 6s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+    }
+
+    .animate-slide-whatsapp {
+      animation: slideWhatsapp 6s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+      animation-delay: 1s;
+      opacity: 0;
+    }
+
+    .animate-pay-flow {
+      animation: payFlow 6s ease-in-out infinite;
+      animation-delay: 2s;
+    }
+
+    .animate-btn-pay {
+      animation: btnPayBg 6s ease-in-out infinite;
+      animation-delay: 2s;
+    }
+
+    .animate-text-paynow {
+      animation: textPayNow 6s ease-in-out infinite;
+      animation-delay: 2s;
+    }
+
+    .animate-text-paid {
+      animation: textPaid 6s ease-in-out infinite;
+      animation-delay: 2s;
+    }
+
+    .animate-cursor-click {
+      animation: cursorClick 6s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+      animation-delay: 2s;
+      opacity: 0;
+    }
+  </style>
 </Layout>

@@ -1,13 +1,32 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Edit, Trash2, Plus, Mail, Phone, MapPin, FileText } from 'lucide-react'
+import { HugeiconsIcon } from '@hugeicons/react'
+import {
+  PencilEdit02Icon,
+  Delete02Icon,
+  PlusSignIcon,
+  Mail01Icon,
+  Call02Icon,
+  Location01Icon,
+  Invoice03Icon
+} from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui'
 import { clientsApi } from '@/api'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
-import type { InvoiceStatus } from '@/types'
+import type { Client, InvoiceStatus } from '@/types'
+
+interface ClientWithInvoices extends Client {
+  invoices?: {
+    id: string
+    invoiceNumber: string
+    issueDate: string
+    status: InvoiceStatus
+    total: number
+  }[]
+}
 
 const statusColors: Record<InvoiceStatus, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
   DRAFT: 'secondary',
@@ -23,9 +42,9 @@ export function ClientDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { data: client, isLoading } = useQuery({
+  const { data: client, isLoading } = useQuery<ClientWithInvoices>({
     queryKey: ['clients', id],
-    queryFn: () => clientsApi.get(id!),
+    queryFn: () => clientsApi.get(id!) as Promise<ClientWithInvoices>,
     enabled: !!id,
   })
 
@@ -37,6 +56,7 @@ export function ClientDetailPage() {
       toast.success('Client deleted')
       navigate('/clients')
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onError: (error: any) => {
       toast.error('Failed to delete client', {
         description: error.response?.data?.message,
@@ -78,18 +98,18 @@ export function ClientDetailPage() {
           <div className="flex gap-2">
             <Link to={`/invoices/new?clientId=${client.id}`}>
               <Button>
-                <Plus className="mr-2 h-4 w-4" />
+                <HugeiconsIcon icon={PlusSignIcon} size={16} className="mr-2" strokeWidth={1.5} />
                 New Invoice
               </Button>
             </Link>
             <Link to={`/clients/${client.id}/edit`}>
               <Button variant="outline">
-                <Edit className="mr-2 h-4 w-4" />
+                <HugeiconsIcon icon={PencilEdit02Icon} size={16} className="mr-2" strokeWidth={1.5} />
                 Edit
               </Button>
             </Link>
             <Button variant="outline" onClick={handleDelete}>
-              <Trash2 className="mr-2 h-4 w-4" />
+              <HugeiconsIcon icon={Delete02Icon} size={16} className="mr-2" strokeWidth={1.5} />
               Delete
             </Button>
           </div>
@@ -106,7 +126,7 @@ export function ClientDetailPage() {
             <CardContent className="space-y-4">
               {client.email && (
                 <div className="flex items-center gap-3">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <HugeiconsIcon icon={Mail01Icon} size={16} className="text-muted-foreground" strokeWidth={1.5} />
                   <a href={`mailto:${client.email}`} className="text-primary hover:underline">
                     {client.email}
                   </a>
@@ -114,7 +134,7 @@ export function ClientDetailPage() {
               )}
               {client.phone && (
                 <div className="flex items-center gap-3">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
+                  <HugeiconsIcon icon={Call02Icon} size={16} className="text-muted-foreground" strokeWidth={1.5} />
                   <a href={`tel:${client.phone}`} className="hover:underline">
                     {client.phone}
                   </a>
@@ -122,7 +142,7 @@ export function ClientDetailPage() {
               )}
               {client.address && (
                 <div className="flex items-start gap-3">
-                  <MapPin className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                  <HugeiconsIcon icon={Location01Icon} size={16} className="mt-0.5 text-muted-foreground" strokeWidth={1.5} />
                   <span className="text-sm">{client.address}</span>
                 </div>
               )}
@@ -138,14 +158,14 @@ export function ClientDetailPage() {
           <Card className="lg:col-span-2">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
+                <HugeiconsIcon icon={Invoice03Icon} size={20} strokeWidth={1.5} />
                 Invoices
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {(client as any).invoices && (client as any).invoices.length > 0 ? (
+              {client.invoices && client.invoices.length > 0 ? (
                 <div className="space-y-3">
-                  {(client as any).invoices.map((invoice: any) => (
+                  {client.invoices.map((invoice) => (
                     <Link
                       key={invoice.id}
                       to={`/invoices/${invoice.id}`}

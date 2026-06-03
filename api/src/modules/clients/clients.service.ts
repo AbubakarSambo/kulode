@@ -8,7 +8,7 @@ export class ClientsService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(organizationId: string, filter: ClientFilterDto) {
-    const { page = 1, limit = 20, search } = filter;
+    const { page = 1, limit = 20, search, status } = filter;
     const skip = (page - 1) * limit;
 
     const where: any = { organizationId };
@@ -19,6 +19,12 @@ export class ClientsService {
         { email: { contains: search, mode: 'insensitive' } },
         { phone: { contains: search, mode: 'insensitive' } },
       ];
+    }
+
+    if (status === 'active') {
+      where.isActive = true;
+    } else if (status === 'inactive') {
+      where.isActive = false;
     }
 
     const [clients, total] = await Promise.all([

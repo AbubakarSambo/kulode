@@ -3,14 +3,28 @@ import { useForm, UseFormReturn } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link } from 'react-router-dom'
-import { Eye, EyeOff, Zap, MessageCircle, BarChart3, Receipt } from 'lucide-react'
-import { Button, Input, Label } from '@/components/ui'
+import { Eye, EyeOff, Receipt, Mail, MessageCircle, Pointer, ArrowLeft } from 'lucide-react'
+import {
+  Button,
+  Input,
+  Label,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from '@/components/ui'
 import { useRegister, useMagicLinkRegister } from '@/hooks'
 import { posthog } from '@/lib/posthog'
 
 const GOOGLE_AUTH_URL = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/api/v1/auth/google`
   : '/api/v1/auth/google'
+
+const LANDING_URL = import.meta.env.DEV
+  ? `http://${window.location.hostname}:4321`
+  : 'https://www.kulode.app'
 
 const registerSchema = z.object({
   organizationName: z.string().min(2, 'Organization name is required'),
@@ -31,103 +45,90 @@ type RegisterForm = z.infer<typeof registerSchema>
 const magicLinkSchema = registerSchema.omit({ password: true })
 type MagicLinkForm = z.infer<typeof magicLinkSchema>
 
-function InvoiceMockup() {
-  return (
-    <div className="rounded-xl overflow-hidden shadow-lg border border-primary-200/50 bg-white">
-      <div className="bg-primary-900 px-5 py-4">
-        <div className="flex items-center justify-between mb-4">
-          <div className="text-white/60 text-[10px] font-semibold tracking-widest uppercase">Invoice</div>
-          <div className="flex gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-white/20" />
-            <div className="w-2 h-2 rounded-full bg-white/20" />
-            <div className="w-2 h-2 rounded-full bg-white/20" />
-          </div>
-        </div>
-        <div className="text-white font-bold text-sm mb-1">CleanTex Services</div>
-        <div className="flex justify-between items-end">
-          <div className="text-white/50 text-[10px]">INV-2024-001</div>
-          <div className="text-success font-bold text-sm">₦ 185,000</div>
-        </div>
-      </div>
-      <div className="bg-white px-5 py-3">
-        <div className="flex text-[9px] font-semibold text-muted-foreground uppercase mb-2 border-b pb-1.5">
-          <span className="flex-1">Description</span>
-          <span className="w-14 text-right">Qty</span>
-          <span className="w-20 text-right">Amount</span>
-        </div>
-        {[
-          { desc: 'Deep cleaning (office)', qty: 2, amount: '₦ 60,000' },
-          { desc: 'Monthly maintenance', qty: 1, amount: '₦ 85,000' },
-          { desc: 'Supply materials', qty: 1, amount: '₦ 40,000' },
-        ].map((row, i) => (
-          <div key={i} className="flex text-[9px] py-1 border-b border-border/50 last:border-0">
-            <span className="flex-1 text-muted-foreground">{row.desc}</span>
-            <span className="w-14 text-right text-muted-foreground">{row.qty}</span>
-            <span className="w-20 text-right font-medium text-foreground">{row.amount}</span>
-          </div>
-        ))}
-        <div className="flex justify-between mt-2 pt-2 text-[9px] font-bold border-t">
-          <span>Total</span>
-          <span className="text-primary">₦ 185,000</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function LeftPanel() {
   return (
-    <div className="hidden lg:flex flex-col w-[52%] bg-primary-50 p-12">
-      <div>
-        <p className="text-primary font-bold text-sm mb-8">Kulode</p>
-        <h1 className="text-[2.5rem] font-extrabold text-foreground leading-tight mb-8">
-          Send invoices.<br />
-          <span className="text-primary">Get paid faster.</span>
-        </h1>
-        <div className="space-y-5">
-          <div className="flex gap-4 items-start">
-            <div className="w-9 h-9 rounded-full bg-success/15 flex items-center justify-center shrink-0 mt-0.5">
-              <Zap size={15} className="text-success" />
-            </div>
-            <div>
-              <p className="font-semibold text-foreground text-sm">Create in 60s</p>
-              <p className="text-sm text-muted-foreground">Professional templates ready to go in seconds.</p>
-            </div>
-          </div>
-          <div className="flex gap-4 items-start">
-            <div className="w-9 h-9 rounded-full bg-success/15 flex items-center justify-center shrink-0 mt-0.5">
-              <MessageCircle size={15} className="text-success" />
-            </div>
-            <div>
-              <p className="font-semibold text-foreground text-sm">Share via WhatsApp</p>
-              <p className="text-sm text-muted-foreground">Meet your clients where they already are.</p>
-            </div>
-          </div>
-          <div className="flex gap-4 items-start">
-            <div className="w-9 h-9 rounded-full bg-success/15 flex items-center justify-center shrink-0 mt-0.5">
-              <BarChart3 size={15} className="text-success" />
-            </div>
-            <div>
-              <p className="font-semibold text-foreground text-sm">Track payments automatically</p>
-              <p className="text-sm text-muted-foreground">Real-time alerts when your money hits the bank.</p>
-            </div>
-          </div>
-          <div className="flex gap-4 items-start">
-            <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-              <Receipt size={15} className="text-primary" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <p className="font-semibold text-foreground text-sm">Tax filing, sorted</p>
-                <span className="text-[10px] font-bold uppercase tracking-wide bg-primary text-primary-foreground px-1.5 py-0.5 rounded">New</span>
+    <div className="hidden lg:flex lg:col-span-7 flex-col justify-between p-16 text-white relative overflow-hidden bg-[#00247d] bg-gradient-to-br from-[#001c66] via-[#00247d] to-[#0037b0] border-r border-white/5">
+      {/* Floating decorative circles */}
+      <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-blue-600/10 blur-[120px] pointer-events-none"></div>
+      <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] rounded-full bg-indigo-500/10 blur-[100px] pointer-events-none"></div>
+      
+      {/* Logo */}
+      <div className="relative z-10 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center font-black text-white text-lg">
+          K
+        </div>
+        <span className="text-2xl font-extrabold tracking-tighter">Kulode</span>
+      </div>
+      
+      {/* Center Content & Animated Mockups */}
+      <div className="relative z-10 my-auto py-6 grid grid-cols-1 xl:grid-cols-12 gap-8 items-center">
+        <div className="xl:col-span-6 space-y-6">
+          <h1 className="text-4xl xl:text-5xl font-black leading-[1.1] tracking-tight text-white">
+            Nigeria's modern invoicing & <span className="bg-gradient-to-r from-blue-300 via-indigo-200 to-white bg-clip-text text-transparent">compliance engine</span>
+          </h1>
+          <p className="text-base text-blue-100/80 leading-relaxed max-w-lg">
+            Automate your billing, track expenses under tax categories, and auto-generate e-filing summaries compliant with FIRS & NFIU.
+          </p>
+        </div>
+        
+        {/* Animated illustration container */}
+        <div className="xl:col-span-6 relative flex justify-center items-center py-6 scale-90 xl:scale-100">
+          {/* Background decorative pulse circle */}
+          <div className="absolute w-[300px] h-[300px] rounded-full bg-white/5 blur-3xl -z-10 animate-pulse"></div>
+
+          {/* Cutout Image Card of Person Looking at Phone */}
+          <div className="relative w-[240px] h-[320px] rounded-[32px] overflow-visible flex items-center justify-center border border-white/10 shadow-2xl bg-white p-2">
+            <img src="/person_looking_at_phone.png" alt="Person looking at phone" className="w-full h-full object-cover rounded-[24px] filter" />
+            
+            {/* Animation overlays */}
+            
+            {/* Email flying card */}
+            <div className="absolute -top-6 -left-10 glass-card p-3 rounded-[20px] shadow-lg border border-white/20 max-w-[170px] flex items-center gap-3 animate-float-email text-slate-800">
+              <div className="w-8 h-8 rounded-full bg-[#0037b0] flex items-center justify-center text-white shrink-0">
+                <Mail size={14} className="text-white" />
               </div>
-              <p className="text-sm text-muted-foreground">Export FIRS-ready tax reports in one click.</p>
+              <div>
+                <p className="text-[10px] font-bold text-slate-900 leading-tight">Invoice Sent</p>
+                <p className="text-[8px] text-slate-500 leading-tight">via email ✉️</p>
+              </div>
+            </div>
+
+            {/* WhatsApp Chat bubble */}
+            <div className="absolute top-[35%] -right-12 bg-[#d9fdd3] p-3 rounded-[20px] rounded-tr-none shadow-md border border-[#c2f0b7] max-w-[190px] flex items-start gap-2.5 animate-slide-whatsapp text-slate-800">
+              <div className="w-6 h-6 rounded-full bg-[#25d366] flex items-center justify-center text-white shrink-0 mt-0.5">
+                <MessageCircle size={12} className="text-white fill-white" />
+              </div>
+              <div>
+                <p className="text-[8px] text-[#128c7e] font-bold">Kulode Notification</p>
+                <p className="text-[9px] text-slate-800 leading-snug mt-0.5">Pay instantly at <span className="text-blue-600 underline">pay.kulode.app/inv-001</span></p>
+              </div>
+            </div>
+
+            {/* Clicking to pay animation bubble */}
+            <div className="absolute -bottom-6 -left-6 bg-white p-3.5 rounded-[24px] shadow-2xl border border-slate-100 max-w-[190px] animate-pay-flow text-slate-800">
+              <div className="text-center">
+                <p className="text-[9px] text-slate-400">Amount Due</p>
+                <p className="text-xs font-extrabold text-[#0037b0] mb-1.5 tabular-nums">₦150,000.00</p>
+                <div className="relative inline-block w-full">
+                  <div className="w-full text-white text-[9px] font-bold py-2 rounded-lg flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/20 relative animate-btn-pay select-none min-h-[28px]">
+                    <span className="pay-text-paynow absolute inset-0 flex items-center justify-center animate-text-paynow">PAY NOW</span>
+                    <span className="pay-text-paid absolute inset-0 flex items-center justify-center animate-text-paid opacity-0 text-[#006c49] bg-emerald-50 font-extrabold rounded-lg">PAID ✓</span>
+                  </div>
+                  {/* Hand clicking cursor */}
+                  <div className="absolute right-2 bottom-[-12px] w-5 h-5 text-[#0037b0] animate-cursor-click pointer-events-none">
+                    <Pointer size={18} className="rotate-90 fill-[#0037b0]" />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
-      <div className="mt-10">
-        <InvoiceMockup />
+
+      {/* Footer */}
+      <div className="relative z-10 flex justify-between items-center text-xs text-blue-200/50">
+        <p>© {new Date().getFullYear()} Kulode. All rights reserved.</p>
+        <a href="/privacy" className="hover:text-white transition-colors">Privacy & Terms</a>
       </div>
     </div>
   )
@@ -136,9 +137,9 @@ function LeftPanel() {
 function GoogleButton() {
   return (
     <>
-      <a href={GOOGLE_AUTH_URL} className="block" onClick={() => posthog.capture('google_oauth_initiated', { page: 'register' })}>
-        <Button type="button" variant="outline" className="w-full gap-2 h-11">
-          <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+      <a href={GOOGLE_AUTH_URL} className="w-full block" onClick={() => posthog.capture('google_oauth_initiated', { page: 'register' })}>
+        <Button type="button" variant="outline" className="w-full gap-3 py-6 rounded-2xl border-slate-200/80 hover:bg-slate-50 text-slate-700 font-bold active:scale-98 transition-all duration-200">
+          <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
             <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
             <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
@@ -147,12 +148,12 @@ function GoogleButton() {
           Continue with Google
         </Button>
       </a>
-      <div className="relative py-1">
+      <div className="relative w-full py-2">
         <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t" />
+          <span className="w-full border-t border-slate-200/60" />
         </div>
-        <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
-          <span className="bg-white px-3 text-muted-foreground">or sign up with email</span>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-white px-3 text-slate-400 font-bold tracking-wider">or sign up with email</span>
         </div>
       </div>
     </>
@@ -174,13 +175,14 @@ function SharedFields({
 
   return (
     <>
-      <div className="space-y-1.5">
-        <Label htmlFor="organizationName" className="text-[10px] font-bold uppercase tracking-widest" required>
+      <div className="space-y-2">
+        <Label htmlFor="organizationName" className="text-xs font-bold uppercase tracking-wider text-slate-500" required>
           Organization Name
         </Label>
         <Input
           id="organizationName"
           placeholder="CleanTex"
+          className="rounded-2xl border-slate-200/80 focus:border-[#0037b0] focus:ring-2 focus:ring-[#0037b0]/10 py-5"
           {...form.register('organizationName', {
             onBlur: () => trackFieldError('organizationName', errors.organizationName?.message),
           })}
@@ -189,13 +191,14 @@ function SharedFields({
         />
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="firstName" className="text-[10px] font-bold uppercase tracking-widest" required>
+        <div className="space-y-2">
+          <Label htmlFor="firstName" className="text-xs font-bold uppercase tracking-wider text-slate-500" required>
             First Name
           </Label>
           <Input
             id="firstName"
             placeholder="Amina"
+            className="rounded-2xl border-slate-200/80 focus:border-[#0037b0] focus:ring-2 focus:ring-[#0037b0]/10 py-5"
             {...form.register('firstName', {
               onBlur: () => trackFieldError('firstName', errors.firstName?.message),
             })}
@@ -203,13 +206,14 @@ function SharedFields({
             error={errors.firstName?.message}
           />
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="lastName" className="text-[10px] font-bold uppercase tracking-widest" required>
+        <div className="space-y-2">
+          <Label htmlFor="lastName" className="text-xs font-bold uppercase tracking-wider text-slate-500" required>
             Last Name
           </Label>
           <Input
             id="lastName"
             placeholder="Adebayo"
+            className="rounded-2xl border-slate-200/80 focus:border-[#0037b0] focus:ring-2 focus:ring-[#0037b0]/10 py-5"
             {...form.register('lastName', {
               onBlur: () => trackFieldError('lastName', errors.lastName?.message),
             })}
@@ -218,14 +222,15 @@ function SharedFields({
           />
         </div>
       </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="email" className="text-[10px] font-bold uppercase tracking-widest" required>
+      <div className="space-y-2">
+        <Label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-slate-500" required>
           Email Address
         </Label>
         <Input
           id="email"
           type="email"
           placeholder="amina@cleantex.com"
+          className="rounded-2xl border-slate-200/80 focus:border-[#0037b0] focus:ring-2 focus:ring-[#0037b0]/10 py-5"
           {...form.register('email', {
             onBlur: () => trackFieldError('email', errors.email?.message),
           })}
@@ -263,36 +268,46 @@ export function RegisterPage() {
   }
 
   return (
-    <div
-      className="min-h-screen bg-foreground flex items-center justify-center p-4 lg:p-8"
-      style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px)', backgroundSize: '24px 24px' }}
-    >
-      <div className="w-full max-w-5xl bg-white rounded-2xl overflow-hidden shadow-2xl flex">
-        <LeftPanel />
+    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-12 bg-[#faf8ff] font-sans antialiased">
+      <LeftPanel />
 
-        {/* Right panel */}
-        <div className="flex-1 flex flex-col justify-center px-10 py-10 lg:px-14 overflow-y-auto">
-          {/* Mobile header — condensed value prop, no bullets or mockup */}
-          <div className="lg:hidden mb-8 pb-8 border-b">
-            <p className="text-primary font-bold text-sm mb-3">Kulode</p>
-            <h1 className="text-2xl font-extrabold text-foreground leading-snug mb-3">
-              Send invoices.<br />
-              <span className="text-primary">Get paid faster.</span>
-            </h1>
-            <div className="inline-flex items-center gap-1.5 bg-primary-50 rounded-full px-3 py-1.5">
-              <Receipt size={13} className="text-primary shrink-0" />
-              <span className="text-xs text-primary font-medium">
-                <span className="font-bold">New:</span> Export FIRS-ready tax reports in one click
-              </span>
+      {/* Right Form Panel */}
+      <div className="flex flex-col items-center justify-center p-6 md:p-12 lg:col-span-5 bg-[#f8f9ff]">
+        {/* Back navigation — lives ABOVE the card, not inside it */}
+        <div className="w-full max-w-md mb-4">
+          <a
+            href={LANDING_URL}
+            className="inline-flex items-center gap-2 min-h-[44px] px-1 text-sm font-semibold text-slate-500 hover:text-[#00247d] transition-all duration-200 group cursor-pointer"
+          >
+            <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-white border border-slate-200/80 shadow-sm group-hover:shadow-md group-hover:border-[#0037b0]/20 transition-all duration-200">
+              <ArrowLeft size={14} className="group-hover:-translate-x-0.5 transition-transform duration-200" />
+            </span>
+            <span>Back to website</span>
+          </a>
+        </div>
+
+        <Card className="w-full max-w-md border border-slate-200/60 shadow-[0_20px_50px_rgba(0,55,176,0.06)] bg-white rounded-[32px] p-2">
+          <CardHeader className="text-center pb-4 pt-6">
+            <div className="mb-4 lg:hidden flex justify-center">
+              <span className="text-3xl font-extrabold tracking-tighter text-[#00247d]">Kulode</span>
             </div>
-          </div>
+            <CardTitle className="text-2xl font-black text-slate-900 tracking-tight">Create your free account</CardTitle>
+            <CardDescription className="text-xs text-slate-500 mt-1">Start professionalizing your freelance business today.</CardDescription>
+            
+            {/* Action pill highlight */}
+            <div className="mt-4 flex items-center justify-center gap-3 rounded-2xl bg-[#0037b0]/5 px-4 py-3 border border-[#0037b0]/10">
+              <Receipt size={16} className="text-[#0037b0] shrink-0" />
+              <p className="text-xs text-[#0037b0] font-semibold text-left leading-tight">
+                <span className="font-extrabold">New:</span> Export FIRS-ready tax reports in one click
+              </p>
+            </div>
+          </CardHeader>
 
-          <h2 className="text-2xl font-bold text-foreground mb-1">Create your free account</h2>
-          <p className="text-muted-foreground text-sm mb-7">Start professionalizing your freelance business today.</p>
-
-          <div className="space-y-4">
+          <CardContent className="space-y-4">
             <GoogleButton />
+          </CardContent>
 
+          <CardContent className="pt-0">
             {useMagicLink ? (
               <form
                 onSubmit={magicLinkForm.handleSubmit((data) => {
@@ -306,13 +321,13 @@ export function RegisterPage() {
                   errors={magicLinkForm.formState.errors}
                   onFocus={trackStart}
                 />
-                <Button type="submit" className="w-full h-11" isLoading={magicLinkMutation.isPending}>
+                <Button type="submit" className="w-full py-6 rounded-2xl text-sm font-bold shadow-lg shadow-[#0037b0]/20 active:scale-98 transition-all btn-gradient" isLoading={magicLinkMutation.isPending}>
                   Send activation link
                 </Button>
                 <button
                   type="button"
                   onClick={() => setUseMagicLink(false)}
-                  className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
+                  className="w-full text-center text-xs text-[#0037b0] hover:underline font-extrabold"
                 >
                   Prefer to sign up with a password instead
                 </button>
@@ -331,7 +346,7 @@ export function RegisterPage() {
                   onFocus={trackStart}
                 />
                 <div className="space-y-1.5">
-                  <Label htmlFor="password" className="text-[10px] font-bold uppercase tracking-widest" required>
+                  <Label htmlFor="password" className="text-xs font-bold uppercase tracking-wider text-slate-500" required>
                     Password
                   </Label>
                   <div className="relative">
@@ -339,6 +354,7 @@ export function RegisterPage() {
                       id="password"
                       type={showPassword ? 'text' : 'password'}
                       placeholder="••••••••"
+                      className="rounded-2xl border-slate-200/80 focus:border-[#0037b0] focus:ring-2 focus:ring-[#0037b0]/10 py-5"
                       {...passwordForm.register('password', {
                         onBlur: () => {
                           if (passwordForm.formState.errors.password?.message) {
@@ -355,40 +371,41 @@ export function RegisterPage() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(v => !v)}
-                      className="absolute right-2 top-1.5 text-muted-foreground hover:text-foreground"
+                      className="absolute right-3 top-4 text-slate-400 hover:text-slate-600"
                       tabIndex={-1}
                     >
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
                   {!passwordForm.formState.errors.password && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-[10px] text-slate-400">
                       Min 8 characters, with uppercase, lowercase, and a number or symbol.
                     </p>
                   )}
                 </div>
-                <Button type="submit" className="w-full h-11" isLoading={registerMutation.isPending}>
+                <Button type="submit" className="w-full py-6 rounded-2xl text-sm font-bold shadow-lg shadow-[#0037b0]/20 active:scale-98 transition-all btn-gradient" isLoading={registerMutation.isPending}>
                   Create free account
                 </Button>
                 <button
                   type="button"
                   onClick={() => setUseMagicLink(true)}
-                  className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
+                  className="w-full text-center text-xs text-[#0037b0] hover:underline font-extrabold"
                 >
                   Sign up with email link instead
                 </button>
               </form>
             )}
+          </CardContent>
 
-            <p className="text-center text-sm text-muted-foreground">
+          <CardFooter className="pb-6 pt-2">
+            <p className="text-center text-xs text-slate-500 w-full">
               Already have an account?{' '}
-              <Link to="/login" className="text-primary hover:underline font-medium">
+              <Link to="/login" className="text-[#0037b0] hover:underline font-extrabold">
                 Sign in
               </Link>
             </p>
-          </div>
-
-        </div>
+          </CardFooter>
+        </Card>
       </div>
     </div>
   )

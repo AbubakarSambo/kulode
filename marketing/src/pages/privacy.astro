@@ -1,7 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro'
 
-const appUrl = 'https://app.kulode.app'
+const appUrl = 'http://localhost:5173'
 const contactEmail = 'privacy@kulode.app'
 const effectiveDate = '16 April 2026'
 ---
@@ -11,49 +11,59 @@ const effectiveDate = '16 April 2026'
   description="How Kulode collects, uses, and protects your personal and business data."
 >
   <!-- Nav -->
-  <nav class="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100">
-    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-      <a href="/" class="text-xl font-bold tracking-tight text-gray-900">kulode</a>
+  <nav class="w-full sticky top-0 z-50 bg-background/80 backdrop-blur-xl shadow-[0_12px_32px_rgba(0,55,176,0.08)]">
+    <div class="flex justify-between items-center px-container-padding max-w-7xl mx-auto h-[72px]">
+      <div class="flex items-center gap-12">
+        <a href="/" class="text-[24px] font-extrabold tracking-tighter text-primary">Kulode</a>
+        <div class="hidden md:flex items-center gap-8">
+          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/#features">Features</a>
+          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/how-it-works">How It Works</a>
+          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/pricing">Pricing</a>
+          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/invoicing">Solutions</a>
+          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/tax-filing">Tax Filing</a>
+        </div>
+      </div>
       <div class="flex items-center gap-4">
-        <a href={`${appUrl}/login`} class="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Log in</a>
-        <a href={`${appUrl}/register`} class="text-sm font-medium bg-blue-700 text-white px-4 py-2 rounded-lg hover:bg-blue-800 transition-colors">Get started free</a>
+        <a href={`${appUrl}/login`} class="text-sm font-medium text-text-secondary px-6 py-2 transition-all hover:text-primary active:scale-95">Login</a>
+        <a href={`${appUrl}/register`} class="bg-primary text-on-primary px-6 py-3 rounded-[12px] text-sm font-bold shadow-lg shadow-primary/20 hover:shadow-xl transition-all active:scale-95 btn-gradient">Get Started</a>
       </div>
     </div>
   </nav>
 
-  <main class="pt-32 pb-24 px-6">
+  <main class="hero-gradient pt-20 pb-24 px-6">
     <div class="max-w-3xl mx-auto">
+      <div class="inline-flex items-center gap-2 bg-[#ffddb8] text-[#121c28] text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full mb-6">
+        Legal
+      </div>
+      <h1 class="text-4xl md:text-5xl font-extrabold text-primary tracking-tight mb-2">Privacy Policy</h1>
+      <p class="text-sm text-text-secondary mb-12">Effective date: {effectiveDate}</p>
 
-      <h1 class="text-4xl font-bold tracking-tight text-gray-900 mb-2">Privacy Policy</h1>
-      <p class="text-gray-500 mb-12">Effective date: {effectiveDate}</p>
-
-      <div class="prose prose-gray max-w-none space-y-10 text-gray-700 leading-relaxed">
-
-        <section>
-          <h2 class="text-xl font-semibold text-gray-900 mb-3">1. Who we are</h2>
+      <div class="space-y-10 text-text-secondary leading-relaxed text-sm md:text-base">
+        <section class="bg-card p-8 rounded-[24px] shadow-sm border border-outline-variant">
+          <h2 class="text-lg font-bold text-text-primary mb-3">1. Who we are</h2>
           <p>
             Kulode ("we", "us", "our") is an invoicing and financial management platform for small businesses and freelancers.
             We are subject to the <strong>Nigeria Data Protection Act 2023 (NDPA)</strong> and take our obligations under it seriously.
-            Our data controller contact is <a href={`mailto:${contactEmail}`} class="text-blue-700 hover:underline">{contactEmail}</a>.
+            Our data controller contact is <a href={`mailto:${contactEmail}`} class="text-primary hover:underline font-semibold">{contactEmail}</a>.
           </p>
         </section>
 
-        <section>
-          <h2 class="text-xl font-semibold text-gray-900 mb-3">2. Data we collect</h2>
+        <section class="bg-card p-8 rounded-[24px] shadow-sm border border-outline-variant">
+          <h2 class="text-lg font-bold text-text-primary mb-3">2. Data we collect</h2>
           <p class="mb-3">We collect the following categories of personal and business data:</p>
           <ul class="list-disc pl-6 space-y-2">
-            <li><strong>Account data:</strong> your name, email address, organisation name, and password (stored as a one-way hash).</li>
+            <li><strong>Account data:</strong> your name, email address, organisation name, and password (stored securely).</li>
             <li><strong>Business data:</strong> invoices, clients, expenses, vendors, and any other content you create inside Kulode.</li>
-            <li><strong>Payment data:</strong> subscription billing is processed by <strong>Paystack</strong>. We store only a tokenised authorisation reference — we never see or store your full card number.</li>
+            <li><strong>Payment data:</strong> subscription billing is processed by <strong>Paystack</strong>. We store only a tokenised authorisation reference.</li>
             <li><strong>Usage data:</strong> pages visited, features used, errors encountered, and session metadata, collected via <strong>PostHog</strong> to help us improve the product.</li>
             <li><strong>Technical data:</strong> IP address, browser type, device type, and timestamps associated with your requests.</li>
             <li><strong>Communications:</strong> any messages you send us via email or support channels.</li>
           </ul>
-          <p class="mt-3">We do not collect sensitive personal data (e.g. health, biometric, or political data) and do not sell your data to third parties.</p>
+          <p class="mt-3">We do not collect sensitive personal data and do not sell your data to third parties.</p>
         </section>
 
-        <section>
-          <h2 class="text-xl font-semibold text-gray-900 mb-3">3. How we use your data</h2>
+        <section class="bg-card p-8 rounded-[24px] shadow-sm border border-outline-variant">
+          <h2 class="text-lg font-bold text-text-primary mb-3">3. How we use your data</h2>
           <p class="mb-3">We use your data only for the following purposes:</p>
           <ul class="list-disc pl-6 space-y-2">
             <li>Providing, maintaining, and improving the Kulode service.</li>
@@ -65,42 +75,42 @@ const effectiveDate = '16 April 2026'
             <li>Complying with applicable laws, including tax and financial regulations.</li>
           </ul>
           <p class="mt-3">
-            We will not use your data for unsolicited marketing without your explicit consent. Where we rely on <strong>legitimate interests</strong> as a legal basis, you may object at any time.
+            We will not use your data for unsolicited marketing without your explicit consent. You may object to processing based on legitimate interests at any time.
           </p>
         </section>
 
-        <section>
-          <h2 class="text-xl font-semibold text-gray-900 mb-3">4. Third-party processors</h2>
+        <section class="bg-card p-8 rounded-[24px] shadow-sm border border-outline-variant">
+          <h2 class="text-lg font-bold text-text-primary mb-3">4. Third-party processors</h2>
           <p class="mb-3">We share data with the following sub-processors, each bound by data processing agreements:</p>
           <div class="overflow-x-auto">
             <table class="w-full text-sm border-collapse">
               <thead>
-                <tr class="border-b border-gray-200">
-                  <th class="text-left py-2 pr-6 font-semibold text-gray-900">Processor</th>
-                  <th class="text-left py-2 pr-6 font-semibold text-gray-900">Purpose</th>
-                  <th class="text-left py-2 font-semibold text-gray-900">Location</th>
+                <tr class="border-b border-outline-variant">
+                  <th class="text-left py-2 pr-6 font-bold text-text-primary">Processor</th>
+                  <th class="text-left py-2 pr-6 font-bold text-text-primary">Purpose</th>
+                  <th class="text-left py-2 font-bold text-text-primary">Location</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-gray-100">
+              <tbody class="divide-y divide-outline-variant/30">
                 <tr>
-                  <td class="py-2 pr-6">Paystack</td>
-                  <td class="py-2 pr-6">Payment processing and subscription billing</td>
-                  <td class="py-2">Nigeria / Ireland</td>
+                  <td class="py-3 pr-6">Paystack</td>
+                  <td class="py-3 pr-6">Payment processing and subscription billing</td>
+                  <td class="py-3">Nigeria / Ireland</td>
                 </tr>
                 <tr>
-                  <td class="py-2 pr-6">Google (OAuth)</td>
-                  <td class="py-2 pr-6">Single sign-on authentication</td>
-                  <td class="py-2">USA</td>
+                  <td class="py-3 pr-6">Google (OAuth)</td>
+                  <td class="py-3 pr-6">Single sign-on authentication</td>
+                  <td class="py-3">USA</td>
                 </tr>
                 <tr>
-                  <td class="py-2 pr-6">PostHog</td>
-                  <td class="py-2 pr-6">Product analytics and error tracking</td>
-                  <td class="py-2">EU / USA</td>
+                  <td class="py-3 pr-6">PostHog</td>
+                  <td class="py-3 pr-6">Product analytics and error tracking</td>
+                  <td class="py-3">EU / USA</td>
                 </tr>
                 <tr>
-                  <td class="py-2 pr-6">Cloud hosting provider</td>
-                  <td class="py-2 pr-6">Infrastructure and database hosting</td>
-                  <td class="py-2">EU</td>
+                  <td class="py-3 pr-6">Cloud hosting provider</td>
+                  <td class="py-3 pr-6">Infrastructure and database hosting</td>
+                  <td class="py-3">EU</td>
                 </tr>
               </tbody>
             </table>
@@ -110,15 +120,15 @@ const effectiveDate = '16 April 2026'
           </p>
         </section>
 
-        <section>
-          <h2 class="text-xl font-semibold text-gray-900 mb-3">5. Data retention</h2>
+        <section class="bg-card p-8 rounded-[24px] shadow-sm border border-outline-variant">
+          <h2 class="text-lg font-bold text-text-primary mb-3">5. Data retention</h2>
           <p>
-            We retain your account and business data for as long as your account is active. If you delete your account, we will delete or anonymise your personal data within <strong>90 days</strong>, except where we are required to retain it for legal or regulatory purposes (e.g. financial records, which may be retained for up to 7 years under Nigerian tax law).
+            We retain your account and business data for as long as your account is active. If you delete your account, we will delete or anonymise your personal data within <strong>90 days</strong>, except where we are required to retain it for legal or regulatory purposes.
           </p>
         </section>
 
-        <section>
-          <h2 class="text-xl font-semibold text-gray-900 mb-3">6. Your rights</h2>
+        <section class="bg-card p-8 rounded-[24px] shadow-sm border border-outline-variant">
+          <h2 class="text-lg font-bold text-text-primary mb-3">6. Your rights</h2>
           <p class="mb-3">Under the NDPA and applicable law, you have the right to:</p>
           <ul class="list-disc pl-6 space-y-2">
             <li><strong>Access</strong> the personal data we hold about you.</li>
@@ -127,61 +137,36 @@ const effectiveDate = '16 April 2026'
             <li><strong>Portability</strong> — receive your data in a structured, machine-readable format.</li>
             <li><strong>Object</strong> to processing based on legitimate interests.</li>
             <li><strong>Withdraw consent</strong> at any time where processing is consent-based.</li>
-            <li><strong>Lodge a complaint</strong> with the Nigeria Data Protection Commission (NDPC) if you believe your rights have been violated.</li>
+            <li><strong>Lodge a complaint</strong> with the Nigeria Data Protection Commission (NDPC).</li>
           </ul>
           <p class="mt-3">
-            To exercise any of these rights, email us at <a href={`mailto:${contactEmail}`} class="text-blue-700 hover:underline">{contactEmail}</a>. We will respond within 30 days.
+            To exercise any of these rights, email us at <a href={`mailto:${contactEmail}`} class="text-primary hover:underline font-semibold">{contactEmail}</a>.
           </p>
         </section>
 
-        <section>
-          <h2 class="text-xl font-semibold text-gray-900 mb-3">7. Cookies</h2>
+        <section class="bg-card p-8 rounded-[24px] shadow-sm border border-outline-variant">
+          <h2 class="text-lg font-bold text-text-primary mb-3">7. Security</h2>
           <p>
-            We use strictly necessary cookies to keep you logged in and maintain your session. We also use analytics cookies (PostHog) to understand how the product is used. You can disable analytics cookies in your browser settings; this will not affect your ability to use Kulode.
+            We implement industry-standard security measures including TLS encryption in transit, AES-256 encryption at rest, hashed passwords, and role-based access controls.
           </p>
         </section>
-
-        <section>
-          <h2 class="text-xl font-semibold text-gray-900 mb-3">8. Security</h2>
-          <p>
-            We implement industry-standard security measures including TLS encryption in transit, AES-256 encryption at rest, hashed passwords, and role-based access controls. No method of transmission over the internet is 100% secure; we will notify affected users promptly in the event of a data breach as required by law.
-          </p>
-        </section>
-
-        <section>
-          <h2 class="text-xl font-semibold text-gray-900 mb-3">9. Children</h2>
-          <p>
-            Kulode is intended for use by adults operating businesses or providing freelance services. We do not knowingly collect data from anyone under the age of 18. If you believe a minor has created an account, please contact us and we will delete it promptly.
-          </p>
-        </section>
-
-        <section>
-          <h2 class="text-xl font-semibold text-gray-900 mb-3">10. Changes to this policy</h2>
-          <p>
-            We may update this policy from time to time. We will notify you of material changes via email or an in-app notice at least 14 days before they take effect. Continued use of Kulode after the effective date constitutes acceptance of the updated policy.
-          </p>
-        </section>
-
-        <section>
-          <h2 class="text-xl font-semibold text-gray-900 mb-3">11. Contact</h2>
-          <p>
-            For any privacy-related queries or to exercise your rights, contact us at:<br />
-            <a href={`mailto:${contactEmail}`} class="text-blue-700 hover:underline">{contactEmail}</a>
-          </p>
-        </section>
-
       </div>
     </div>
   </main>
 
   <!-- Footer -->
-  <footer class="border-t border-gray-100 py-12 px-6">
-    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-      <span class="text-sm text-gray-400">&copy; {new Date().getFullYear()} Kulode. All rights reserved.</span>
-      <div class="flex items-center gap-6">
-        <a href="mailto:abubakar.sambo@kulode.app" class="text-sm text-gray-400 hover:text-gray-600 transition-colors">Contact</a>
-        <a href="/privacy" class="text-sm text-gray-400 hover:text-gray-600 transition-colors">Privacy</a>
-        <a href="/terms" class="text-sm text-gray-400 hover:text-gray-600 transition-colors">Terms</a>
+  <footer class="w-full py-12 bg-surface border-t border-outline-variant">
+    <div class="flex flex-col md:flex-row justify-between items-center gap-element-gap px-container-padding max-w-7xl mx-auto">
+      <div class="flex flex-col gap-4 items-center md:items-start">
+        <span class="text-2xl font-bold tracking-tight text-primary">Kulode</span>
+        <p class="text-sm text-text-secondary text-center md:text-left max-w-xs">
+          © {new Date().getFullYear()} Kulode. All rights reserved. Built for the modern freelancer.
+        </p>
+      </div>
+      <div class="flex flex-wrap justify-center gap-8">
+        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/privacy">Privacy Policy</a>
+        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/terms">Terms of Service</a>
+        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="mailto:abubakar.sambo@kulode.app">Contact Support</a>
       </div>
     </div>
   </footer>

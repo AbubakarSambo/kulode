@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { AppLayout } from '@/components/layout'
 import { ProtectedRoute, GuestRoute, PlanGatedRoute } from '@/components/shared'
+import { useAuthStore } from '@/stores/auth'
 import {
   LoginPage,
   RegisterPage,
@@ -53,6 +54,30 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+function HomeRedirect() {
+  const { isAuthenticated, _hasHydrated } = useAuthStore()
+
+  if (!_hasHydrated) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />
+  }
+
+  if (import.meta.env.DEV) {
+    return <Navigate to="/login" replace />
+  }
+
+  const landingUrl = 'https://www.kulode.app'
+  window.location.replace(landingUrl)
+  return null
+}
 
 function App() {
   return (
@@ -144,7 +169,7 @@ function App() {
           </Route>
 
           {/* Default redirect */}
-          <Route path="/" element={<Navigate to="/invoices" replace />} />
+          <Route path="/" element={<HomeRedirect />} />
           <Route path="*" element={<Navigate to="/invoices" replace />} />
         </Routes>
       </BrowserRouter>

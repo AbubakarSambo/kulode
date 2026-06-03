@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, IsIn } from 'class-validator';
 import { PaginationDto } from '../../../common';
 
 export class ClientFilterDto extends PaginationDto {
@@ -7,4 +7,10 @@ export class ClientFilterDto extends PaginationDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @IsIn(['active', 'inactive'])
+  status?: 'active' | 'inactive';
 }

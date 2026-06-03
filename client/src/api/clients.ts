@@ -5,6 +5,7 @@ export interface ClientFilters {
   page?: number
   limit?: number
   search?: string
+  status?: 'active' | 'inactive' | ''
 }
 
 export interface CreateClientData {
@@ -21,6 +22,7 @@ export const clientsApi = {
     if (filters.page) params.append('page', filters.page.toString())
     if (filters.limit) params.append('limit', filters.limit.toString())
     if (filters.search) params.append('search', filters.search)
+    if (filters.status) params.append('status', filters.status)
     
     const response = await apiClient.get<ApiResponse<PaginatedResponse<Client>>>(`/clients?${params}`)
     return response.data.data

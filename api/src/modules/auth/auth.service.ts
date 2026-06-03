@@ -222,70 +222,75 @@ export class AuthService {
   }
 
   async login(dto: LoginDto): Promise<any> {
-    const user = await this.prisma.user.findUnique({
-      where: { email: dto.email.toLowerCase() },
-      include: { organization: true },
-    });
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { email: dto.email.toLowerCase() },
+        include: { organization: true },
+      });
 
-    if (!user) {
-      throw new UnauthorizedException('Invalid email or password');
-    }
-
-    if (!user.isActive) {
-      throw new UnauthorizedException('Account is deactivated');
-    }
-
-    if (!user.isEmailVerified) {
-      throw new UnauthorizedException('Please verify your email before logging in');
-    }
-
-    if (!user.passwordHash) {
-      if (user.googleId) {
-        // Google-only user trying password login — send them a link to add a password
-        const token = crypto.randomBytes(32).toString('hex');
-        await this.prisma.emailVerificationToken.create({
-          data: {
-            userId: user.id,
-            token,
-            type: TokenType.PASSWORD_SETUP,
-            expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000),
-          },
-        });
-        this.emailService.sendAddPasswordEmail(user.email, user.firstName, token).catch((err) => {
-          this.logger.error(`Failed to send add-password email to ${user.email}: ${err.message}`);
-        });
-        throw new UnauthorizedException('Your account uses Google Sign-In. We\'ve emailed you a link to set a password.');
+      if (!user) {
+        throw new UnauthorizedException('Invalid email or password');
       }
-      throw new UnauthorizedException('Please check your email for an activation link to set your password');
-    }
 
-    const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
+      if (!user.isActive) {
+        throw new UnauthorizedException('Account is deactivated');
+      }
 
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid email or password');
-    }
+      if (!user.isEmailVerified) {
+        throw new UnauthorizedException('Please verify your email before logging in');
+      }
 
-    const accessToken = this.generateToken(user);
+      if (!user.passwordHash) {
+        if (user.googleId) {
+          // Google-only user trying password login — send them a link to add a password
+          const token = crypto.randomBytes(32).toString('hex');
+          await this.prisma.emailVerificationToken.create({
+            data: {
+              userId: user.id,
+              token,
+              type: TokenType.PASSWORD_SETUP,
+              expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000),
+            },
+          });
+          this.emailService.sendAddPasswordEmail(user.email, user.firstName, token).catch((err) => {
+            this.logger.error(`Failed to send add-password email to ${user.email}: ${err.message}`);
+          });
+          throw new UnauthorizedException('Your account uses Google Sign-In. We\'ve emailed you a link to set a password.');
+        }
+        throw new UnauthorizedException('Please check your email for an activation link to set your password');
+      }
 
-    return {
-      accessToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        organizationId: user.organizationId,
-        organizationName: user.organization.name,
-        isPlatformAdmin: user.isPlatformAdmin,
-        plan: {
-          planTier: user.organization.planTier,
-          subscriptionStatus: user.organization.subscriptionStatus,
-          trialEndDate: user.organization.trialEndDate,
-          isGrandfathered: user.organization.isGrandfathered,
+      const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
+
+      if (!isPasswordValid) {
+        throw new UnauthorizedException('Invalid email or password');
+      }
+
+      const accessToken = this.generateToken(user);
+
+      return {
+        accessToken,
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+          organizationId: user.organizationId,
+          organizationName: user.organization.name,
+          isPlatformAdmin: user.isPlatformAdmin,
+          plan: {
+            planTier: user.organization.planTier,
+            subscriptionStatus: user.organization.subscriptionStatus,
+            trialEndDate: user.organization.trialEndDate,
+            isGrandfathered: user.organization.isGrandfathered,
+          },
         },
-      },
-    };
+      };
+    } catch (error) {
+      this.logger.error(`Error in login for email ${dto.email}:`, error.stack || error);
+      throw error;
+    }
   }
 
   async verifyEmail(dto: VerifyEmailDto): Promise<any> {

@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronDown, TrendingUp, TrendingDown } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  FileText,
-  CreditCard,
-  TrendingUp,
-  TrendingDown,
-  AlertCircle,
-  Trophy,
-  ShieldCheck,
-} from "lucide-react";
+  MoneyReceive02Icon,
+  Invoice04Icon,
+  CheckmarkCircle02Icon,
+  Invoice03Icon,
+  AlertDiamondIcon,
+  Calendar03Icon,
+  Award01Icon,
+} from "@hugeicons/core-free-icons";
 import { Link } from "react-router-dom";
 import { Header } from "@/components/layout";
 import { OnboardingChecklist } from "@/components/OnboardingChecklist";
@@ -17,13 +19,11 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  Badge,
-  Select,
   Input,
 } from "@/components/ui";
 import { reportsApi, type ReportPeriod } from "@/api/reports";
 import { taxApi } from "@/api";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, cn } from "@/lib/utils";
 import { useSubscription } from "@/hooks/useSubscription";
 
 const periodLabels: Record<ReportPeriod, string> = {
@@ -40,6 +40,7 @@ export function DashboardPage() {
   const [period, setPeriod] = useState<ReportPeriod>("THIS_MONTH");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const { hasRequiredPlan } = useSubscription();
   const isPro = hasRequiredPlan("PRO");
   const currentYear = new Date().getFullYear();
@@ -81,7 +82,7 @@ export function DashboardPage() {
       title: "Income",
       value: summary?.income.total ?? 0,
       subtext: `${summary?.income.paymentCount ?? 0} payments`,
-      icon: TrendingUp,
+      renderIcon: () => <TrendingUp className="h-5 w-5 text-green-600" strokeWidth={1.5} />,
       color: "text-green-600",
       bgColor: "bg-green-50",
     },
@@ -89,27 +90,39 @@ export function DashboardPage() {
       title: "Expenses",
       value: summary?.expenses.total ?? 0,
       subtext: `${summary?.expenses.expenseCount ?? 0} expenses`,
-      icon: TrendingDown,
-      color: "text-red-600",
+      renderIcon: () => <TrendingDown className="h-5 w-5 text-red-500" strokeWidth={1.5} />,
+      color: "text-red-500",
       bgColor: "bg-red-50",
     },
     {
       title: "Profit",
       value: summary?.profit ?? 0,
       subtext: `${summary?.profitMargin ?? 0}% margin`,
-      icon: CreditCard,
-      color: "text-primary",
-      bgColor: "bg-primary/10",
+      renderIcon: () => <HugeiconsIcon icon={MoneyReceive02Icon} size={20} color="currentColor" strokeWidth={1.5} className="text-[#0037b0]" />,
+      color: "text-[#0037b0]",
+      bgColor: "bg-[#0037b0]/[0.08]",
     },
     {
       title: "Outstanding",
       value: outstanding?.summary?.totalOutstanding ?? 0,
       subtext: `${outstanding?.summary?.overdueCount ?? 0} overdue`,
-      icon: AlertCircle,
+      renderIcon: () => <HugeiconsIcon icon={Invoice04Icon} size={20} color="currentColor" strokeWidth={1.5} className="text-amber-600" />,
       color: "text-amber-600",
       bgColor: "bg-amber-50",
     },
   ];
+
+  const periodOptions: Array<{ value: ReportPeriod; label: string }> = [
+    { value: "THIS_MONTH", label: "This Month" },
+    { value: "LAST_MONTH", label: "Last Month" },
+    { value: "THIS_QUARTER", label: "This Quarter" },
+    { value: "LAST_QUARTER", label: "Last Quarter" },
+    { value: "THIS_YEAR", label: "This Year" },
+    { value: "LAST_YEAR", label: "Last Year" },
+    { value: "CUSTOM", label: "Custom Range" },
+  ];
+
+  const activeOption = periodOptions.find((opt) => opt.value === period);
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -118,19 +131,46 @@ export function DashboardPage() {
         description={`Overview of your business performance ${periodLabels[period]}`}
         action={
           <div className="flex items-center gap-2">
-            <Select
-              value={period}
-              onChange={(e) => setPeriod(e.target.value as ReportPeriod)}
-              className="w-40"
-            >
-              <option value="THIS_MONTH">This Month</option>
-              <option value="LAST_MONTH">Last Month</option>
-              <option value="THIS_QUARTER">This Quarter</option>
-              <option value="LAST_QUARTER">Last Quarter</option>
-              <option value="THIS_YEAR">This Year</option>
-              <option value="LAST_YEAR">Last Year</option>
-              <option value="CUSTOM">Custom</option>
-            </Select>
+            {/* Custom styled select popover */}
+            <div className="relative inline-block text-left">
+              <button
+                onClick={() => setDropdownOpen(!dropdownOpen)}
+                className="h-11 px-4 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all flex items-center justify-between gap-2.5 shadow-[0px_4px_12px_rgba(0,55,176,0.01)] cursor-pointer min-w-[150px]"
+              >
+                <HugeiconsIcon icon={Calendar03Icon} size={16} color="currentColor" strokeWidth={1.5} className="text-slate-400" />
+                <span>{activeOption?.label}</span>
+                <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform duration-200", dropdownOpen && "rotate-180")} strokeWidth={1.5} />
+              </button>
+
+              {dropdownOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-10" 
+                    onClick={() => setDropdownOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-48 rounded-xl bg-white py-1 shadow-[0px_12px_32px_rgba(0,55,176,0.08)] ring-1 ring-black/5 z-20 animate-in fade-in slide-in-from-top-1 duration-150 text-left">
+                    {periodOptions.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => {
+                          setPeriod(opt.value);
+                          setDropdownOpen(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors block cursor-pointer",
+                          period === opt.value 
+                            ? "bg-[#0037b0]/5 text-[#0037b0]" 
+                            : "text-slate-700 hover:bg-slate-50"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
             {period === "CUSTOM" && (
               <>
                 <Input
@@ -151,90 +191,128 @@ export function DashboardPage() {
         }
       />
 
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
+      <div className="flex-1 overflow-auto p-4 sm:p-6 stagger-in">
         <OnboardingChecklist />
 
         {/* Stats Grid */}
-        <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat) => (
-            <Card key={stat.title}>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">
-                      {stat.title}
-                    </p>
-                    <p className="mt-1 text-2xl font-bold">
-                      {formatCurrency(stat.value)}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {stat.subtext}
-                    </p>
+        <div className="mb-8 grid gap-4 grid-cols-2 lg:grid-cols-4">
+          {stats.map((stat) => {
+            return (
+              <Card key={stat.title} className="hover:-translate-y-1 hover:shadow-[0px_20px_40px_rgba(0,55,176,0.08)]">
+                <CardContent className="p-4 sm:p-8">
+                  <div className="flex items-start sm:items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-400 truncate">
+                        {stat.title}
+                      </p>
+                      <p className="mt-1 sm:mt-2 text-lg sm:text-3xl font-bold tracking-tight text-slate-900 tabular-nums truncate">
+                        {formatCurrency(stat.value)}
+                      </p>
+                      <div className="mt-1.5 sm:mt-2 flex items-center gap-1.5">
+                        <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 sm:px-2 py-0.5 rounded-full truncate">
+                          {stat.subtext}
+                        </span>
+                      </div>
+                    </div>
+                    <div className={cn("w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-sm shrink-0", stat.bgColor)}>
+                      {stat.renderIcon()}
+                    </div>
                   </div>
-                  <div className={`rounded-full p-3 ${stat.bgColor}`}>
-                    <stat.icon className={`h-5 w-5 ${stat.color}`} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
         {/* Deductible Expenses YTD */}
         {isPro && (
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5 text-green-600" />
+          <Card className="mb-8 overflow-hidden hover:shadow-[0px_20px_40px_rgba(0,55,176,0.08)]">
+            <CardHeader className="p-8 pb-4">
+              <CardTitle className="flex items-center gap-2.5 text-lg font-bold text-slate-900">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+                  <HugeiconsIcon icon={CheckmarkCircle02Icon} size={20} color="currentColor" strokeWidth={1.5} />
+                </div>
                 Deductible Expenses YTD ({currentYear})
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-8 pt-0">
               {deductibleSummary ? (
-                <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-10">
-                  <div className="shrink-0">
-                    <p className="text-sm text-muted-foreground">
-                      Total Deductible
-                    </p>
-                    <p className="text-3xl font-bold text-green-600">
-                      {formatCurrency(deductibleSummary.total)}
-                    </p>
+                <div>
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                        Total Deductible Expenses
+                      </p>
+                      <p className="text-3xl font-bold text-emerald-600 mt-1 tabular-nums">
+                        {formatCurrency(deductibleSummary.total)}
+                      </p>
+                    </div>
                     <Link
                       to="/tax"
-                      className="mt-1 block text-xs text-primary hover:underline"
+                      className="inline-flex items-center gap-1.5 text-sm font-bold text-[#0037b0] hover:underline"
                     >
-                      View filing pack →
+                      View tax filing pack
+                      <span className="text-lg">→</span>
                     </Link>
                   </div>
+
                   {deductibleSummary.byCategory.length > 0 && (
-                    <div className="flex-1">
-                      <p className="mb-2 text-sm font-medium text-muted-foreground">
-                        By Category
-                      </p>
-                      <div className="grid grid-cols-1 gap-y-2 sm:grid-cols-2 sm:gap-x-8 lg:grid-cols-3">
+                    <div className="mt-6">
+                      {/* Segmented visual progress bar */}
+                      <div className="w-full bg-slate-100/80 h-3 rounded-full flex overflow-hidden my-4">
                         {deductibleSummary.byCategory
                           .sort((a, b) => b.total - a.total)
-                          .map((cat) => (
-                            <div
-                              key={cat.category}
-                              className="flex items-center justify-between gap-4"
-                            >
-                              <span className="text-xs text-muted-foreground">
-                                {cat.label}
-                              </span>
-                              <span className="shrink-0 text-xs font-medium">
-                                {formatCurrency(cat.total)}
-                              </span>
-                            </div>
-                          ))}
+                          .map((cat, idx) => {
+                            const pct = deductibleSummary.total > 0 ? (cat.total / deductibleSummary.total) * 100 : 0;
+                            const colors = ['bg-[#0037b0]', 'bg-[#3b82f6]', 'bg-[#10b981]', 'bg-[#f59e0b]', 'bg-[#ec4899]'];
+                            return (
+                              <div
+                                key={cat.category}
+                                className={`${colors[idx % colors.length]} h-full transition-all duration-500`}
+                                style={{ width: `${pct}%` }}
+                                title={`${cat.label}: ${pct.toFixed(1)}%`}
+                              />
+                            );
+                          })}
+                      </div>
+
+                      {/* Legend / Category Breakdown */}
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mt-6">
+                        {deductibleSummary.byCategory
+                          .sort((a, b) => b.total - a.total)
+                          .map((cat, idx) => {
+                            const pct = deductibleSummary.total > 0 ? (cat.total / deductibleSummary.total) * 100 : 0;
+                            const dotColors = ['bg-[#0037b0]', 'bg-[#3b82f6]', 'bg-[#10b981]', 'bg-[#f59e0b]', 'bg-[#ec4899]'];
+                            return (
+                              <div
+                                key={cat.category}
+                                className="flex items-center justify-between p-3 rounded-2xl bg-[#eef4ff]/20 hover:bg-[#eef4ff]/40 transition-colors"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className={`w-2.5 h-2.5 rounded-full ${dotColors[idx % dotColors.length]}`}></span>
+                                  <span className="text-xs font-bold text-slate-700">
+                                    {cat.label}
+                                  </span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-xs font-semibold text-slate-900 block tabular-nums">
+                                    {formatCurrency(cat.total)}
+                                  </span>
+                                  <span className="text-[9px] font-semibold text-slate-400 block">
+                                    {pct.toFixed(1)}%
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
                       </div>
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="flex items-center gap-3 py-2">
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                  <span className="text-sm text-muted-foreground">
+                <div className="flex items-center gap-3 py-6">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#0037b0] border-t-transparent" />
+                  <span className="text-sm text-slate-500">
                     Loading deductible summary…
                   </span>
                 </div>
@@ -243,129 +321,143 @@ export function DashboardPage() {
           </Card>
         )}
 
-        {/* Invoice Status */}
+        {/* Main Dashboard Details */}
         <div className="grid gap-6 lg:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
+          {/* Invoice Status Card */}
+          <Card className="hover:shadow-[0px_20px_40px_rgba(0,55,176,0.08)]">
+            <CardHeader className="p-8 pb-4">
+              <CardTitle className="flex items-center gap-2.5 text-base font-bold text-slate-900">
+                <HugeiconsIcon icon={Invoice03Icon} size={20} color="currentColor" strokeWidth={1.5} className="text-slate-500" />
                 Invoice Status
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
+            <CardContent className="p-8 pt-0">
+              <div className="space-y-4">
                 {Object.entries(summary?.invoices ?? {}).map(
-                  ([status, data]) => (
-                    <div
-                      key={status}
-                      className="flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant={
-                            status === "paid"
-                              ? "success"
-                              : status === "overdue"
-                                ? "destructive"
-                                : status === "draft"
-                                  ? "secondary"
-                                  : "default"
-                          }
-                        >
-                          {status.replace("_", " ")}
-                        </Badge>
-                        <span className="text-sm text-muted-foreground">
-                          {data.count} invoices
+                  ([status, data]) => {
+                    const badgeVariants: Record<string, string> = {
+                      paid: "bg-emerald-50 text-emerald-700",
+                      overdue: "bg-rose-50 text-rose-700",
+                      draft: "bg-slate-100 text-slate-600",
+                    };
+                    const statusClass = badgeVariants[status] || "bg-blue-50 text-blue-700";
+                    return (
+                      <div
+                        key={status}
+                        className="flex items-center justify-between p-3 rounded-2xl bg-slate-50/50 hover:bg-[#eef4ff]/30 transition-all"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md ${statusClass}`}>
+                            {status.replace("_", " ")}
+                          </span>
+                          <span className="text-xs text-slate-400">
+                            {data.count} invoice{data.count !== 1 ? "s" : ""}
+                          </span>
+                        </div>
+                        <span className="text-sm font-bold text-slate-800 tabular-nums">
+                          {formatCurrency(data.total)}
                         </span>
                       </div>
-                      <span className="font-medium">
-                        {formatCurrency(data.total)}
-                      </span>
-                    </div>
-                  ),
+                    );
+                  }
+                )}
+                {(!summary?.invoices || Object.keys(summary.invoices).length === 0) && (
+                  <p className="text-center text-slate-400 text-sm py-4">No invoices created yet</p>
                 )}
               </div>
             </CardContent>
           </Card>
 
-          {/* Recent Outstanding */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5" />
+          {/* Recent Outstanding Card */}
+          <Card className="hover:shadow-[0px_20px_40px_rgba(0,55,176,0.08)]">
+            <CardHeader className="p-8 pb-4">
+              <CardTitle className="flex items-center gap-2.5 text-base font-bold text-slate-900">
+                <HugeiconsIcon icon={AlertDiamondIcon} size={20} color="currentColor" strokeWidth={1.5} className="text-amber-500" />
                 Outstanding Invoices
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-8 pt-0">
               {outstanding?.invoices?.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {outstanding.invoices.slice(0, 5).map((inv: any) => (
                     <div
                       key={inv.id}
-                      className="flex items-center justify-between"
+                      className="flex items-center justify-between p-3 rounded-2xl bg-slate-50/50 hover:bg-rose-50/20 transition-all border border-transparent hover:border-rose-100"
                     >
                       <div>
-                        <p className="font-medium">{inv.invoiceNumber}</p>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-xs font-bold text-slate-900">{inv.invoiceNumber}</p>
+                        <p className="text-[10px] font-bold text-slate-400 mt-0.5">
                           {inv.client.name}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-medium">
+                        <p className="text-xs font-bold text-slate-900 tabular-nums">
                           {formatCurrency(inv.outstanding)}
                         </p>
                         {inv.isOverdue && (
-                          <p className="text-xs text-destructive">
-                            {inv.daysPastDue} days overdue
-                          </p>
+                          <span className="inline-block mt-0.5 text-[8px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">
+                            {inv.daysPastDue}d overdue
+                          </span>
                         )}
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-center text-muted-foreground">
-                  No outstanding invoices
-                </p>
+                <div className="text-center py-6">
+                  <p className="text-sm text-slate-400">
+                    No outstanding invoices
+                  </p>
+                </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Top Client */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Trophy className="h-5 w-5" />
+          {/* Top Client Card */}
+          <Card className="hover:shadow-[0px_20px_40px_rgba(0,55,176,0.08)]">
+            <CardHeader className="p-8 pb-4">
+              <CardTitle className="flex items-center gap-2.5 text-base font-bold text-slate-900">
+                <HugeiconsIcon icon={Award01Icon} size={20} color="currentColor" strokeWidth={1.5} className="text-amber-500" />
                 Top Client
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-8 pt-0">
               {topClient ? (
-                <div className="space-y-2">
-                  <p className="text-lg font-bold">
-                    {topClient.clientId ? (
-                      <Link
-                        to={`/clients/${topClient.clientId}`}
-                        className="hover:underline"
-                      >
-                        {topClient.clientName}
-                      </Link>
-                    ) : (
-                      topClient.clientName
-                    )}
-                  </p>
-                  <p className="text-2xl font-bold text-green-600">
-                    {formatCurrency(topClient.total)}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {topClient.paymentCount} payment
-                    {topClient.paymentCount !== 1 ? "s" : ""} received
-                  </p>
+                <div className="p-5 rounded-[24px] bg-gradient-to-br from-[#0037b0]/5 to-[#1d4ed8]/5 border border-[#0037b0]/10 flex flex-col justify-between h-full">
+                  <div>
+                    <span className="text-[9px] font-bold uppercase tracking-wider bg-[#0037b0]/10 text-[#0037b0] px-2 py-0.5 rounded-full">
+                      VIP Client
+                    </span>
+                    <p className="text-xl font-bold text-slate-950 mt-3">
+                      {topClient.clientId ? (
+                        <Link
+                          to={`/clients/${topClient.clientId}`}
+                          className="hover:underline hover:text-[#0037b0] transition-colors"
+                        >
+                          {topClient.clientName}
+                        </Link>
+                      ) : (
+                        topClient.clientName
+                      )}
+                    </p>
+                  </div>
+                  <div className="mt-6">
+                    <p className="text-xs font-bold text-slate-400">Total Settled</p>
+                    <p className="text-3xl font-bold text-emerald-600 tabular-nums">
+                      {formatCurrency(topClient.total)}
+                    </p>
+                    <p className="text-xs font-medium text-slate-500 mt-1">
+                      {topClient.paymentCount} payment
+                      {topClient.paymentCount !== 1 ? "s" : ""} received
+                    </p>
+                  </div>
                 </div>
               ) : (
-                <p className="text-center text-muted-foreground">
-                  No payments in this period
-                </p>
+                <div className="text-center py-6">
+                  <p className="text-sm text-slate-400">
+                    No payments in this period
+                  </p>
+                </div>
               )}
             </CardContent>
           </Card>

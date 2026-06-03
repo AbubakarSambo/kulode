@@ -49,7 +49,14 @@ export class PaymentsService {
         orderBy: { paymentDate: 'desc' },
         include: {
           invoice: {
-            select: { id: true, invoiceNumber: true, total: true },
+            select: { 
+              id: true, 
+              invoiceNumber: true, 
+              total: true,
+              client: {
+                select: { id: true, name: true }
+              }
+            },
           },
           recordedBy: {
             select: { id: true, firstName: true, lastName: true },

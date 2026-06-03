@@ -1,1 +1,130 @@
 @import "tailwindcss";
+
+@theme {
+  --color-secondary-fixed-dim: #c3c5d8;
+  --color-surface-container-lowest: #ffffff;
+  --color-on-secondary: #ffffff;
+  --color-on-primary: #ffffff;
+  --color-pending: #FFDDB8;
+  --color-on-error-container: #93000a;
+  --color-tertiary: #5d1100;
+  --color-secondary-fixed: #e0e1f4;
+  --color-success: #006C49;
+  --color-inverse-on-surface: #f1f0fa;
+  --color-surface-container: #E5EEFF;
+  --color-surface-container-high: #e8e7f2;
+  --color-on-primary-container: #9baeff;
+  --color-surface-variant: #e2e1ec;
+  --color-on-tertiary-container: #ff967b;
+  --color-tertiary-fixed: #ffdbd2;
+  --color-text-primary: #121C28;
+  --color-secondary: #5b5e6d;
+  --color-on-error: #ffffff;
+  --color-on-surface-variant: #444654;
+  --color-primary-fixed: #dce1ff;
+  --color-on-secondary-fixed: #181b28;
+  --color-primary-container: #0037b0;
+  --color-surface-container-low: #EEF4FF;
+  --color-primary: #00247d;
+  --color-outline: #747685;
+  --color-on-tertiary-fixed-variant: #872004;
+  --color-tertiary-fixed-dim: #ffb4a2;
+  --color-on-primary-fixed-variant: #063ab2;
+  --color-tertiary-container: #841e02;
+  --color-on-secondary-container: #5f6272;
+  --color-background: #faf8ff;
+  --color-outline-variant: rgba(196, 197, 215, 0.20);
+  --color-surface-dim: #D1DBEC;
+  --color-text-secondary: #434655;
+  --color-on-tertiary-fixed: #3c0800;
+  --color-on-primary-fixed: #001551;
+  --color-surface-container-highest: #e2e1ec;
+  --color-on-surface: #1a1b22;
+  --color-surface-tint: #2f54cb;
+  --color-on-secondary-fixed-variant: #434655;
+  --color-on-background: #1a1b22;
+  --color-inverse-primary: #b7c4ff;
+  --color-error: #BA1A1A;
+  --color-error-container: #ffdad6;
+  --color-secondary-container: #dddef1;
+  --color-on-tertiary: #ffffff;
+  --color-surface-bright: #faf8ff;
+  --color-surface: #F8F9FF;
+  --color-primary-fixed-dim: #b7c4ff;
+  --color-inverse-surface: #2f3038;
+
+  --radius-xl: 0.75rem;
+  --radius-full: 9999px;
+
+  --spacing-container-padding: 1rem;
+  --spacing-element-gap: 1rem;
+  --spacing-touch-target: 44px;
+  --spacing-pill-padding: 4px;
+  --spacing-stagger-delay: 30ms;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.hero-gradient {
+  background: radial-gradient(circle at top right, rgba(0, 55, 176, 0.05) 0%, transparent 50%);
+}
+
+.stagger-in {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: staggerIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes staggerIn {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.float-slow {
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes pulse-soft {
+  0%, 100% { box-shadow: 0 12px 32px rgba(0, 55, 176, 0.15); }
+  50% { box-shadow: 0 12px 40px rgba(0, 55, 176, 0.3); }
+}
+
+.pulse-primary {
+  animation: pulse-soft 3s ease-in-out infinite;
+}
+
+.btn-gradient {
+  background: linear-gradient(135deg, #0037b0 0%, #1d4ed8 100%) !important;
+  color: #ffffff !important;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.btn-gradient:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-family: monospace;
+}

@@ -1,7 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro'
 
-const appUrl = 'https://app.kulode.app'
+const appUrl = 'http://localhost:5173'
 ---
 
 <Layout
@@ -9,125 +9,154 @@ const appUrl = 'https://app.kulode.app'
   description="Generate your FIRS-ready annual tax summary in one click. Export a PDF for your accountant or a CSV of all deductible expenses. No spreadsheet wrangling required."
 >
   <!-- Nav -->
-  <nav class="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100">
-    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-      <a href="/" class="text-xl font-bold tracking-tight text-gray-900">kulode</a>
+  <nav class="w-full sticky top-0 z-50 bg-background/80 backdrop-blur-xl shadow-[0_12px_32px_rgba(0,55,176,0.08)]">
+    <div class="flex justify-between items-center px-container-padding max-w-7xl mx-auto h-[72px]">
+      <div class="flex items-center gap-12">
+        <a href="/" class="text-[24px] font-extrabold tracking-tighter text-primary">Kulode</a>
+        <div class="hidden md:flex items-center gap-8">
+          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/#features">Features</a>
+          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/how-it-works">How It Works</a>
+          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/pricing">Pricing</a>
+          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/invoicing">Solutions</a>
+          <a class="text-sm text-primary font-bold border-b-2 border-primary hover:text-primary transition-colors duration-200" href="/tax-filing">Tax Filing</a>
+        </div>
+      </div>
       <div class="flex items-center gap-4">
-        <a href={`${appUrl}/login`} class="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Log in</a>
-        <a href={`${appUrl}/register`} class="text-sm font-medium bg-blue-700 text-white px-4 py-2 rounded-lg hover:bg-blue-800 transition-colors">Get started free</a>
+        <a href={`${appUrl}/login`} class="text-sm font-medium text-text-secondary px-6 py-2 transition-all hover:text-primary active:scale-95">Login</a>
+        <a href={`${appUrl}/register`} class="bg-primary text-on-primary px-6 py-3 rounded-[12px] text-sm font-bold shadow-lg shadow-primary/20 hover:shadow-xl transition-all active:scale-95 btn-gradient">Get Started</a>
       </div>
     </div>
   </nav>
 
-  <!-- Hero -->
-  <section class="pt-32 pb-20 px-6">
-    <div class="max-w-3xl mx-auto text-center">
-      <div class="inline-flex items-center gap-2 bg-blue-50 text-blue-700 text-sm font-medium px-3 py-1.5 rounded-full mb-6">
-        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 14.25l6-6m4.5-3.493V21.75l-3.75-1.5-3.75 1.5-3.75-1.5-3.75 1.5V4.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0c1.1.128 1.907 1.077 1.907 2.185ZM9.75 9h.008v.008H9.75V9Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm4.125 4.5h.008v.008h-.008V13.5Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" /></svg>
-        Tax Filing Pack
-        <span class="text-xs font-bold uppercase tracking-wide bg-blue-700 text-white px-1.5 py-0.5 rounded">New</span>
+  <main class="hero-gradient">
+    <!-- Hero Section -->
+    <section class="max-w-7xl mx-auto px-container-padding py-20 md:py-32 grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
+      <div class="stagger-in">
+        <div class="inline-flex items-center gap-2 bg-[#ffddb8] text-[#121c28] text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full mb-6">
+          Tax Filing Pack
+        </div>
+        <h1 class="text-[56px] md:text-[72px] leading-[1.1] font-extrabold text-primary tracking-tight mb-6">Tax filing without<br />the <span class="text-surface-tint">spreadsheet</span> pain</h1>
+        <p class="text-base text-text-secondary mb-10 max-w-lg">Generate your FIRS-ready annual tax summary in one click. Export a PDF for your accountant or a CSV of all deductible expenses — no manual number crunching required.</p>
+        <div class="flex flex-col sm:flex-row gap-4 items-center">
+          <a href={`${appUrl}/register`} class="w-full sm:w-auto text-center bg-primary text-on-primary px-10 py-5 rounded-[12px] text-lg font-bold shadow-2xl shadow-primary/25 active:scale-95 btn-gradient pulse-primary">
+            Start for free
+          </a>
+          <a href="/" class="w-full sm:w-auto text-center text-text-secondary px-8 py-5 rounded-[12px] text-base font-medium border border-outline-variant hover:border-primary transition-colors">
+            See all features
+          </a>
+        </div>
       </div>
-      <h1 class="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-gray-900 leading-tight">
-        Tax filing without<br />the spreadsheet pain
-      </h1>
-      <p class="mt-6 text-lg sm:text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed">
-        Generate your FIRS-ready annual tax summary in one click. Export a PDF for your accountant or a CSV of all deductible expenses — no manual number crunching required.
-      </p>
-      <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-        <a href={`${appUrl}/register`} class="w-full sm:w-auto text-center bg-blue-700 text-white px-8 py-3.5 rounded-lg text-base font-medium hover:bg-blue-800 transition-colors">
-          Start for free
+      <div class="relative stagger-in">
+        <div class="absolute -top-10 -left-10 w-40 h-40 bg-surface-container rounded-full blur-3xl opacity-50 -z-10"></div>
+        <div class="rounded-[48px] overflow-hidden shadow-[0_32px_64px_rgba(0,55,176,0.12)] bg-surface-container-lowest p-4 float-slow">
+          <img alt="Car Dealer compliance" class="w-full h-auto rounded-[32px] object-cover aspect-[4/5]" src="/car_dealer_persona.png">
+        </div>
+        <!-- Glass Overlay Element -->
+        <div class="absolute bottom-12 -left-8 glass-card p-6 rounded-[24px] shadow-xl border border-white/20 max-w-[240px]">
+          <div class="flex items-center gap-4 mb-3">
+            <div class="w-10 h-10 rounded-full bg-success/20 flex items-center justify-center text-success">
+              <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+            </div>
+            <div>
+              <p class="text-xs font-bold text-text-primary">FIRS Return</p>
+              <p class="text-[10px] text-text-secondary">VAT & WHT Ready</p>
+            </div>
+          </div>
+          <p class="text-xl font-bold text-primary">Generated</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Problem / Solution -->
+    <section class="bg-surface-container-low py-32">
+      <div class="max-w-7xl mx-auto px-container-padding">
+        <div class="text-center mb-20 stagger-in">
+          <h2 class="text-3xl font-extrabold text-primary mb-4">Tax season shouldn't be a crisis</h2>
+          <p class="text-base text-text-secondary max-w-xl mx-auto">Most freelancers and small business owners scramble at year-end because their records are scattered. Kulode keeps everything ready throughout the year.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div class="bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] hover:shadow-[0_20px_40px_rgba(0,55,176,0.10)] hover:-translate-y-1 transition-all duration-300">
+            <div class="w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
+              <span class="material-symbols-outlined text-[32px]">task_alt</span>
+            </div>
+            <h3 class="text-lg font-bold text-text-primary mb-4">FIRS-ready tax summary</h3>
+            <p class="text-sm text-text-secondary">Kulode generates an annual tax summary formatted for FIRS requirements. Hand it to your accountant or file directly — no reformatting needed.</p>
+          </div>
+
+          <div class="bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] hover:shadow-[0_20px_40px_rgba(0,55,176,0.10)] hover:-translate-y-1 transition-all duration-300">
+            <div class="w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
+              <span class="material-symbols-outlined text-[32px]">download_for_offline</span>
+            </div>
+            <h3 class="text-lg font-bold text-text-primary mb-4">Export PDF or CSV in one click</h3>
+            <p class="text-sm text-text-secondary">Download a clean PDF to share with your accountant, or a CSV of all categorised expenses for your own records. Your data, your format.</p>
+          </div>
+
+          <div class="bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] hover:shadow-[0_20px_40px_rgba(0,55,176,0.10)] hover:-translate-y-1 transition-all duration-300">
+            <div class="w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
+              <span class="material-symbols-outlined text-[32px]">category</span>
+            </div>
+            <h3 class="text-lg font-bold text-text-primary mb-4">Deductible expenses automatically categorised</h3>
+            <p class="text-sm text-text-secondary">Every expense you record through the year gets categorised. When it's time to file, Kulode surfaces all your deductibles — so you never leave money on the table.</p>
+          </div>
+
+          <div class="bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] hover:shadow-[0_20px_40px_rgba(0,55,176,0.10)] hover:-translate-y-1 transition-all duration-300">
+            <div class="w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
+              <span class="material-symbols-outlined text-[32px]">event_repeat</span>
+            </div>
+            <h3 class="text-lg font-bold text-text-primary mb-4">Ready year-round, not just in March</h3>
+            <p class="text-sm text-text-secondary">Because Kulode tracks income and expenses all year, your tax data is always up to date. No frantic reconciliation at year-end — just export and go.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Trust strip -->
+    <section class="max-w-7xl mx-auto px-container-padding py-32">
+      <div class="max-w-3xl mx-auto text-center">
+        <p class="text-xs uppercase tracking-widest text-text-secondary mb-12">Designed around Nigerian tax requirements</p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-8">
+          <div>
+            <p class="text-4xl font-extrabold text-primary">1-click</p>
+            <p class="mt-2 text-text-secondary text-sm">annual tax summary export</p>
+          </div>
+          <div>
+            <p class="text-4xl font-extrabold text-primary">FIRS</p>
+            <p class="mt-2 text-text-secondary text-sm">ready format out of the box</p>
+          </div>
+          <div>
+            <p class="text-4xl font-extrabold text-primary">₦0</p>
+            <p class="mt-2 text-text-secondary text-sm">to get started — no card needed</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="py-32 px-container-padding">
+      <div class="max-w-5xl mx-auto bg-surface-container p-12 md:p-20 rounded-[48px] text-center shadow-xl border border-white/20">
+        <h2 class="text-3xl font-extrabold text-primary mb-6">Get your taxes sorted this year</h2>
+        <p class="text-base text-text-secondary mb-12 max-w-xl mx-auto">Start tracking today so year-end is painless. No debit card required.</p>
+        <a href={`${appUrl}/register`} class="inline-block bg-primary text-on-primary px-12 py-5 rounded-[12px] text-base font-bold shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all btn-gradient">
+          Get started free
         </a>
-        <a href="/" class="w-full sm:w-auto text-center text-gray-600 px-8 py-3.5 rounded-lg text-base font-medium border border-gray-200 hover:border-gray-300 hover:text-gray-900 transition-colors">
-          See all features
-        </a>
       </div>
-    </div>
-  </section>
-
-  <!-- Problem / Solution -->
-  <section class="py-20 px-6 bg-gray-50">
-    <div class="max-w-5xl mx-auto">
-      <div class="text-center mb-16">
-        <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900">Tax season shouldn't be a crisis</h2>
-        <p class="mt-4 text-lg text-gray-500 max-w-xl mx-auto">Most freelancers and small business owners scramble at year-end because their records are scattered. Kulode keeps everything ready throughout the year.</p>
-      </div>
-
-      <div class="grid sm:grid-cols-2 gap-8">
-        <div class="bg-white rounded-xl p-8 border border-gray-100">
-          <div class="w-10 h-10 rounded-lg bg-blue-700 flex items-center justify-center mb-5">
-            <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 14.25l6-6m4.5-3.493V21.75l-3.75-1.5-3.75 1.5-3.75-1.5-3.75 1.5V4.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0c1.1.128 1.907 1.077 1.907 2.185ZM9.75 9h.008v.008H9.75V9Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm4.125 4.5h.008v.008h-.008V13.5Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" /></svg>
-          </div>
-          <h3 class="text-lg font-semibold text-gray-900 mb-2">FIRS-ready tax summary</h3>
-          <p class="text-gray-500 leading-relaxed">Kulode generates an annual tax summary formatted for FIRS requirements. Hand it to your accountant or file directly — no reformatting needed.</p>
-        </div>
-
-        <div class="bg-white rounded-xl p-8 border border-gray-100">
-          <div class="w-10 h-10 rounded-lg bg-blue-700 flex items-center justify-center mb-5">
-            <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
-          </div>
-          <h3 class="text-lg font-semibold text-gray-900 mb-2">Export PDF or CSV in one click</h3>
-          <p class="text-gray-500 leading-relaxed">Download a clean PDF to share with your accountant, or a CSV of all categorised expenses for your own records. Your data, your format.</p>
-        </div>
-
-        <div class="bg-white rounded-xl p-8 border border-gray-100">
-          <div class="w-10 h-10 rounded-lg bg-blue-700 flex items-center justify-center mb-5">
-            <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" /></svg>
-          </div>
-          <h3 class="text-lg font-semibold text-gray-900 mb-2">Deductible expenses automatically categorised</h3>
-          <p class="text-gray-500 leading-relaxed">Every expense you record through the year gets categorised. When it's time to file, Kulode surfaces all your deductibles — so you never leave money on the table.</p>
-        </div>
-
-        <div class="bg-white rounded-xl p-8 border border-gray-100">
-          <div class="w-10 h-10 rounded-lg bg-blue-700 flex items-center justify-center mb-5">
-            <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-          </div>
-          <h3 class="text-lg font-semibold text-gray-900 mb-2">Ready year-round, not just in March</h3>
-          <p class="text-gray-500 leading-relaxed">Because Kulode tracks income and expenses all year, your tax data is always up to date. No frantic reconciliation at year-end — just export and go.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Trust strip -->
-  <section class="py-16 px-6">
-    <div class="max-w-3xl mx-auto text-center">
-      <p class="text-gray-400 text-sm font-medium uppercase tracking-widest mb-8">Designed around Nigerian tax requirements</p>
-      <div class="grid sm:grid-cols-3 gap-8">
-        <div>
-          <p class="text-3xl font-bold text-gray-900">1-click</p>
-          <p class="mt-1 text-gray-500 text-sm">annual tax summary export</p>
-        </div>
-        <div>
-          <p class="text-3xl font-bold text-gray-900">FIRS</p>
-          <p class="mt-1 text-gray-500 text-sm">ready format out of the box</p>
-        </div>
-        <div>
-          <p class="text-3xl font-bold text-gray-900">₦0</p>
-          <p class="mt-1 text-gray-500 text-sm">to get started — no card needed</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- CTA -->
-  <section class="py-20 px-6 bg-gray-50">
-    <div class="max-w-3xl mx-auto text-center">
-      <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900">Get your taxes sorted this year</h2>
-      <p class="mt-4 text-lg text-gray-500">Start tracking today so year-end is painless. No debit card required.</p>
-      <a href={`${appUrl}/register`} class="mt-8 inline-block bg-blue-700 text-white px-8 py-3.5 rounded-lg text-base font-medium hover:bg-blue-800 transition-colors">
-        Get started free
-      </a>
-    </div>
-  </section>
+    </section>
+  </main>
 
   <!-- Footer -->
-  <footer class="border-t border-gray-100 py-12 px-6">
-    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-      <span class="text-sm text-gray-400">&copy; {new Date().getFullYear()} Kulode. All rights reserved.</span>
-      <div class="flex items-center gap-6">
-        <a href="mailto:abubakar.sambo@kulode.app" class="text-sm text-gray-400 hover:text-gray-600 transition-colors">Contact</a>
-        <a href="/privacy" class="text-sm text-gray-400 hover:text-gray-600 transition-colors">Privacy</a>
-        <a href="/terms" class="text-sm text-gray-400 hover:text-gray-600 transition-colors">Terms</a>
+  <footer class="w-full py-12 bg-surface border-t border-outline-variant">
+    <div class="flex flex-col md:flex-row justify-between items-center gap-element-gap px-container-padding max-w-7xl mx-auto">
+      <div class="flex flex-col gap-4 items-center md:items-start">
+        <span class="text-2xl font-bold tracking-tight text-primary">Kulode</span>
+        <p class="text-sm text-text-secondary text-center md:text-left max-w-xs">
+          © {new Date().getFullYear()} Kulode. All rights reserved. Built for the modern freelancer.
+        </p>
+      </div>
+      <div class="flex flex-wrap justify-center gap-8">
+        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/privacy">Privacy Policy</a>
+        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/terms">Terms of Service</a>
+        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="mailto:abubakar.sambo@kulode.app">Contact Support</a>
       </div>
     </div>
   </footer>

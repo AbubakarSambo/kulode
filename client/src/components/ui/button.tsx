@@ -3,26 +3,26 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex items-center justify-center whitespace-nowrap rounded-xl text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 duration-200',
   {
     variants: {
       variant: {
         default:
-          'bg-primary text-primary-foreground shadow hover:bg-primary/90',
+          'bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-primary-foreground shadow-md hover:brightness-110 active:scale-98',
         destructive:
-          'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90',
+          'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 active:scale-98',
         outline:
-          'border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground',
+          'border border-border bg-transparent text-[#0037b0] shadow-sm hover:bg-[#0037b0]/5 hover:text-[#0037b0] active:scale-98',
         secondary:
-          'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80',
-        ghost: 'hover:bg-accent hover:text-accent-foreground',
-        link: 'text-primary underline-offset-4 hover:underline',
+          'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80 active:scale-98',
+        ghost: 'hover:bg-accent hover:text-accent-foreground active:scale-98',
+        link: 'text-[#0037b0] underline-offset-4 hover:underline',
       },
       size: {
-        default: 'h-9 px-4 py-2',
-        sm: 'h-8 rounded-md px-3 text-xs',
-        lg: 'h-10 rounded-md px-8',
-        icon: 'h-9 w-9',
+        default: 'h-11 px-6 text-sm font-semibold',
+        sm: 'h-9 rounded-lg px-4 text-xs font-semibold',
+        lg: 'h-12 rounded-xl px-8 text-base font-semibold',
+        icon: 'h-11 w-11 rounded-xl',
       },
     },
     defaultVariants: {
