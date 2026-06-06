@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
@@ -17,8 +17,19 @@ import {
   Share02Icon,
   Download02Icon,
   AlertDiamondIcon,
-  Tick01Icon,
+  ArrowDown01Icon,
+  Invoice03Icon,
+  ArrowLeft02Icon,
 } from '@hugeicons/core-free-icons'
+
+function MailIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+    </svg>
+  )
+}
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
@@ -27,74 +38,62 @@ function WhatsAppIcon({ className }: { className?: string }) {
     </svg>
   )
 }
+
 import { Header } from '@/components/layout'
-import { Button, Input, Label, Select, Textarea, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
+import { Button, Input, Label, Select, Textarea, Card, CardContent, CardHeader, CardTitle, ConfirmDialog } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { invoicesApi, paymentsApi, organizationsApi } from '@/api'
 import apiClient from '@/api/client'
 import type { ApiResponse } from '@/types'
-import { formatCurrency, formatDate, cn } from '@/lib/utils'
+import { formatCurrency, formatDate, cn, formatAmountInput, parseAmountInput } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
 import type { InvoiceStatus, PaymentMethod } from '@/types'
 import { useAuthStore } from '@/stores/auth'
+import { useOverscrollBounce } from '@/hooks'
+
 
 const renderStatusPill = (status: InvoiceStatus) => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const configs: Record<InvoiceStatus, { bg: string; text: string; border: string; label: string; icon?: any }> = {
+  const configs: Record<InvoiceStatus, { dot: string; text: string; label: string }> = {
     PAID: {
-      bg: 'bg-emerald-500/10',
+      dot: 'bg-emerald-500',
       text: 'text-emerald-700',
-      border: 'border-emerald-500/20',
       label: 'Paid',
-      icon: Tick01Icon,
     },
     OVERDUE: {
-      bg: 'bg-rose-500/10',
+      dot: 'bg-rose-500',
       text: 'text-rose-700',
-      border: 'border-rose-500/20',
       label: 'Overdue',
-      icon: Cancel01Icon,
     },
     PARTIALLY_PAID: {
-      bg: 'bg-amber-500/10',
+      dot: 'bg-amber-500',
       text: 'text-amber-700',
-      border: 'border-amber-500/20',
       label: 'Part Paid',
-      icon: PlusSignIcon,
     },
     SENT: {
-      bg: 'bg-blue-500/10',
+      dot: 'bg-blue-500',
       text: 'text-blue-700',
-      border: 'border-blue-500/20',
       label: 'Sent',
-      icon: SentIcon,
     },
     DRAFT: {
-      bg: 'bg-slate-500/10',
-      text: 'text-slate-700',
-      border: 'border-slate-500/20',
+      dot: 'bg-slate-400',
+      text: 'text-slate-550',
       label: 'Draft',
     },
     CANCELLED: {
-      bg: 'bg-slate-500/10',
-      text: 'text-slate-700',
-      border: 'border-slate-500/20',
+      dot: 'bg-slate-400',
+      text: 'text-slate-550',
       label: 'Cancelled',
-      icon: Cancel01Icon,
     },
   }
 
   const config = configs[status]
   return (
-    <span className={cn(
-      "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border select-none shadow-sm",
-      config.bg,
-      config.text,
-      config.border
-    )}>
-      {config.icon && <HugeiconsIcon icon={config.icon} size={10} strokeWidth={2.5} />}
-      {config.label}
-    </span>
+    <div className="flex items-center gap-1.5 select-none justify-start">
+      <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", config.dot)} />
+      <span className={cn("text-xs font-semibold tracking-wide", config.text)}>
+        {config.label}
+      </span>
+    </div>
   )
 }
 
@@ -115,14 +114,23 @@ export function InvoiceDetailPage() {
   const user = useAuthStore((state) => state.user)
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
   const [isPaymentLinkModalOpen, setIsPaymentLinkModalOpen] = useState(false)
+  const [linkAmountStr, setLinkAmountStr] = useState('')
+  const [recordAmountStr, setRecordAmountStr] = useState('')
   const [downloadingReceiptId, setDownloadingReceiptId] = useState<string | null>(null)
   const [isSharing, setIsSharing] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(true)
+  const [lifecycleOpen, setLifecycleOpen] = useState(false)
+  const [isFabMenuOpen, setIsFabMenuOpen] = useState(false)
+  const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
 
   const { data: invoice, isLoading } = useQuery({
     queryKey: ['invoices', id],
     queryFn: () => invoicesApi.get(id!),
     enabled: !!id,
   })
+
+  const outstanding = invoice ? Number(invoice.total) - Number(invoice.amountPaid) : 0
 
   const { data: organization } = useQuery({
     queryKey: ['organization'],
@@ -184,6 +192,7 @@ export function InvoiceDetailPage() {
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<PaymentFormData>({
     resolver: zodResolver(paymentSchema),
@@ -195,6 +204,12 @@ export function InvoiceDetailPage() {
       notes: '',
     },
   })
+
+  useEffect(() => {
+    if (isPaymentLinkModalOpen && outstanding !== undefined) {
+      setLinkAmountStr(formatAmountInput(outstanding))
+    }
+  }, [isPaymentLinkModalOpen, outstanding])
 
   const paymentMutation = useMutation({
     mutationFn: (data: PaymentFormData) => paymentsApi.createForInvoice(id!, {
@@ -225,20 +240,20 @@ export function InvoiceDetailPage() {
   }
 
   const handleDelete = () => {
-    if (window.confirm('Are you sure you want to delete this invoice?')) {
-      deleteMutation.mutate()
-    }
+    setDeleteConfirmOpen(true)
   }
 
   const openPaymentModal = () => {
     if (invoice) {
+      const initialAmount = Number(invoice.total) - Number(invoice.amountPaid)
       reset({
-        amount: Number(invoice.total) - Number(invoice.amountPaid),
+        amount: initialAmount,
         paymentMethod: 'BANK_TRANSFER',
         paymentDate: new Date().toISOString().split('T')[0],
         reference: '',
         notes: '',
       })
+      setRecordAmountStr(formatAmountInput(initialAmount))
     }
     setIsPaymentModalOpen(true)
   }
@@ -262,7 +277,6 @@ export function InvoiceDetailPage() {
     )
   }
 
-  const outstanding = Number(invoice.total) - Number(invoice.amountPaid)
   const isSuperAdmin = user?.role === 'SUPER_ADMIN'
   const canRecordPayment = invoice.status !== 'DRAFT' && invoice.status !== 'CANCELLED' && invoice.status !== 'PAID'
   const canSend = invoice.status === 'DRAFT'
@@ -329,6 +343,12 @@ export function InvoiceDetailPage() {
     }
   }
 
+  const shareWhatsApp = () => {
+    if (!invoice) return
+    const text = `Hello! Here is invoice ${invoice.invoiceNumber} for ${formatCurrency(invoice.total)}.${invoice.paymentUrl ? ` You can pay online here: ${invoice.paymentUrl}` : ''}`
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank')
+  }
+
   const downloadReceipt = async (paymentId: string) => {
     setDownloadingReceiptId(paymentId)
     try {
@@ -349,8 +369,210 @@ export function InvoiceDetailPage() {
     }
   }
 
+  // Define Stepper Timeline Content
+  const stepperContent = (
+    <div className="relative pl-6 border-l border-slate-100/50 space-y-6 ml-3">
+      {/* Step 1: Draft */}
+      <div className="relative">
+        <span className="absolute -left-[32px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white text-[9px] font-bold shadow-sm">✓</span>
+        <div>
+          <p className="text-xs font-bold text-slate-800">Draft Created</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Initialized on {formatDate(invoice.createdAt)}</p>
+        </div>
+      </div>
+
+      {/* Step 2: Sent */}
+      <div className="relative">
+        {invoice.status !== 'DRAFT' ? (
+          <span className="absolute -left-[32px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white text-[9px] font-bold shadow-sm">✓</span>
+        ) : (
+          <span className="absolute -left-[32px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-200 text-slate-450 text-[9px] font-bold shadow-sm">•</span>
+        )}
+        <div>
+          <p className={cn("text-xs font-bold", invoice.status !== 'DRAFT' ? "text-slate-800" : "text-slate-450")}>Sent to Client</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">
+            {invoice.status !== 'DRAFT' ? "Dispatched successfully" : "Awaiting dispatch"}
+          </p>
+        </div>
+      </div>
+
+      {/* Step 3: Settled/Overdue */}
+      <div className="relative">
+        {invoice.status === 'PAID' ? (
+          <span className="absolute -left-[32px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white text-[9px] font-bold shadow-sm">✓</span>
+        ) : invoice.status === 'OVERDUE' ? (
+          <span className="absolute -left-[32px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-white text-[9px] font-bold shadow-sm">!</span>
+        ) : (
+          <span className="absolute -left-[32px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-200 text-slate-450 text-[9px] font-bold shadow-sm">•</span>
+        )}
+        <div>
+          <p className={cn(
+            "text-xs font-bold",
+            invoice.status === 'PAID' && "text-emerald-700",
+            invoice.status === 'OVERDUE' && "text-rose-600",
+            (invoice.status !== 'PAID' && invoice.status !== 'OVERDUE') && "text-slate-450"
+          )}>
+            {invoice.status === 'PAID' ? "Fully Settled" : invoice.status === 'OVERDUE' ? "Payment Overdue" : "Settlement"}
+          </p>
+          <p className="text-[10px] text-slate-400 mt-0.5">
+            {invoice.status === 'PAID' ? "Cleared via transaction" : invoice.status === 'OVERDUE' ? `Due since ${formatDate(invoice.dueDate)}` : "Awaiting settlement"}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+
+  // Define Reusable Physical Invoice Sheet Markup
+  const invoiceSheetContent = (
+    <div className="relative overflow-hidden">
+      {/* Document Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-8 mt-2 pb-6 border-b border-[#eef4ff]/40">
+        <div>
+          <h2 className="text-sm font-extrabold tracking-tight text-slate-800 uppercase">
+            {organization?.name || 'Acme Corporation'}
+          </h2>
+          <p className="text-[11px] text-slate-400 mt-1">Corporate Invoice</p>
+        </div>
+        <div className="sm:text-right">
+          <span className="text-[9px] font-bold uppercase tracking-widest text-[#0037b0] bg-[#0037b0]/5 px-2.5 py-1 rounded-md">
+            INVOICE
+          </span>
+          <h1 className="text-lg font-bold tracking-tight text-slate-900 mt-2">{invoice.invoiceNumber}</h1>
+        </div>
+      </div>
+
+      {/* Bilateral Details Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
+        <div className="bg-background/50 p-4.5 rounded-2xl border border-[#eef4ff]/30">
+          <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 block mb-2">Billed To</span>
+          <Link to={`/clients/${invoice.client.id}`} className="text-sm font-bold text-[#0037b0] hover:underline block truncate max-w-[280px]">
+            {invoice.client.name}
+          </Link>
+          {invoice.client.email && (
+            <span className="text-xs text-slate-500 block mt-1 truncate max-w-[280px]">{invoice.client.email}</span>
+          )}
+          {invoice.client.phone && (
+            <span className="text-xs text-slate-500 block mt-0.5">{invoice.client.phone}</span>
+          )}
+        </div>
+        <div className="bg-background/50 p-4.5 rounded-2xl border border-[#eef4ff]/30 sm:text-right flex flex-col justify-between gap-3">
+          <div>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 block mb-0.5">Issue Date</span>
+            <span className="text-xs font-bold text-slate-750">{formatDate(invoice.issueDate)}</span>
+          </div>
+          <div>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 block mb-0.5">Due Date</span>
+            <span className="text-xs font-bold text-rose-600">{formatDate(invoice.dueDate)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Line Items - Desktop Table / Mobile Vertical List */}
+      <div className="pt-2">
+        {/* Desktop Table View */}
+        <div className="hidden sm:block overflow-x-auto">
+          <table className="w-full min-w-[400px]">
+            <thead>
+              <tr className="text-xs font-bold uppercase tracking-widest text-slate-400 border-b border-[#eef4ff]/40">
+                <th className="pb-3 text-left font-bold">Description</th>
+                <th className="pb-3 text-right font-bold w-16">Qty</th>
+                <th className="pb-3 text-right font-bold w-32">Price</th>
+                <th className="pb-3 text-right font-bold w-32">Amount</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y-0">
+              {invoice.items.map((item, index) => (
+                <tr 
+                  key={index} 
+                  className={cn(
+                    "transition-colors hover:bg-[#eef4ff]/20 border-b border-[#eef4ff]/25 last:border-b-0",
+                    index % 2 === 0 ? "bg-transparent" : "bg-background/30"
+                  )}
+                >
+                  <td className="py-4 text-sm font-medium text-slate-800">{item.description}</td>
+                  <td className="py-4 text-right text-sm font-medium text-slate-650 tabular-nums">{item.quantity}</td>
+                  <td className="py-4 text-right text-sm font-medium text-slate-650 tabular-nums">{formatCurrency(item.unitPrice)}</td>
+                  <td className="py-4 text-right text-sm font-bold text-slate-900 tabular-nums">{formatCurrency(item.amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile Vertical List View (Fits large text / prices with NO horizontal scroll) */}
+        <div className="block sm:hidden space-y-3.5 pb-4">
+          <p className="text-[9px] font-bold tracking-widest text-slate-450 uppercase mb-2">Invoice Items</p>
+          {invoice.items.map((item, index) => (
+            <div 
+              key={index}
+              className="p-4 rounded-2xl bg-background/40 border border-[#eef4ff]/20 flex flex-col gap-2"
+            >
+              <p className="text-xs font-bold text-slate-700 leading-tight">
+                {item.description}
+              </p>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-450 font-semibold">
+                  {item.quantity} x {formatCurrency(item.unitPrice)}
+                </span>
+                <span className="font-bold text-slate-850 tabular-nums">
+                  {formatCurrency(item.amount)}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Totals Section */}
+        <table className="w-full border-t border-[#eef4ff]/50">
+          <tbody className="divide-y-0">
+            <tr>
+              <td className="py-3 text-left sm:text-right text-xs font-bold uppercase tracking-wider text-slate-400 sm:pr-32">Subtotal</td>
+              <td className="py-3 text-right text-sm font-bold text-slate-900 tabular-nums w-32">{formatCurrency(invoice.subtotal)}</td>
+            </tr>
+            {Number(invoice.discountAmount) > 0 && (
+              <tr className="text-emerald-600">
+                <td className="py-1.5 text-left sm:text-right text-xs font-bold uppercase tracking-wider sm:pr-32">Discount ({invoice.discountPercent}%)</td>
+                <td className="py-1.5 text-right text-sm font-bold tabular-nums w-32">-{formatCurrency(invoice.discountAmount ?? 0)}</td>
+              </tr>
+            )}
+            {Number(invoice.taxAmount) > 0 && (
+              <tr className="text-slate-500">
+                <td className="py-1.5 text-left sm:text-right text-xs font-bold uppercase tracking-wider text-slate-400 sm:pr-32">VAT ({invoice.taxRate ?? 7.5}%)</td>
+                <td className="py-1.5 text-right text-sm font-semibold text-slate-705 tabular-nums w-32">{formatCurrency(invoice.taxAmount)}</td>
+              </tr>
+            )}
+            <tr className="border-t border-[#eef4ff]/60 bg-[#0037b0]/02">
+              <td className="py-4 text-left sm:text-right text-xs font-bold uppercase tracking-wider text-slate-700 sm:pr-32">Total</td>
+              <td className="py-4 text-right text-lg font-bold text-slate-900 tabular-nums w-32">{formatCurrency(invoice.total)}</td>
+            </tr>
+            {Number(invoice.amountPaid) > 0 && (
+              <>
+                <tr className="text-emerald-600">
+                  <td className="py-2 text-left sm:text-right text-xs font-bold uppercase tracking-wider sm:pr-32">Paid</td>
+                  <td className="py-2 text-right text-sm font-bold tabular-nums w-32">-{formatCurrency(invoice.amountPaid)}</td>
+                </tr>
+                <tr className="font-extrabold border-t border-dashed border-slate-200">
+                  <td className="py-3 text-left sm:text-right text-xs font-bold uppercase tracking-wider text-slate-700 sm:pr-32">Balance Due</td>
+                  <td className="py-3 text-right text-base font-bold text-slate-900 tabular-nums w-32">{formatCurrency(outstanding)}</td>
+                </tr>
+              </>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Notes */}
+      {invoice.notes && (
+        <div className="border-t border-[#eef4ff]/30 pt-4 mt-8">
+          <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Notes</p>
+          <p className="mt-2 text-xs font-medium text-slate-600 leading-relaxed bg-background/50 p-4 rounded-xl border border-[#eef4ff]/30">{invoice.notes}</p>
+        </div>
+      )}
+    </div>
+  )
+
   return (
-    <div className="flex flex-1 flex-col overflow-hidden bg-[#f8f9ff]">
+    <div className="flex flex-1 flex-col overflow-hidden bg-background">
       <Header
         title={invoice.invoiceNumber}
         description={`Invoice for ${invoice.client.name}`}
@@ -421,336 +643,326 @@ export function InvoiceDetailPage() {
         }
       />
 
-      <div className="flex-1 overflow-auto p-4 sm:p-8">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto p-4 sm:p-6">
         <div className="mx-auto max-w-7xl">
-          {/* Mobile Quick Action Strip (only visible on mobile screens) */}
-          <div className="flex flex-wrap gap-2 sm:hidden bg-white p-4 rounded-[20px] shadow-[0px_8px_24px_rgba(0,55,176,0.02)] border border-[#eef4ff]/50 mb-6">
-            {invoice.status !== 'DRAFT' && (
-              <Button variant="outline" size="sm" onClick={shareInvoice} isLoading={isSharing} className="h-9 px-3 text-xs rounded-lg flex-1 min-w-[80px]">
-                {!isSharing && <WhatsAppIcon className="mr-1.5 h-3.5 w-3.5" />}
-                Share
-              </Button>
-            )}
-            <Button variant="outline" size="sm" onClick={downloadPdf} className="h-9 px-3 text-xs rounded-lg flex-1 min-w-[80px]">
-              <HugeiconsIcon icon={Download02Icon} size={14} className="mr-1.5" strokeWidth={1.5} />
-              PDF
-            </Button>
-            {canRecordPayment && (
-              <Button size="sm" onClick={openPaymentModal} className="h-9 px-3 text-xs rounded-lg bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white flex-1 min-w-[120px]">
-                <HugeiconsIcon icon={PlusSignIcon} size={14} className="mr-1.5" strokeWidth={1.5} />
-                Record Payment
-              </Button>
-            )}
-            {canGenerateLink && !hasPaymentLink && (
-              <Button size="sm" onClick={() => setIsPaymentLinkModalOpen(true)} className="h-9 px-3 text-xs rounded-lg bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white flex-1 min-w-[120px]">
-                <HugeiconsIcon icon={Link02Icon} size={14} className="mr-1.5" strokeWidth={1.5} />
-                Pay Link
-              </Button>
-            )}
-            {hasPaymentLink && (
-              <>
-                <Button variant="outline" size="sm" onClick={copyPaymentLink} className="h-9 px-3 text-xs rounded-lg flex-1 min-w-[90px]">
-                  <HugeiconsIcon icon={CopyIcon} size={14} className="mr-1.5" strokeWidth={1.5} />
-                  Copy Link
-                </Button>
-              </>
-            )}
-            {canSend && (
-              <Button variant="outline" size="sm" onClick={() => sendMutation.mutate()} className="h-9 px-3 text-xs rounded-lg flex-1 min-w-[90px]">
-                <HugeiconsIcon icon={SentIcon} size={14} className="mr-1.5" strokeWidth={1.5} />
-                Send
-              </Button>
-            )}
+          {/* Mobile Back Navigation */}
+          <div className="flex items-center justify-between mb-4 sm:hidden">
+            <Link to="/invoices" className="inline-flex items-center text-xs font-bold text-[#0037b0] hover:underline gap-1 min-h-[44px]">
+              <HugeiconsIcon icon={ArrowLeft02Icon} size={16} />
+              Back to Invoices
+            </Link>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* LEFT COLUMN: THE PHYSICAL INVOICE SHEET (lg:col-span-8) - Sits 2nd on mobile */}
-            <div className="lg:col-span-8 order-2 lg:order-1 bg-white rounded-3xl p-6 sm:p-10 shadow-[0px_16px_48px_rgba(0,55,176,0.03)] border border-[#eef4ff]/50 relative overflow-hidden">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* LEFT COLUMN: THE PHYSICAL INVOICE SHEET - Sits 2nd on mobile */}
+            {/* Desktop Direct Render */}
+            <div className="hidden lg:block lg:col-span-8 bg-white rounded-3xl p-6 sm:p-10 shadow-[0px_16px_48px_rgba(0,55,176,0.08)] border border-[#eef4ff]/50 relative overflow-hidden">
               <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#0037b0] to-[#1d4ed8]" />
-              
-              {/* Document Header */}
-              <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-10 pb-8 border-b border-[#eef4ff]/40">
-                <div>
-                  <h2 className="text-base font-extrabold tracking-tight text-slate-800 uppercase">
-                    {organization?.name || 'Acme Corporation'}
-                  </h2>
-                  <p className="text-xs text-slate-400 mt-1">Corporate Invoice Dossier</p>
-                </div>
-                <div className="sm:text-right">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-[#0037b0] bg-[#0037b0]/6 px-2.5 py-1 rounded-md">
-                    INVOICE
-                  </span>
-                  <h1 className="text-xl font-black tracking-tight text-slate-900 mt-2.5">{invoice.invoiceNumber}</h1>
-                </div>
-              </div>
-
-              {/* Bilateral Details Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-10">
-                <div className="bg-[#f8f9ff]/50 p-5 rounded-2xl border border-[#eef4ff]/30">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-2">Billed To</span>
-                  <Link to={`/clients/${invoice.client.id}`} className="text-sm font-bold text-[#0037b0] hover:underline block truncate max-w-[280px]">
-                    {invoice.client.name}
-                  </Link>
-                  {invoice.client.email && (
-                    <span className="text-xs text-slate-500 block mt-1.5 truncate max-w-[280px]">{invoice.client.email}</span>
-                  )}
-                  {invoice.client.phone && (
-                    <span className="text-xs text-slate-500 block mt-0.5">{invoice.client.phone}</span>
-                  )}
-                </div>
-                <div className="bg-[#f8f9ff]/50 p-5 rounded-2xl border border-[#eef4ff]/30 sm:text-right flex flex-col justify-between gap-3">
-                  <div>
-                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">Issue Date</span>
-                    <span className="text-xs font-bold text-slate-700">{formatDate(invoice.issueDate)}</span>
-                  </div>
-                  <div>
-                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 block mb-1">Due Date</span>
-                    <span className="text-xs font-bold text-rose-600">{formatDate(invoice.dueDate)}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Line Items Table */}
-              <div className="pt-2 overflow-x-auto">
-                <table className="w-full min-w-[400px]">
-                  <thead>
-                    <tr className="text-xs font-bold uppercase tracking-widest text-slate-400 border-b border-[#eef4ff]/40">
-                      <th className="pb-3 text-left font-bold">Description</th>
-                      <th className="pb-3 text-right font-bold w-16">Qty</th>
-                      <th className="pb-3 text-right font-bold w-32">Price</th>
-                      <th className="pb-3 text-right font-bold w-32">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y-0">
-                    {invoice.items.map((item, index) => (
-                      <tr 
-                      key={index} 
-                      className={cn(
-                        "transition-colors hover:bg-[#eef4ff]/20 border-b border-[#eef4ff]/25 last:border-b-0",
-                        index % 2 === 0 ? "bg-transparent" : "bg-[#f8f9ff]/30"
-                      )}
-                    >
-                      <td className="py-4 text-sm font-medium text-slate-800">{item.description}</td>
-                      <td className="py-4 text-right text-sm font-medium text-slate-650 tabular-nums">{item.quantity}</td>
-                      <td className="py-4 text-right text-sm font-medium text-slate-650 tabular-nums">{formatCurrency(item.unitPrice)}</td>
-                      <td className="py-4 text-right text-sm font-bold text-slate-900 tabular-nums">{formatCurrency(item.amount)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot className="border-t border-[#eef4ff]/50">
-                  <tr>
-                    <td colSpan={3} className="py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-400">Subtotal</td>
-                    <td className="py-3 text-right text-sm font-bold text-slate-900 tabular-nums">{formatCurrency(invoice.subtotal)}</td>
-                  </tr>
-                  {Number(invoice.discountAmount) > 0 && (
-                    <tr className="text-emerald-600">
-                      <td colSpan={3} className="py-1.5 text-right text-xs font-bold uppercase tracking-wider">Discount ({invoice.discountPercent}%)</td>
-                      <td className="py-1.5 text-right text-sm font-bold tabular-nums">-{formatCurrency(invoice.discountAmount ?? 0)}</td>
-                    </tr>
-                  )}
-                  {Number(invoice.taxAmount) > 0 && (
-                    <tr className="text-slate-500">
-                      <td colSpan={3} className="py-1.5 text-right text-xs font-bold uppercase tracking-wider text-slate-400">VAT ({invoice.taxRate ?? 7.5}%)</td>
-                      <td className="py-1.5 text-right text-sm font-semibold text-slate-700 tabular-nums">{formatCurrency(invoice.taxAmount)}</td>
-                    </tr>
-                  )}
-                  <tr className="border-t border-[#eef4ff]/60 bg-[#0037b0]/02">
-                    <td colSpan={3} className="py-4 text-right text-xs font-black uppercase tracking-wider text-slate-700">Total</td>
-                    <td className="py-4 text-right text-lg font-black text-slate-900 tabular-nums">{formatCurrency(invoice.total)}</td>
-                  </tr>
-                  {Number(invoice.amountPaid) > 0 && (
-                    <>
-                      <tr className="text-emerald-600">
-                        <td colSpan={3} className="py-2 text-right text-xs font-bold uppercase tracking-wider">Paid</td>
-                        <td className="py-2 text-right text-sm font-bold tabular-nums">-{formatCurrency(invoice.amountPaid)}</td>
-                      </tr>
-                      <tr className="font-extrabold border-t border-dashed border-slate-200">
-                        <td colSpan={3} className="py-3 text-right text-xs font-black uppercase tracking-wider text-slate-700">Balance Due</td>
-                        <td className="py-3 text-right text-base font-black text-slate-900 tabular-nums">{formatCurrency(outstanding)}</td>
-                      </tr>
-                    </>
-                  )}
-                </tfoot>
-              </table>
+              {invoiceSheetContent}
             </div>
 
-            {/* Notes */}
-            {invoice.notes && (
-              <div className="border-t border-[#eef4ff]/30 pt-4 mt-8">
-                <p className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400">Notes</p>
-                <p className="mt-2 text-sm text-slate-605 leading-relaxed bg-[#f8f9ff]/50 p-4 rounded-xl border border-[#eef4ff]/30">{invoice.notes}</p>
-              </div>
-            )}
-          </div>
-
-          {/* RIGHT COLUMN: WORKSPACE SIDEBAR PANEL (lg:col-span-4) - Sits 1st on mobile */}
-          <div className="lg:col-span-4 order-1 lg:order-2 space-y-6">
-            {/* Workflow Stepper */}
-            <div className="bg-white rounded-3xl p-6 shadow-[0px_12px_32px_rgba(0,55,176,0.03)] border border-[#eef4ff]/50">
-              <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#0037b0]" />
-                Lifecycle Progress
-              </h3>
-              <div className="relative pl-6 border-l border-slate-100 space-y-6 ml-3">
-                {/* Step 1: Draft */}
-                <div className="relative">
-                  <span className="absolute -left-[32px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white text-[9px] font-bold shadow-sm">✓</span>
-                  <div>
-                    <p className="text-xs font-extrabold text-slate-800">Draft Created</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Initialized on {formatDate(invoice.createdAt)}</p>
-                  </div>
+            {/* Mobile collapsible Invoice Sheet */}
+            <div className="block lg:hidden order-2 bg-white rounded-3xl shadow-[0px_12px_32px_rgba(0,55,176,0.08)] border border-[#eef4ff]/50 overflow-hidden">
+              <button
+                onClick={() => setSheetOpen(!sheetOpen)}
+                className="w-full flex items-center justify-between p-5 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors cursor-pointer min-h-[44px]"
+              >
+                <div className="flex items-center gap-2">
+                  <HugeiconsIcon icon={Invoice03Icon} size={16} className="text-[#0037b0]" strokeWidth={1.5} />
+                  <span className="tracking-wider text-[10px] font-bold text-slate-400">INVOICE SHEET DETAILS</span>
                 </div>
-
-                {/* Step 2: Sent */}
-                <div className="relative">
-                  {invoice.status !== 'DRAFT' ? (
-                    <span className="absolute -left-[32px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white text-[9px] font-bold shadow-sm">✓</span>
-                  ) : (
-                    <span className="absolute -left-[32px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-200 text-slate-400 text-[9px] font-bold shadow-sm">•</span>
-                  )}
-                  <div>
-                    <p className={cn("text-xs font-extrabold", invoice.status !== 'DRAFT' ? "text-slate-800" : "text-slate-450")}>Sent to Client</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
-                      {invoice.status !== 'DRAFT' ? "Dispatched successfully" : "Awaiting dispatch"}
-                    </p>
-                  </div>
+                <div className="flex items-center gap-3">
+                  <span className="font-extrabold text-slate-700 text-xs">{formatCurrency(invoice.total)}</span>
+                  <HugeiconsIcon
+                    icon={ArrowDown01Icon}
+                    size={16}
+                    className={cn("transition-transform duration-200 text-slate-400", sheetOpen && "rotate-180")}
+                  />
                 </div>
-
-                {/* Step 3: Settled/Overdue */}
-                <div className="relative">
-                  {invoice.status === 'PAID' ? (
-                    <span className="absolute -left-[32px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white text-[9px] font-bold shadow-sm">✓</span>
-                  ) : invoice.status === 'OVERDUE' ? (
-                    <span className="absolute -left-[32px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-white text-[9px] font-bold shadow-sm">!</span>
-                  ) : (
-                    <span className="absolute -left-[32px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-200 text-slate-400 text-[9px] font-bold shadow-sm">•</span>
-                  )}
-                  <div>
-                    <p className={cn(
-                      "text-xs font-extrabold",
-                      invoice.status === 'PAID' && "text-emerald-700",
-                      invoice.status === 'OVERDUE' && "text-rose-600",
-                      (invoice.status !== 'PAID' && invoice.status !== 'OVERDUE') && "text-slate-450"
-                    )}>
-                      {invoice.status === 'PAID' ? "Fully Settled" : invoice.status === 'OVERDUE' ? "Payment Overdue" : "Settlement"}
-                    </p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
-                      {invoice.status === 'PAID' ? "Cleared via transaction" : invoice.status === 'OVERDUE' ? `Due since ${formatDate(invoice.dueDate)}` : "Awaiting settlement"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Ledger Summary Stats */}
-            <div className="bg-white rounded-3xl p-6 shadow-[0px_12px_32px_rgba(0,55,176,0.03)] border border-[#eef4ff]/50 space-y-4">
-              <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#0037b0]" />
-                Ledger Overview
-              </h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-[#f8f9ff]/50 p-4 rounded-2xl border border-[#eef4ff]/30">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Billed</span>
-                  <p className="text-sm font-black text-slate-900 mt-1 tabular-nums">{formatCurrency(invoice.total)}</p>
-                </div>
-                <div className="bg-[#f8f9ff]/50 p-4 rounded-2xl border border-[#eef4ff]/30">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Paid To Date</span>
-                  <p className="text-sm font-black text-emerald-600 mt-1 tabular-nums">{formatCurrency(invoice.amountPaid)}</p>
-                </div>
-              </div>
-              
-              {/* Progress bar for partial payments */}
-              {Number(invoice.amountPaid) > 0 && (
-                <div className="space-y-2 pt-3 border-t border-slate-200/40">
-                  <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
-                    <span>Payment Progress</span>
-                    <span className="text-[#0037b0]">{Math.round((Number(invoice.amountPaid) / Number(invoice.total)) * 100)}% paid</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] rounded-full transition-all duration-500" 
-                      style={{ width: `${Math.min(100, (Number(invoice.amountPaid) / Number(invoice.total)) * 100)}%` }}
-                    />
-                  </div>
-                </div>
-              )}
+              </button>
 
               <div className={cn(
-                "p-4 rounded-2xl border flex justify-between items-center",
-                outstanding > 0 ? "bg-rose-50/30 border-rose-500/10 text-rose-950" : "bg-emerald-50/30 border-emerald-500/10 text-emerald-950"
+                "overflow-hidden transition-all duration-300 ease-in-out",
+                sheetOpen ? "max-h-[1500px] opacity-100 p-5 border-t border-[#eef4ff]/30" : "max-h-0 opacity-0"
               )}>
-                <div>
-                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Balance Due</span>
-                  <p className="text-base font-black tracking-tight mt-0.5 tabular-nums">{formatCurrency(outstanding)}</p>
-                </div>
-                {renderStatusPill(invoice.status)}
+                {invoiceSheetContent}
               </div>
             </div>
 
-            {/* Payments Ledger Card */}
-            <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.03)] bg-white rounded-[24px]">
-              <CardHeader className="p-6 border-b border-[#eef4ff]/30">
-                <CardTitle className="flex items-center gap-2 text-base font-extrabold text-slate-900">
-                  <HugeiconsIcon icon={CreditCardIcon} size={18} strokeWidth={1.5} className="text-[#0037b0]" />
-                  Payments
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                {invoice.payments && invoice.payments.length > 0 ? (
-                  <div className="relative border-l border-slate-200/60 pl-5 ml-2.5 space-y-5 py-1">
-                    {invoice.payments.map((payment) => (
-                      <div 
-                        key={payment.id} 
-                        className="relative rounded-2xl border border-[#eef4ff]/40 bg-[#f8f9ff]/50 p-4 shadow-[0px_4px_12px_rgba(0,55,176,0.01)] hover:bg-[#eef4ff]/20 transition-all duration-200"
+            {/* RIGHT COLUMN: WORKSPACE SIDEBAR PANEL - Sits 1st on mobile */}
+            <div className="lg:col-span-4 order-1 lg:order-2 space-y-6">
+              {/* Ledger Summary Stats (Permanently visible at the top) */}
+              <div className="bg-white rounded-3xl p-6 shadow-[0px_12px_32px_rgba(0,55,176,0.08)] border border-[#eef4ff]/50 space-y-4 relative">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2 pr-44 sm:pr-0">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#0037b0]" />
+                  Ledger Overview
+                </h3>
+
+                {/* Mobile Actions Group (Visible only on mobile, placed inside Ledger Overview for instant reach) */}
+                <div className="absolute right-4 top-4 flex items-center gap-1.5 sm:hidden">
+                  {hasPaymentLink ? (
+                    <button
+                      onClick={copyPaymentLink}
+                      className="w-8 h-8 rounded-full bg-background border border-[#eef4ff] text-[#0037b0] flex items-center justify-center shadow-sm cursor-pointer"
+                      title="Copy Link"
+                    >
+                      <HugeiconsIcon icon={CopyIcon} size={14} strokeWidth={1.5} />
+                    </button>
+                  ) : (
+                    canGenerateLink && (
+                      <button
+                        onClick={() => setIsPaymentLinkModalOpen(true)}
+                        className="w-8 h-8 rounded-full bg-background border border-[#eef4ff] text-[#0037b0] flex items-center justify-center shadow-sm cursor-pointer"
+                        title="Generate Link"
                       >
-                        {/* Dot indicator on timeline */}
-                        <span className="absolute -left-[25.5px] top-6 flex h-2 w-2 items-center justify-center rounded-full bg-emerald-500 ring-4 ring-white shadow-sm" />
-                        
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <p className="font-extrabold text-emerald-600 text-base tabular-nums">
-                              +{formatCurrency(payment.amount)}
-                            </p>
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-1">
-                              {payment.paymentMethod.replace('_', ' ')}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-[10px] font-bold text-slate-400 tabular-nums">
-                              {formatDate(payment.paymentDate)}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 rounded-lg hover:bg-slate-200/55 flex items-center justify-center cursor-pointer"
-                              onClick={() => downloadReceipt(payment.id)}
-                              disabled={downloadingReceiptId === payment.id}
-                            >
-                              <HugeiconsIcon icon={Download02Icon} size={14} className="text-slate-500" strokeWidth={1.5} />
-                            </Button>
-                          </div>
-                        </div>
-                        {payment.reference && (
-                          <div className="mt-2.5 pt-2 border-t border-slate-200/40">
-                            <p className="text-[10px] font-semibold text-slate-400">
-                              Ref: <span className="font-bold text-slate-600">{payment.reference}</span>
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                        <HugeiconsIcon icon={Link02Icon} size={14} strokeWidth={1.5} />
+                      </button>
+                    )
+                  )}
+                  {canCancel && (
+                    <button
+                      onClick={() => cancelMutation.mutate()}
+                      className="w-8 h-8 rounded-full bg-background border border-amber-100 text-amber-600 flex items-center justify-center shadow-sm cursor-pointer"
+                      title="Cancel"
+                    >
+                      <HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={1.5} />
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button
+                      onClick={handleDelete}
+                      className="w-8 h-8 rounded-full bg-background border border-rose-100 text-rose-600 flex items-center justify-center shadow-sm cursor-pointer"
+                      title="Delete"
+                    >
+                      <HugeiconsIcon icon={Delete02Icon} size={14} strokeWidth={1.5} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-background/50 p-4 rounded-2xl border border-[#eef4ff]/30">
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Total Billed</span>
+                    <p className="text-sm font-bold text-slate-700 mt-1 tabular-nums">{formatCurrency(invoice.total)}</p>
                   </div>
-                ) : (
-                  <div className="py-8 text-center bg-[#f8f9ff]/50 rounded-[20px] border border-dashed border-[#eef4ff]/60">
-                    <p className="text-sm font-semibold text-slate-400">No payments yet</p>
+                  <div className="bg-background/50 p-4 rounded-2xl border border-[#eef4ff]/30">
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Paid To Date</span>
+                    <p className="text-sm font-bold text-emerald-600 mt-1 tabular-nums">{formatCurrency(invoice.amountPaid)}</p>
+                  </div>
+                </div>
+                
+                {/* Progress bar for partial payments */}
+                {Number(invoice.amountPaid) > 0 && (
+                  <div className="space-y-2 pt-3 border-t border-[#eef4ff]/30">
+                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
+                      <span>Payment Progress</span>
+                      <span className="text-[#0037b0]">{Math.round((Number(invoice.amountPaid) / Number(invoice.total)) * 100)}% paid</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] rounded-full transition-all duration-500" 
+                        style={{ width: `${Math.min(100, (Number(invoice.amountPaid) / Number(invoice.total)) * 100)}%` }}
+                      />
+                    </div>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+
+                {/* Invoice Lifecycle Timeline Accordion Header */}
+                <div className="flex justify-between items-center pt-3 border-t border-[#eef4ff]/30">
+                  <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">Invoice Lifecycle</span>
+                  <button
+                    onClick={() => setLifecycleOpen(!lifecycleOpen)}
+                    className="flex items-center gap-1 text-[#0037b0] hover:text-[#1d4ed8] text-[10px] font-bold cursor-pointer transition-colors min-h-[32px] px-2 -mr-2 hover:bg-slate-50 rounded-lg"
+                  >
+                    <span>{lifecycleOpen ? "Hide Timeline" : "Show Timeline"}</span>
+                    <HugeiconsIcon icon={ArrowDown01Icon} size={12} className={cn("transition-transform duration-200", lifecycleOpen && "rotate-180")} />
+                  </button>
+                </div>
+
+                {/* Collapsible Timeline Content */}
+                <div className={cn(
+                  "overflow-hidden transition-all duration-300 ease-in-out pl-1.5",
+                  lifecycleOpen ? "max-h-[300px] opacity-100 py-3 border-t border-[#eef4ff]/30" : "max-h-0 opacity-0"
+                )}>
+                  {stepperContent}
+                </div>
+
+                <div className={cn(
+                  "p-4 rounded-2xl flex justify-between items-center",
+                  outstanding > 0 ? "bg-rose-50/20 text-rose-950" : "bg-emerald-50/20 text-emerald-950"
+                )}>
+                  <div>
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Balance Due</span>
+                    <p className="text-base font-bold tracking-tight mt-0.5 tabular-nums">{formatCurrency(outstanding)}</p>
+                  </div>
+                  {renderStatusPill(invoice.status)}
+                </div>
+              </div>
+
+              {/* Payments Ledger Card */}
+              <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.08)] bg-white rounded-[24px]">
+                <CardHeader className="p-6 border-b border-[#eef4ff]/30">
+                  <CardTitle className="flex items-center gap-2 text-base font-extrabold text-slate-900">
+                    <HugeiconsIcon icon={CreditCardIcon} size={18} strokeWidth={1.5} className="text-[#0037b0]" />
+                    Payments
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6">
+                  {invoice.payments && invoice.payments.length > 0 ? (
+                    <div className="relative border-l border-slate-200/60 pl-5 ml-2.5 space-y-5 py-1">
+                      {invoice.payments.map((payment) => (
+                        <div 
+                          key={payment.id} 
+                          className="relative rounded-2xl border border-[#eef4ff]/40 bg-background/50 p-4 shadow-[0px_4px_12px_rgba(0,55,176,0.01)] hover:bg-[#eef4ff]/20 transition-all duration-200"
+                        >
+                          {/* Dot indicator on timeline */}
+                          <span className="absolute -left-[25.5px] top-6 flex h-2 w-2 items-center justify-center rounded-full bg-emerald-500 ring-4 ring-white shadow-sm" />
+                          
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="font-bold text-emerald-600 text-base tabular-nums">
+                                +{formatCurrency(payment.amount)}
+                              </p>
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-1">
+                                {payment.paymentMethod.replace('_', ' ')}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-[10px] font-bold text-slate-400 tabular-nums">
+                                {formatDate(payment.paymentDate)}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 rounded-lg hover:bg-slate-200/55 flex items-center justify-center cursor-pointer"
+                                onClick={() => downloadReceipt(payment.id)}
+                                disabled={downloadingReceiptId === payment.id}
+                              >
+                                <HugeiconsIcon icon={Download02Icon} size={14} className="text-slate-500" strokeWidth={1.5} />
+                              </Button>
+                            </div>
+                          </div>
+                          {payment.reference && (
+                            <div className="mt-2.5 pt-2 border-t border-slate-200/40">
+                              <p className="text-[10px] font-semibold text-slate-400">
+                                Ref: <span className="font-bold text-slate-650">{payment.reference}</span>
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="py-8 text-center bg-background/50 rounded-[20px] border border-dashed border-[#eef4ff]/60">
+                      <p className="text-sm font-semibold text-slate-400">No payments yet</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Mobile Floating Action Button Menu (Speed Dial) */}
+      <div className="fixed bottom-28 right-6 z-40 sm:hidden flex flex-col items-end gap-3.5">
+        {/* Backdrop (visible only when menu is open) */}
+        {isFabMenuOpen && (
+          <div 
+            onClick={() => setIsFabMenuOpen(false)}
+            className="fixed inset-0 bg-slate-900/35 backdrop-blur-[2px] z-30 transition-all duration-300"
+          />
+        )}
+
+        {/* Speed Dial Menu Items */}
+        <div className={cn(
+          "flex flex-col items-end gap-3.5 z-40 transition-all duration-300 origin-bottom",
+          isFabMenuOpen ? "scale-100 opacity-100 translate-y-0 pointer-events-auto" : "scale-75 opacity-0 translate-y-4 pointer-events-none"
+        )}>
+          {/* Action: Record Payment */}
+          {canRecordPayment && (
+            <div className="flex items-center gap-2.5">
+              <span className="bg-slate-900/80 text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-sm">
+                Record Payment
+              </span>
+              <button 
+                onClick={() => {
+                  setIsFabMenuOpen(false)
+                  openPaymentModal()
+                }} 
+                className="w-11 h-11 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-md active:scale-95 transition-transform cursor-pointer"
+                aria-label="Record Payment"
+              >
+                <HugeiconsIcon icon={PlusSignIcon} size={18} strokeWidth={1.5} />
+              </button>
+            </div>
+          )}
+
+          {/* Action: Send via Email */}
+          <div className="flex items-center gap-2.5">
+            <span className="bg-slate-900/80 text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-sm">
+              Send Email
+            </span>
+            <button 
+              onClick={() => {
+                setIsFabMenuOpen(false)
+                sendMutation.mutate()
+              }} 
+              className="w-11 h-11 rounded-full bg-[#0037b0] text-white flex items-center justify-center shadow-md active:scale-95 transition-transform cursor-pointer"
+              aria-label="Send via Email"
+            >
+              <MailIcon className="h-4.5 w-4.5" />
+            </button>
+          </div>
+
+          {/* Action: Share via WhatsApp */}
+          <div className="flex items-center gap-2.5">
+            <span className="bg-slate-900/80 text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-sm">
+              WhatsApp Link
+            </span>
+            <button 
+              onClick={() => {
+                setIsFabMenuOpen(false)
+                shareWhatsApp()
+              }} 
+              className="w-11 h-11 rounded-full bg-[#25D366] text-white flex items-center justify-center shadow-md active:scale-95 transition-transform cursor-pointer"
+              aria-label="WhatsApp Link"
+            >
+              <WhatsAppIcon className="h-4.5 w-4.5" />
+            </button>
+          </div>
+
+          {/* Action: Share PDF File */}
+          <div className="flex items-center gap-2.5">
+            <span className="bg-slate-900/80 text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-sm">
+              Share PDF
+            </span>
+            <button 
+              onClick={() => {
+                setIsFabMenuOpen(false)
+                shareInvoice()
+              }} 
+              className="w-11 h-11 rounded-full bg-indigo-500 text-white flex items-center justify-center shadow-md active:scale-95 transition-transform cursor-pointer"
+              aria-label="Share PDF"
+            >
+              <HugeiconsIcon icon={Share02Icon} size={18} strokeWidth={1.5} />
+            </button>
+          </div>
+        </div>
+
+        {/* Main Trigger Button */}
+        <button 
+          onClick={() => setIsFabMenuOpen(!isFabMenuOpen)} 
+          className="w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all z-40 cursor-pointer"
+          aria-label="Toggle Actions Menu"
+        >
+          <HugeiconsIcon 
+            icon={isFabMenuOpen ? Cancel01Icon : PlusSignIcon} 
+            size={24} 
+            strokeWidth={1.5} 
+            className={cn("transition-transform duration-200", isFabMenuOpen && "rotate-90")}
+          />
+        </button>
+      </div>
 
       {/* Generate Payment Link Modal */}
       <Modal
@@ -784,7 +996,7 @@ export function InvoiceDetailPage() {
             onSubmit={(e) => {
               e.preventDefault()
               const formData = new FormData(e.currentTarget)
-              const amount = parseFloat(formData.get('amount') as string)
+              const amount = parseAmountInput(formData.get('amount') as string)
               if (amount <= 0) {
                 toast.error('Amount must be greater than 0')
                 return
@@ -820,11 +1032,11 @@ export function InvoiceDetailPage() {
               <Input
                 id="linkAmount"
                 name="amount"
-                type="number"
-                step="0.01"
-                min="0.01"
-                max={outstanding}
-                defaultValue={outstanding}
+                type="text"
+                value={linkAmountStr}
+                onChange={(e) => {
+                  setLinkAmountStr(formatAmountInput(e.target.value))
+                }}
                 required
               />
               <p className="text-xs text-muted-foreground">
@@ -856,9 +1068,14 @@ export function InvoiceDetailPage() {
             <Label htmlFor="amount" required>Amount</Label>
             <Input
               id="amount"
-              type="number"
-              step="0.01"
-              {...register('amount', { valueAsNumber: true })}
+              type="text"
+              value={recordAmountStr}
+              onChange={(e) => {
+                const val = e.target.value
+                const formatted = formatAmountInput(val)
+                setRecordAmountStr(formatted)
+                setValue('amount', parseAmountInput(formatted), { shouldValidate: true })
+              }}
               error={errors.amount?.message}
             />
             <p className="text-xs text-muted-foreground">
@@ -919,6 +1136,25 @@ export function InvoiceDetailPage() {
           </div>
         </form>
       </Modal>
+
+      {/* Confirm Delete Dialog */}
+      <ConfirmDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={() => {
+          deleteMutation.mutate(undefined, {
+            onSuccess: () => {
+              setDeleteConfirmOpen(false)
+            }
+          })
+        }}
+        title="Delete Invoice"
+        description={`Are you sure you want to delete invoice ${invoice.invoiceNumber}? This action cannot be undone and will delete all associated records.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        isDangerous={true}
+        isLoading={deleteMutation.isPending}
+      />
     </div>
   )
 }

@@ -162,15 +162,16 @@ export function UsersPage() {
         }
       />
 
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
+      <div className="flex-1 overflow-auto px-4 pb-4 pt-0 sm:px-6 sm:pb-6 sm:pt-0">
+        <div className="pt-4 sm:pt-6">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           </div>
         ) : (
-          <Card className="border-0 bg-white shadow-[0px_12px_32px_rgba(0,55,176,0.03)] rounded-[24px] overflow-hidden">
+          <Card className="border-0 bg-white shadow-[0px_12px_32px_rgba(0,55,176,0.08)] rounded-[24px] overflow-visible">
             <CardContent className="p-0">
-              <div className="overflow-auto max-h-[60vh]">
+              <div className="overflow-visible">
               <table className="w-full min-w-[600px] border-collapse">
                 <thead>
                   <tr className="bg-white text-slate-600">
@@ -238,6 +239,7 @@ export function UsersPage() {
             </CardContent>
           </Card>
         )}
+        </div>
       </div>
 
       {/* Invite User Modal */}

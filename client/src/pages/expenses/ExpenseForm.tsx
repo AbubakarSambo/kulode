@@ -13,6 +13,8 @@ import { posthog } from '@/lib/posthog'
 import { useSubscription } from '@/hooks/useSubscription'
 import type { PaymentMethod, TaxCategory, Vendor } from '@/types'
 import { TAX_CATEGORY_LABELS, TAX_CATEGORIES } from '@/types'
+import { useOverscrollBounce } from '@/hooks'
+import { formatAmountInput, parseAmountInput } from '@/lib/utils'
 
 // VendorCombobox: lets user pick a saved vendor or type free text
 function VendorCombobox({
@@ -143,6 +145,7 @@ export function EditExpensePage() {
 }
 
 function ExpenseForm({ expenseId }: { expenseId?: string }) {
+  const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const isEditing = !!expenseId
@@ -166,6 +169,8 @@ function ExpenseForm({ expenseId }: { expenseId?: string }) {
     queryFn: () => expensesApi.get(expenseId!),
     enabled: isEditing,
   })
+
+  const [amountStr, setAmountStr] = useState('')
 
   const {
     register,
@@ -206,6 +211,7 @@ function ExpenseForm({ expenseId }: { expenseId?: string }) {
         notes: expense.notes ?? '',
         taxCategory: expense.taxCategory as ExpenseFormData['taxCategory'],
       })
+      setAmountStr(formatAmountInput(expense.amount))
     }
   }, [expense, reset])
 
@@ -277,7 +283,7 @@ function ExpenseForm({ expenseId }: { expenseId?: string }) {
         description={isEditing ? 'Update expense details' : 'Record a business expense'}
       />
 
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto p-4 sm:p-6">
         <Card className="mx-auto max-w-2xl">
           <CardHeader>
             <CardTitle>Expense Details</CardTitle>
@@ -299,11 +305,15 @@ function ExpenseForm({ expenseId }: { expenseId?: string }) {
                   <Label htmlFor="amount" required>Amount</Label>
                   <Input
                     id="amount"
-                    type="number"
-                    step="0.01"
-                    min="0"
+                    type="text"
                     placeholder="0.00"
-                    {...register('amount', { valueAsNumber: true })}
+                    value={amountStr}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      const formatted = formatAmountInput(val)
+                      setAmountStr(formatted)
+                      setValue('amount', parseAmountInput(formatted), { shouldValidate: true })
+                    }}
                     error={errors.amount?.message}
                   />
                 </div>

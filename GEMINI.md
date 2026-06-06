@@ -28,7 +28,24 @@ The platform consists of three main components:
 
 ---
 
-## 3. UI/UX Design System & Styleguide
+## 3. Local Development Startup
+
+To run the local server workspace, always execute the custom startup script. Due to default Windows execution policy restrictions, use the command below to run the PowerShell automation script:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-dev.ps1
+```
+
+This script automatically handles:
+- Checking and cleaning stale PostgreSQL PID files.
+- Launching PostgreSQL on port `5433` using the local cluster `postgres_data`.
+- Launching the NestJS API server on port `3003`.
+- Launching the Vite Client application on port `5173`.
+- Launching the Astro Marketing landing page on port `4321`.
+
+---
+
+## 4. UI/UX Design System & Styleguide
 
 > [!IMPORTANT]
 > **CRITICAL AI INSTRUCTION: `DESIGN.md` IS THE MASTER SOURCE OF TRUTH FOR STYLING.**
@@ -36,7 +53,7 @@ The platform consists of three main components:
 
 ---
 
-## 4. Continuous Delivery & Git Workflow
+## 5. Continuous Delivery & Git Workflow
 
 Follow this systematic Git process:
 1. **Checkout from dev:** Always branch off the default `main` / `dev` branch.
@@ -49,7 +66,7 @@ Follow this systematic Git process:
 
 ---
 
-## 5. Agent Skills Reference
+## 6. Agent Skills Reference
 
 A curated subset of agent skills is available in `.agent/skills/`. Load the relevant `SKILL.md` file into context **on-demand** when working on tasks in those domains. Do not pre-load all skills.
 

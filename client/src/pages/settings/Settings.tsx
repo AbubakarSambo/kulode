@@ -3,8 +3,10 @@ import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui'
 import { Link } from 'react-router-dom'
 import { Building, Users, CreditCard, Tags, Crown } from 'lucide-react'
 import { useSubscription } from '@/hooks/useSubscription'
+import { useOverscrollBounce } from '@/hooks'
 
 export function SettingsPage() {
+  const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
   const { effectivePlan } = useSubscription()
 
   const settingsCards = [
@@ -51,7 +53,7 @@ export function SettingsPage() {
         description="Manage your organization settings"
       />
 
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto p-4 sm:p-6">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {settingsCards.map((card) => (
             <Link key={card.href} to={card.href}>

@@ -11,14 +11,19 @@ import {
   ViewIcon,
   PencilEdit02Icon,
   Delete02Icon,
-  ArrowDown01Icon
+  ArrowDown01Icon,
+  UserGroupIcon,
+  FilterHorizontalIcon
 } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
-import { Button, Input, Card, CardContent } from '@/components/ui'
+import { Button, Input, Card, CardContent, ConfirmDialog, EmptyState, DropdownPanel } from '@/components/ui'
+import { BottomSheet } from '@/components/shared'
 import { clientsApi } from '@/api'
-import { cn } from '@/lib/utils'
+import { cn, isActualMobileDevice } from '@/lib/utils'
 import { toast } from 'sonner'
 import { ClientsIcon } from '@/components/ui/CustomIcons'
+import { useOverscrollBounce } from '@/hooks'
+
 
 const getInitials = (name: string) => {
   const cleanName = name.replace(/^(Mrs\.|Mr\.|Dr\.|Prof\.)\s+/i, '').trim();
@@ -35,6 +40,39 @@ export function ClientsListPage() {
   const [limit, setLimit] = useState(10)
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
   const [limitOpen, setLimitOpen] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [clientToDelete, setClientToDelete] = useState<{ id: string; name: string } | null>(null)
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false)
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false)
+  const [tempStatus, setTempStatus] = useState<'active' | 'inactive' | ''>('')
+  const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
+
+  const openMobileFilters = () => {
+    setTempStatus(status)
+    setIsMobileFiltersOpen(true)
+  }
+
+  const closeMobileFilters = () => {
+    setIsMobileFiltersOpen(false)
+  }
+
+  const handleEmailClick = (e: React.MouseEvent<HTMLAnchorElement>, email: string) => {
+    if (!isActualMobileDevice()) {
+      e.preventDefault()
+      e.stopPropagation()
+      navigator.clipboard.writeText(email)
+      toast.success('Email copied to clipboard')
+    }
+  }
+
+  const handlePhoneClick = (e: React.MouseEvent<HTMLAnchorElement>, phone: string) => {
+    if (!isActualMobileDevice()) {
+      e.preventDefault()
+      e.stopPropagation()
+      navigator.clipboard.writeText(phone)
+      toast.success('Phone number copied to clipboard')
+    }
+  }
 
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -57,7 +95,7 @@ export function ClientsListPage() {
   })
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    <div className="flex flex-1 flex-col overflow-hidden relative min-h-0">
       <Header
         title="Clients"
         description="Manage your client list"
@@ -74,44 +112,103 @@ export function ClientsListPage() {
         }
       />
 
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto px-4 pb-4 pt-0 sm:px-6 sm:pb-6 sm:pt-0">
+        <div className="pt-4 sm:pt-6">
         {/* Filters and Search */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between stagger-in sticky top-0 md:static z-20 bg-[#f8f9ff]/95 backdrop-blur-sm py-3 -mx-4 px-4 md:-mx-0 md:px-0 md:bg-transparent md:py-0 md:mb-6 border-b border-[#eef4ff]/30 md:border-b-0">
-          {/* Search bar */}
-          <div className="relative flex-1 max-w-sm">
-            <HugeiconsIcon icon={Search01Icon} size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" strokeWidth={1.5} />
-            <Input
-              placeholder="Search clients..."
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-              className="pl-11 rounded-xl"
-            />
-          </div>
+        <div className="mb-6 flex flex-col gap-4 stagger-in sticky top-0 md:static z-20 bg-background py-3 -mx-4 px-4 md:-mx-0 md:px-0 md:bg-transparent md:py-0 md:mb-6 border-b border-[#eef4ff]/30 md:border-b-0">
+          {/* Desktop Filters (hidden on mobile) */}
+          <div className="hidden md:flex flex-row items-center gap-4 justify-between w-full">
+            <div className="flex items-center gap-3 flex-1">
+              <div className="relative flex-1 max-w-[240px]">
+                <HugeiconsIcon icon={Search01Icon} className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" strokeWidth={1.5} />
+                <Input
+                  placeholder="Search clients..."
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+                  className="pl-11 rounded-xl h-10 bg-white border border-border"
+                />
+              </div>
 
-          {/* Status Filters */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-2 whitespace-nowrap">Status:</span>
-            {([
-              { label: 'All Clients', value: '' },
-              { label: 'Active', value: 'active' },
-              { label: 'Inactive', value: 'inactive' },
-            ] as const).map((opt) => {
-              const isActive = status === opt.value;
-              return (
+              {/* Status Dropdown */}
+              <div className="relative inline-block text-left">
                 <button
-                  key={opt.value}
-                  onClick={() => { setStatus(opt.value); setPage(1); }}
+                  type="button"
+                  onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
                   className={cn(
-                    "rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-wider transition-all duration-200 cursor-pointer border border-transparent whitespace-nowrap",
-                    isActive
-                      ? "bg-[#0037b0] text-white shadow-[0px_4px_12px_rgba(0,55,176,0.2)] font-bold"
-                      : "bg-[#eef4ff] text-[#434655] hover:bg-[#e5eeff]"
+                    "h-10 px-4 rounded-xl border bg-white text-xs font-semibold hover:bg-slate-50 transition-all flex items-center justify-between gap-2 min-w-[140px] cursor-pointer",
+                    status ? "border-[#0037b0]/35 text-[#0037b0] bg-[#0037b0]/04" : "border-border text-slate-700"
                   )}
                 >
-                  {opt.label}
+                  <span className="truncate">
+                    {status === 'active' ? 'Active Clients' : status === 'inactive' ? 'Inactive Clients' : 'All Clients'}
+                  </span>
+                  <HugeiconsIcon icon={ArrowDown01Icon} className={cn("h-4 w-4 text-slate-400 transition-transform duration-200 shrink-0", statusDropdownOpen && "rotate-180")} strokeWidth={1.5} />
                 </button>
-              )
-            })}
+
+                <DropdownPanel
+                  isOpen={statusDropdownOpen}
+                  onClose={() => setStatusDropdownOpen(false)}
+                  align="left"
+                  widthClass="w-48"
+                >
+                  {([
+                    { label: 'All Clients', value: '' },
+                    { label: 'Active Clients', value: 'active' },
+                    { label: 'Inactive Clients', value: 'inactive' },
+                  ] as const).map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        setStatus(opt.value)
+                        setPage(1)
+                        setStatusDropdownOpen(false)
+                      }}
+                      className={cn(
+                        "w-full text-left px-3.5 py-2 text-xs font-semibold rounded-lg transition-colors block cursor-pointer",
+                        status === opt.value 
+                          ? "bg-[#0037b0]/5 text-[#0037b0]" 
+                          : "text-slate-700 hover:bg-slate-50"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </DropdownPanel>
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile Search and Filter trigger row (hidden on desktop) */}
+          <div className="flex md:hidden flex-row items-center gap-2 w-full">
+            <div className="relative flex-1">
+              <HugeiconsIcon icon={Search01Icon} className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" strokeWidth={1.5} />
+              <Input
+                placeholder="Search clients..."
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+                className="pl-11 rounded-xl h-11 bg-white w-full border-border focus:border-primary/40 focus:ring-1 focus:ring-primary/20"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={openMobileFilters}
+              className={cn(
+                "h-11 w-11 rounded-xl border flex items-center justify-center relative hover:bg-slate-50 transition-all shrink-0 cursor-pointer",
+                status !== '' 
+                  ? "border-[#0037b0] text-[#0037b0] bg-[#0037b0]/04" 
+                  : "border-border bg-white text-slate-750"
+              )}
+              aria-label="Filters"
+            >
+              <HugeiconsIcon icon={FilterHorizontalIcon} className="h-5 w-5" strokeWidth={1.5} />
+              {status !== '' && (
+                <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-[20px] px-1.5 items-center justify-center rounded-full bg-[#0037b0] text-[10px] font-black text-white leading-none border border-white">
+                  1
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
@@ -121,18 +218,19 @@ export function ClientsListPage() {
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           </div>
         ) : data?.data.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12">
-            <p className="text-muted-foreground">No clients found</p>
-            <Link to="/clients/new">
-              <Button className="mt-4">Add your first client</Button>
-            </Link>
-          </div>
+          <EmptyState
+            icon={UserGroupIcon}
+            title="No clients found"
+            description="Build your customer list to start creating invoices and tracking payments."
+            actionLabel="Add your first client"
+            actionHref="/clients/new"
+          />
         ) : (
           <>
              {/* Desktop Table View */}
-            <Card className="hidden md:block border-0 bg-white shadow-[0px_12px_32px_rgba(0,55,176,0.03)] rounded-[24px] overflow-hidden">
+            <Card className="hidden md:block border-0 bg-white shadow-[0px_12px_32px_rgba(0,55,176,0.08)] rounded-[24px] overflow-visible">
               <CardContent className="p-0">
-                <div className="overflow-auto max-h-[60vh]">
+                <div className="overflow-visible">
                   <table className="w-full min-w-[700px] border-collapse">
                     <thead>
                       <tr className="bg-white text-slate-600">
@@ -210,45 +308,41 @@ export function ClientsListPage() {
                                 <HugeiconsIcon icon={MoreVerticalIcon} size={16} strokeWidth={1.5} />
                               </button>
   
-                              {activeDropdown === client.id && (
-                                <>
-                                  {/* Backdrop */}
-                                  <div 
-                                    className="fixed inset-0 z-10" 
-                                    onClick={() => setActiveDropdown(null)}
-                                  />
-                                  <div className="absolute right-0 mt-1 w-32 rounded-xl bg-white py-1 shadow-lg ring-1 ring-black/5 focus:outline-none z-20 animate-in fade-in slide-in-from-top-1 duration-150 text-left">
-                                    <Link
-                                      to={`/clients/${client.id}`}
-                                      onClick={() => setActiveDropdown(null)}
-                                      className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                                    >
-                                      <HugeiconsIcon icon={ViewIcon} size={14} className="text-slate-400" strokeWidth={1.5} />
-                                      View Details
-                                    </Link>
-                                    <Link
-                                      to={`/clients/${client.id}/edit`}
-                                      onClick={() => setActiveDropdown(null)}
-                                      className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                                    >
-                                      <HugeiconsIcon icon={PencilEdit02Icon} size={14} className="text-slate-400" strokeWidth={1.5} />
-                                      Edit Client
-                                    </Link>
-                                    <button
-                                      onClick={() => {
-                                        if (window.confirm(`Are you sure you want to delete ${client.name}?`)) {
-                                          deleteMutation.mutate(client.id);
-                                        }
-                                        setActiveDropdown(null);
-                                      }}
-                                      className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                                    >
-                                      <HugeiconsIcon icon={Delete02Icon} size={14} className="text-rose-500" strokeWidth={1.5} />
-                                      Delete Client
-                                    </button>
-                                  </div>
-                                </>
-                              )}
+                              <DropdownPanel
+                                isOpen={activeDropdown === client.id}
+                                onClose={() => setActiveDropdown(null)}
+                                align="right"
+                                widthClass="w-36"
+                                zIndexClass="z-20"
+                              >
+                                <Link
+                                  to={`/clients/${client.id}`}
+                                  onClick={() => setActiveDropdown(null)}
+                                  className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors rounded-lg"
+                                >
+                                  <HugeiconsIcon icon={ViewIcon} size={14} className="text-slate-400" strokeWidth={1.5} />
+                                  View Details
+                                </Link>
+                                <Link
+                                  to={`/clients/${client.id}/edit`}
+                                  onClick={() => setActiveDropdown(null)}
+                                  className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors rounded-lg"
+                                >
+                                  <HugeiconsIcon icon={PencilEdit02Icon} size={14} className="text-slate-400" strokeWidth={1.5} />
+                                  Edit Client
+                                </Link>
+                                <button
+                                  onClick={() => {
+                                    setClientToDelete({ id: client.id, name: client.name });
+                                    setDeleteConfirmOpen(true);
+                                    setActiveDropdown(null);
+                                  }}
+                                  className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer rounded-lg"
+                                >
+                                  <HugeiconsIcon icon={Delete02Icon} size={14} className="text-rose-500" strokeWidth={1.5} />
+                                  Delete Client
+                                </button>
+                              </DropdownPanel>
                             </div>
                           </td>
                         </tr>
@@ -265,11 +359,11 @@ export function ClientsListPage() {
                 <div 
                   key={client.id}
                   onClick={() => navigate(`/clients/${client.id}`)}
-                  className="bg-white rounded-[24px] p-5 shadow-[0px_8px_24px_rgba(0,55,176,0.03)] border border-[#eef4ff]/50 transition-all duration-300 hover:shadow-[0px_12px_32px_rgba(0,55,176,0.06)] active:scale-[0.99] cursor-pointer relative flex flex-col gap-4"
+                  className="bg-white rounded-[24px] p-5 shadow-[0px_8px_24px_rgba(0,55,176,0.08)] border border-[#eef4ff]/50 transition-all duration-300 hover:shadow-[0px_12px_32px_rgba(0,55,176,0.12)] active:scale-[0.99] cursor-pointer relative flex flex-col gap-4"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-[#0037b0]/5 text-[#0037b0] border border-[#0037b0]/8 flex items-center justify-center text-xs font-bold shrink-0 select-none">
+                      <div className="w-11 h-11 rounded-xl bg-[#0037b0]/5 text-[#0037b0] border border-[#0037b0]/8 flex items-center justify-center text-xs font-bold shrink-0 select-none">
                         {getInitials(client.name)}
                       </div>
                       <div className="min-w-0">
@@ -286,22 +380,21 @@ export function ClientsListPage() {
                           e.stopPropagation();
                           navigate(`/clients/${client.id}/edit`);
                         }}
-                        className="w-10 h-10 rounded-full flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer border border-[#eef4ff]/60"
+                        className="w-11 h-11 rounded-full flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer border border-[#eef4ff]/60 shrink-0"
                         aria-label="Edit Client"
                       >
-                        <HugeiconsIcon icon={PencilEdit02Icon} size={15} strokeWidth={1.5} />
+                        <HugeiconsIcon icon={PencilEdit02Icon} size={16} strokeWidth={1.5} />
                       </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (window.confirm(`Are you sure you want to delete ${client.name}?`)) {
-                            deleteMutation.mutate(client.id);
-                          }
+                          setClientToDelete({ id: client.id, name: client.name });
+                          setDeleteConfirmOpen(true);
                         }}
-                        className="w-10 h-10 rounded-full flex items-center justify-center bg-rose-50/50 text-rose-600 hover:bg-rose-100/50 hover:text-rose-700 transition-colors cursor-pointer border border-rose-500/10"
+                        className="w-11 h-11 rounded-full flex items-center justify-center bg-rose-50/50 text-rose-600 hover:bg-rose-100/50 hover:text-rose-700 transition-colors cursor-pointer border border-rose-500/10 shrink-0"
                         aria-label="Delete Client"
                       >
-                        <HugeiconsIcon icon={Delete02Icon} size={15} strokeWidth={1.5} />
+                        <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.5} />
                       </button>
                     </div>
                   </div>
@@ -310,18 +403,18 @@ export function ClientsListPage() {
                     {client.email ? (
                       <a 
                         href={`mailto:${client.email}`} 
-                        onClick={(e) => e.stopPropagation()}
-                        className="flex items-center gap-2.5 text-xs font-medium text-slate-600 hover:text-[#0037b0] transition-colors py-1 min-h-[36px]"
+                        onClick={(e) => handleEmailClick(e, client.email!)}
+                        className="flex items-center gap-2.5 text-xs font-medium text-slate-600 hover:text-[#0037b0] transition-colors py-2 min-h-[44px]"
                       >
-                        <span className="w-7 h-7 rounded-full bg-slate-50 flex items-center justify-center shrink-0">
-                          <HugeiconsIcon icon={Mail01Icon} size={13} className="text-slate-400" strokeWidth={1.5} />
+                        <span className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center shrink-0">
+                          <HugeiconsIcon icon={Mail01Icon} size={14} className="text-slate-400" strokeWidth={1.5} />
                         </span>
                         <span className="truncate max-w-[220px]">{client.email}</span>
                       </a>
                     ) : (
-                      <div className="flex items-center gap-2.5 text-xs text-slate-350 italic py-1 min-h-[36px]">
-                        <span className="w-7 h-7 rounded-full bg-slate-50/50 flex items-center justify-center shrink-0">
-                          <HugeiconsIcon icon={Mail01Icon} size={13} className="text-slate-300" strokeWidth={1.5} />
+                      <div className="flex items-center gap-2.5 text-xs text-slate-350 italic py-2 min-h-[44px]">
+                        <span className="w-8 h-8 rounded-full bg-slate-50/50 flex items-center justify-center shrink-0">
+                          <HugeiconsIcon icon={Mail01Icon} size={14} className="text-slate-300" strokeWidth={1.5} />
                         </span>
                         <span>No email provided</span>
                       </div>
@@ -330,18 +423,18 @@ export function ClientsListPage() {
                     {client.phone ? (
                       <a 
                         href={`tel:${client.phone}`} 
-                        onClick={(e) => e.stopPropagation()}
-                        className="flex items-center gap-2.5 text-xs font-medium text-slate-650 hover:text-[#0037b0] transition-colors py-1 min-h-[36px]"
+                        onClick={(e) => handlePhoneClick(e, client.phone!)}
+                        className="flex items-center gap-2.5 text-xs font-medium text-slate-650 hover:text-[#0037b0] transition-colors py-2 min-h-[44px]"
                       >
-                        <span className="w-7 h-7 rounded-full bg-slate-50 flex items-center justify-center shrink-0">
-                          <HugeiconsIcon icon={Call02Icon} size={13} className="text-slate-400" strokeWidth={1.5} />
+                        <span className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center shrink-0">
+                          <HugeiconsIcon icon={Call02Icon} size={14} className="text-slate-400" strokeWidth={1.5} />
                         </span>
                         <span>{client.phone}</span>
                       </a>
                     ) : (
-                      <div className="flex items-center gap-2.5 text-xs text-slate-350 italic py-1 min-h-[36px]">
-                        <span className="w-7 h-7 rounded-full bg-slate-50/50 flex items-center justify-center shrink-0">
-                          <HugeiconsIcon icon={Call02Icon} size={13} className="text-slate-300" strokeWidth={1.5} />
+                      <div className="flex items-center gap-2.5 text-xs text-slate-350 italic py-2 min-h-[44px]">
+                        <span className="w-8 h-8 rounded-full bg-slate-50/50 flex items-center justify-center shrink-0">
+                          <HugeiconsIcon icon={Call02Icon} size={14} className="text-slate-300" strokeWidth={1.5} />
                         </span>
                         <span>No phone number</span>
                       </div>
@@ -372,51 +465,51 @@ export function ClientsListPage() {
         )}
 
         {/* Pagination & Limit Selector */}
-        {data && data.meta.total > 10 && (
-          <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-[#eef4ff]/50 pt-4">
+        {data && data.meta.total > 0 && (
+          <div className="hidden md:flex mt-6 flex-row items-center justify-between gap-4 border-t border-[#eef4ff]/50 pt-4">
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-400 font-semibold">Show:</span>
               <div className="relative inline-block text-left">
                 <button
                   onClick={() => setLimitOpen(!limitOpen)}
-                  className="h-9 px-3.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all flex items-center justify-between gap-2 shadow-[0px_4px_12px_rgba(0,55,176,0.01)] cursor-pointer min-w-[120px]"
+                  className="h-9 px-3.5 rounded-xl border border-border bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all flex items-center justify-between gap-2 shadow-[0px_4px_12px_rgba(0,55,176,0.01)] cursor-pointer min-w-[120px]"
                 >
                   <span>{limit} per page</span>
                   <HugeiconsIcon icon={ArrowDown01Icon} className={cn("h-3.5 w-3.5 text-slate-400 transition-transform duration-200", limitOpen && "rotate-180")} strokeWidth={1.5} />
                 </button>
 
-                {limitOpen && (
-                  <>
-                    <div 
-                      className="fixed inset-0 z-10" 
-                      onClick={() => setLimitOpen(false)}
-                    />
-                    <div className="absolute bottom-11 left-0 w-full min-w-[120px] rounded-xl bg-white py-1 shadow-[0px_12px_32px_rgba(0,55,176,0.08)] ring-1 ring-black/5 z-20 animate-in fade-in slide-in-from-bottom-1 duration-150 text-left">
-                      {([10, 25, 50, 100] as const).map((val) => (
-                        <button
-                          key={val}
-                          onClick={() => {
-                            setLimit(val);
-                            setPage(1);
-                            setLimitOpen(false);
-                          }}
-                          className={cn(
-                            "w-full text-left px-3.5 py-2.5 text-xs font-semibold transition-colors block cursor-pointer",
-                            limit === val 
-                              ? "bg-[#0037b0]/5 text-[#0037b0]" 
-                              : "text-slate-700 hover:bg-slate-50"
-                          )}
-                        >
-                          {val} per page
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
+                <DropdownPanel
+                  isOpen={limitOpen}
+                  onClose={() => setLimitOpen(false)}
+                  align="left"
+                  widthClass="w-full min-w-[120px]"
+                  zIndexClass="z-20"
+                  animateDirection="bottom"
+                  className="bottom-11"
+                >
+                  {([10, 25, 50, 100] as const).map((val) => (
+                    <button
+                      key={val}
+                      onClick={() => {
+                        setLimit(val);
+                        setPage(1);
+                        setLimitOpen(false);
+                      }}
+                      className={cn(
+                        "w-full text-left px-3.5 py-2 text-xs font-semibold rounded-lg transition-colors block cursor-pointer",
+                        limit === val 
+                          ? "bg-[#0037b0]/5 text-[#0037b0]" 
+                          : "text-slate-700 hover:bg-slate-50"
+                      )}
+                    >
+                      {val} per page
+                    </button>
+                  ))}
+                </DropdownPanel>
               </div>
             </div>
             
-            {data.meta.totalPages > 1 && (
+            {data.meta.totalPages >= 1 && (
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
@@ -443,16 +536,114 @@ export function ClientsListPage() {
             )}
           </div>
         )}
+
+        {/* Mobile Load More Button */}
+        {data && data.meta.total > limit && (
+          <div className="mt-6 md:hidden flex justify-center">
+            <Button
+              onClick={() => setLimit((prev) => prev + 10)}
+              variant="outline"
+              className="w-full py-4 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-all min-h-[44px]"
+            >
+              Load More Clients ({data.meta.total - limit} remaining)
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Mobile Floating Action Button */}
       <Link 
         to="/clients/new" 
-        className="fixed bottom-28 right-6 z-40 sm:hidden w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all"
+        className="absolute bottom-6 right-6 z-40 sm:hidden w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all"
         aria-label="Add Client"
       >
         <HugeiconsIcon icon={PlusSignIcon} size={24} strokeWidth={1.5} />
       </Link>
-    </div>
-  )
-}
+
+      {/* Mobile slide-up bottom sheet for filters */}
+      <BottomSheet
+        isOpen={isMobileFiltersOpen}
+        onClose={closeMobileFilters}
+        title="Filter Clients"
+        onClearAll={() => setTempStatus('')}
+      >
+        {/* Scrollable Filters list */}
+        <div className="flex-1 overflow-y-auto space-y-4 pb-6 select-none text-left">
+          {/* Status Section */}
+          <div className="bg-[#eef4ff]/35 rounded-2xl p-4">
+            <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-[#0037b0]/60 mb-3">Status</h4>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { label: 'All', value: '' },
+                { label: 'Active', value: 'active' },
+                { label: 'Inactive', value: 'inactive' }
+              ] as const).map((opt) => (
+                <button
+                  key={opt.label}
+                  type="button"
+                  onClick={() => setTempStatus(opt.value)}
+                  className={cn(
+                    "py-2 px-3 rounded-full text-xs font-semibold transition-all text-center cursor-pointer border-0",
+                    tempStatus === opt.value
+                      ? "bg-[#0037b0] text-white shadow-sm font-bold"
+                      : "bg-slate-100 text-slate-650 hover:bg-slate-200"
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer Buttons */}
+        <div className="grid grid-cols-2 gap-3 pt-4 border-t border-[#eef4ff]/50 shrink-0">
+          <Button
+            variant="outline"
+            type="button"
+            onClick={closeMobileFilters}
+            className="py-3 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-all min-h-[44px] border-0 shadow-none"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              setStatus(tempStatus)
+              setPage(1)
+              closeMobileFilters()
+            }}
+            className="py-3 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] hover:opacity-95 transition-all min-h-[44px] border-0"
+          >
+            Apply Filters
+          </Button>
+        </div>
+      </BottomSheet>
+
+      <ConfirmDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => {
+          setDeleteConfirmOpen(false)
+          setClientToDelete(null)
+        }}
+        onConfirm={() => {
+          if (clientToDelete) {
+            deleteMutation.mutate(clientToDelete.id, {
+              onSuccess: () => {
+                setDeleteConfirmOpen(false)
+                setClientToDelete(null)
+              }
+            })
+          }
+        }}
+        title="Delete Client"
+        description={`Are you sure you want to delete ${clientToDelete?.name}? This action cannot be undone and will delete all associated records.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        isDangerous={true}
+        isLoading={deleteMutation.isPending}
+      />
+        </div>
+      </div>
+    )
+  }

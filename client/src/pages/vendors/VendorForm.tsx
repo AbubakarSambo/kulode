@@ -8,6 +8,7 @@ import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 import { vendorsApi } from '@/api'
 import { posthog } from '@/lib/posthog'
+import { useOverscrollBounce } from '@/hooks'
 
 const vendorSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
@@ -27,6 +28,7 @@ interface VendorFormPageProps {
 }
 
 function VendorFormPage({ mode = 'create', initialData }: VendorFormPageProps) {
+  const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const isEdit = mode === 'edit'
@@ -112,7 +114,7 @@ function VendorFormPage({ mode = 'create', initialData }: VendorFormPageProps) {
         description={isEdit ? 'Update vendor information' : 'Add a new vendor to your organization'}
       />
 
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto p-4 sm:p-6">
         <form onSubmit={handleSubmit(onSubmit)} className="mx-auto max-w-2xl space-y-6">
           {/* Basic Info */}
           <Card>

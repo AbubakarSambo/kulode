@@ -34,6 +34,21 @@ export function AppLayout() {
   const logout = useLogout()
   const { hasRequiredPlan } = useSubscription()
 
+  const getPageTitle = () => {
+    const path = location.pathname
+    if (path.startsWith('/dashboard')) return 'Overview'
+    if (path.startsWith('/clients')) return 'Clients'
+    if (path.startsWith('/invoices')) return 'Invoices'
+    if (path.startsWith('/payments')) return 'Payments'
+    if (path.startsWith('/vendors')) return 'Vendors'
+    if (path.startsWith('/expenses')) return 'Expenses'
+    if (path.startsWith('/inventory')) return 'Inventory'
+    if (path.startsWith('/reports')) return 'Reports'
+    if (path.startsWith('/tax')) return 'Tax'
+    if (path.startsWith('/settings')) return 'Settings'
+    return ''
+  }
+
   const navItems = [
     { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Clients', href: '/clients', icon: Users },
@@ -54,45 +69,54 @@ export function AppLayout() {
     { name: 'Settings', href: '/settings', icon: Settings, visible: isAdmin },
   ].filter((item) => item.visible !== false) as Array<{ name: string; href: string; icon: any; requiresPlan?: PlanTier; visible?: boolean }>
 
+  const isHideMobileNav = location.pathname.includes('/new') || 
+    (location.pathname.startsWith('/invoices/') && location.pathname !== '/invoices') ||
+    (location.pathname.startsWith('/clients/') && location.pathname !== '/clients') ||
+    (location.pathname.startsWith('/vendors/') && location.pathname !== '/vendors')
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main className="flex flex-1 flex-col overflow-hidden relative">
-        {/* Mobile header with brand mark */}
-        <div className="flex h-16 items-center justify-between bg-[#f8f9ff]/80 backdrop-blur-md px-6 lg:hidden border-b border-[#eef4ff]/50 z-30">
+        {/* Mobile header with brand mark (with top notch safe-area support) */}
+        <div className="flex h-[calc(3.5rem+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] items-center justify-between bg-background/80 backdrop-blur-md px-6 lg:hidden border-b border-[#eef4ff]/50 z-30">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] flex items-center justify-center font-bold text-white text-xs shadow-md shadow-[#0037b0]/20">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] flex items-center justify-center font-bold text-white text-xs shadow-md shadow-[#0037b0]/25">
               K
             </div>
-            <span className="text-lg font-bold tracking-tighter text-slate-900">Kulode</span>
+            <span className="text-base font-bold tracking-tight text-slate-900">
+              {getPageTitle() ? getPageTitle() : 'Kulode'}
+            </span>
           </div>
         </div>
 
         <TrialBanner />
 
-        <div className="flex-1 overflow-hidden pb-28 lg:pb-0 flex flex-col">
+        <div className={cn("flex-1 overflow-hidden flex flex-col", isHideMobileNav ? "pb-0" : "pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pb-0")}>
           <Outlet />
         </div>
 
         {/* Floating Mobile Bottom Navigation Dock */}
-        <div className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom,0px))] left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-md lg:hidden">
-          <div className="bg-white/80 backdrop-blur-lg border border-slate-200/40 rounded-full px-2 py-1.5 shadow-[0_12px_32px_rgba(0,55,176,0.08)] flex justify-between items-center">
-            {navItems.map((item) => {
-              const isActive = location.pathname.startsWith(item.href)
-              return (
-                <Link
+        {!isHideMobileNav && (
+          <div className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom,0px))] left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-md lg:hidden">
+            <div className="bg-white/95 backdrop-blur-lg border border-[#eef4ff] rounded-full px-2 py-1.5 shadow-[0_16px_40px_rgba(0,55,176,0.12)] flex justify-between items-center">
+              {navItems.map((item) => {
+                const isActive = location.pathname.startsWith(item.href)
+                return (
+                  <Link
                   key={item.name}
                   to={item.href}
                   onClick={() => setMoreOpen(false)}
-                  className={`flex flex-col items-center gap-1 flex-1 py-2 px-1.5 rounded-full transition-all duration-200 select-none ${
+                  className={cn(
+                    "flex flex-col items-center gap-1 flex-1 py-2 px-1.5 rounded-full transition-all duration-200 select-none",
                     isActive 
-                      ? 'bg-[#0037b0]/8 text-[#0037b0] font-bold scale-105 shadow-[0px_4px_12px_rgba(0,55,176,0.04)]' 
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
+                      ? "bg-[#0037b0]/10 text-[#0037b0] font-extrabold shadow-[0px_4px_12px_rgba(0,55,176,0.02)]" 
+                      : "text-[#434655] hover:text-slate-900"
+                  )}
                 >
-                  <item.icon className="h-4.5 w-4.5" strokeWidth={1.5} />
-                  <span className="text-[9px] tracking-tight font-medium">{item.name}</span>
+                  <item.icon className="h-4.5 w-4.5" strokeWidth={isActive ? 2 : 1.5} />
+                  <span className="text-[9px] tracking-tight font-semibold">{item.name}</span>
                 </Link>
               )
             })}
@@ -100,17 +124,19 @@ export function AppLayout() {
             {/* More Button */}
             <button
               onClick={() => setMoreOpen(!moreOpen)}
-              className={`flex flex-col items-center gap-1 flex-1 py-2 px-1.5 rounded-full transition-all duration-200 select-none cursor-pointer ${
+              className={cn(
+                "flex flex-col items-center gap-1 flex-1 py-2 px-1.5 rounded-full transition-all duration-200 select-none cursor-pointer",
                 moreOpen 
-                  ? 'bg-[#0037b0]/8 text-[#0037b0] font-bold scale-105 shadow-[0px_4px_12px_rgba(0,55,176,0.04)]' 
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
+                  ? "bg-[#0037b0]/10 text-[#0037b0] font-extrabold shadow-[0px_4px_12px_rgba(0,55,176,0.02)]" 
+                  : "text-[#434655] hover:text-slate-900"
+              )}
             >
-              <MoreHorizontal className="h-4.5 w-4.5" strokeWidth={1.5} />
-              <span className="text-[9px] tracking-tight font-medium">More</span>
+              <MoreHorizontal className="h-4.5 w-4.5" strokeWidth={moreOpen ? 2 : 1.5} />
+              <span className="text-[9px] tracking-tight font-semibold">More</span>
             </button>
           </div>
         </div>
+      )}
 
         {/* More Options Drawer Overlay */}
         {moreOpen && (
@@ -119,7 +145,7 @@ export function AppLayout() {
               className="fixed inset-0 z-45 bg-slate-900/40 backdrop-blur-sm lg:hidden transition-opacity"
               onClick={() => setMoreOpen(false)}
             />
-            <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md rounded-t-[32px] shadow-[0_-12px_40px_rgba(0,55,176,0.06)] px-6 pt-6 pb-8 lg:hidden max-h-[85vh] overflow-y-auto border-t border-slate-100/50 animate-in slide-in-from-bottom duration-300">
+            <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md rounded-t-[32px] shadow-[0_-12px_40px_rgba(0,55,176,0.06)] px-6 pt-6 pb-[calc(2rem+env(safe-area-inset-bottom,0px))] lg:hidden max-h-[85vh] overflow-y-auto border-t border-slate-100/50 animate-in slide-in-from-bottom duration-300">
               <div className="flex items-center justify-between mb-6">
                 <span className="text-sm font-bold uppercase tracking-wider text-slate-400">All Operations</span>
                 <button 

@@ -1,23 +1,51 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Download, Pencil, Trash2, ChevronDown } from 'lucide-react'
+import { HugeiconsIcon } from '@hugeicons/react'
+import {
+  Download02Icon,
+  PencilEdit02Icon,
+  Delete02Icon,
+  ArrowDown01Icon,
+  MoreVerticalIcon,
+  Search01Icon,
+  CreditCardIcon,
+  FilterHorizontalIcon,
+} from '@hugeicons/core-free-icons'
 import { toast } from 'sonner'
 import { Header } from '@/components/layout'
-import { Button, Card, CardContent } from '@/components/ui'
+import { Button, Input, Card, CardContent, ConfirmDialog, EmptyState, DropdownPanel } from '@/components/ui'
+import { BottomSheet } from '@/components/shared'
 import { paymentsApi } from '@/api'
 import { formatCurrency, formatDate, cn } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
 import { useAuthStore } from '@/stores/auth'
 import { PaymentsIcon } from '@/components/ui/CustomIcons'
 import type { PaymentMethod } from '@/types'
+import { useOverscrollBounce } from '@/hooks'
 
-const methodStyles: Record<string, string> = {
-  BANK_TRANSFER: 'text-blue-700 bg-blue-50/50 border border-blue-100/30',
-  PAYSTACK: 'text-indigo-700 bg-indigo-50/50 border border-indigo-100/30',
-  CARD: 'text-emerald-700 bg-emerald-50/50 border border-emerald-100/30',
-  CASH: 'text-slate-600 bg-slate-100/80 border border-slate-200/25',
-  OTHER: 'text-slate-500 bg-slate-100/50 border border-slate-200/10',
+const methodDotColors: Record<string, string> = {
+  BANK_TRANSFER: 'bg-blue-500',
+  PAYSTACK: 'bg-indigo-500',
+  CARD: 'bg-emerald-500',
+  CASH: 'bg-slate-400',
+  OTHER: 'bg-slate-300',
+}
+
+const methodTextColors: Record<string, string> = {
+  BANK_TRANSFER: 'text-blue-700',
+  PAYSTACK: 'text-indigo-700',
+  CARD: 'text-emerald-700',
+  CASH: 'text-slate-600',
+  OTHER: 'text-slate-500',
+}
+
+const formatPaymentMethod = (method: string) => {
+  if (!method) return ''
+  return method
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ')
 }
 
 const getInitials = (name: string) => {
@@ -30,11 +58,28 @@ const getInitials = (name: string) => {
 }
 
 export function PaymentsListPage() {
+  const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
+  const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
   const [limitOpen, setLimitOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('')
+  const [methodDropdownOpen, setMethodDropdownOpen] = useState(false)
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false)
+  const [tempMethod, setTempMethod] = useState<PaymentMethod | ''>('')
+
+  const openMobileFilters = () => {
+    setTempMethod(paymentMethod)
+    setIsMobileFiltersOpen(true)
+  }
+
+  const closeMobileFilters = () => {
+    setIsMobileFiltersOpen(false)
+  }
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [paymentToDelete, setPaymentToDelete] = useState<{ id: string; invoiceNumber: string } | null>(null)
   const user = useAuthStore((s) => s.user)
   const isSuperAdmin = user?.role === 'SUPER_ADMIN'
   const queryClient = useQueryClient()
@@ -50,10 +95,9 @@ export function PaymentsListPage() {
     },
   })
 
-  const handleDelete = (paymentId: string) => {
-    if (window.confirm('Are you sure you want to delete this payment? This will update the invoice balance.')) {
-      deleteMutation.mutate(paymentId)
-    }
+  const handleDeleteTrigger = (paymentId: string, invoiceNumber: string) => {
+    setPaymentToDelete({ id: paymentId, invoiceNumber })
+    setDeleteConfirmOpen(true)
   }
 
   const handleDownloadReceipt = async (paymentId: string, invoiceNumber: string) => {
@@ -81,8 +125,17 @@ export function PaymentsListPage() {
     queryFn: () => paymentsApi.list({ page, limit, paymentMethod: paymentMethod || undefined }),
   })
 
+  const payments = data?.data ?? []
+  const filteredPayments = payments.filter((payment) => {
+    const invNum = payment.invoice?.invoiceNumber?.toLowerCase() || ''
+    const clientName = payment.invoice?.client?.name?.toLowerCase() || ''
+    const ref = payment.reference?.toLowerCase() || ''
+    const s = search.toLowerCase()
+    return invNum.includes(s) || clientName.includes(s) || ref.includes(s)
+  })
+
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    <div className="flex flex-1 flex-col overflow-hidden relative min-h-0">
       <Header
         title="Payments"
         description="View all received payments"
@@ -91,34 +144,105 @@ export function PaymentsListPage() {
         badgeText={data?.meta.total}
       />
 
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
-        {/* Filters */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between stagger-in sticky top-0 md:static z-20 bg-[#f8f9ff]/95 backdrop-blur-sm py-3 -mx-4 px-4 md:-mx-0 md:px-0 md:bg-transparent md:py-0 md:mb-6 border-b border-[#eef4ff]/30 md:border-b-0">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-2 whitespace-nowrap">Method:</span>
-            {([
-              { label: 'All Methods', value: '' },
-              { label: 'Bank Transfer', value: 'BANK_TRANSFER' },
-              { label: 'Paystack', value: 'PAYSTACK' },
-              { label: 'Card', value: 'CARD' },
-              { label: 'Cash', value: 'CASH' },
-            ] as const).map((opt) => {
-              const isActive = paymentMethod === opt.value;
-              return (
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto px-4 pb-4 pt-0 sm:px-6 sm:pb-6 sm:pt-0">
+        <div className="pt-4 sm:pt-6">
+        {/* Filters and Search */}
+        <div className="mb-6 flex flex-col gap-4 stagger-in sticky top-0 md:static z-20 bg-background py-3 -mx-4 px-4 md:-mx-0 md:px-0 md:bg-transparent md:py-0 md:mb-6 border-b border-[#eef4ff]/30 md:border-b-0">
+          {/* Desktop Filters (hidden on mobile) */}
+          <div className="hidden md:flex flex-row items-center gap-4 justify-between w-full">
+            <div className="flex items-center gap-3 flex-1">
+              <div className="relative flex-1 max-w-[240px]">
+                <HugeiconsIcon icon={Search01Icon} className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" strokeWidth={1.5} />
+                <Input
+                  placeholder="Search payments..."
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+                  className="pl-11 rounded-xl h-10 bg-white border border-border"
+                />
+              </div>
+
+              {/* Method Dropdown */}
+              <div className="relative inline-block text-left">
                 <button
-                  key={opt.value}
-                  onClick={() => { setPaymentMethod(opt.value); setPage(1); }}
+                  type="button"
+                  onClick={() => setMethodDropdownOpen(!methodDropdownOpen)}
                   className={cn(
-                    "rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-wider transition-all duration-200 cursor-pointer border border-transparent whitespace-nowrap",
-                    isActive
-                      ? "bg-[#0037b0] text-white shadow-[0px_4px_12px_rgba(0,55,176,0.2)] font-bold"
-                      : "bg-[#eef4ff] text-[#434655] hover:bg-[#e5eeff]"
+                    "h-10 px-4 rounded-xl border bg-white text-xs font-semibold hover:bg-slate-50 transition-all flex items-center justify-between gap-2 min-w-[150px] cursor-pointer",
+                    paymentMethod ? "border-[#0037b0]/35 text-[#0037b0] bg-[#0037b0]/04" : "border-border text-slate-700"
                   )}
                 >
-                  {opt.label}
+                  <span className="truncate">
+                    {paymentMethod ? formatPaymentMethod(paymentMethod) : 'All Methods'}
+                  </span>
+                  <HugeiconsIcon icon={ArrowDown01Icon} className={cn("h-4 w-4 text-slate-400 transition-transform duration-200 shrink-0", methodDropdownOpen && "rotate-180")} strokeWidth={1.5} />
                 </button>
-              )
-            })}
+
+                <DropdownPanel
+                  isOpen={methodDropdownOpen}
+                  onClose={() => setMethodDropdownOpen(false)}
+                  align="left"
+                  widthClass="w-52"
+                >
+                  {([
+                    { label: 'All Methods', value: '' },
+                    { label: 'Bank Transfer', value: 'BANK_TRANSFER' },
+                    { label: 'Paystack', value: 'PAYSTACK' },
+                    { label: 'Card', value: 'CARD' },
+                    { label: 'Cash', value: 'CASH' },
+                  ] as const).map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        setPaymentMethod(opt.value)
+                        setPage(1)
+                        setMethodDropdownOpen(false)
+                      }}
+                      className={cn(
+                        "w-full text-left px-3.5 py-2 text-xs font-semibold rounded-lg transition-colors block cursor-pointer",
+                        paymentMethod === opt.value 
+                          ? "bg-[#0037b0]/5 text-[#0037b0]" 
+                          : "text-slate-700 hover:bg-slate-50"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </DropdownPanel>
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile Search and Filter trigger row (hidden on desktop) */}
+          <div className="flex md:hidden flex-row items-center gap-2 w-full">
+            <div className="relative flex-1">
+              <HugeiconsIcon icon={Search01Icon} className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" strokeWidth={1.5} />
+              <Input
+                placeholder="Search payments..."
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+                className="pl-11 rounded-xl h-11 bg-white w-full border-border focus:border-primary/40 focus:ring-1 focus:ring-primary/20"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={openMobileFilters}
+              className={cn(
+                "h-11 w-11 rounded-xl border flex items-center justify-center relative hover:bg-slate-50 transition-all shrink-0 cursor-pointer",
+                paymentMethod !== '' 
+                  ? "border-[#0037b0] text-[#0037b0] bg-[#0037b0]/04" 
+                  : "border-border bg-white text-slate-750"
+              )}
+              aria-label="Filters"
+            >
+              <HugeiconsIcon icon={FilterHorizontalIcon} className="h-5 w-5" strokeWidth={1.5} />
+              {paymentMethod !== '' && (
+                <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-[20px] px-1.5 items-center justify-center rounded-full bg-[#0037b0] text-[10px] font-black text-white leading-none border border-white">
+                  1
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
@@ -126,29 +250,37 @@ export function PaymentsListPage() {
           <div className="flex items-center justify-center py-12">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           </div>
-        ) : data?.data.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12">
-            <p className="text-muted-foreground">No payments recorded yet</p>
-          </div>
+        ) : payments.length === 0 ? (
+          <EmptyState
+            icon={CreditCardIcon}
+            title="No payments recorded yet"
+            description="All client invoice payments (Paystack, bank transfers, cash) will appear here."
+          />
+        ) : filteredPayments.length === 0 ? (
+          <EmptyState
+            icon={CreditCardIcon}
+            title="No payments found matching search"
+            description="Try adjusting your search terms or status filters."
+          />
         ) : (
           <>
             {/* Desktop Table View */}
-            <Card className="hidden md:block border-0 bg-white shadow-[0px_12px_32px_rgba(0,55,176,0.03)] rounded-[24px] overflow-hidden">
+            <Card className="hidden md:block border-0 bg-white shadow-[0px_12px_32px_rgba(0,55,176,0.08)] rounded-[24px] overflow-visible">
               <CardContent className="p-0">
-                <div className="overflow-auto max-h-[60vh]">
+                <div className="overflow-visible">
                   <table className="w-full min-w-[700px] border-collapse">
                     <thead>
                       <tr className="bg-white text-slate-600">
-                        <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 select-none">Invoice</th>
-                        <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-center text-[10px] font-bold uppercase tracking-widest text-slate-400 select-none">Method</th>
-                        <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 select-none">Date</th>
-                        <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 select-none">Reference</th>
-                        <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-right text-[10px] font-bold uppercase tracking-widest text-slate-400 select-none">Amount</th>
-                        <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-right text-[10px] font-bold uppercase tracking-widest text-slate-400 select-none">Actions</th>
+                        <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-extrabold uppercase tracking-widest text-slate-400 select-none">Invoice</th>
+                        <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-extrabold uppercase tracking-widest text-slate-400 select-none">Method</th>
+                        <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-extrabold uppercase tracking-widest text-slate-400 select-none">Date</th>
+                        <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-extrabold uppercase tracking-widest text-slate-400 select-none">Reference</th>
+                        <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-right text-[10px] font-extrabold uppercase tracking-widest text-slate-400 select-none">Amount</th>
+                        <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-right text-[10px] font-extrabold uppercase tracking-widest text-slate-400 select-none">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y-0">
-                      {data?.data.map((payment, index) => (
+                      {filteredPayments.map((payment, index) => (
                         <tr 
                           key={payment.id} 
                           className={cn(
@@ -171,13 +303,19 @@ export function PaymentsListPage() {
                               </div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-center">
-                            <span className={cn(
-                              "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider",
-                              methodStyles[payment.paymentMethod] || methodStyles.OTHER
-                            )}>
-                              {payment.paymentMethod.replace('_', ' ')}
-                            </span>
+                          <td className="px-6 py-4 text-left">
+                            <div className="flex items-center gap-2 select-none justify-start">
+                              <span className={cn(
+                                "h-1.5 w-1.5 rounded-full shrink-0",
+                                methodDotColors[payment.paymentMethod] || methodDotColors.OTHER
+                              )} />
+                              <span className={cn(
+                                "text-xs font-semibold tracking-wide",
+                                methodTextColors[payment.paymentMethod] || methodTextColors.OTHER
+                              )}>
+                                {formatPaymentMethod(payment.paymentMethod)}
+                              </span>
+                            </div>
                           </td>
                           <td className="px-6 py-4 text-xs font-semibold text-slate-500">
                             {formatDate(payment.paymentDate)}
@@ -186,39 +324,64 @@ export function PaymentsListPage() {
                             {payment.reference ?? '-'}
                           </td>
                           <td className="px-6 py-4 text-right">
-                            <span className="font-extrabold text-emerald-700 bg-emerald-50/50 px-2.5 py-1 rounded-lg inline-block tabular-nums text-xs">
-                              +{formatCurrency(payment.amount)}
+                            <span className="font-semibold text-slate-800 tabular-nums text-sm">
+                              {formatCurrency(payment.amount)}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              {isSuperAdmin && (
-                                <>
-                                  <Link to={`/payments/${payment.id}/edit`}>
-                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-lg">
-                                      <Pencil className="h-4 w-4" />
-                                    </Button>
-                                  </Link>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50"
-                                    onClick={() => handleDelete(payment.id)}
-                                    disabled={deleteMutation.isPending}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 rounded-lg"
-                                onClick={() => handleDownloadReceipt(payment.id, payment.invoice?.invoiceNumber || 'unknown')}
-                                disabled={downloadingId === payment.id}
+                          <td className="px-6 py-4 text-right relative">
+                            <div className="inline-block text-left relative">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveDropdown(activeDropdown === payment.id ? null : payment.id);
+                                }}
+                                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors cursor-pointer"
                               >
-                                <Download className="h-4 w-4" />
-                              </Button>
+                                <HugeiconsIcon icon={MoreVerticalIcon} size={16} strokeWidth={1.5} />
+                              </button>
+
+                              <DropdownPanel
+                                isOpen={activeDropdown === payment.id}
+                                onClose={() => setActiveDropdown(null)}
+                                align="right"
+                                widthClass="w-44"
+                                zIndexClass="z-20"
+                              >
+                                <button
+                                  onClick={() => {
+                                    setActiveDropdown(null);
+                                    handleDownloadReceipt(payment.id, payment.invoice?.invoiceNumber || 'unknown');
+                                  }}
+                                  disabled={downloadingId === payment.id}
+                                  className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer rounded-lg"
+                                >
+                                  <HugeiconsIcon icon={Download02Icon} size={14} className="text-slate-400" strokeWidth={1.5} />
+                                  Download Receipt
+                                </button>
+                                {isSuperAdmin && (
+                                  <>
+                                    <Link
+                                      to={`/payments/${payment.id}/edit`}
+                                      onClick={() => setActiveDropdown(null)}
+                                      className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors rounded-lg"
+                                    >
+                                      <HugeiconsIcon icon={PencilEdit02Icon} size={14} className="text-slate-400" strokeWidth={1.5} />
+                                      Edit Payment
+                                    </Link>
+                                    <button
+                                      onClick={() => {
+                                        setActiveDropdown(null);
+                                        handleDeleteTrigger(payment.id, payment.invoice?.invoiceNumber || 'unknown');
+                                      }}
+                                      disabled={deleteMutation.isPending}
+                                      className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer rounded-lg"
+                                    >
+                                      <HugeiconsIcon icon={Delete02Icon} size={14} className="text-rose-500" strokeWidth={1.5} />
+                                      Delete Payment
+                                    </button>
+                                  </>
+                                )}
+                              </DropdownPanel>
                             </div>
                           </td>
                         </tr>
@@ -231,10 +394,10 @@ export function PaymentsListPage() {
 
             {/* Mobile Card-Based List View */}
             <div className="flex flex-col gap-4 md:hidden">
-              {data?.data.map((payment) => (
+              {filteredPayments.map((payment) => (
                 <div 
                   key={payment.id}
-                  className="bg-white rounded-[24px] p-5 shadow-[0px_8px_24px_rgba(0,55,176,0.03)] border-0 transition-all duration-300 hover:shadow-[0px_12px_32px_rgba(0,55,176,0.06)] relative"
+                  className="bg-white rounded-[24px] p-5 shadow-[0px_8px_24px_rgba(0,55,176,0.08)] border-0 transition-all duration-300 hover:shadow-[0px_12px_32px_rgba(0,55,176,0.12)] relative"
                 >
                   <div className="flex items-start justify-between gap-3 mb-4">
                     <div className="flex items-center gap-3">
@@ -248,18 +411,24 @@ export function PaymentsListPage() {
                         </Link>
                       </div>
                     </div>
-                    <span className="text-sm font-bold text-emerald-700 bg-emerald-50/50 px-2.5 py-0.5 rounded-full shrink-0 tabular-nums">
-                      +{formatCurrency(payment.amount)}
+                    <span className="text-sm font-semibold text-slate-800 shrink-0 tabular-nums">
+                      {formatCurrency(payment.amount)}
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className={cn(
-                      "px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider",
-                      methodStyles[payment.paymentMethod] || methodStyles.OTHER
-                    )}>
-                      {payment.paymentMethod.replace('_', ' ')}
-                    </span>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="flex items-center gap-1.5 select-none">
+                      <span className={cn(
+                        "h-1.5 w-1.5 rounded-full shrink-0",
+                        methodDotColors[payment.paymentMethod] || methodDotColors.OTHER
+                      )} />
+                      <span className={cn(
+                        "text-[10px] font-bold uppercase tracking-wider",
+                        methodTextColors[payment.paymentMethod] || methodTextColors.OTHER
+                      )}>
+                        {formatPaymentMethod(payment.paymentMethod)}
+                      </span>
+                    </div>
                     {payment.reference && (
                       <span className="text-[10px] text-slate-400 font-semibold truncate max-w-[180px]">
                         Ref: {payment.reference}
@@ -271,33 +440,33 @@ export function PaymentsListPage() {
                     <span className="text-xs text-slate-400 font-medium">
                       {formatDate(payment.paymentDate)}
                     </span>
-                    <div className="flex items-center gap-1.5 -my-2.5">
+                    <div className="flex items-center gap-2 -my-2.5">
                       {isSuperAdmin && (
                         <>
                           <Link 
                             to={`/payments/${payment.id}/edit`}
-                            className="p-2 rounded-full hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors min-h-[44px]"
+                            className="w-11 h-11 rounded-full flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer border border-[#eef4ff]/60 shrink-0"
                             aria-label="Edit"
                           >
-                            <Pencil className="h-4 w-4" strokeWidth={1.5} />
+                            <HugeiconsIcon icon={PencilEdit02Icon} size={16} strokeWidth={1.5} />
                           </Link>
                           <button
-                            onClick={() => handleDelete(payment.id)}
+                            onClick={() => handleDeleteTrigger(payment.id, payment.invoice?.invoiceNumber || 'unknown')}
                             disabled={deleteMutation.isPending}
-                            className="p-2 rounded-full hover:bg-rose-50 text-rose-500 hover:text-rose-700 transition-colors cursor-pointer min-h-[44px]"
+                            className="w-11 h-11 rounded-full flex items-center justify-center bg-rose-50/50 text-rose-600 hover:bg-rose-100/50 hover:text-rose-700 transition-colors cursor-pointer border border-rose-500/10 shrink-0"
                             aria-label="Delete"
                           >
-                            <Trash2 className="h-4 w-4" strokeWidth={1.5} />
+                            <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.5} />
                           </button>
                         </>
                       )}
                       <button
                         onClick={() => handleDownloadReceipt(payment.id, payment.invoice?.invoiceNumber || 'unknown')}
                         disabled={downloadingId === payment.id}
-                        className="p-2 rounded-full hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors cursor-pointer min-h-[44px]"
+                        className="w-11 h-11 rounded-full flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer border border-[#eef4ff]/60 shrink-0"
                         aria-label="Download Receipt"
                       >
-                        <Download className="h-4 w-4" strokeWidth={1.5} />
+                        <HugeiconsIcon icon={Download02Icon} size={16} strokeWidth={1.5} />
                       </button>
                     </div>
                   </div>
@@ -307,52 +476,52 @@ export function PaymentsListPage() {
           </>
         )}
 
-        {/* Pagination & Limit Selector */}
-        {data && data.meta.total > 10 && (
-          <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-[#eef4ff]/50 pt-4">
+        {/* Pagination & Limit Selector (Desktop only) */}
+        {data && data.meta.total > 0 && (
+          <div className="hidden md:flex mt-6 flex-row items-center justify-between gap-4 border-t border-[#eef4ff]/50 pt-4">
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-400 font-semibold">Show:</span>
               <div className="relative inline-block text-left">
                 <button
                   onClick={() => setLimitOpen(!limitOpen)}
-                  className="h-9 px-3.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all flex items-center justify-between gap-2 shadow-[0px_4px_12px_rgba(0,55,176,0.01)] cursor-pointer min-w-[120px]"
+                  className="h-9 px-3.5 rounded-xl border border-border bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all flex items-center justify-between gap-2 shadow-[0px_4px_12px_rgba(0,55,176,0.01)] cursor-pointer min-w-[120px]"
                 >
                   <span>{limit} per page</span>
-                  <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform duration-200", limitOpen && "rotate-180")} strokeWidth={1.5} />
+                  <HugeiconsIcon icon={ArrowDown01Icon} className={cn("h-3.5 w-3.5 text-slate-400 transition-transform duration-200", limitOpen && "rotate-180")} strokeWidth={1.5} />
                 </button>
 
-                {limitOpen && (
-                  <>
-                    <div 
-                      className="fixed inset-0 z-10" 
-                      onClick={() => setLimitOpen(false)}
-                    />
-                    <div className="absolute bottom-11 left-0 w-full min-w-[120px] rounded-xl bg-white py-1 shadow-[0px_12px_32px_rgba(0,55,176,0.08)] ring-1 ring-black/5 z-20 animate-in fade-in slide-in-from-bottom-1 duration-150 text-left">
-                      {([10, 25, 50, 100] as const).map((val) => (
-                        <button
-                          key={val}
-                          onClick={() => {
-                            setLimit(val);
-                            setPage(1);
-                            setLimitOpen(false);
-                          }}
-                          className={cn(
-                            "w-full text-left px-3.5 py-2.5 text-xs font-semibold transition-colors block cursor-pointer",
-                            limit === val 
-                              ? "bg-[#0037b0]/5 text-[#0037b0]" 
-                              : "text-slate-700 hover:bg-slate-50"
-                          )}
-                        >
-                          {val} per page
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
+                <DropdownPanel
+                  isOpen={limitOpen}
+                  onClose={() => setLimitOpen(false)}
+                  align="left"
+                  widthClass="w-full min-w-[120px]"
+                  zIndexClass="z-20"
+                  animateDirection="bottom"
+                  className="bottom-11"
+                >
+                  {([10, 25, 50, 100] as const).map((val) => (
+                    <button
+                      key={val}
+                      onClick={() => {
+                        setLimit(val);
+                        setPage(1);
+                        setLimitOpen(false);
+                      }}
+                      className={cn(
+                        "w-full text-left px-3.5 py-2 text-xs font-semibold rounded-lg transition-colors block cursor-pointer",
+                        limit === val 
+                          ? "bg-[#0037b0]/5 text-[#0037b0]" 
+                          : "text-slate-700 hover:bg-slate-50"
+                      )}
+                    >
+                      {val} per page
+                    </button>
+                  ))}
+                </DropdownPanel>
               </div>
             </div>
             
-            {data.meta.totalPages > 1 && (
+            {data.meta.totalPages >= 1 && (
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
@@ -379,7 +548,107 @@ export function PaymentsListPage() {
             )}
           </div>
         )}
+
+        {/* Mobile Load More Button */}
+        {data && data.meta.total > limit && (
+          <div className="mt-6 md:hidden flex justify-center">
+            <Button
+              onClick={() => setLimit((prev) => prev + 10)}
+              variant="outline"
+              className="w-full py-4 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-all min-h-[44px]"
+            >
+              Load More Payments ({data.meta.total - limit} remaining)
+            </Button>
+          </div>
+        )}
       </div>
-    </div>
-  )
-}
+
+      {/* Mobile slide-up bottom sheet for filters */}
+      <BottomSheet
+        isOpen={isMobileFiltersOpen}
+        onClose={closeMobileFilters}
+        title="Filter Payments"
+        onClearAll={() => setTempMethod('')}
+      >
+        {/* Scrollable Filters list */}
+        <div className="flex-1 overflow-y-auto space-y-4 pb-6 select-none text-left">
+          {/* Method Section */}
+          <div className="bg-[#eef4ff]/35 rounded-2xl p-4">
+            <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-[#0037b0]/60 mb-3">Method</h4>
+            <div className="flex flex-wrap gap-2">
+              {([
+                { label: 'All Methods', value: '' },
+                { label: 'Bank Transfer', value: 'BANK_TRANSFER' },
+                { label: 'Paystack', value: 'PAYSTACK' },
+                { label: 'Card', value: 'CARD' },
+                { label: 'Cash', value: 'CASH' },
+              ] as const).map((opt) => (
+                <button
+                  key={opt.label}
+                  type="button"
+                  onClick={() => setTempMethod(opt.value)}
+                  className={cn(
+                    "py-2 px-3.5 rounded-full text-xs font-semibold transition-all text-center cursor-pointer border-0",
+                    tempMethod === opt.value
+                      ? "bg-[#0037b0] text-white shadow-sm font-bold"
+                      : "bg-slate-100 text-slate-655 hover:bg-slate-200"
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer Buttons */}
+        <div className="grid grid-cols-2 gap-3 pt-4 border-t border-[#eef4ff]/50 shrink-0">
+          <Button
+            variant="outline"
+            type="button"
+            onClick={closeMobileFilters}
+            className="py-3 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-all min-h-[44px] border-0 shadow-none"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              setPaymentMethod(tempMethod)
+              setPage(1)
+              closeMobileFilters()
+            }}
+            className="py-3 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] hover:opacity-95 transition-all min-h-[44px] border-0"
+          >
+            Apply Filters
+          </Button>
+        </div>
+      </BottomSheet>
+
+      <ConfirmDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => {
+          setDeleteConfirmOpen(false)
+          setPaymentToDelete(null)
+        }}
+        onConfirm={() => {
+          if (paymentToDelete) {
+            deleteMutation.mutate(paymentToDelete.id, {
+              onSuccess: () => {
+                setDeleteConfirmOpen(false)
+                setPaymentToDelete(null)
+              }
+            })
+          }
+        }}
+        title="Delete Payment"
+        description={`Are you sure you want to delete the payment for invoice ${paymentToDelete?.invoiceNumber}? This action cannot be undone and will update the associated invoice balance.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        isDangerous={true}
+        isLoading={deleteMutation.isPending}
+      />
+        </div>
+      </div>
+    )
+  }
