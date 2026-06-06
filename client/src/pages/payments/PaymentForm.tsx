@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { formatAmountInput, parseAmountInput } from '@/lib/utils'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -9,6 +10,7 @@ import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Select, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 import { paymentsApi } from '@/api'
 import type { PaymentMethod } from '@/types'
+import { useOverscrollBounce } from '@/hooks'
 
 const paymentSchema = z.object({
   amount: z.number().min(0.01, 'Amount must be greater than 0'),
@@ -21,6 +23,7 @@ const paymentSchema = z.object({
 type PaymentFormData = z.infer<typeof paymentSchema>
 
 export function EditPaymentPage() {
+  const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -31,10 +34,13 @@ export function EditPaymentPage() {
     enabled: !!id,
   })
 
+  const [amountStr, setAmountStr] = useState('')
+
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<PaymentFormData>({
     resolver: zodResolver(paymentSchema),
@@ -49,6 +55,7 @@ export function EditPaymentPage() {
         reference: payment.reference ?? '',
         notes: payment.notes ?? '',
       })
+      setAmountStr(formatAmountInput(payment.amount))
     }
   }, [payment, reset])
 
@@ -90,7 +97,7 @@ export function EditPaymentPage() {
         description={payment?.invoice?.invoiceNumber ? `Payment for ${payment.invoice.invoiceNumber}` : 'Update payment details'}
       />
 
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto p-4 sm:p-6">
         <Card className="mx-auto max-w-2xl">
           <CardHeader>
             <CardTitle>Payment Details</CardTitle>
@@ -102,11 +109,15 @@ export function EditPaymentPage() {
                   <Label htmlFor="amount" required>Amount</Label>
                   <Input
                     id="amount"
-                    type="number"
-                    step="0.01"
-                    min="0"
+                    type="text"
                     placeholder="0.00"
-                    {...register('amount', { valueAsNumber: true })}
+                    value={amountStr}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      const formatted = formatAmountInput(val)
+                      setAmountStr(formatted)
+                      setValue('amount', parseAmountInput(formatted), { shouldValidate: true })
+                    }}
                     error={errors.amount?.message}
                   />
                 </div>

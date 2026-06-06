@@ -4,14 +4,25 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, Edit, Trash2, Wrench, Search } from 'lucide-react'
+import { HugeiconsIcon } from '@hugeicons/react'
+import {
+  PlusSignIcon,
+  Search01Icon,
+  PencilEdit02Icon,
+  Delete02Icon,
+  Grid02Icon,
+  ArrowDown01Icon,
+  MoreVerticalIcon
+} from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
-import { Button, Input, Label, Textarea, Card, CardContent } from '@/components/ui'
+import { Button, Input, Label, Textarea, Card, CardContent, ConfirmDialog, EmptyState, DropdownPanel } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { invoicesApi } from '@/api'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, cn } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
 import type { ServiceItem } from '@/types'
+import { useOverscrollBounce } from '@/hooks'
+import { ServicesIcon } from '@/components/ui/CustomIcons'
 
 const serviceItemSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -31,10 +42,17 @@ const getInitials = (name: string) => {
 }
 
 export function ServiceItemsPage() {
+  const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<ServiceItem | null>(null)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [itemToDelete, setItemToDelete] = useState<ServiceItem | null>(null)
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
+  const [limitOpen, setLimitOpen] = useState(false)
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
 
   const { data: serviceItems, isLoading } = useQuery({
     queryKey: ['service-items'],
@@ -63,6 +81,7 @@ export function ServiceItemsPage() {
       toast.success('Service item created successfully')
       closeModal()
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onError: (error: any) => {
       toast.error('Failed to create service item', {
         description: error.response?.data?.message,
@@ -78,6 +97,7 @@ export function ServiceItemsPage() {
       toast.success('Service item updated successfully')
       closeModal()
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onError: (error: any) => {
       toast.error('Failed to update service item', {
         description: error.response?.data?.message,
@@ -92,6 +112,7 @@ export function ServiceItemsPage() {
       posthog.capture('service_item_deleted')
       toast.success('Service item deleted successfully')
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onError: (error: any) => {
       toast.error('Failed to delete service item', {
         description: error.response?.data?.message,
@@ -125,10 +146,9 @@ export function ServiceItemsPage() {
     }
   }
 
-  const handleDelete = (item: ServiceItem) => {
-    if (window.confirm(`Delete "${item.name}"? This won't affect existing invoices.`)) {
-      deleteMutation.mutate(item.id)
-    }
+  const handleDeleteTrigger = (item: ServiceItem) => {
+    setItemToDelete(item)
+    setDeleteConfirmOpen(true)
   }
 
   const filteredItems = (serviceItems ?? []).filter((item) => 
@@ -136,32 +156,35 @@ export function ServiceItemsPage() {
     (item.description && item.description.toLowerCase().includes(search.toLowerCase()))
   )
 
+  const paginatedItems = filteredItems.slice((page - 1) * limit, page * limit)
+  const totalPages = Math.ceil(filteredItems.length / limit)
+
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    <div className="flex flex-1 flex-col overflow-hidden relative min-h-0">
       <Header
         title="Service Items"
         description="Manage predefined services and products for invoices"
-        icon={Wrench}
+        icon={ServicesIcon}
         category="Settings"
         badgeText={serviceItems?.length}
         action={
           <Button onClick={openCreateModal}>
-            <Plus className="mr-2 h-4 w-4" strokeWidth={1.5} />
+            <HugeiconsIcon icon={PlusSignIcon} className="mr-2 h-4 w-4" strokeWidth={1.5} />
             Add Service Item
           </Button>
         }
       />
 
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto px-4 pb-4 pt-0 sm:p-6">
         {/* Search */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between stagger-in sticky top-0 md:static z-20 bg-[#f8f9ff]/95 backdrop-blur-sm py-3 -mx-4 px-4 md:-mx-0 md:px-0 md:bg-transparent md:py-0 md:mb-6 border-b border-[#eef4ff]/30 md:border-b-0">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between stagger-in sticky top-0 md:static z-20 bg-background py-3 -mx-4 px-4 md:-mx-0 md:px-0 md:bg-transparent md:py-0 md:mb-6 border-b border-[#eef4ff]/30 md:border-b-0">
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" strokeWidth={1.5} />
+            <HugeiconsIcon icon={Search01Icon} className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" strokeWidth={1.5} />
             <Input
               placeholder="Search service items..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-11 rounded-xl h-10"
+              className="pl-11 rounded-xl h-10 bg-white border border-border"
             />
           </div>
         </div>
@@ -170,69 +193,261 @@ export function ServiceItemsPage() {
           <div className="flex items-center justify-center py-12">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           </div>
-        ) : filteredItems.length > 0 ? (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredItems.map((item) => (
-              <Card 
-                key={item.id}
-                className="border-0 bg-white shadow-[0px_12px_32px_rgba(0,55,176,0.03)] rounded-[24px] hover:shadow-[0px_16px_40px_rgba(0,55,176,0.06)] hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden flex flex-col justify-between"
-              >
-                <CardContent className="p-5 flex-1 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-[#0037b0]/5 text-[#0037b0] border border-[#0037b0]/8 flex items-center justify-center text-xs font-bold shrink-0 select-none">
-                          {getInitials(item.name)}
-                        </div>
-                        <h3 className="font-bold text-slate-900 text-sm leading-tight">{item.name}</h3>
+        ) : paginatedItems.length > 0 ? (
+          <>
+            {/* Desktop Table View */}
+            <Card className="hidden md:block border-0 bg-white shadow-[0px_12px_32px_rgba(0,55,176,0.08)] rounded-[24px] overflow-visible">
+              <CardContent className="p-0">
+                <div className="overflow-visible">
+                  <table className="w-full min-w-[700px] border-collapse">
+                    <thead>
+                      <tr className="bg-white text-slate-650">
+                        <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-extrabold uppercase tracking-widest text-slate-400 select-none">Service Name</th>
+                        <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-extrabold uppercase tracking-widest text-slate-400 select-none">Description</th>
+                        <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-extrabold uppercase tracking-widest text-slate-400 select-none">Unit Price</th>
+                        <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-right text-[10px] font-extrabold uppercase tracking-widest text-slate-400 select-none">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y-0">
+                      {paginatedItems.map((item, index) => (
+                        <tr 
+                          key={item.id} 
+                          className={cn(
+                            "transition-all duration-150 hover:bg-[#eef4ff]/20",
+                            index % 2 === 0 ? "bg-transparent" : "bg-[#eef4ff]/08"
+                          )}
+                        >
+                          <td className="px-6 py-4 font-semibold text-slate-900">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-xl bg-[#0037b0]/5 text-[#0037b0] border border-[#0037b0]/8 shadow-[0_2px_6px_rgba(0,55,176,0.01)] flex items-center justify-center text-[11px] font-medium shrink-0 select-none">
+                                {getInitials(item.name)}
+                              </div>
+                              <span className="font-semibold text-slate-900 truncate max-w-[200px] block text-sm">
+                                {item.name}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-xs font-medium text-slate-500">
+                            {item.description ? (
+                              <span className="truncate max-w-[320px] block">
+                                {item.description}
+                              </span>
+                            ) : (
+                              <span className="text-slate-350 italic">No description</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-sm font-extrabold text-[#0037b0] tabular-nums">
+                            {formatCurrency(item.unitPrice)}
+                          </td>
+                          <td className="px-6 py-4 text-right relative">
+                            <div className="inline-block text-left relative">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveDropdown(activeDropdown === item.id ? null : item.id);
+                                }}
+                                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors cursor-pointer"
+                              >
+                                <HugeiconsIcon icon={MoreVerticalIcon} size={16} strokeWidth={1.5} />
+                              </button>
+  
+                              <DropdownPanel
+                                isOpen={activeDropdown === item.id}
+                                onClose={() => setActiveDropdown(null)}
+                                align="right"
+                                widthClass="w-36"
+                                zIndexClass="z-20"
+                              >
+                                <button
+                                  onClick={() => {
+                                    openEditModal(item);
+                                    setActiveDropdown(null);
+                                  }}
+                                  className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors rounded-lg border-0"
+                                >
+                                  <HugeiconsIcon icon={PencilEdit02Icon} size={14} className="text-slate-400" strokeWidth={1.5} />
+                                  Edit Item
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    handleDeleteTrigger(item);
+                                    setActiveDropdown(null);
+                                  }}
+                                  className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer rounded-lg border-0"
+                                >
+                                  <HugeiconsIcon icon={Delete02Icon} size={14} className="text-rose-500" strokeWidth={1.5} />
+                                  Delete Item
+                                </button>
+                              </DropdownPanel>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Mobile Card-Based List View */}
+            <div className="flex flex-col gap-4 md:hidden">
+              {paginatedItems.map((item) => (
+                <div 
+                  key={item.id}
+                  onClick={() => openEditModal(item)}
+                  className="bg-white rounded-[24px] p-5 shadow-[0px_8px_24px_rgba(0,55,176,0.08)] border border-[#eef4ff]/50 transition-all duration-300 hover:shadow-[0px_12px_32px_rgba(0,55,176,0.12)] active:scale-[0.99] cursor-pointer relative flex flex-col gap-4"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-11 h-11 rounded-xl bg-[#0037b0]/5 text-[#0037b0] border border-[#0037b0]/8 flex items-center justify-center text-xs font-bold shrink-0 select-none">
+                        {getInitials(item.name)}
                       </div>
-                      <div className="flex items-center gap-1 shrink-0 -mt-1 -mr-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 p-0 rounded-lg" onClick={() => openEditModal(item)} title="Edit">
-                          <Edit className="h-4 w-4 text-slate-450" strokeWidth={1.5} />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 p-0 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50" onClick={() => handleDelete(item)} title="Delete">
-                          <Trash2 className="h-4 w-4" strokeWidth={1.5} />
-                        </Button>
+                      <div className="min-w-0">
+                        <span className="font-semibold text-slate-900 text-sm truncate block">
+                          {item.name}
+                        </span>
                       </div>
                     </div>
 
-                    <div className="mt-3">
-                      <p className="text-base font-extrabold text-[#0037b0] tabular-nums">
-                        {formatCurrency(item.unitPrice)}
-                      </p>
-                      {item.description && (
-                        <p className="mt-2 text-xs text-slate-500 font-semibold leading-relaxed line-clamp-3">
-                          {item.description}
-                        </p>
-                      )}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditModal(item);
+                        }}
+                        className="w-11 h-11 rounded-full flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer border border-[#eef4ff]/60 shrink-0"
+                        aria-label="Edit Item"
+                      >
+                        <HugeiconsIcon icon={PencilEdit02Icon} size={16} strokeWidth={1.5} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteTrigger(item);
+                        }}
+                        className="w-11 h-11 rounded-full flex items-center justify-center bg-rose-50/50 text-rose-600 hover:bg-rose-100/50 hover:text-rose-700 transition-colors cursor-pointer border border-rose-500/10 shrink-0"
+                        aria-label="Delete Item"
+                      >
+                        <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.5} />
+                      </button>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+
+                  <div className="text-base font-extrabold text-[#0037b0] tabular-nums">
+                    {formatCurrency(item.unitPrice)}
+                  </div>
+
+                  {item.description && (
+                    <p className="text-xs text-slate-500 font-semibold leading-relaxed line-clamp-3">
+                      {item.description}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Pagination & Limit Selector */}
+            <div className="hidden md:flex mt-6 flex-row items-center justify-between gap-4 border-t border-[#eef4ff]/50 pt-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400 font-semibold">Show:</span>
+                <div className="relative inline-block text-left">
+                  <button
+                    onClick={() => setLimitOpen(!limitOpen)}
+                    className="h-9 px-3.5 rounded-xl border border-border bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all flex items-center justify-between gap-2 shadow-[0px_4px_12px_rgba(0,55,176,0.01)] cursor-pointer min-w-[120px]"
+                  >
+                    <span>{limit} per page</span>
+                    <HugeiconsIcon icon={ArrowDown01Icon} className={cn("h-3.5 w-3.5 text-slate-400 transition-transform duration-200", limitOpen && "rotate-180")} strokeWidth={1.5} />
+                  </button>
+
+                  <DropdownPanel
+                    isOpen={limitOpen}
+                    onClose={() => setLimitOpen(false)}
+                    align="left"
+                    widthClass="w-full min-w-[120px]"
+                    zIndexClass="z-20"
+                    animateDirection="bottom"
+                    className="bottom-11"
+                  >
+                    {([10, 25, 50, 100] as const).map((val) => (
+                      <button
+                        key={val}
+                        onClick={() => {
+                          setLimit(val);
+                          setPage(1);
+                          setLimitOpen(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3.5 py-2 text-xs font-semibold rounded-lg transition-colors block cursor-pointer",
+                          limit === val 
+                            ? "bg-[#0037b0]/5 text-[#0037b0]" 
+                            : "text-slate-700 hover:bg-slate-50"
+                        )}
+                      >
+                        {val} per page
+                      </button>
+                    ))}
+                  </DropdownPanel>
+                </div>
+              </div>
+              
+              {totalPages >= 1 && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page === 1}
+                    onClick={() => setPage(page - 1)}
+                    className="h-8 rounded-lg text-xs"
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-xs text-slate-500 font-medium">
+                    Page {page} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page === totalPages}
+                    onClick={() => setPage(page + 1)}
+                    className="h-8 rounded-lg text-xs"
+                  >
+                    Next
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Mobile Load More Button */}
+            {filteredItems.length > limit && (
+              <div className="mt-6 md:hidden flex justify-center">
+                <Button
+                  onClick={() => setLimit((prev) => prev + 10)}
+                  variant="outline"
+                  className="w-full py-4 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-all min-h-[44px]"
+                >
+                  Load More Items ({filteredItems.length - limit} remaining)
+                </Button>
+              </div>
+            )}
+          </>
         ) : (
-          <Card className="border-0 bg-white shadow-[0px_12px_32px_rgba(0,55,176,0.03)] rounded-[24px]">
-            <CardContent className="py-12 text-center">
-              <p className="font-bold text-slate-800 text-sm">No service items found</p>
-              <p className="mt-1 text-xs text-slate-400">
-                Add services or products that you frequently include in invoices.
-              </p>
-              <Button className="mt-4" onClick={openCreateModal}>
-                Add your first service item
-              </Button>
-            </CardContent>
-          </Card>
+          <EmptyState
+            icon={Grid02Icon}
+            title={search ? "No service items found" : "No services defined"}
+            description={search ? "Try adjusting your search terms." : "Define predefined services or products to add them to invoices in a single click."}
+            actionLabel="Add your first service item"
+            onAction={openCreateModal}
+          />
         )}
       </div>
 
       {/* Mobile Floating Action Button */}
       <Button 
         onClick={openCreateModal}
-        className="fixed bottom-28 right-6 z-40 sm:hidden w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all p-0"
+        className="absolute bottom-6 right-6 z-40 sm:hidden w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all p-0"
         aria-label="Add Service Item"
       >
-        <Plus className="h-6 w-6" strokeWidth={1.5} />
+        <HugeiconsIcon icon={PlusSignIcon} size={24} strokeWidth={1.5} />
       </Button>
 
       {/* Create/Edit Modal */}
@@ -288,6 +503,30 @@ export function ServiceItemsPage() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => {
+          setDeleteConfirmOpen(false)
+          setItemToDelete(null)
+        }}
+        onConfirm={() => {
+          if (itemToDelete) {
+            deleteMutation.mutate(itemToDelete.id, {
+              onSuccess: () => {
+                setDeleteConfirmOpen(false)
+                setItemToDelete(null)
+              }
+            })
+          }
+        }}
+        title="Delete Service Item"
+        description={`Are you sure you want to delete the service item "${itemToDelete?.name}"? This action cannot be undone and will permanently remove this predefined item, though existing invoices will remain unaffected.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        isDangerous={true}
+        isLoading={deleteMutation.isPending}
+      />
     </div>
   )
 }

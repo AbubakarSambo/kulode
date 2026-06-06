@@ -3,7 +3,7 @@ import { useForm, UseFormReturn } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link } from 'react-router-dom'
-import { Eye, EyeOff, Receipt, Mail, MessageCircle, Pointer, ArrowLeft } from 'lucide-react'
+import { Eye, EyeOff, Mail, MessageCircle, Pointer, ArrowLeft } from 'lucide-react'
 import {
   Button,
   Input,
@@ -272,7 +272,7 @@ export function RegisterPage() {
       <LeftPanel />
 
       {/* Right Form Panel */}
-      <div className="flex flex-col items-center justify-center p-6 md:p-12 lg:col-span-5 bg-[#f8f9ff]">
+      <div className="flex flex-col items-center justify-center p-6 md:p-12 lg:col-span-5 bg-background">
         {/* Back navigation — lives ABOVE the card, not inside it */}
         <div className="w-full max-w-md mb-4">
           <a
@@ -293,14 +293,6 @@ export function RegisterPage() {
             </div>
             <CardTitle className="text-2xl font-black text-slate-900 tracking-tight">Create your free account</CardTitle>
             <CardDescription className="text-xs text-slate-500 mt-1">Start professionalizing your freelance business today.</CardDescription>
-            
-            {/* Action pill highlight */}
-            <div className="mt-4 flex items-center justify-center gap-3 rounded-2xl bg-[#0037b0]/5 px-4 py-3 border border-[#0037b0]/10">
-              <Receipt size={16} className="text-[#0037b0] shrink-0" />
-              <p className="text-xs text-[#0037b0] font-semibold text-left leading-tight">
-                <span className="font-extrabold">New:</span> Export FIRS-ready tax reports in one click
-              </p>
-            </div>
           </CardHeader>
 
           <CardContent className="space-y-4">

@@ -222,6 +222,21 @@ async function main() {
   const transportCat = await prisma.expenseCategory.create({
     data: { organizationId: acme.id, name: 'Transport', description: 'Business travel and logistics' }
   });
+  const utilitiesCat = await prisma.expenseCategory.create({
+    data: { organizationId: acme.id, name: 'Utilities', description: 'Electricity, water, diesel, and other public services' }
+  });
+  const softwareCat = await prisma.expenseCategory.create({
+    data: { organizationId: acme.id, name: 'Software & IT', description: 'SaaS subscriptions, server hosting, and software tools' }
+  });
+  const marketingCat = await prisma.expenseCategory.create({
+    data: { organizationId: acme.id, name: 'Marketing', description: 'Advertising, client events, and promotional campaigns' }
+  });
+  const officeCat = await prisma.expenseCategory.create({
+    data: { organizationId: acme.id, name: 'Office Operations', description: 'Supplies, cleaning, stationeries, and maintenance' }
+  });
+  const professionalCat = await prisma.expenseCategory.create({
+    data: { organizationId: acme.id, name: 'Professional Fees', description: 'Legal, accounting, and consulting retainers' }
+  });
 
   // Acme Vendors
   const acmeVendor = await prisma.vendor.create({
@@ -235,7 +250,93 @@ async function main() {
     },
   });
 
-  // Acme Expenses
+  const mtnVendor = await prisma.vendor.create({
+    data: {
+      organizationId: acme.id,
+      name: 'MTN Nigeria PLC',
+      serviceDescription: 'Corporate fiber internet and data solutions',
+      contactPerson: 'Mr. Tunde Bakare',
+      phone: '+234 803 100 0001',
+      email: 'business@mtn.com',
+    },
+  });
+
+  const ekoElectricity = await prisma.vendor.create({
+    data: {
+      organizationId: acme.id,
+      name: 'Eko Electricity Distribution PLC',
+      serviceDescription: 'Commercial power distribution and billing',
+      phone: '+234 1 270 0321',
+      email: 'customercare@ekedp.com',
+    },
+  });
+
+  const googleVendor = await prisma.vendor.create({
+    data: {
+      organizationId: acme.id,
+      name: 'Google Cloud Nigeria',
+      serviceDescription: 'GSuite Workspace and cloud compute infrastructure',
+      email: 'billing@google.com',
+    },
+  });
+
+  const ikoyiClub = await prisma.vendor.create({
+    data: {
+      organizationId: acme.id,
+      name: 'Ikoyi Club 1938',
+      serviceDescription: 'Business networking and client entertainment venue',
+      email: 'membership@ikoyiclub1938.org',
+    },
+  });
+
+  const firsVendor = await prisma.vendor.create({
+    data: {
+      organizationId: acme.id,
+      name: 'Federal Inland Revenue Service (FIRS)',
+      serviceDescription: 'Federal tax administration and collection agency',
+      email: 'helpdesk@firs.gov.ng',
+    },
+  });
+
+  const cleanerVendor = await prisma.vendor.create({
+    data: {
+      organizationId: acme.id,
+      name: 'Clean & Shine Ltd',
+      serviceDescription: 'Office cleaning and facility maintenance',
+      phone: '+234 812 345 6789',
+      email: 'info@cleanandshine.com',
+    },
+  });
+
+  const lawVendor = await prisma.vendor.create({
+    data: {
+      organizationId: acme.id,
+      name: 'Aluko & Oyebode',
+      serviceDescription: 'Corporate legal representation and consulting',
+      contactPerson: 'Gbenga Oyebode',
+      email: 'lagos@aluko-oyebode.com',
+    },
+  });
+
+  const marketingVendor = await prisma.vendor.create({
+    data: {
+      organizationId: acme.id,
+      name: 'Anakle Media Ltd',
+      serviceDescription: 'Digital advertising and campaign management',
+      email: 'billing@anakle.com',
+    },
+  });
+
+  const travelVendor = await prisma.vendor.create({
+    data: {
+      organizationId: acme.id,
+      name: 'Wakanow Travel Solutions',
+      serviceDescription: 'Corporate travel bookings, flight tickets and hotels',
+      email: 'corporate@wakanow.com',
+    },
+  });
+
+  // Acme Expenses (16 records for realistic data population)
   await prisma.expense.create({
     data: {
       organizationId: acme.id,
@@ -244,26 +345,267 @@ async function main() {
       recordedById: acmeAccountant.id,
       description: 'Monthly office rent payment - Q2',
       amount: 450000,
-      expenseDate: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000),
+      expenseDate: new Date(Date.now() - 0 * 24 * 60 * 60 * 1000),
       paymentMethod: 'BANK_TRANSFER',
       isDeductible: true,
       taxCategory: 'RENT',
     },
   });
-
+ 
   await prisma.expense.create({
     data: {
       organizationId: acme.id,
       categoryId: salaryCat.id,
       recordedById: acmeAccountant.id,
-      description: 'Staff salaries for April',
+      description: 'Staff salaries for current month',
       amount: 1200000,
-      expenseDate: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000),
+      expenseDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
       paymentMethod: 'BANK_TRANSFER',
       isDeductible: true,
       taxCategory: 'SALARIES',
     },
   });
+ 
+  await prisma.expense.create({
+    data: {
+      organizationId: acme.id,
+      categoryId: softwareCat.id,
+      vendorId: googleVendor.id,
+      recordedById: acmeAccountant.id,
+      description: 'Google Workspace enterprise plan subscriptions',
+      amount: 48500,
+      expenseDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+      paymentMethod: 'CARD',
+      isDeductible: true,
+      taxCategory: 'UTILITIES',
+    },
+  });
+ 
+  await prisma.expense.create({
+    data: {
+      organizationId: acme.id,
+      categoryId: utilitiesCat.id,
+      vendorId: mtnVendor.id,
+      recordedById: acmeAccountant.id,
+      description: 'Dedicated office fiber internet (50 Mbps)',
+      amount: 85000,
+      expenseDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      paymentMethod: 'BANK_TRANSFER',
+      isDeductible: true,
+      taxCategory: 'UTILITIES',
+    },
+  });
+ 
+  await prisma.expense.create({
+    data: {
+      organizationId: acme.id,
+      categoryId: utilitiesCat.id,
+      vendorId: ekoElectricity.id,
+      recordedById: acmeAccountant.id,
+      description: 'Prepaid electricity grid recharge',
+      amount: 120000,
+      expenseDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      paymentMethod: 'PAYSTACK',
+      isDeductible: true,
+      taxCategory: 'UTILITIES',
+    },
+  });
+ 
+  await prisma.expense.create({
+    data: {
+      organizationId: acme.id,
+      categoryId: utilitiesCat.id,
+      recordedById: acmeAccountant.id,
+      description: 'Diesel purchase for standby generator (400L)',
+      amount: 320000,
+      expenseDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+      paymentMethod: 'CASH',
+      isDeductible: true,
+      taxCategory: 'UTILITIES',
+    },
+  });
+ 
+  await prisma.expense.create({
+    data: {
+      organizationId: acme.id,
+      categoryId: officeCat.id,
+      vendorId: ikoyiClub.id,
+      recordedById: acmeAccountant.id,
+      description: 'Executive client entertainment dinner',
+      amount: 150005,
+      expenseDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+      paymentMethod: 'CARD',
+      isDeductible: false,
+      taxCategory: 'NON_DEDUCTIBLE',
+    },
+  });
+ 
+  await prisma.expense.create({
+    data: {
+      organizationId: acme.id,
+      categoryId: officeCat.id,
+      recordedById: acmeAccountant.id,
+      description: 'Office stationeries and paper printing supplies',
+      amount: 35000,
+      expenseDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+      paymentMethod: 'CASH',
+      isDeductible: true,
+      taxCategory: 'UNCATEGORIZED',
+    },
+  });
+ 
+  await prisma.expense.create({
+    data: {
+      organizationId: acme.id,
+      categoryId: professionalCat.id,
+      vendorId: lawVendor.id,
+      recordedById: acmeAccountant.id,
+      description: 'Legal retainer and contract drafting services',
+      amount: 250000,
+      expenseDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+      paymentMethod: 'BANK_TRANSFER',
+      isDeductible: true,
+      taxCategory: 'PROFESSIONAL_FEES',
+    },
+  });
+ 
+  await prisma.expense.create({
+    data: {
+      organizationId: acme.id,
+      categoryId: marketingCat.id,
+      vendorId: marketingVendor.id,
+      recordedById: acmeAccountant.id,
+      description: 'Q2 digital marketing & search ad campaigns',
+      amount: 180000,
+      expenseDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      paymentMethod: 'CARD',
+      isDeductible: true,
+      taxCategory: 'MARKETING',
+    },
+  });
+ 
+  await prisma.expense.create({
+    data: {
+      organizationId: acme.id,
+      categoryId: transportCat.id,
+      vendorId: travelVendor.id,
+      recordedById: acmeAccountant.id,
+      description: 'Return flight tickets Lagos-Abuja (Sales Pitch)',
+      amount: 220000,
+      expenseDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      paymentMethod: 'PAYSTACK',
+      isDeductible: true,
+      taxCategory: 'TRANSPORT',
+    },
+  });
+ 
+  await prisma.expense.create({
+    data: {
+      organizationId: acme.id,
+      categoryId: transportCat.id,
+      recordedById: acmeAccountant.id,
+      description: 'Uber logistics trips for marketing team',
+      amount: 28000,
+      expenseDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+      paymentMethod: 'CARD',
+      isDeductible: true,
+      taxCategory: 'TRANSPORT',
+    },
+  });
+ 
+  await prisma.expense.create({
+    data: {
+      organizationId: acme.id,
+      categoryId: officeCat.id,
+      vendorId: cleanerVendor.id,
+      recordedById: acmeAccountant.id,
+      description: 'Office janitorial and cleaning services retainer',
+      amount: 60000,
+      expenseDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+      paymentMethod: 'BANK_TRANSFER',
+      isDeductible: true,
+      taxCategory: 'PROFESSIONAL_FEES',
+    },
+  });
+ 
+  await prisma.expense.create({
+    data: {
+      organizationId: acme.id,
+      categoryId: professionalCat.id,
+      vendorId: firsVendor.id,
+      recordedById: acmeAccountant.id,
+      description: 'Federal Inland Revenue Service stamp duty charges',
+      amount: 45000,
+      expenseDate: new Date(Date.now() - 0 * 24 * 60 * 60 * 1000),
+      paymentMethod: 'BANK_TRANSFER',
+      isDeductible: false,
+      taxCategory: 'NON_DEDUCTIBLE',
+    },
+  });
+ 
+  await prisma.expense.create({
+    data: {
+      organizationId: acme.id,
+      categoryId: softwareCat.id,
+      recordedById: acmeAccountant.id,
+      description: 'Slack Pro monthly messaging subscription',
+      amount: 32400,
+      expenseDate: new Date(Date.now() - 0 * 24 * 60 * 60 * 1000),
+      paymentMethod: 'CARD',
+      isDeductible: true,
+      taxCategory: 'UTILITIES',
+    },
+  });
+ 
+  await prisma.expense.create({
+    data: {
+      organizationId: acme.id,
+      categoryId: professionalCat.id,
+      recordedById: acmeAccountant.id,
+      description: 'Advanced NestJS backend engineering workshop',
+      amount: 150000,
+      expenseDate: new Date(Date.now() - 0 * 24 * 60 * 60 * 1000),
+      paymentMethod: 'BANK_TRANSFER',
+      isDeductible: true,
+      taxCategory: 'PROFESSIONAL_FEES',
+    },
+  });
+ 
+  // 15 Uncategorized expenses
+  const uncategorizedItems = [
+    { description: 'Internet data subscription topup', amount: 15000, categoryId: softwareCat.id, paymentMethod: 'CARD' },
+    { description: 'Office drinking water dispenser bottles', amount: 8500, categoryId: officeCat.id, paymentMethod: 'CASH' },
+    { description: 'Local courier delivery charges (GIGM)', amount: 12000, categoryId: transportCat.id, paymentMethod: 'CASH' },
+    { description: 'Fuel for company car (Oando)', amount: 25000, categoryId: transportCat.id, paymentMethod: 'CARD' },
+    { description: 'Lunch meeting with potential client', amount: 42000, categoryId: officeCat.id, paymentMethod: 'CARD' },
+    { description: 'Office cleaning detergents and spray', amount: 9500, categoryId: officeCat.id, paymentMethod: 'CASH' },
+    { description: 'Standby generator repairs maintenance', amount: 75000, categoryId: utilitiesCat.id, paymentMethod: 'BANK_TRANSFER' },
+    { description: 'Printing ink cartridges replacement', amount: 38000, categoryId: officeCat.id, paymentMethod: 'CASH' },
+    { description: 'Microsoft 365 license monthly fee', amount: 18500, categoryId: softwareCat.id, paymentMethod: 'CARD' },
+    { description: 'Domain name renewal (kulode.app)', amount: 22000, categoryId: softwareCat.id, paymentMethod: 'CARD' },
+    { description: 'Toll gate fees (LCC e-tag recharge)', amount: 10000, categoryId: transportCat.id, paymentMethod: 'CARD' },
+    { description: 'Postage stamps and mailing envelopes', amount: 6000, categoryId: officeCat.id, paymentMethod: 'CASH' },
+    { description: 'A4 copy paper reams box', amount: 28000, categoryId: officeCat.id, paymentMethod: 'CASH' },
+    { description: 'Company banner design graphic retainer', amount: 50000, categoryId: marketingCat.id, paymentMethod: 'BANK_TRANSFER' },
+    { description: 'Keyboard and mouse office replacements', amount: 30000, categoryId: softwareCat.id, paymentMethod: 'CARD' },
+  ];
+
+  for (const item of uncategorizedItems) {
+    await prisma.expense.create({
+      data: {
+        organizationId: acme.id,
+        categoryId: item.categoryId,
+        recordedById: acmeAccountant.id,
+        description: item.description,
+        amount: item.amount,
+        expenseDate: new Date(Date.now() - Math.floor(Math.random() * 4) * 24 * 60 * 60 * 1000),
+        paymentMethod: item.paymentMethod as any,
+        isDeductible: false,
+        taxCategory: 'UNCATEGORIZED',
+      },
+    });
+  }
+
 
   // Acme Invoices Generator (1 to 30 invoices per client)
   console.log('Generating dynamic invoices for clients...');
@@ -323,14 +665,25 @@ async function main() {
 
       // Create payment record if paid/partially paid
       if (amountPaid > 0) {
+        const methods: ('BANK_TRANSFER' | 'PAYSTACK' | 'CARD' | 'CASH')[] = ['BANK_TRANSFER', 'PAYSTACK', 'CARD', 'CASH'];
+        const randMethod = methods[Math.floor(Math.random() * methods.length)];
+        
+        let reference = null;
+        if (randMethod === 'PAYSTACK' || randMethod === 'CARD') {
+          reference = `pstk_${Math.random().toString(36).substring(2, 12)}`;
+        } else if (randMethod === 'BANK_TRANSFER') {
+          reference = `NIP/TXN-${Math.floor(100000 + Math.random() * 900000)}`;
+        }
+
         await prisma.payment.create({
           data: {
             organizationId: acme.id,
             invoiceId: invoice.id,
             amount: amountPaid,
-            paymentMethod: 'BANK_TRANSFER',
+            paymentMethod: randMethod,
             paymentDate: new Date(issueDate.getTime() + 1 * 24 * 60 * 60 * 1000),
             isAutoRecorded: false,
+            reference,
           },
         });
       }

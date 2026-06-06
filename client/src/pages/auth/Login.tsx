@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -16,7 +16,7 @@ import {
 } from "@/components/ui";
 import { useLogin, useResendVerification } from "@/hooks";
 import { posthog } from "@/lib/posthog";
-import { Receipt, Mail, MessageCircle, Pointer, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { Mail, MessageCircle, Pointer, ArrowLeft, Eye, EyeOff } from "lucide-react";
 
 const GOOGLE_AUTH_URL = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/api/v1/auth/google`
@@ -39,6 +39,30 @@ export function LoginPage() {
   const [showResend, setShowResend] = useState(false);
   const [loginEmail, setLoginEmail] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [overscrollActive, setOverscrollActive] = useState(false);
+
+  useEffect(() => {
+    let timeoutId: any;
+    const handleScroll = () => {
+      const threshold = 10;
+      const totalHeight = document.documentElement.scrollHeight;
+      const scrollPosition = window.innerHeight + window.scrollY;
+
+      if (totalHeight > window.innerHeight && scrollPosition >= totalHeight - threshold) {
+        setOverscrollActive(true);
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          setOverscrollActive(false);
+        }, 500);
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      clearTimeout(timeoutId);
+    };
+  }, []);
 
   const {
     register,
@@ -151,7 +175,7 @@ export function LoginPage() {
       </div>
 
       {/* Right Form Panel (5 cols on large screens) */}
-      <div className="flex flex-col items-center justify-center p-6 md:p-12 lg:col-span-5 bg-[#f8f9ff]">
+      <div className="flex flex-col items-center justify-center p-6 md:p-12 lg:col-span-5 bg-background">
         {/* Back navigation — lives ABOVE the card, not inside it */}
         <div className="w-full max-w-md mb-4">
           <a
@@ -165,21 +189,14 @@ export function LoginPage() {
           </a>
         </div>
 
-        <Card className="w-full max-w-md border border-slate-200/60 shadow-[0_20px_50px_rgba(0,55,176,0.06)] bg-white rounded-[32px] p-2">
+        <Card className={`w-full max-w-md border border-slate-200/60 shadow-[0_20px_50px_rgba(0,55,176,0.06)] bg-white rounded-[32px] p-2 transition-transform duration-300 ${overscrollActive ? "animate-rubber-bottom" : ""}`}>
           <CardHeader className="text-center pb-4 pt-6">
             <div className="mb-4 lg:hidden flex justify-center">
               <span className="text-3xl font-extrabold tracking-tighter text-[#00247d]">Kulode</span>
             </div>
             <CardTitle className="text-2xl font-black text-slate-900 tracking-tight">Welcome back</CardTitle>
             <CardDescription className="text-xs text-slate-500 mt-1">Sign in to your account to continue</CardDescription>
-            
-            {/* Action pill highlight */}
-            <div className="mt-4 flex items-center justify-center gap-3 rounded-2xl bg-[#0037b0]/5 px-4 py-3 border border-[#0037b0]/10">
-              <Receipt size={16} className="text-[#0037b0] shrink-0" />
-              <p className="text-xs text-[#0037b0] font-semibold text-left leading-tight">
-                <span className="font-extrabold">Compliance Alert:</span> Export your FIRS-ready tax summaries in one click
-              </p>
-            </div>
+
           </CardHeader>
 
           <CardContent className="space-y-4">
@@ -233,12 +250,6 @@ export function LoginPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password" className="text-xs font-bold uppercase tracking-wider text-slate-500">Password</Label>
-                  <Link
-                    to="/forgot-password"
-                    className="text-xs text-[#0037b0] hover:underline font-extrabold"
-                  >
-                    Forgot password?
-                  </Link>
                 </div>
                 <div className="relative">
                   <Input
@@ -257,6 +268,14 @@ export function LoginPage() {
                   >
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
+                </div>
+                <div className="text-right mt-1">
+                  <Link
+                    to="/forgot-password"
+                    className="text-xs text-[#0037b0] hover:underline font-extrabold min-h-[44px] inline-flex items-center"
+                  >
+                    Forgot password?
+                  </Link>
                 </div>
               </div>
               

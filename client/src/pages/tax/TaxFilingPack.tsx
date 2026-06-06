@@ -12,11 +12,15 @@ import {
   ChevronUp,
   Receipt,
 } from 'lucide-react'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { Calendar03Icon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label } from '@/components/ui'
+import { Button, Card, CardContent, CardHeader, CardTitle, Label, DatePicker, DropdownPanel } from '@/components/ui'
 import { taxApi } from '@/api'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, cn } from '@/lib/utils'
 import type { TaxFilingPreview, TaxComplianceItem } from '@/types'
+import { useOverscrollBounce } from '@/hooks'
+import type { ReportPeriod } from '@/api/reports'
 
 const currentYear = new Date().getFullYear()
 
@@ -25,6 +29,22 @@ function defaultStart() {
 }
 function defaultEnd() {
   return `${currentYear}-12-31`
+}
+
+function getPeriodDates(period: ReportPeriod, customStart: string, customEnd: string) {
+  if (period === 'CUSTOM') return { startDate: customStart, endDate: customEnd }
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = now.getMonth()
+  const fmt = (d: Date) => d.toISOString().split('T')[0]
+  if (period === 'THIS_MONTH') return { startDate: fmt(new Date(y, m, 1)), endDate: fmt(now) }
+  if (period === 'LAST_MONTH') return { startDate: fmt(new Date(y, m - 1, 1)), endDate: fmt(new Date(y, m, 0)) }
+  const q = Math.floor(m / 3)
+  if (period === 'THIS_QUARTER') return { startDate: fmt(new Date(y, q * 3, 1)), endDate: fmt(now) }
+  if (period === 'LAST_QUARTER') return { startDate: fmt(new Date(y, (q - 1) * 3, 1)), endDate: fmt(new Date(y, q * 3, 0)) }
+  if (period === 'THIS_YEAR') return { startDate: fmt(new Date(y, 0, 1)), endDate: fmt(now) }
+  if (period === 'LAST_YEAR') return { startDate: fmt(new Date(y - 1, 0, 1)), endDate: fmt(new Date(y - 1, 11, 31)) }
+  return { startDate: '', endDate: '' }
 }
 
 function ComplianceIcon({ status }: { status: TaxComplianceItem['status'] }) {
@@ -46,11 +66,46 @@ function SummaryRow({ label, value, highlight }: { label: string; value: number 
 }
 
 export function TaxFilingPackPage() {
+  const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
+  const [period, setPeriod] = useState<ReportPeriod>('THIS_YEAR')
   const [startDate, setStartDate] = useState(defaultStart)
   const [endDate, setEndDate] = useState(defaultEnd)
+  const [selectedYear, setSelectedYear] = useState<number>(currentYear)
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [yearDropdownOpen, setYearDropdownOpen] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [showExpenseBreakdown, setShowExpenseBreakdown] = useState(false)
   const [isDownloading, setIsDownloading] = useState<'pdf' | 'csv' | null>(null)
+
+  const years = Array.from({ length: 6 }, (_, i) => currentYear - i)
+
+  const periodOptions: Array<{ value: ReportPeriod; label: string }> = [
+    { value: 'THIS_MONTH', label: 'This Month' },
+    { value: 'LAST_MONTH', label: 'Last Month' },
+    { value: 'THIS_QUARTER', label: 'This Quarter' },
+    { value: 'LAST_QUARTER', label: 'Last Quarter' },
+    { value: 'THIS_YEAR', label: 'This Year' },
+    { value: 'LAST_YEAR', label: 'Last Year' },
+    { value: 'CUSTOM', label: 'Custom Range' },
+  ]
+
+  const handlePeriodChange = (p: ReportPeriod) => {
+    setPeriod(p)
+    setSubmitted(false)
+    if (p !== 'CUSTOM') {
+      const dates = getPeriodDates(p, '', '')
+      if (dates.startDate && dates.endDate) {
+        setStartDate(dates.startDate)
+        setEndDate(dates.endDate)
+        
+        if (p === 'THIS_YEAR') {
+          setSelectedYear(currentYear)
+        } else if (p === 'LAST_YEAR') {
+          setSelectedYear(currentYear - 1)
+        }
+      }
+    }
+  }
 
   const { data: preview, isLoading, error } = useQuery<TaxFilingPreview>({
     queryKey: ['tax', 'preview', startDate, endDate],
@@ -88,56 +143,136 @@ export function TaxFilingPackPage() {
         description="Generate your annual tax summary for accountant review or FIRS submission"
       />
 
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto p-4 sm:p-6">
         {/* Period selector */}
         <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
+          <CardHeader className="p-4 sm:p-6 pb-2">
+            <CardTitle className="flex items-center gap-2.5 text-base font-semibold text-slate-700">
+              <FileText className="h-5 w-5 text-slate-400" />
               Select Filing Period
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap items-end gap-4">
-              <div className="space-y-1">
-                <Label htmlFor="startDate">Start Date</Label>
-                <Input
-                  id="startDate"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => { setStartDate(e.target.value); setSubmitted(false) }}
-                  className="w-40"
-                />
+          <CardContent className="p-4 sm:p-6 pt-2">
+            <div className="flex flex-col sm:flex-row sm:items-end flex-wrap gap-4">
+              
+              {/* Period Selector */}
+              <div className="space-y-1 relative w-full sm:w-auto">
+                <Label>Filing Period</Label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setDropdownOpen(!dropdownOpen)}
+                    className="h-11 px-4 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all flex items-center justify-between gap-2.5 shadow-[0px_4px_12px_rgba(0,55,176,0.01)] cursor-pointer min-w-[160px] w-full sm:w-auto text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <HugeiconsIcon icon={Calendar03Icon} size={16} color="currentColor" strokeWidth={1.5} className="text-slate-400" />
+                      <span>{periodOptions.find((opt) => opt.value === period)?.label}</span>
+                    </div>
+                    <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform duration-200", dropdownOpen && "rotate-180")} strokeWidth={1.5} />
+                  </button>
+
+                  <DropdownPanel
+                    isOpen={dropdownOpen}
+                    onClose={() => setDropdownOpen(false)}
+                    align="left"
+                    widthClass="w-full sm:w-48"
+                    zIndexClass="z-20"
+                  >
+                    {periodOptions.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          handlePeriodChange(opt.value)
+                          setDropdownOpen(false)
+                        }}
+                        className={cn(
+                          "w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors block cursor-pointer",
+                          period === opt.value 
+                            ? "bg-[#0037b0]/5 text-[#0037b0]" 
+                            : "text-slate-700 hover:bg-slate-50"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </DropdownPanel>
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="endDate">End Date</Label>
-                <Input
-                  id="endDate"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => { setEndDate(e.target.value); setSubmitted(false) }}
-                  className="w-40"
-                />
+
+              {/* Year Selector */}
+              <div className="space-y-1 relative w-full sm:w-auto">
+                <Label>Filing Year</Label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setYearDropdownOpen(!yearDropdownOpen)}
+                    className="h-11 px-4 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all flex items-center justify-between gap-2.5 shadow-[0px_4px_12px_rgba(0,55,176,0.01)] cursor-pointer min-w-[120px] w-full sm:w-auto text-left"
+                  >
+                    <span>{selectedYear}</span>
+                    <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform duration-200", yearDropdownOpen && "rotate-180")} strokeWidth={1.5} />
+                  </button>
+
+                  <DropdownPanel
+                    isOpen={yearDropdownOpen}
+                    onClose={() => setYearDropdownOpen(false)}
+                    align="left"
+                    widthClass="w-full sm:w-32"
+                    zIndexClass="z-20"
+                  >
+                    {years.map((y) => (
+                      <button
+                        key={y}
+                        type="button"
+                        onClick={() => {
+                          setSelectedYear(y)
+                          setStartDate(`${y}-01-01`)
+                          setEndDate(`${y}-12-31`)
+                          setPeriod('CUSTOM')
+                          setSubmitted(false)
+                          setYearDropdownOpen(false)
+                        }}
+                        className={cn(
+                          "w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors block cursor-pointer",
+                          selectedYear === y 
+                            ? "bg-[#0037b0]/5 text-[#0037b0]" 
+                            : "text-slate-700 hover:bg-slate-50"
+                        )}
+                      >
+                        {y}
+                      </button>
+                    ))}
+                  </DropdownPanel>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => { setStartDate(`${currentYear}-01-01`); setEndDate(`${currentYear}-12-31`); setSubmitted(false) }}
-                  variant="outline"
-                  size="sm"
-                >
-                  {currentYear}
-                </Button>
-                <Button
-                  onClick={() => { setStartDate(`${currentYear - 1}-01-01`); setEndDate(`${currentYear - 1}-12-31`); setSubmitted(false) }}
-                  variant="outline"
-                  size="sm"
-                >
-                  {currentYear - 1}
-                </Button>
-              </div>
+
+              {/* Custom Date Pickers */}
+              {period === 'CUSTOM' && (
+                <>
+                  <div className="space-y-1 w-full sm:w-auto">
+                    <Label>Start Date</Label>
+                    <DatePicker
+                      value={startDate}
+                      onChange={(val) => { setStartDate(val); setSubmitted(false) }}
+                      className="w-full sm:w-36"
+                    />
+                  </div>
+                  <div className="space-y-1 w-full sm:w-auto">
+                    <Label>End Date</Label>
+                    <DatePicker
+                      value={endDate}
+                      onChange={(val) => { setEndDate(val); setSubmitted(false) }}
+                      className="w-full sm:w-36"
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Generate Button */}
               <Button
                 onClick={() => setSubmitted(true)}
                 disabled={!startDate || !endDate}
+                className="w-full sm:w-auto h-11 cursor-pointer"
               >
                 Generate Preview
               </Button>
