@@ -46,23 +46,39 @@ const appUrl = 'http://localhost:5173'
           </a>
         </div>
       </div>
-      <div class="relative stagger-in">
+      <div class="relative w-full aspect-square md:aspect-[4/3] flex items-center justify-center min-h-[440px] md:min-h-[520px] stagger-in">
         <div class="absolute -top-10 -left-10 w-40 h-40 bg-surface-container rounded-full blur-3xl opacity-50 -z-10"></div>
-        <div class="rounded-[48px] overflow-hidden shadow-[0_32px_64px_rgba(0,55,176,0.12)] bg-surface-container-lowest p-4 float-slow">
-          <img alt="Car Dealer compliance" class="w-full h-auto rounded-[32px] object-cover aspect-[4/5]" src="/car_dealer_persona.png">
-        </div>
-        <!-- Glass Overlay Element -->
-        <div class="absolute bottom-12 -left-8 glass-card p-6 rounded-[24px] shadow-xl border border-white/20 max-w-[240px]">
-          <div class="flex items-center gap-4 mb-3">
-            <div class="w-10 h-10 rounded-full bg-success/20 flex items-center justify-center text-success">
-              <i class="hgi-stroke hgi-checkmark-circle-01 text-[24px]"></i>
+        <!-- Base Desktop Tax Filing Mockup (z-10) -->
+        <div class="absolute left-0 top-4 w-[80%] z-10 rounded-[20px] border border-outline-variant/20 overflow-hidden shadow-2xl bg-surface-container-lowest transition-all hover:scale-[1.01] duration-500">
+          <div class="flex items-center gap-1.5 px-4 py-3 bg-surface-container border-b border-outline-variant/10 shrink-0">
+            <div class="flex gap-1">
+              <span class="w-2.5 h-2.5 rounded-full bg-[#ff5f56]"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-[#27c93f]"></span>
             </div>
-            <div>
-              <p class="text-xs font-bold text-text-primary">FIRS Return</p>
-              <p class="text-[10px] text-text-secondary">VAT & WHT Ready</p>
+            <div class="mx-auto bg-surface-container-lowest border border-outline-variant/10 rounded-md px-4 py-0.5 text-[10px] text-text-secondary select-none flex items-center gap-1.5 w-full max-w-[200px] justify-center truncate">
+              <i class="hgi-stroke hgi-lock text-[8px] text-success"></i>
+              app.kulode.com/tax-filing
             </div>
           </div>
-          <p class="text-xl font-bold text-primary">Generated</p>
+          <img alt="Kulode Tax Filing Pack" class="w-full h-auto object-cover" src="/media__1780775095323.png">
+        </div>
+        <!-- Middle Human Layer (z-20) -->
+        <div class="absolute right-0 bottom-4 w-[42%] z-20 overflow-hidden rounded-3xl border-4 border-white shadow-2xl bg-white aspect-[3/4]">
+          <img alt="Car Dealer compliance" class="w-full h-full object-cover" src="/car_dealer_persona.png">
+        </div>
+        <!-- Glass Overlay Element (z-30) -->
+        <div class="absolute bottom-12 -left-8 z-30 glass-card p-5 rounded-[24px] shadow-xl border border-white/20 max-w-[200px]">
+          <div class="flex items-center gap-3 mb-2">
+            <div class="w-8 h-8 rounded-full bg-success/20 flex items-center justify-center text-success">
+              <i class="hgi-stroke hgi-checkmark-circle-01 text-[20px]"></i>
+            </div>
+            <div>
+              <p class="text-[10px] font-bold text-text-primary">FIRS Return</p>
+              <p class="text-[8px] text-text-secondary">VAT & WHT Ready</p>
+            </div>
+          </div>
+          <p class="text-lg font-bold text-primary">Generated</p>
         </div>
       </div>
     </section>
