@@ -46,51 +46,99 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
         <div class="hidden lg:block absolute top-1/4 left-1/8 right-1/8 h-0.5 bg-outline-variant -z-10"></div>
 
         <!-- Step 1 -->
-        <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant hover:border-primary/20 hover:shadow-lg transition-all duration-300 flex flex-col items-center text-center stagger-in">
-          <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2">
-            <i class="hgi-stroke hgi-briefcase-02 text-[32px]"></i>
+        <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant hover:border-primary/20 hover:shadow-lg transition-all duration-300 flex flex-col justify-between items-center text-center stagger-in">
+          <div>
+            <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2 mx-auto">
+              <i class="hgi-stroke hgi-briefcase-02 text-[32px]"></i>
+            </div>
+            <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4 mx-auto">1</div>
+            <h3 class="text-lg font-bold text-text-primary mb-2">Setup Organization</h3>
+            <p class="text-xs text-text-secondary leading-relaxed">
+              Create your workspace. Set your currency, default notes, payment terms, prefix, and enable VAT compliance.
+            </p>
           </div>
-          <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4">1</div>
-          <h3 class="text-lg font-bold text-text-primary mb-2">Setup Organization</h3>
-          <p class="text-xs text-text-secondary leading-relaxed">
-            Create your workspace. Set your currency, default notes, payment terms, prefix, and enable VAT compliance.
-          </p>
+          <div class="mt-6 w-full rounded-xl border border-outline-variant/15 overflow-hidden shadow bg-surface-container-lowest relative aspect-[16/10]">
+            <div class="flex items-center gap-1 px-3 py-1.5 bg-surface-container border-b border-outline-variant/10">
+              <div class="flex gap-0.5 shrink-0">
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+              </div>
+            </div>
+            <img src="/media__1780754425333.png" alt="Workspace Setup" class="w-full h-full object-cover object-top" />
+          </div>
         </div>
 
         <!-- Step 2 -->
-        <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant hover:border-primary/20 hover:shadow-lg transition-all duration-300 flex flex-col items-center text-center stagger-in">
-          <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2">
-            <i class="hgi-stroke hgi-bank text-[32px]"></i>
+        <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant hover:border-primary/20 hover:shadow-lg transition-all duration-300 flex flex-col justify-between items-center text-center stagger-in">
+          <div>
+            <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2 mx-auto">
+              <i class="hgi-stroke hgi-bank text-[32px]"></i>
+            </div>
+            <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4 mx-auto">2</div>
+            <h3 class="text-lg font-bold text-text-primary mb-2">Link Settlement Bank</h3>
+            <p class="text-xs text-text-secondary leading-relaxed">
+              Add bank details to register your Paystack subaccount. Get verified to routing incoming payments directly.
+            </p>
           </div>
-          <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4">2</div>
-          <h3 class="text-lg font-bold text-text-primary mb-2">Link Settlement Bank</h3>
-          <p class="text-xs text-text-secondary leading-relaxed">
-            Add bank details to register your Paystack subaccount. Get verified to routing incoming payments directly.
-          </p>
+          <div class="mt-6 w-full rounded-xl border border-outline-variant/15 overflow-hidden shadow bg-surface-container-lowest relative aspect-[16/10]">
+            <div class="flex items-center gap-1 px-3 py-1.5 bg-surface-container border-b border-outline-variant/10">
+              <div class="flex gap-0.5 shrink-0">
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+              </div>
+            </div>
+            <img src="/media__1780754387896.png" alt="Bank subaccount link" class="w-full h-full object-cover object-top" />
+          </div>
         </div>
 
         <!-- Step 3 -->
-        <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant hover:border-primary/20 hover:shadow-lg transition-all duration-300 flex flex-col items-center text-center stagger-in">
-          <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2">
-            <i class="hgi-stroke hgi-invoice-03 text-[32px]"></i>
+        <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant hover:border-primary/20 hover:shadow-lg transition-all duration-300 flex flex-col justify-between items-center text-center stagger-in">
+          <div>
+            <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2 mx-auto">
+              <i class="hgi-stroke hgi-invoice-03 text-[32px]"></i>
+            </div>
+            <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4 mx-auto">3</div>
+            <h3 class="text-lg font-bold text-text-primary mb-2">Issue & Collect</h3>
+            <p class="text-xs text-text-secondary leading-relaxed">
+              Send shareable links. Clients pay via bank transfer or card. The system auto-updates invoice states.
+            </p>
           </div>
-          <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4">3</div>
-          <h3 class="text-lg font-bold text-text-primary mb-2">Issue & Collect</h3>
-          <p class="text-xs text-text-secondary leading-relaxed">
-            Send shareable links. Clients pay via bank transfer or card. The system auto-updates invoice states.
-          </p>
+          <div class="mt-6 w-full rounded-xl border border-outline-variant/15 overflow-hidden shadow bg-surface-container-lowest relative aspect-[16/10]">
+            <div class="flex items-center gap-1 px-3 py-1.5 bg-surface-container border-b border-outline-variant/10">
+              <div class="flex gap-0.5 shrink-0">
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+              </div>
+            </div>
+            <img src="/media__1780773453664.png" alt="Issue Invoices and Track" class="w-full h-full object-cover object-top" />
+          </div>
         </div>
 
         <!-- Step 4 -->
-        <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant hover:border-primary/20 hover:shadow-lg transition-all duration-300 flex flex-col items-center text-center stagger-in">
-          <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2">
-            <i class="hgi-stroke hgi-auction text-[32px]"></i>
+        <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant hover:border-primary/20 hover:shadow-lg transition-all duration-300 flex flex-col justify-between items-center text-center stagger-in">
+          <div>
+            <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2 mx-auto">
+              <i class="hgi-stroke hgi-auction text-[32px]"></i>
+            </div>
+            <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4 mx-auto">4</div>
+            <h3 class="text-lg font-bold text-text-primary mb-2">Automate Compliance</h3>
+            <p class="text-xs text-text-secondary leading-relaxed">
+              Expense logs automatically prepare VAT/WHT schedules. Track SCUML transaction limits effortlessly.
+            </p>
           </div>
-          <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4">4</div>
-          <h3 class="text-lg font-bold text-text-primary mb-2">Automate Compliance</h3>
-          <p class="text-xs text-text-secondary leading-relaxed">
-            Expense logs automatically prepare VAT/WHT schedules. Track SCUML transaction limits effortlessly.
-          </p>
+          <div class="mt-6 w-full rounded-xl border border-outline-variant/15 overflow-hidden shadow bg-surface-container-lowest relative aspect-[16/10]">
+            <div class="flex items-center gap-1 px-3 py-1.5 bg-surface-container border-b border-outline-variant/10">
+              <div class="flex gap-0.5 shrink-0">
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+              </div>
+            </div>
+            <img src="/media__1780773565479.png" alt="Automate Compliance & Tax" class="w-full h-full object-cover object-top" />
+          </div>
         </div>
       </div>
     </section>
