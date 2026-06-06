@@ -47,31 +47,33 @@ const appUrl = 'http://localhost:5173'
       </div>
       <div class="relative w-full aspect-square md:aspect-[4/3] flex items-center justify-center min-h-[440px] md:min-h-[520px] stagger-in">
         <div class="absolute -top-10 -left-10 w-40 h-40 bg-surface-container rounded-full blur-3xl opacity-50 -z-10"></div>
-        <!-- Base Desktop Dashboard Mockup (z-10) -->
-        <div class="absolute left-0 top-4 w-[82%] z-10 rounded-[20px] border border-outline-variant/20 overflow-hidden shadow-2xl bg-surface-container-lowest transition-all hover:scale-[1.01] duration-500">
-          <div class="flex items-center gap-1.5 px-4 py-3 bg-surface-container border-b border-outline-variant/10 shrink-0">
-            <div class="flex gap-1">
-              <span class="w-2.5 h-2.5 rounded-full bg-[#ff5f56]"></span>
-              <span class="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]"></span>
-              <span class="w-2.5 h-2.5 rounded-full bg-[#27c93f]"></span>
+        <!-- Base Desktop Dashboard Mockup (z-10) - With Shimmer Gradient Border -->
+        <div class="absolute left-0 top-4 w-[82%] z-10 rounded-[20px] p-[1.5px] bg-gradient-to-r from-primary/30 via-primary to-primary/30 animate-shimmer-border shadow-2xl transition-all duration-500 hover:scale-[1.01]">
+          <div class="rounded-[19.5px] overflow-hidden bg-surface-container-lowest">
+            <div class="flex items-center gap-1.5 px-4 py-3 bg-surface-container border-b border-outline-variant/10 shrink-0">
+              <div class="flex gap-1">
+                <span class="w-2.5 h-2.5 rounded-full bg-[#ff5f56]"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-[#27c93f]"></span>
+              </div>
+              <div class="mx-auto bg-surface-container-lowest border border-outline-variant/10 rounded-md px-4 py-0.5 text-[10px] text-text-secondary select-none flex items-center gap-1.5 w-full max-w-[240px] justify-center truncate">
+                <i class="hgi-stroke hgi-lock text-[8px] text-success"></i>
+                app.kulode.com/invoices/ACM-2026-0020
+              </div>
             </div>
-            <div class="mx-auto bg-surface-container-lowest border border-outline-variant/10 rounded-md px-4 py-0.5 text-[10px] text-text-secondary select-none flex items-center gap-1.5 w-full max-w-[200px] justify-center truncate">
-              <i class="hgi-stroke hgi-lock text-[8px] text-success"></i>
-              app.kulode.com/dashboard
-            </div>
+            <img alt="Kulode Invoice Detail" class="w-full h-auto object-cover" src="/uploaded_desktop_invoice.png">
           </div>
-          <img alt="Kulode Dashboard" class="w-full h-auto object-cover" src="/media__1780778983128.png">
         </div>
-        <!-- Middle Human Layer (z-20) -->
-        <div class="absolute right-0 bottom-4 w-[38%] z-20 overflow-hidden rounded-t-full rounded-b-2xl border-4 border-white shadow-2xl bg-white aspect-[3/4]">
-          <img alt="Professional Freelancer" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBm892BYSKBxkURBNg_0kDRkED6A5pLwTa-aIiPn_oFbIrJnRI1fnfxjxT_FNVXNvkwLgoo75ruE_yADeplFUKeqvGU0YpPt0jEyHZzSjgxBq_ajOJV8rXGu7gVDSk7MJvihKH2iFwKAnAeeosWTN_lj1L3fKxNattiUB0FI1ahj3xcNyVM01MyApszo0wOl3UtiUU01P3WG8SKWb-b_c4r6CrqefByTLmGCc4Si_I66Wou3Fzl3FTlqLsiyOvYWRZ6Y8SZcX95_sg">
+        <!-- Middle Human Layer (z-20) - Transparent Cutout sitting directly on background -->
+        <div class="absolute right-[-24px] bottom-0 w-[58%] z-20 pointer-events-none transition-all hover:scale-[1.02] duration-500">
+          <img alt="Professional Freelancer" class="w-full h-auto object-contain" src="/lady_cutout.png">
         </div>
-        <!-- Foreground Mobile Mockup (z-30) -->
-        <div class="absolute right-[32%] -bottom-4 w-[25%] z-30 rounded-[28px] border-[6px] border-slate-900 overflow-hidden shadow-2xl bg-slate-900 aspect-[9/16] hidden sm:block">
-          <img alt="Mobile Invoice Checkout" class="w-full h-full object-cover" src="/media__1780774065042.png">
+        <!-- Foreground Mobile Mockup (z-30) - With Hover-Tilt reaction -->
+        <div class="absolute right-[32%] -bottom-4 w-[25%] z-30 rounded-[28px] border-[6px] border-slate-900 overflow-hidden shadow-2xl bg-slate-900 aspect-[9/16] hidden sm:block hover-tilt-mobile cursor-pointer">
+          <img alt="Mobile Invoice Details" class="w-full h-full object-cover" src="/uploaded_mobile_invoice.png">
         </div>
-        <!-- Glass Overlay Element (z-30) -->
-        <div class="absolute bottom-12 -left-8 z-30 glass-card p-5 rounded-[24px] shadow-xl border border-white/20 max-w-[200px]">
+        <!-- Glass Overlay Element (z-30) - Floating Micro-animation -->
+        <div class="absolute bottom-12 -left-8 z-30 glass-card p-5 rounded-[24px] shadow-xl border border-white/20 max-w-[200px] animate-float-card">
           <div class="flex items-center gap-3 mb-2">
             <div class="w-8 h-8 rounded-full bg-success/20 flex items-center justify-center text-success">
               <i class="hgi-stroke hgi-checkmark-circle-01 text-[20px]"></i>
@@ -470,6 +472,31 @@ const appUrl = 'http://localhost:5173'
       animation: cursorClick 6s cubic-bezier(0.25, 1, 0.5, 1) infinite;
       animation-delay: 2s;
       opacity: 0;
+    }
+
+    /* Hero collage visual micro-animations */
+    @keyframes borderShimmer {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .animate-shimmer-border {
+      background-size: 200% auto;
+      animation: borderShimmer 8s linear infinite;
+    }
+    .hover-tilt-mobile {
+      transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.5s ease;
+    }
+    .hover-tilt-mobile:hover {
+      transform: translate(-6px, -10px) rotate(-1.5deg) scale(1.03);
+      box-shadow: 0 40px 80px rgba(0, 55, 176, 0.2);
+    }
+    @keyframes floatCard {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-8px); }
+    }
+    .animate-float-card {
+      animation: floatCard 5s ease-in-out infinite;
     }
   </style>
 </Layout>
