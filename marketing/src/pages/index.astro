@@ -88,7 +88,13 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
       </div>
     </section>
 
-
+    <!-- Scroll-down caret indicator -->
+    <div class="flex justify-center pb-8 -mt-4 hidden md:flex">
+      <div class="flex flex-col items-center gap-1 opacity-40 hover:opacity-80 transition-opacity cursor-pointer" onclick="window.scrollBy({top: window.innerHeight, behavior: 'smooth'})">
+        <span class="text-[10px] text-text-secondary uppercase tracking-widest font-bold">Scroll</span>
+        <div class="w-4 h-4 border-r-2 border-b-2 border-primary animate-scroll-caret"></div>
+      </div>
+    </div>
 
     <!-- Interactive Distribution & Payment Demo Section -->
     <section class="max-w-7xl mx-auto px-container-padding py-24 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
@@ -193,25 +199,25 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
         </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
           <!-- Feature 1: Compliance -->
-          <div class="bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] hover:shadow-[0_20px_40px_rgba(0,55,176,0.10)] hover:-translate-y-1 transition-all duration-300 stagger-in">
+          <div class="feature-card bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] stagger-in">
             <span class="inline-block px-3 py-1 rounded-full bg-[#ffddb8] text-[#121c28] text-[10px] font-bold uppercase tracking-widest mb-4">Compliance</span>
-            <div class="w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
+            <div class="feature-icon w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
               <i class="hgi-stroke hgi-invoice-03 text-[32px]"></i>
             </div>
             <h3 class="text-lg font-bold text-text-primary mb-4">Automated NFIU Reporting</h3>
             <p class="text-sm text-text-secondary">Auto-prepare required currency reports for the Nigerian Financial Intelligence Unit (NFIU) when cash sales cross ₦5M (for individuals) or ₦10M (for corporates) seamlessly.</p>
           </div>
           <!-- Feature 2: Payments -->
-          <div class="bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] hover:shadow-[0_20px_40px_rgba(0,55,176,0.10)] hover:-translate-y-1 transition-all duration-300 stagger-in">
-            <div class="w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
+          <div class="feature-card bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] stagger-in">
+            <div class="feature-icon w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
               <i class="hgi-stroke hgi-credit-card text-[32px]"></i>
             </div>
             <h3 class="text-lg font-bold text-text-primary mb-4">Online Payments & Auto-Reconciliation</h3>
             <p class="text-sm text-text-secondary">Accept local bank transfers, cards, and copy-paste checkout links for WhatsApp or Instagram DMs. Payments are auto-matched instantly.</p>
           </div>
           <!-- Feature 3: Tax -->
-          <div class="bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] hover:shadow-[0_20px_40px_rgba(0,55,176,0.10)] hover:-translate-y-1 transition-all duration-300 stagger-in">
-            <div class="w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
+          <div class="feature-card bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] stagger-in">
+            <div class="feature-icon w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
               <i class="hgi-stroke hgi-wallet-01 text-[32px]"></i>
             </div>
             <h3 class="text-lg font-bold text-text-primary mb-4">Tax & FIRS Preparation</h3>
@@ -272,7 +278,7 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
         <div class="flex justify-center mb-10 text-[#ffffff4d]">
           <i class="hgi-stroke hgi-quote-up text-[64px]"></i>
         </div>
-        <blockquote class="text-3xl md:text-4xl leading-snug mb-12 max-w-4xl mx-auto font-bold">"Kulode has completely transformed how I handle my business finances. I get paid within 24 hours and my tax schedules are automatically ready for FIRS."</blockquote>
+        <blockquote class="testimonial-quote text-3xl md:text-4xl leading-snug mb-12 max-w-4xl mx-auto font-bold">"Kulode has completely transformed how I handle my business finances. I get paid within 24 hours and my tax schedules are automatically ready for FIRS."</blockquote>
         <div class="flex flex-col items-center">
           <div class="w-16 h-16 rounded-full bg-surface-container mb-4 overflow-hidden border-2 border-white/20">
             <div class="w-full h-full bg-accent-gradient"></div>
@@ -346,157 +352,62 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
   </script>
 
   <style>
-    /* Keyframes for the person look page animations */
-    @keyframes floatEmail {
-      0%, 100% {
-        transform: translate(0, 40px);
-        opacity: 0;
-      }
-      10%, 40% {
-        opacity: 1;
-        transform: translate(0, 0);
-      }
-      50%, 90% {
-        transform: translate(-10px, -20px);
-        opacity: 1;
-      }
+    /* ── index.astro specific styles ── */
+
+    /* Scroll-down chevron bounce in hero */
+    @keyframes scrollBounce {
+      0%, 100% { transform: translateY(0) rotate(45deg); opacity: 0.5; }
+      50%       { transform: translateY(6px) rotate(45deg); opacity: 1; }
+    }
+    .animate-scroll-caret {
+      animation: scrollBounce 1.8s ease-in-out infinite;
     }
 
-    @keyframes slideWhatsapp {
-      0%, 100% {
-        transform: translate(30px, 10px);
-        opacity: 0;
-      }
-      10%, 40% {
-        opacity: 1;
-        transform: translate(0, 0);
-      }
-      50%, 90% {
-        transform: translate(5px, -5px);
-        opacity: 1;
-      }
+    /* Feature card subtle lift with icon pop on hover */
+    .feature-card {
+      transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+                  box-shadow 0.3s ease;
+    }
+    .feature-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 20px 48px rgba(0, 55, 176, 0.11);
+    }
+    .feature-card:hover .feature-icon {
+      transform: scale(1.14) rotate(-4deg);
+      background-color: rgba(0, 55, 176, 0.12);
+    }
+    .feature-icon {
+      transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+                  background-color 0.3s ease;
     }
 
-    @keyframes payFlow {
-      0%, 100% {
-        transform: scale(1);
-      }
-      45% {
-        transform: scale(1);
-      }
-      50% {
-        transform: scale(0.98);
-      }
-      60% {
-        transform: scale(1);
-      }
+    /* Testimonial blockquote subtle underline accent reveal */
+    .testimonial-quote {
+      position: relative;
+    }
+    .testimonial-quote::after {
+      content: '';
+      position: absolute;
+      bottom: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 60px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+      border-radius: 9999px;
+      animation: underlineGrow 3s ease-in-out infinite;
+    }
+    @keyframes underlineGrow {
+      0%, 100% { width: 40px; opacity: 0.4; }
+      50%       { width: 90px; opacity: 0.8; }
     }
 
-    @keyframes cursorClick {
-      0%, 100% {
-        transform: translate(15px, 15px) scale(1);
-        opacity: 0;
-      }
-      40% {
-        transform: translate(5px, 5px) scale(1);
-        opacity: 1;
-      }
-      50% {
-        transform: translate(0, 0) scale(0.85);
-        opacity: 1;
-      }
-      60% {
-        transform: translate(10px, 10px) scale(1);
-        opacity: 0;
-      }
+    /* Distribution section card image hover subtle scale */
+    .distribution-card-img {
+      transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1);
     }
-
-    @keyframes btnPayBg {
-      0%, 48%, 95%, 100% {
-        background-color: #0037b0;
-      }
-      52%, 90% {
-        background-color: #006c49;
-      }
-    }
-
-    @keyframes textPayNow {
-      0%, 48%, 95%, 100% {
-        opacity: 1;
-      }
-      52%, 90% {
-        opacity: 0;
-      }
-    }
-
-    @keyframes textPaid {
-      0%, 48%, 95%, 100% {
-        opacity: 0;
-      }
-      52%, 90% {
-        opacity: 1;
-      }
-    }
-
-    .animate-float-email {
-      animation: floatEmail 6s cubic-bezier(0.25, 1, 0.5, 1) infinite;
-    }
-
-    .animate-slide-whatsapp {
-      animation: slideWhatsapp 6s cubic-bezier(0.25, 1, 0.5, 1) infinite;
-      animation-delay: 1s;
-      opacity: 0;
-    }
-
-    .animate-pay-flow {
-      animation: payFlow 6s ease-in-out infinite;
-      animation-delay: 2s;
-    }
-
-    .animate-btn-pay {
-      animation: btnPayBg 6s ease-in-out infinite;
-      animation-delay: 2s;
-    }
-
-    .animate-text-paynow {
-      animation: textPayNow 6s ease-in-out infinite;
-      animation-delay: 2s;
-    }
-
-    .animate-text-paid {
-      animation: textPaid 6s ease-in-out infinite;
-      animation-delay: 2s;
-    }
-
-    .animate-cursor-click {
-      animation: cursorClick 6s cubic-bezier(0.25, 1, 0.5, 1) infinite;
-      animation-delay: 2s;
-      opacity: 0;
-    }
-
-    /* Hero collage visual micro-animations */
-    @keyframes borderShimmer {
-      0% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
-    }
-    .animate-shimmer-border {
-      background-size: 200% auto;
-      animation: borderShimmer 8s linear infinite;
-    }
-    .hover-tilt-mobile {
-      transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.5s ease;
-    }
-    .hover-tilt-mobile:hover {
-      transform: translate(-6px, -10px) rotate(-1.5deg) scale(1.03);
-      box-shadow: 0 40px 80px rgba(0, 55, 176, 0.2);
-    }
-    @keyframes floatCard {
-      0%, 100% { transform: translateY(0px); }
-      50% { transform: translateY(-8px); }
-    }
-    .animate-float-card {
-      animation: floatCard 5s ease-in-out infinite;
+    .distribution-card-img:hover {
+      transform: scale(1.015);
     }
   </style>
 </Layout>
