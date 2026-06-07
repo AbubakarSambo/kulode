@@ -45,30 +45,16 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
           </div>
         </div>
       </div>
-      <!-- ── Hero Right Column: Person-in-card layout ── -->
-      <div class="relative w-full flex items-center justify-center min-h-[520px] md:min-h-[600px] stagger-in hero-visual-col">
+      <!-- ── Hero Right Column: Stacked layout (no overlaps) ── -->
+      <div class="relative w-full flex flex-col gap-4 min-h-[560px] md:min-h-[620px] stagger-in hero-visual-col">
 
-        <!-- Ambient glow behind the card -->
-        <div class="absolute inset-0 flex items-center justify-center pointer-events-none -z-10">
-          <div class="w-[70%] h-[70%] rounded-full bg-primary/10 blur-3xl"></div>
+        <!-- Ambient glow -->
+        <div class="absolute inset-0 flex items-center justify-end pointer-events-none -z-10">
+          <div class="w-[60%] h-[60%] rounded-full bg-primary/8 blur-3xl"></div>
         </div>
 
-        <!-- ── Persona Card (the centrepiece) ── -->
-        <div class="persona-card relative w-[62%] h-[520px] md:h-[580px] rounded-[36px] overflow-hidden shadow-2xl shadow-primary/20 border border-white/30 z-20 persona-card-hover">
-          <!-- Full-bleed persona photo -->
-          <img
-            src="/service_provider_persona.png"
-            alt="Professional service provider using Kulode"
-            class="absolute inset-0 w-full h-full object-cover object-top"
-          />
-          <!-- Bottom gradient fade — creates depth without cutout tricks -->
-          <div class="absolute inset-0 bg-gradient-to-t from-primary/50 via-primary/10 to-transparent pointer-events-none"></div>
-          <!-- Subtle top vignette -->
-          <div class="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-transparent pointer-events-none"></div>
-        </div>
-
-        <!-- ── Desktop App Screenshot (overlaps card left edge, z-10) ── -->
-        <div class="absolute left-0 top-8 w-[72%] z-10 rounded-[20px] p-[1.5px] bg-gradient-to-r from-primary/30 via-primary to-primary/30 animate-shimmer-border shadow-2xl transition-all duration-500 hover:scale-[1.01] desktop-mockup-hero">
+        <!-- ── Desktop App Screenshot (top, full column width) ── -->
+        <div class="relative z-10 w-full rounded-[20px] p-[1.5px] bg-gradient-to-r from-primary/30 via-primary to-primary/30 animate-shimmer-border shadow-2xl transition-all duration-500 hover:scale-[1.01] desktop-mockup-hero">
           <div class="rounded-[19.5px] overflow-hidden bg-surface-container-lowest">
             <div class="flex items-center gap-1.5 px-4 py-3 bg-surface-container border-b border-outline-variant/10 shrink-0">
               <div class="flex gap-1">
@@ -85,13 +71,29 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
           </div>
         </div>
 
-        <!-- ── Mobile Phone Mockup (bottom-right corner of card, z-30) ── -->
-        <div class="absolute right-[4%] -bottom-4 w-[22%] z-30 rounded-[28px] border-[6px] border-slate-900 overflow-hidden shadow-2xl bg-slate-900 aspect-[9/16] hidden sm:block hover-tilt-mobile cursor-pointer">
-          <img alt="Mobile Invoice Details" class="w-full h-full object-cover" src="/uploaded_mobile_invoice.png">
+        <!-- ── Bottom row: Lady card (left) + Mobile mockup (right) ── -->
+        <div class="relative flex items-end gap-4">
+
+          <!-- Lady card — rounded card with natural background -->
+          <div class="persona-card relative flex-1 h-[220px] md:h-[260px] rounded-[28px] overflow-hidden shadow-xl shadow-primary/15 border border-white/20 z-10 persona-card-hover">
+            <img
+              src="/original_lady.png"
+              alt="Professional freelancer using Kulode"
+              class="absolute inset-0 w-full h-full object-cover object-center"
+            />
+            <!-- Light bottom gradient for polish -->
+            <div class="absolute inset-0 bg-gradient-to-t from-primary/30 via-transparent to-transparent pointer-events-none"></div>
+          </div>
+
+          <!-- Mobile Phone Mockup -->
+          <div class="relative w-[30%] aspect-[9/16] z-20 rounded-[24px] border-[5px] border-slate-900 overflow-hidden shadow-2xl bg-slate-900 hidden sm:block hover-tilt-mobile cursor-pointer">
+            <img alt="Mobile Invoice Details" class="w-full h-full object-cover" src="/uploaded_mobile_invoice.png">
+          </div>
+
         </div>
 
-        <!-- ── Floating "Payment Received" badge (z-40, bottom-left) ── -->
-        <div class="absolute bottom-16 -left-6 z-40 glass-card p-4 rounded-[24px] shadow-xl border border-white/20 max-w-[195px] animate-float-card">
+        <!-- ── Floating "Payment Received" badge (bottom-left) ── -->
+        <div class="absolute bottom-4 -left-6 z-40 glass-card p-4 rounded-[24px] shadow-xl border border-white/20 max-w-[195px] animate-float-card">
           <div class="flex items-center gap-3 mb-2">
             <div class="w-8 h-8 rounded-full bg-success/20 flex items-center justify-center text-success shrink-0">
               <i class="hgi-stroke hgi-checkmark-circle-01 text-[18px]"></i>
@@ -104,8 +106,8 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
           <p class="text-lg font-bold text-primary tabular-nums">₦240,000.00</p>
         </div>
 
-        <!-- ── Floating "Invoice Sent" stat badge (z-40, top-right) ── -->
-        <div class="absolute top-6 -right-4 z-40 glass-card p-3 rounded-[20px] shadow-lg border border-white/20 flex items-center gap-2.5 animate-float-card-alt">
+        <!-- ── Floating "Invoice Sent" badge (top-right) ── -->
+        <div class="absolute top-2 -right-4 z-40 glass-card p-3 rounded-[20px] shadow-lg border border-white/20 flex items-center gap-2.5 animate-float-card-alt">
           <div class="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white shrink-0">
             <i class="hgi-stroke hgi-mail-send-02 text-[13px]"></i>
           </div>
