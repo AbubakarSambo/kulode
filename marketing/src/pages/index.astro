@@ -45,10 +45,30 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
           </div>
         </div>
       </div>
-      <div class="relative w-full aspect-square md:aspect-[4/3] flex items-center justify-center min-h-[440px] md:min-h-[520px] stagger-in">
-        <div class="absolute -top-10 -left-10 w-40 h-40 bg-surface-container rounded-full blur-3xl opacity-50 -z-10"></div>
-        <!-- Base Desktop Dashboard Mockup (z-10) - With Shimmer Gradient Border -->
-        <div class="absolute left-0 top-4 w-[82%] z-10 rounded-[20px] p-[1.5px] bg-gradient-to-r from-primary/30 via-primary to-primary/30 animate-shimmer-border shadow-2xl transition-all duration-500 hover:scale-[1.01]">
+      <!-- ── Hero Right Column: Person-in-card layout ── -->
+      <div class="relative w-full flex items-center justify-center min-h-[520px] md:min-h-[600px] stagger-in hero-visual-col">
+
+        <!-- Ambient glow behind the card -->
+        <div class="absolute inset-0 flex items-center justify-center pointer-events-none -z-10">
+          <div class="w-[70%] h-[70%] rounded-full bg-primary/10 blur-3xl"></div>
+        </div>
+
+        <!-- ── Persona Card (the centrepiece) ── -->
+        <div class="persona-card relative w-[62%] h-[520px] md:h-[580px] rounded-[36px] overflow-hidden shadow-2xl shadow-primary/20 border border-white/30 z-20 persona-card-hover">
+          <!-- Full-bleed persona photo -->
+          <img
+            src="/service_provider_persona.png"
+            alt="Professional service provider using Kulode"
+            class="absolute inset-0 w-full h-full object-cover object-top"
+          />
+          <!-- Bottom gradient fade — creates depth without cutout tricks -->
+          <div class="absolute inset-0 bg-gradient-to-t from-primary/50 via-primary/10 to-transparent pointer-events-none"></div>
+          <!-- Subtle top vignette -->
+          <div class="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-transparent pointer-events-none"></div>
+        </div>
+
+        <!-- ── Desktop App Screenshot (overlaps card left edge, z-10) ── -->
+        <div class="absolute left-0 top-8 w-[72%] z-10 rounded-[20px] p-[1.5px] bg-gradient-to-r from-primary/30 via-primary to-primary/30 animate-shimmer-border shadow-2xl transition-all duration-500 hover:scale-[1.01] desktop-mockup-hero">
           <div class="rounded-[19.5px] overflow-hidden bg-surface-container-lowest">
             <div class="flex items-center gap-1.5 px-4 py-3 bg-surface-container border-b border-outline-variant/10 shrink-0">
               <div class="flex gap-1">
@@ -64,19 +84,17 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
             <img alt="Kulode Invoice Detail" class="w-full h-auto object-cover" src="/uploaded_desktop_invoice.png">
           </div>
         </div>
-        <!-- Middle Human Layer (z-20) - Transparent Cutout sitting directly on background -->
-        <div class="absolute right-[-24px] bottom-0 w-[58%] z-20 pointer-events-none transition-all hover:scale-[1.02] duration-500">
-          <img alt="Professional Freelancer" class="w-full h-auto object-contain" src="/lady_cutout.png">
-        </div>
-        <!-- Foreground Mobile Mockup (z-30) - With Hover-Tilt reaction -->
-        <div class="absolute right-[32%] -bottom-4 w-[25%] z-30 rounded-[28px] border-[6px] border-slate-900 overflow-hidden shadow-2xl bg-slate-900 aspect-[9/16] hidden sm:block hover-tilt-mobile cursor-pointer">
+
+        <!-- ── Mobile Phone Mockup (bottom-right corner of card, z-30) ── -->
+        <div class="absolute right-[4%] -bottom-4 w-[22%] z-30 rounded-[28px] border-[6px] border-slate-900 overflow-hidden shadow-2xl bg-slate-900 aspect-[9/16] hidden sm:block hover-tilt-mobile cursor-pointer">
           <img alt="Mobile Invoice Details" class="w-full h-full object-cover" src="/uploaded_mobile_invoice.png">
         </div>
-        <!-- Glass Overlay Element (z-30) - Floating Micro-animation -->
-        <div class="absolute bottom-12 -left-8 z-30 glass-card p-5 rounded-[24px] shadow-xl border border-white/20 max-w-[200px] animate-float-card">
+
+        <!-- ── Floating "Payment Received" badge (z-40, bottom-left) ── -->
+        <div class="absolute bottom-16 -left-6 z-40 glass-card p-4 rounded-[24px] shadow-xl border border-white/20 max-w-[195px] animate-float-card">
           <div class="flex items-center gap-3 mb-2">
-            <div class="w-8 h-8 rounded-full bg-success/20 flex items-center justify-center text-success">
-              <i class="hgi-stroke hgi-checkmark-circle-01 text-[20px]"></i>
+            <div class="w-8 h-8 rounded-full bg-success/20 flex items-center justify-center text-success shrink-0">
+              <i class="hgi-stroke hgi-checkmark-circle-01 text-[18px]"></i>
             </div>
             <div>
               <p class="text-[10px] font-bold text-text-primary">Payment Received</p>
@@ -85,6 +103,18 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
           </div>
           <p class="text-lg font-bold text-primary tabular-nums">₦240,000.00</p>
         </div>
+
+        <!-- ── Floating "Invoice Sent" stat badge (z-40, top-right) ── -->
+        <div class="absolute top-6 -right-4 z-40 glass-card p-3 rounded-[20px] shadow-lg border border-white/20 flex items-center gap-2.5 animate-float-card-alt">
+          <div class="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white shrink-0">
+            <i class="hgi-stroke hgi-mail-send-02 text-[13px]"></i>
+          </div>
+          <div>
+            <p class="text-[10px] font-bold text-text-primary">Invoice Sent ✓</p>
+            <p class="text-[8px] text-text-secondary">2s ago · WhatsApp</p>
+          </div>
+        </div>
+
       </div>
     </section>
 
@@ -408,6 +438,36 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
     }
     .distribution-card-img:hover {
       transform: scale(1.015);
+    }
+
+    /* ── Hero persona card hover lift ── */
+    .persona-card-hover {
+      transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1),
+                  box-shadow 0.4s ease;
+    }
+    .persona-card-hover:hover {
+      transform: translateY(-6px) scale(1.015);
+      box-shadow: 0 32px 64px rgba(0, 55, 176, 0.22);
+    }
+
+    /* Desktop mockup subtle entry from left */
+    .desktop-mockup-hero {
+      animation: slideInLeft 0.8s cubic-bezier(0.25, 1, 0.5, 1) both;
+      animation-delay: 0.3s;
+    }
+    @keyframes slideInLeft {
+      from { opacity: 0; transform: translateX(-24px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    /* Alternate float for Invoice Sent badge (different phase) */
+    @keyframes floatCardAlt {
+      0%, 100% { transform: translateY(0px) rotate(1deg); }
+      50%       { transform: translateY(-10px) rotate(-1deg); }
+    }
+    .animate-float-card-alt {
+      animation: floatCardAlt 5s ease-in-out infinite;
+      animation-delay: 1.2s;
     }
   </style>
 </Layout>
