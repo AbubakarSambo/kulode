@@ -8,15 +8,34 @@ export class EmailService {
   private resend: Resend;
   private fromEmail: string;
   private frontendUrl: string;
+  private isMock = false;
 
   constructor(private configService: ConfigService) {
-    const apiKey = this.configService.get<string>('resend.apiKey');
+    let apiKey = this.configService.get<string>('resend.apiKey');
+    if (!apiKey) {
+      this.logger.warn('RESEND_API_KEY is not set. Email service will run in MOCK mode (logging to console).');
+      this.isMock = true;
+      apiKey = 're_mock_key';
+    }
     this.resend = new Resend(apiKey);
     this.fromEmail = this.configService.get<string>('resend.fromEmail') || 'Kulode <noreply@kulode.app>';
     this.frontendUrl = this.configService.get<string>('resend.frontendUrl') || 'http://localhost:5173';
   }
 
   private async sendEmail(options: { to: string; subject: string; html: string }): Promise<void> {
+    if (this.isMock) {
+      this.logger.log(`[MOCK EMAIL] Sending to: ${options.to}`);
+      this.logger.log(`[MOCK EMAIL] Subject: ${options.subject}`);
+      
+      // Extract links to make testing easier
+      const linkRegex = /href="([^"]+)"/g;
+      let match;
+      while ((match = linkRegex.exec(options.html)) !== null) {
+        this.logger.log(`[MOCK EMAIL] Link found: ${match[1]}`);
+      }
+      return;
+    }
+
     const { data, error } = await this.resend.emails.send({
       from: this.fromEmail,
       ...options,

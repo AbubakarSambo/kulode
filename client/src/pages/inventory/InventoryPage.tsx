@@ -4,13 +4,14 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, Edit, Trash2, Package, TrendingUp, TrendingDown, History } from 'lucide-react'
+import { Plus, Edit, Trash2, Package, TrendingUp, TrendingDown, History, Search } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, Badge } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { inventoryApi } from '@/api/inventory'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, cn } from '@/lib/utils'
 import type { InventoryItem, StockMovement, StockMovementType } from '@/types'
+import { InventoryIcon } from '@/components/ui/CustomIcons'
 
 // ─── Schemas ────────────────────────────────────────────────────────────────
 
@@ -55,18 +56,29 @@ function movementLabel(type: StockMovementType): string {
 
 function movementColor(type: StockMovementType): string {
   switch (type) {
-    case 'RESTOCK': return 'text-green-600'
-    case 'ADJUSTMENT': return 'text-red-600'
-    case 'INVOICE_RESERVED': return 'text-orange-500'
-    case 'INVOICE_DEDUCTED': return 'text-red-600'
-    case 'RESERVATION_RELEASED': return 'text-blue-500'
+    case 'RESTOCK': return 'text-emerald-600'
+    case 'ADJUSTMENT': return 'text-rose-500'
+    case 'INVOICE_RESERVED': return 'text-amber-500'
+    case 'INVOICE_DEDUCTED': return 'text-rose-500'
+    case 'RESERVATION_RELEASED': return 'text-[#0037b0]'
   }
+}
+
+const getInitials = (name: string) => {
+  if (!name) return '??'
+  const cleanName = name.replace(/[^a-zA-Z0-9\s]/g, '').trim()
+  const parts = cleanName.split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '??'
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase()
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
 }
 
 // ─── Components ─────────────────────────────────────────────────────────────
 
 export function InventoryPage() {
   const queryClient = useQueryClient()
+  const [search, setSearch] = useState('')
+  const [stockFilter, setStockFilter] = useState<'all' | 'low'>('all')
 
   // Modal state
   const [createOpen, setCreateOpen] = useState(false)
@@ -105,7 +117,7 @@ export function InventoryPage() {
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] })
-      toast.success('Inventory item created')
+      toast.success('Inventory item created successfully')
       setCreateOpen(false)
       createForm.reset()
     },
@@ -130,7 +142,7 @@ export function InventoryPage() {
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] })
-      toast.success('Inventory item updated')
+      toast.success('Inventory item updated successfully')
       setEditingItem(null)
     },
     onError: (error: any) => {
@@ -155,7 +167,7 @@ export function InventoryPage() {
     mutationFn: (id: string) => inventoryApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] })
-      toast.success('Inventory item deleted')
+      toast.success('Inventory item deleted successfully')
     },
     onError: (error: any) => {
       toast.error('Cannot delete inventory item', { description: error.response?.data?.message })
@@ -197,102 +209,173 @@ export function InventoryPage() {
     adjustForm.reset({ type: 'RESTOCK', quantity: 1, notes: '' })
   }
 
-  // ─── Render ─────────────────────────────────────────────────────────────
+  // Local filtering & search
+  const filteredItems = (items ?? []).filter((item) => {
+    const matchesSearch = 
+      item.name.toLowerCase().includes(search.toLowerCase()) ||
+      (item.sku && item.sku.toLowerCase().includes(search.toLowerCase())) ||
+      (item.description && item.description.toLowerCase().includes(search.toLowerCase()))
+    
+    const isLowStock = item.availableQuantity <= item.reorderLevel
+    const matchesFilter = stockFilter === 'all' || (stockFilter === 'low' && isLowStock)
+    
+    return matchesSearch && matchesFilter
+  })
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <Header
         title="Inventory"
         description="Track physical goods and stock levels"
+        icon={InventoryIcon}
+        category="Business Ops"
+        badgeText={items?.length}
         action={
           <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="mr-2 h-4 w-4" strokeWidth={1.5} />
             Add Item
           </Button>
         }
       />
 
       <div className="flex-1 overflow-auto p-4 sm:p-6">
+        {/* Search & Filters */}
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between stagger-in sticky top-0 md:static z-20 bg-[#f8f9ff]/95 backdrop-blur-sm py-3 -mx-4 px-4 md:-mx-0 md:px-0 md:bg-transparent md:py-0 md:mb-6 border-b border-[#eef4ff]/30 md:border-b-0">
+          {/* Search bar */}
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" strokeWidth={1.5} />
+            <Input
+              placeholder="Search inventory..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-11 rounded-xl h-10"
+            />
+          </div>
+
+          {/* Low stock filters */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-2 whitespace-nowrap">Status:</span>
+            {([
+              { label: 'All Items', value: 'all' },
+              { label: 'Low Stock', value: 'low' },
+            ] as const).map((opt) => {
+              const isActive = stockFilter === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => setStockFilter(opt.value)}
+                  className={cn(
+                    "rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-wider transition-all duration-200 cursor-pointer border border-transparent whitespace-nowrap",
+                    isActive
+                      ? "bg-[#0037b0] text-white shadow-[0px_4px_12px_rgba(0,55,176,0.2)] font-bold"
+                      : "bg-[#eef4ff] text-[#434655] hover:bg-[#e5eeff]"
+                  )}
+                >
+                  {opt.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           </div>
-        ) : items && items.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {items.map((item) => {
+        ) : filteredItems.length > 0 ? (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredItems.map((item) => {
               const isLowStock = item.availableQuantity <= item.reorderLevel
               return (
-                <Card key={item.id}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-medium truncate">{item.name}</h3>
-                          {isLowStock && (
-                            <Badge variant="outline" className="border-orange-400 text-orange-600 shrink-0">
-                              Low Stock
-                            </Badge>
-                          )}
+                <Card 
+                  key={item.id}
+                  className="border-0 bg-white shadow-[0px_12px_32px_rgba(0,55,176,0.03)] rounded-[24px] hover:shadow-[0px_16px_40px_rgba(0,55,176,0.06)] hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden flex flex-col justify-between"
+                >
+                  <CardContent className="p-5 flex-1 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-[#0037b0]/5 text-[#0037b0] border border-[#0037b0]/8 flex items-center justify-center text-xs font-bold shrink-0 select-none">
+                            {getInitials(item.name)}
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-slate-900 text-sm leading-tight">{item.name}</h3>
+                            {item.sku && (
+                              <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">SKU: {item.sku}</p>
+                            )}
+                          </div>
                         </div>
-                        {item.sku && (
-                          <p className="text-xs text-muted-foreground mt-0.5">SKU: {item.sku}</p>
-                        )}
-                        <p className="mt-1 text-lg font-semibold text-primary">
+                        <div className="flex items-center gap-1 shrink-0 -mt-1 -mr-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 p-0 rounded-lg" onClick={() => openEdit(item)} title="Edit">
+                            <Edit className="h-4 w-4 text-slate-450" strokeWidth={1.5} />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 p-0 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50" onClick={() => handleDelete(item)} title="Delete">
+                            <Trash2 className="h-4 w-4" strokeWidth={1.5} />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="mt-3">
+                        <p className="text-base font-extrabold text-[#0037b0] tabular-nums">
                           {formatCurrency(item.unitPrice)}
                         </p>
                         {item.description && (
-                          <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
+                          <p className="mt-2 text-xs text-slate-500 font-semibold leading-relaxed line-clamp-2">
                             {item.description}
                           </p>
                         )}
                       </div>
-                      <div className="flex gap-1 shrink-0">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(item)} title="Edit">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(item)} title="Delete">
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
                     </div>
 
-                    {/* Stock levels */}
-                    <div className="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-muted/50 p-3 text-center text-sm">
-                      <div>
-                        <p className="text-xs text-muted-foreground">On Hand</p>
-                        <p className="font-semibold">{item.onHandQuantity}</p>
+                    <div>
+                      {/* Stock levels */}
+                      <div className="mt-4 grid grid-cols-3 gap-1 rounded-2xl bg-[#eef4ff]/30 border border-[#eef4ff]/50 p-3 text-center text-xs">
+                        <div>
+                          <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">On Hand</p>
+                          <p className="font-bold text-slate-800 mt-0.5">{item.onHandQuantity}</p>
+                        </div>
+                        <div>
+                          <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Reserved</p>
+                          <p className="font-bold text-amber-600 mt-0.5">{item.reservedQuantity}</p>
+                        </div>
+                        <div>
+                          <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Available</p>
+                          <p className={cn(
+                            "font-extrabold mt-0.5",
+                            item.availableQuantity <= 0 ? 'text-[#ba1a1a]' : 'text-emerald-700'
+                          )}>
+                            {item.availableQuantity}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Reserved</p>
-                        <p className="font-semibold text-orange-500">{item.reservedQuantity}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Available</p>
-                        <p className={`font-semibold ${item.availableQuantity <= 0 ? 'text-destructive' : ''}`}>
-                          {item.availableQuantity}
-                        </p>
-                      </div>
-                    </div>
 
-                    {/* Action buttons */}
-                    <div className="mt-3 flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => openAdjust(item)}
-                      >
-                        <Package className="mr-1.5 h-3.5 w-3.5" />
-                        Adjust Stock
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setMovementsItem(item)}
-                        title="View stock history"
-                      >
-                        <History className="h-3.5 w-3.5" />
-                      </Button>
+                      {/* Action buttons & badges */}
+                      <div className="mt-4 pt-4 border-t border-[#eef4ff]/40 flex items-center justify-between gap-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-9 rounded-xl flex-1 text-xs font-semibold border-slate-200/80"
+                          onClick={() => openAdjust(item)}
+                        >
+                          <Package className="mr-1.5 h-3.5 w-3.5 text-slate-450" strokeWidth={1.5} />
+                          Adjust Stock
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 rounded-xl shrink-0 border border-slate-200/40 hover:bg-slate-50"
+                          onClick={() => setMovementsItem(item)}
+                          title="View stock history"
+                        >
+                          <History className="h-4 w-4 text-slate-450" strokeWidth={1.5} />
+                        </Button>
+
+                        {isLowStock && (
+                          <Badge variant="outline" className="border-rose-200 bg-rose-50/50 text-rose-600 py-0.5 px-2 rounded-md font-bold uppercase tracking-wide text-[8px] absolute top-3 right-3 shadow-sm select-none">
+                            Low Stock
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -300,12 +383,12 @@ export function InventoryPage() {
             })}
           </div>
         ) : (
-          <Card>
+          <Card className="border-0 bg-white shadow-[0px_12px_32px_rgba(0,55,176,0.03)] rounded-[24px]">
             <CardContent className="py-12 text-center">
-              <Package className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
-              <p className="text-muted-foreground">No inventory items yet</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Add physical goods to track stock levels and reservations
+              <Package className="mx-auto mb-3 h-10 w-10 text-slate-350" strokeWidth={1.5} />
+              <p className="font-bold text-slate-800 text-sm">No inventory items found</p>
+              <p className="mt-1 text-xs text-slate-400">
+                Add physical goods to track stock levels and invoice reservations.
               </p>
               <Button className="mt-4" onClick={() => setCreateOpen(true)}>
                 Add your first item
@@ -314,6 +397,15 @@ export function InventoryPage() {
           </Card>
         )}
       </div>
+
+      {/* Mobile Floating Action Button */}
+      <Button 
+        onClick={() => setCreateOpen(true)}
+        className="fixed bottom-28 right-6 z-40 sm:hidden w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all p-0"
+        aria-label="Add Item"
+      >
+        <Plus className="h-6 w-6" strokeWidth={1.5} />
+      </Button>
 
       {/* ── Create Modal ── */}
       <Modal
@@ -482,10 +574,10 @@ export function InventoryPage() {
                     {...adjustForm.register('type')}
                     className="h-4 w-4"
                   />
-                  <span className="text-sm flex items-center gap-1">
+                  <span className="text-sm flex items-center gap-1 font-semibold text-slate-700">
                     {t === 'RESTOCK'
-                      ? <><TrendingUp className="h-3.5 w-3.5 text-green-600" /> Restock</>
-                      : <><TrendingDown className="h-3.5 w-3.5 text-red-500" /> Write-off</>
+                      ? <><TrendingUp className="h-3.5 w-3.5 text-emerald-600" /> Restock</>
+                      : <><TrendingDown className="h-3.5 w-3.5 text-rose-500" /> Write-off</>
                     }
                   </span>
                 </label>
@@ -537,28 +629,28 @@ export function InventoryPage() {
             <div className="h-6 w-6 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           </div>
         ) : movements && movements.length > 0 ? (
-          <div className="divide-y max-h-96 overflow-y-auto">
+          <div className="divide-y divide-[#eef4ff]/50 max-h-96 overflow-y-auto pr-1">
             {movements.map((m: StockMovement) => (
-              <div key={m.id} className="flex items-center justify-between py-3 text-sm">
+              <div key={m.id} className="flex items-center justify-between py-3.5 text-xs font-semibold text-slate-700">
                 <div>
-                  <span className={`font-medium ${movementColor(m.type)}`}>
+                  <span className={cn("font-bold text-xs", movementColor(m.type))}>
                     {movementLabel(m.type)}
                   </span>
                   {m.notes && (
-                    <p className="text-xs text-muted-foreground mt-0.5">{m.notes}</p>
+                    <p className="text-[10px] text-slate-400 font-semibold mt-1">{m.notes}</p>
                   )}
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[10px] text-slate-400 font-medium mt-0.5">
                     {new Date(m.createdAt).toLocaleDateString()} · {m.onHandBefore} → {m.onHandAfter}
                   </p>
                 </div>
-                <span className={`font-semibold tabular-nums ${m.quantity >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                <span className={cn("font-extrabold tabular-nums text-xs", m.quantity >= 0 ? 'text-emerald-700' : 'text-rose-600')}>
                   {m.quantity >= 0 ? '+' : ''}{m.quantity}
                 </span>
               </div>
             ))}
           </div>
         ) : (
-          <p className="py-8 text-center text-sm text-muted-foreground">No stock movements yet</p>
+          <p className="py-8 text-center text-xs text-muted-foreground font-semibold">No stock movements yet</p>
         )}
       </Modal>
     </div>

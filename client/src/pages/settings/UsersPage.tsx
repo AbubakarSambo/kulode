@@ -10,6 +10,7 @@ import { Button, Input, Label, Select, Card, CardContent, Badge } from '@/compon
 import { Modal } from '@/components/shared/Modal'
 import apiClient from '@/api/client'
 import { posthog } from '@/lib/posthog'
+import { cn } from '@/lib/utils'
 import type { ApiResponse, PaginatedResponse, UserRole } from '@/types'
 
 interface UserData {
@@ -167,39 +168,45 @@ export function UsersPage() {
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           </div>
         ) : (
-          <Card>
+          <Card className="border-0 bg-white shadow-[0px_12px_32px_rgba(0,55,176,0.03)] rounded-[24px] overflow-hidden">
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
-              <table className="w-full min-w-[600px]">
+              <div className="overflow-auto max-h-[60vh]">
+              <table className="w-full min-w-[600px] border-collapse">
                 <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="px-4 py-3 text-left text-sm font-medium">Name</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium">Email</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium">Role</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium">Status</th>
-                    <th className="px-4 py-3 text-right text-sm font-medium">Actions</th>
+                  <tr className="bg-white text-slate-600">
+                    <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 select-none">Name</th>
+                    <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 select-none">Email</th>
+                    <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 select-none">Role</th>
+                    <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 select-none">Status</th>
+                    <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-right text-[10px] font-bold uppercase tracking-widest text-slate-400 select-none">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {data?.data.map((user) => (
-                    <tr key={user.id} className="border-b last:border-0">
-                      <td className="px-4 py-3">
-                        <p className="font-medium">{user.firstName} {user.lastName}</p>
+                <tbody className="divide-y-0">
+                  {data?.data.map((user, index) => (
+                    <tr 
+                      key={user.id} 
+                      className={cn(
+                        "transition-all duration-150 hover:bg-[#eef4ff]/20",
+                        index % 2 === 0 ? "bg-transparent" : "bg-[#eef4ff]/08"
+                      )}
+                    >
+                      <td className="px-6 py-4">
+                        <p className="font-bold text-slate-900 text-sm">{user.firstName} {user.lastName}</p>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{user.email}</td>
-                      <td className="px-4 py-3">
-                        <Badge variant="secondary">{roleLabels[user.role]}</Badge>
+                      <td className="px-6 py-4 text-xs font-semibold text-slate-500">{user.email}</td>
+                      <td className="px-6 py-4">
+                        <Badge variant="secondary" className="rounded-md">{roleLabels[user.role]}</Badge>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-6 py-4">
                         {!user.isActive ? (
-                          <Badge variant="secondary">Inactive</Badge>
+                          <Badge variant="secondary" className="rounded-md">Inactive</Badge>
                         ) : !user.isEmailVerified ? (
-                          <Badge variant="outline">Pending Invite</Badge>
+                          <Badge variant="outline" className="rounded-md">Pending Invite</Badge>
                         ) : (
-                          <Badge variant="success">Active</Badge>
+                          <Badge variant="success" className="rounded-md">Active</Badge>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right space-x-1">
+                      <td className="px-6 py-4 text-right space-x-1">
                         {user.isActive && !user.isEmailVerified && (
                           <Button
                             variant="ghost"
@@ -207,6 +214,7 @@ export function UsersPage() {
                             onClick={() => resendInviteMutation.mutate(user.id)}
                             disabled={resendInviteMutation.isPending}
                             title="Resend invite"
+                            className="h-8 w-8 p-0 rounded-lg"
                           >
                             <Send className="h-4 w-4" />
                           </Button>
@@ -216,6 +224,7 @@ export function UsersPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDeactivate(user)}
+                            className="h-8 w-8 p-0 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50"
                           >
                             <UserX className="h-4 w-4" />
                           </Button>

@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, Edit, Trash2 } from 'lucide-react'
+import { Plus, Edit, Trash2, Wrench, Search } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
@@ -21,8 +21,18 @@ const serviceItemSchema = z.object({
 
 type ServiceItemFormData = z.infer<typeof serviceItemSchema>
 
+const getInitials = (name: string) => {
+  if (!name) return '??'
+  const cleanName = name.replace(/[^a-zA-Z0-9\s]/g, '').trim()
+  const parts = cleanName.split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '??'
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase()
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
+}
+
 export function ServiceItemsPage() {
   const queryClient = useQueryClient()
+  const [search, setSearch] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<ServiceItem | null>(null)
 
@@ -50,7 +60,7 @@ export function ServiceItemsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['service-items'] })
       posthog.capture('service_item_created')
-      toast.success('Service item created')
+      toast.success('Service item created successfully')
       closeModal()
     },
     onError: (error: any) => {
@@ -65,7 +75,7 @@ export function ServiceItemsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['service-items'] })
       posthog.capture('service_item_updated')
-      toast.success('Service item updated')
+      toast.success('Service item updated successfully')
       closeModal()
     },
     onError: (error: any) => {
@@ -80,7 +90,7 @@ export function ServiceItemsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['service-items'] })
       posthog.capture('service_item_deleted')
-      toast.success('Service item deleted')
+      toast.success('Service item deleted successfully')
     },
     onError: (error: any) => {
       toast.error('Failed to delete service item', {
@@ -121,66 +131,92 @@ export function ServiceItemsPage() {
     }
   }
 
+  const filteredItems = (serviceItems ?? []).filter((item) => 
+    item.name.toLowerCase().includes(search.toLowerCase()) ||
+    (item.description && item.description.toLowerCase().includes(search.toLowerCase()))
+  )
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <Header
         title="Service Items"
         description="Manage predefined services and products for invoices"
+        icon={Wrench}
+        category="Settings"
+        badgeText={serviceItems?.length}
         action={
           <Button onClick={openCreateModal}>
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="mr-2 h-4 w-4" strokeWidth={1.5} />
             Add Service Item
           </Button>
         }
       />
 
       <div className="flex-1 overflow-auto p-4 sm:p-6">
+        {/* Search */}
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between stagger-in sticky top-0 md:static z-20 bg-[#f8f9ff]/95 backdrop-blur-sm py-3 -mx-4 px-4 md:-mx-0 md:px-0 md:bg-transparent md:py-0 md:mb-6 border-b border-[#eef4ff]/30 md:border-b-0">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" strokeWidth={1.5} />
+            <Input
+              placeholder="Search service items..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-11 rounded-xl h-10"
+            />
+          </div>
+        </div>
+
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           </div>
-        ) : serviceItems && serviceItems.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {serviceItems.map((item) => (
-              <Card key={item.id}>
-                <CardContent className="flex items-start justify-between p-4">
-                  <div className="flex-1">
-                    <h3 className="font-medium">{item.name}</h3>
-                    <p className="mt-1 text-lg font-semibold text-primary">
-                      {formatCurrency(item.unitPrice)}
-                    </p>
-                    {item.description && (
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {item.description}
+        ) : filteredItems.length > 0 ? (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredItems.map((item) => (
+              <Card 
+                key={item.id}
+                className="border-0 bg-white shadow-[0px_12px_32px_rgba(0,55,176,0.03)] rounded-[24px] hover:shadow-[0px_16px_40px_rgba(0,55,176,0.06)] hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden flex flex-col justify-between"
+              >
+                <CardContent className="p-5 flex-1 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-[#0037b0]/5 text-[#0037b0] border border-[#0037b0]/8 flex items-center justify-center text-xs font-bold shrink-0 select-none">
+                          {getInitials(item.name)}
+                        </div>
+                        <h3 className="font-bold text-slate-900 text-sm leading-tight">{item.name}</h3>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0 -mt-1 -mr-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 p-0 rounded-lg" onClick={() => openEditModal(item)} title="Edit">
+                          <Edit className="h-4 w-4 text-slate-450" strokeWidth={1.5} />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 p-0 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50" onClick={() => handleDelete(item)} title="Delete">
+                          <Trash2 className="h-4 w-4" strokeWidth={1.5} />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="mt-3">
+                      <p className="text-base font-extrabold text-[#0037b0] tabular-nums">
+                        {formatCurrency(item.unitPrice)}
                       </p>
-                    )}
-                  </div>
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => openEditModal(item)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(item)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                      {item.description && (
+                        <p className="mt-2 text-xs text-slate-500 font-semibold leading-relaxed line-clamp-3">
+                          {item.description}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
             ))}
           </div>
         ) : (
-          <Card>
+          <Card className="border-0 bg-white shadow-[0px_12px_32px_rgba(0,55,176,0.03)] rounded-[24px]">
             <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">No service items yet</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Add services or products that you frequently include in invoices
+              <p className="font-bold text-slate-800 text-sm">No service items found</p>
+              <p className="mt-1 text-xs text-slate-400">
+                Add services or products that you frequently include in invoices.
               </p>
               <Button className="mt-4" onClick={openCreateModal}>
                 Add your first service item
@@ -189,6 +225,15 @@ export function ServiceItemsPage() {
           </Card>
         )}
       </div>
+
+      {/* Mobile Floating Action Button */}
+      <Button 
+        onClick={openCreateModal}
+        className="fixed bottom-28 right-6 z-40 sm:hidden w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all p-0"
+        aria-label="Add Service Item"
+      >
+        <Plus className="h-6 w-6" strokeWidth={1.5} />
+      </Button>
 
       {/* Create/Edit Modal */}
       <Modal

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, Select } from '@/components/u
 import { reportsApi, type ReportPeriod } from '@/api/reports'
 import { formatCurrency } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
+import { ReportsIcon } from '@/components/ui/CustomIcons'
 
 const DONUT_COLORS = ['#1d4ed8', '#0ea5e9', '#14b8a6', '#8b5cf6', '#f59e0b', '#6b7280']
 
@@ -37,6 +38,8 @@ export function ReportsPage() {
       <Header
         title="Reports"
         description="Analyze your financial performance"
+        icon={ReportsIcon}
+        category="Analytics"
         action={
           <Select
             value={period}

@@ -218,6 +218,10 @@ export interface Payment {
     id: string
     invoiceNumber: string
     total: number
+    client?: {
+      id: string
+      name: string
+    }
   }
   recordedBy?: {
     id: string
