@@ -3,10 +3,17 @@ import { useSearchParams, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { XCircle, Loader2 } from 'lucide-react'
+import { XCircle, Loader2, Check } from 'lucide-react'
 import { Button, Input, Label, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui'
 import { authApi } from '@/api'
 import { useSetPassword } from '@/hooks'
+
+const PASSWORD_RULES = [
+  { label: 'At least 8 characters', test: (v: string) => v.length >= 8 },
+  { label: 'One uppercase letter', test: (v: string) => /[A-Z]/.test(v) },
+  { label: 'One lowercase letter', test: (v: string) => /[a-z]/.test(v) },
+  { label: 'One number or special character', test: (v: string) => /(\d|\W)/.test(v) },
+]
 
 const passwordSchema = z.object({
   password: z
@@ -35,10 +42,13 @@ export function SetPasswordPage() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<PasswordForm>({
     resolver: zodResolver(passwordSchema),
   })
+
+  const passwordValue = watch('password', '')
 
   useEffect(() => {
     if (!token) {
@@ -118,6 +128,17 @@ export function SetPasswordPage() {
                 {...register('password')}
                 error={errors.password?.message}
               />
+              <ul className="space-y-1 pt-1">
+                {PASSWORD_RULES.map((rule) => {
+                  const met = rule.test(passwordValue)
+                  return (
+                    <li key={rule.label} className={`flex items-center gap-2 text-xs ${met ? 'text-green-600' : 'text-muted-foreground'}`}>
+                      <Check className={`h-3 w-3 shrink-0 ${met ? 'opacity-100' : 'opacity-30'}`} />
+                      {rule.label}
+                    </li>
+                  )
+                })}
+              </ul>
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>

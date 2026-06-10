@@ -69,7 +69,7 @@ export function AppLayout() {
           </div>
         </div>
 
-        <TrialBanner />
+        {location.pathname.startsWith('/payments') && <TrialBanner />}
 
         <div className="flex-1 overflow-hidden pb-28 lg:pb-0 flex flex-col">
           <Outlet />
