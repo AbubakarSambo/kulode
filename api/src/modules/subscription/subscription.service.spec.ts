@@ -5,6 +5,9 @@ import { SubscriptionService } from './subscription.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 
+import { PaystackService } from '../paystack/paystack.service';
+import { EmailService } from '../email/email.service';
+
 // Mock global fetch
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
@@ -13,6 +16,7 @@ function createMockPrisma() {
   return {
     organization: {
       findUnique: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
       update: jest.fn(),
       updateMany: jest.fn(),
     },
@@ -48,6 +52,8 @@ describe('SubscriptionService', () => {
   let service: SubscriptionService;
   let prisma: ReturnType<typeof createMockPrisma>;
   let configService: ReturnType<typeof createMockConfig>;
+  let paystackService: PaystackService;
+  let emailService: EmailService;
 
   const ORG_ID = 'org-12345678-abcd';
 
@@ -60,10 +66,24 @@ describe('SubscriptionService', () => {
         SubscriptionService,
         { provide: PrismaService, useValue: prisma },
         { provide: ConfigService, useValue: configService },
+        {
+          provide: PaystackService,
+          useValue: {
+            chargeAuthorization: jest.fn(),
+          },
+        },
+        {
+          provide: EmailService,
+          useValue: {
+            sendRenewalFailedEmail: jest.fn().mockResolvedValue({}),
+          },
+        },
       ],
     }).compile();
 
     service = module.get<SubscriptionService>(SubscriptionService);
+    paystackService = module.get<PaystackService>(PaystackService);
+    emailService = module.get<EmailService>(EmailService);
     jest.clearAllMocks();
   });
 
@@ -129,7 +149,7 @@ describe('SubscriptionService', () => {
       expect(result.planTier).toBe('PRO'); // stored plan unchanged
       expect(result.trialDaysRemaining).toBe(0);
       expect(result.limits.maxUsers).toBe(1);
-      expect(result.limits.maxInvoicesPerMonth).toBe(50);
+      expect(result.limits.maxInvoicesPerMonth).toBe(5);
     });
 
     it('should downgrade effective plan to FREE when subscription status is EXPIRED', async () => {
@@ -290,7 +310,7 @@ describe('SubscriptionService', () => {
       expect(result.paymentUrl).toBe('https://paystack.com/pay/xyz');
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body.amount).toBe(40000000); // 400000 * 100 kobo
+      expect(body.amount).toBe(24999000); // 249990 * 100 kobo
     });
 
     it('should throw if Paystack initialization fails', async () => {
