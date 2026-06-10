@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
@@ -8,7 +8,9 @@ import {
   ArrowDown01Icon,
   Invoice03Icon,
   FilterHorizontalIcon,
+  Calendar03Icon,
 } from '@hugeicons/core-free-icons'
+import { toast } from 'sonner'
 import { Header } from '@/components/layout'
 import { Button, Input, Card, CardContent, EmptyState, DropdownPanel } from '@/components/ui'
 import { BottomSheet } from '@/components/shared'
@@ -76,6 +78,8 @@ const getInitials = (name: string) => {
 export function InvoicesListPage() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<InvoiceStatus | ''>('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
   const [limitOpen, setLimitOpen] = useState(false)
@@ -83,6 +87,8 @@ export function InvoicesListPage() {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false)
   const [tempStatus, setTempStatus] = useState<InvoiceStatus | ''>('')
   const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const queryClient = useQueryClient()
 
   const openMobileFilters = () => {
     setTempStatus(status)
@@ -94,13 +100,43 @@ export function InvoicesListPage() {
   }
 
   const { data, isLoading } = useQuery({
-    queryKey: ['invoices', { status, page, limit }],
-    queryFn: () => invoicesApi.list({ status: status || undefined, page, limit }),
+    queryKey: ['invoices', { status, page, limit, startDate, endDate }],
+    queryFn: () => invoicesApi.list({ status: status || undefined, page, limit, startDate: startDate || undefined, endDate: endDate || undefined }),
   })
+
+  const sendMutation = useMutation({
+    mutationFn: (id: string) => invoicesApi.send(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['invoices'] }),
+  })
+
+  const handleBulkSend = async () => {
+    const ids = Array.from(selectedIds)
+    await Promise.all(ids.map(id => sendMutation.mutateAsync(id).catch(() => null)))
+    toast.success(`Marked ${ids.length} invoice${ids.length !== 1 ? 's' : ''} as sent`)
+    setSelectedIds(new Set())
+  }
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleAll = () => {
+    const allIds = filteredInvoices.map(i => i.id)
+    if (selectedIds.size === allIds.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(allIds))
+    }
+  }
 
   // Local filter for search
   const invoices = data?.data ?? []
-  const filteredInvoices = invoices.filter(invoice => 
+  const filteredInvoices = invoices.filter(invoice =>
     invoice.invoiceNumber.toLowerCase().includes(search.toLowerCase()) ||
     invoice.client.name.toLowerCase().includes(search.toLowerCase())
   )
@@ -138,6 +174,32 @@ export function InvoicesListPage() {
                   onChange={(e) => { setSearch(e.target.value); setPage(1) }}
                   className="pl-11 rounded-xl h-10 bg-white border border-border"
                 />
+              </div>
+
+              {/* Date range filter */}
+              <div className="flex items-center gap-2">
+                <HugeiconsIcon icon={Calendar03Icon} className="h-4 w-4 text-slate-400 shrink-0" strokeWidth={1.5} />
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => { setStartDate(e.target.value); setPage(1) }}
+                  className="h-10 rounded-xl text-xs w-36 bg-white border border-border"
+                />
+                <span className="text-xs text-slate-400">–</span>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => { setEndDate(e.target.value); setPage(1) }}
+                  className="h-10 rounded-xl text-xs w-36 bg-white border border-border"
+                />
+                {(startDate || endDate) && (
+                  <button
+                    onClick={() => { setStartDate(''); setEndDate(''); setPage(1) }}
+                    className="text-xs text-slate-400 hover:text-slate-650 px-2 cursor-pointer font-bold border-0 bg-transparent"
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
 
               {/* Status Dropdown */}
@@ -240,6 +302,29 @@ export function InvoicesListPage() {
           />
         ) : (
           <>
+            {/* Bulk actions bar */}
+            {selectedIds.size > 0 && (
+              <div className="mb-4 flex items-center gap-3 bg-[#0037b0]/5 border border-[#0037b0]/15 rounded-xl px-4 py-2.5">
+                <span className="text-xs font-bold text-[#0037b0]">{selectedIds.size} selected</span>
+                <div className="flex-1" />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs rounded-lg border-[#0037b0]/30 text-[#0037b0]"
+                  onClick={handleBulkSend}
+                  disabled={sendMutation.isPending}
+                >
+                  Mark as Sent
+                </Button>
+                <button
+                  onClick={() => setSelectedIds(new Set())}
+                  className="text-xs text-slate-400 hover:text-slate-600"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+
             {/* Desktop Table */}
             <Card className="hidden md:block border-0 bg-white shadow-[0px_12px_32px_rgba(0,55,176,0.08)] rounded-[24px] overflow-visible">
               <CardContent className="p-0">
@@ -247,6 +332,14 @@ export function InvoicesListPage() {
                   <table className="w-full min-w-[700px] border-collapse">
                     <thead>
                       <tr className="bg-white text-slate-600">
+                        <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-4 py-4 w-10">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-slate-300 accent-[#0037b0] cursor-pointer"
+                            checked={filteredInvoices.length > 0 && selectedIds.size === filteredInvoices.length}
+                            onChange={toggleAll}
+                          />
+                        </th>
                         <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-extrabold uppercase tracking-widest text-slate-400 select-none">Invoice</th>
                         <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-extrabold uppercase tracking-widest text-slate-400 select-none">Client</th>
                         <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-extrabold uppercase tracking-widest text-slate-400 select-none">Status</th>
@@ -256,13 +349,21 @@ export function InvoicesListPage() {
                     </thead>
                     <tbody className="divide-y-0">
                       {filteredInvoices.map((invoice, index) => (
-                        <tr 
-                          key={invoice.id} 
+                        <tr
+                          key={invoice.id}
                           className={cn(
                             "transition-all duration-150 hover:bg-[#eef4ff]/20",
-                            index % 2 === 0 ? "bg-transparent" : "bg-background/40"
+                            selectedIds.has(invoice.id) ? "bg-[#0037b0]/[0.03]" : index % 2 === 0 ? "bg-transparent" : "bg-background/40"
                           )}
                         >
+                          <td className="px-4 py-4">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-slate-300 accent-[#0037b0] cursor-pointer"
+                              checked={selectedIds.has(invoice.id)}
+                              onChange={() => toggleSelect(invoice.id)}
+                            />
+                          </td>
                           <td className="px-6 py-4">
                             <Link
                               to={`/invoices/${invoice.id}`}

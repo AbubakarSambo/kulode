@@ -91,7 +91,7 @@ export function AppLayout() {
           </div>
         </div>
 
-        <TrialBanner />
+        {location.pathname.startsWith('/payments') && <TrialBanner />}
 
         <div className={cn("flex-1 overflow-hidden flex flex-col", isHideMobileNav ? "pb-0" : "pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pb-0")}>
           <Outlet />

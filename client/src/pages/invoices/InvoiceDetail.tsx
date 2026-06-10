@@ -20,6 +20,8 @@ import {
   ArrowDown01Icon,
   Invoice03Icon,
   ArrowLeft02Icon,
+  Notification03Icon,
+  Copy01Icon,
 } from '@hugeicons/core-free-icons'
 
 function MailIcon({ className }: { className?: string }) {
@@ -152,6 +154,32 @@ export function InvoiceDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['invoices', id] })
       posthog.capture('invoice_cancelled', { invoice_id: id })
       toast.success('Invoice cancelled')
+    },
+  })
+
+  const reminderMutation = useMutation({
+    mutationFn: () => invoicesApi.sendReminder(id!),
+    onSuccess: () => {
+      posthog.capture('invoice_reminder_sent', { invoice_id: id })
+      toast.success('Reminder sent', { description: 'Payment reminder has been sent to the client' })
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onError: (error: any) => {
+      toast.error('Failed to send reminder', { description: error.response?.data?.message || 'Please try again' })
+    },
+  })
+
+  const duplicateMutation = useMutation({
+    mutationFn: () => invoicesApi.duplicate(id!),
+    onSuccess: (newInvoice) => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      posthog.capture('invoice_duplicated', { original_id: id, new_id: newInvoice.id })
+      toast.success('Invoice duplicated', { description: `Created ${newInvoice.invoiceNumber}` })
+      navigate(`/invoices/${newInvoice.id}`)
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onError: (error: any) => {
+      toast.error('Failed to duplicate invoice', { description: error.response?.data?.message || 'Please try again' })
     },
   })
 
@@ -627,6 +655,16 @@ export function InvoiceDetailPage() {
                 Mark as Sent
               </Button>
             )}
+            {(invoice.status === 'SENT' || invoice.status === 'OVERDUE') && (
+              <Button variant="outline" onClick={() => reminderMutation.mutate()} isLoading={reminderMutation.isPending} className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">
+                {!reminderMutation.isPending && <HugeiconsIcon icon={Notification03Icon} size={16} className="mr-2" strokeWidth={1.5} />}
+                Send Reminder
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => duplicateMutation.mutate()} isLoading={duplicateMutation.isPending} className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">
+              {!duplicateMutation.isPending && <HugeiconsIcon icon={Copy01Icon} size={16} className="mr-2" strokeWidth={1.5} />}
+              Duplicate
+            </Button>
             {canCancel && (
               <Button variant="outline" onClick={() => cancelMutation.mutate()} className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-rose-600 hover:text-rose-700 transition-colors">
                 <HugeiconsIcon icon={Cancel01Icon} size={16} className="mr-2" strokeWidth={1.5} />
@@ -651,6 +689,56 @@ export function InvoiceDetailPage() {
               <HugeiconsIcon icon={ArrowLeft02Icon} size={16} />
               Back to Invoices
             </Link>
+          </div>
+
+          {/* Mobile Quick Action Strip (only visible on mobile screens) */}
+          <div className="flex flex-wrap gap-2 sm:hidden bg-white p-4 rounded-[20px] shadow-[0px_8px_24px_rgba(0,55,176,0.02)] border border-[#eef4ff]/50 mb-6">
+            {invoice.status !== 'DRAFT' && (
+              <Button variant="outline" size="sm" onClick={shareInvoice} isLoading={isSharing} className="h-9 px-3 text-xs rounded-lg flex-1 min-w-[80px]">
+                {!isSharing && <WhatsAppIcon className="mr-1.5 h-3.5 w-3.5" />}
+                Share
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={downloadPdf} className="h-9 px-3 text-xs rounded-lg flex-1 min-w-[80px]">
+              <HugeiconsIcon icon={Download02Icon} size={14} className="mr-1.5" strokeWidth={1.5} />
+              PDF
+            </Button>
+            {canRecordPayment && (
+              <Button size="sm" onClick={openPaymentModal} className="h-9 px-3 text-xs rounded-lg bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white flex-1 min-w-[120px]">
+                <HugeiconsIcon icon={PlusSignIcon} size={14} className="mr-1.5" strokeWidth={1.5} />
+                Record Payment
+              </Button>
+            )}
+            {canGenerateLink && !hasPaymentLink && (
+              <Button size="sm" onClick={() => setIsPaymentLinkModalOpen(true)} className="h-9 px-3 text-xs rounded-lg bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white flex-1 min-w-[120px]">
+                <HugeiconsIcon icon={Link02Icon} size={14} className="mr-1.5" strokeWidth={1.5} />
+                Pay Link
+              </Button>
+            )}
+            {hasPaymentLink && (
+              <>
+                <Button variant="outline" size="sm" onClick={copyPaymentLink} className="h-9 px-3 text-xs rounded-lg flex-1 min-w-[90px]">
+                  <HugeiconsIcon icon={CopyIcon} size={14} className="mr-1.5" strokeWidth={1.5} />
+                  Copy Link
+                </Button>
+              </>
+            )}
+            {canSend && (
+              <Button variant="outline" size="sm" onClick={() => sendMutation.mutate()} className="h-9 px-3 text-xs rounded-lg flex-1 min-w-[90px]">
+                <HugeiconsIcon icon={SentIcon} size={14} className="mr-1.5" strokeWidth={1.5} />
+                Send
+              </Button>
+            )}
+            {(invoice.status === 'SENT' || invoice.status === 'OVERDUE') && (
+              <Button variant="outline" size="sm" onClick={() => reminderMutation.mutate()} isLoading={reminderMutation.isPending} className="h-9 px-3 text-xs rounded-lg flex-1 min-w-[100px]">
+                {!reminderMutation.isPending && <HugeiconsIcon icon={Notification03Icon} size={14} className="mr-1.5" strokeWidth={1.5} />}
+                Reminder
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={() => duplicateMutation.mutate()} isLoading={duplicateMutation.isPending} className="h-9 px-3 text-xs rounded-lg flex-1 min-w-[90px]">
+              {!duplicateMutation.isPending && <HugeiconsIcon icon={Copy01Icon} size={14} className="mr-1.5" strokeWidth={1.5} />}
+              Duplicate
+            </Button>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, TrendingUp, TrendingDown } from "lucide-react";
+import { ChevronDown, TrendingUp, TrendingDown, Plus, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import {
   MoneyReceive02Icon,
   Invoice04Icon,
@@ -27,6 +28,16 @@ import { taxApi } from "@/api";
 import { formatCurrency, cn } from "@/lib/utils";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useOverscrollBounce } from "@/hooks";
+
+const prevPeriodMap: Record<ReportPeriod, ReportPeriod> = {
+  THIS_MONTH: "LAST_MONTH",
+  LAST_MONTH: "LAST_MONTH",
+  THIS_QUARTER: "LAST_QUARTER",
+  LAST_QUARTER: "LAST_QUARTER",
+  THIS_YEAR: "LAST_YEAR",
+  LAST_YEAR: "LAST_YEAR",
+  CUSTOM: "CUSTOM",
+};
 
 const periodLabels: Record<ReportPeriod, string> = {
   THIS_MONTH: "this month",
@@ -71,6 +82,18 @@ export function DashboardPage() {
   const { data: incomeData } = useQuery({
     queryKey: ["reports", "income", period, startDate, endDate],
     queryFn: () => reportsApi.getIncome(filters),
+  });
+
+  const { data: cashflow } = useQuery({
+    queryKey: ["reports", "cashflow", period, startDate, endDate],
+    queryFn: () => reportsApi.getCashflow(filters),
+  });
+
+  const prevFilters = { period: prevPeriodMap[period] ?? period };
+  const { data: prevSummary } = useQuery({
+    queryKey: ["reports", "summary", prevPeriodMap[period] ?? period],
+    queryFn: () => reportsApi.getSummary(prevFilters),
+    enabled: period !== "CUSTOM",
   });
 
   const { data: deductibleSummary } = useQuery({
@@ -193,6 +216,12 @@ export function DashboardPage() {
                 />
               </>
             )}
+            <Link to="/invoices/new">
+              <button className="h-11 px-4 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white text-xs font-bold shadow-[0px_4px_12px_rgba(0,55,176,0.2)] hover:opacity-95 transition-opacity flex items-center gap-2">
+                <Plus className="h-4 w-4" strokeWidth={2} />
+                New Invoice
+              </button>
+            </Link>
           </div>
         }
       />
@@ -230,6 +259,13 @@ export function DashboardPage() {
         {/* Stats Grid */}
         <div className="mb-8 grid gap-4 grid-cols-2 lg:grid-cols-4">
           {stats.map((stat) => {
+            const prevValue = stat.title === "Income" ? (prevSummary?.income?.total ?? null)
+              : stat.title === "Expenses" ? (prevSummary?.expenses?.total ?? null)
+              : stat.title === "Profit" ? (prevSummary?.profit ?? null)
+              : null
+            const change = prevValue != null && prevValue > 0 && stat.value !== prevValue
+              ? ((stat.value - prevValue) / prevValue) * 100
+              : null
             return (
               <Card key={stat.title} className="hover:-translate-y-1 hover:shadow-[0px_20px_40px_rgba(0,55,176,0.08)]">
                 <CardContent className="p-4 sm:p-8">
@@ -241,10 +277,19 @@ export function DashboardPage() {
                       <p className="mt-1 sm:mt-2 text-lg sm:text-3xl font-semibold tracking-normal text-slate-800 tabular-nums truncate">
                         {formatCurrency(stat.value)}
                       </p>
-                      <div className="mt-1.5 sm:mt-2 flex items-center gap-1.5">
-                        <span className="text-[9px] sm:text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 sm:px-2 py-0.5 rounded-full truncate">
+                      <div className="mt-1.5 sm:mt-2 flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 sm:px-2 py-0.5 rounded-full truncate">
                           {stat.subtext}
                         </span>
+                        {change !== null && period !== "CUSTOM" && (
+                          <span className={cn(
+                            "text-[9px] font-bold flex items-center gap-0.5 px-1.5 py-0.5 rounded-full",
+                            change >= 0 ? "text-emerald-700 bg-emerald-50" : "text-rose-600 bg-rose-50"
+                          )}>
+                            {change >= 0 ? <ArrowUpRight className="h-2.5 w-2.5" /> : <ArrowDownRight className="h-2.5 w-2.5" />}
+                            {Math.abs(change).toFixed(0)}%
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className={cn("w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-sm shrink-0", stat.bgColor)}>
@@ -350,6 +395,42 @@ export function DashboardPage() {
                   </span>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Revenue Trend Chart */}
+        {cashflow?.monthly && cashflow.monthly.length > 1 && (
+          <Card className="mb-8 hover:shadow-[0px_20px_40px_rgba(0,55,176,0.08)]">
+            <CardHeader className="p-6 pb-2">
+              <CardTitle className="text-base font-bold text-slate-900 flex items-center justify-between">
+                <span>Revenue Trend</span>
+                <span className="text-xs font-semibold text-slate-400">{activeOption?.label}</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 pt-2">
+              <ResponsiveContainer width="100%" height={160}>
+                <AreaChart data={cashflow.monthly} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                  <defs>
+                    <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#0037b0" stopOpacity={0.15} />
+                      <stop offset="95%" stopColor="#0037b0" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.1} />
+                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    formatter={(v: any, name: any) => [formatCurrency(v ?? 0), name === 'income' ? 'Income' : 'Expenses']}
+                    contentStyle={{ borderRadius: 12, border: '1px solid #eef4ff', fontSize: 12 }}
+                  />
+                  <Area type="monotone" dataKey="income" stroke="#0037b0" strokeWidth={2} fill="url(#incomeGrad)" dot={false} />
+                  <Area type="monotone" dataKey="expenses" stroke="#ef4444" strokeWidth={1.5} fill="url(#expenseGrad)" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
         )}

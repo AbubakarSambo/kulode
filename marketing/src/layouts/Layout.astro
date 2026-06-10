@@ -4,9 +4,16 @@ import '../styles/global.css'
 interface Props {
   title: string
   description?: string
+  ogImage?: string
 }
 
-const { title, description = 'Simple invoicing and financial management for African businesses.' } = Astro.props
+const {
+  title,
+  description = 'Simple invoicing and financial management for African businesses.',
+  ogImage = '/og-default.png',
+} = Astro.props
+
+const canonicalUrl = new URL(Astro.url.pathname, Astro.site).href
 ---
 
 <!doctype html>
@@ -17,7 +24,21 @@ const { title, description = 'Simple invoicing and financial management for Afri
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="description" content={description} />
     <meta name="generator" content={Astro.generator} />
-    <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site).href} />
+    <link rel="canonical" href={canonicalUrl} />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={new URL(ogImage, Astro.site).href} />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={new URL(ogImage, Astro.site).href} />
+
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdn.hugeicons.com/font/hgi-stroke-rounded.css" />
     <title>{title}</title>

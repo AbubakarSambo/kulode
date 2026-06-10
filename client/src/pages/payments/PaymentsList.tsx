@@ -11,6 +11,7 @@ import {
   Search01Icon,
   CreditCardIcon,
   FilterHorizontalIcon,
+  Calendar03Icon,
 } from '@hugeicons/core-free-icons'
 import { toast } from 'sonner'
 import { Header } from '@/components/layout'
@@ -67,6 +68,8 @@ export function PaymentsListPage() {
   const [methodDropdownOpen, setMethodDropdownOpen] = useState(false)
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false)
   const [tempMethod, setTempMethod] = useState<PaymentMethod | ''>('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
 
   const openMobileFilters = () => {
     setTempMethod(paymentMethod)
@@ -83,6 +86,30 @@ export function PaymentsListPage() {
   const user = useAuthStore((s) => s.user)
   const isSuperAdmin = user?.role === 'SUPER_ADMIN'
   const queryClient = useQueryClient()
+
+  const handleExportCSV = () => {
+    const rows = data?.data ?? []
+    if (!rows.length) { toast.error('No payments to export'); return }
+    const headers = ['Invoice', 'Client', 'Method', 'Date', 'Reference', 'Amount']
+    const lines = rows.map(p => [
+      p.invoice?.invoiceNumber ?? '',
+      p.invoice?.client?.name ?? '',
+      p.paymentMethod,
+      p.paymentDate,
+      p.reference ?? '',
+      p.amount,
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    const csv = [headers.join(','), ...lines].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'payments.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+    posthog.capture('payments_exported')
+    toast.success('Payments exported')
+  }
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => paymentsApi.delete(id),
@@ -121,8 +148,8 @@ export function PaymentsListPage() {
   }
 
   const { data, isLoading } = useQuery({
-    queryKey: ['payments', { page, limit, paymentMethod }],
-    queryFn: () => paymentsApi.list({ page, limit, paymentMethod: paymentMethod || undefined }),
+    queryKey: ['payments', { page, limit, paymentMethod, startDate, endDate }],
+    queryFn: () => paymentsApi.list({ page, limit, paymentMethod: paymentMethod || undefined, startDate: startDate || undefined, endDate: endDate || undefined }),
   })
 
   const payments = data?.data ?? []
@@ -142,6 +169,19 @@ export function PaymentsListPage() {
         icon={PaymentsIcon}
         category="Finance"
         badgeText={data?.meta.total}
+        action={
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={handleExportCSV} className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">
+              <HugeiconsIcon icon={Download02Icon} className="mr-2 h-4 w-4" strokeWidth={1.5} />
+              Export CSV
+            </Button>
+            <Link to="/invoices">
+              <Button className="h-10 px-4 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white shadow-[0px_4px_12px_rgba(0,55,176,0.15)] hover:opacity-95">
+                Record Payment
+              </Button>
+            </Link>
+          </div>
+        }
       />
 
       <div ref={scrollContainerRef} className="flex-1 overflow-auto px-4 pb-4 pt-0 sm:px-6 sm:pb-6 sm:pt-0">
@@ -159,6 +199,32 @@ export function PaymentsListPage() {
                   onChange={(e) => { setSearch(e.target.value); setPage(1) }}
                   className="pl-11 rounded-xl h-10 bg-white border border-border"
                 />
+              </div>
+
+              {/* Date range filter */}
+              <div className="flex items-center gap-2">
+                <HugeiconsIcon icon={Calendar03Icon} className="h-4 w-4 text-slate-400 shrink-0" strokeWidth={1.5} />
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => { setStartDate(e.target.value); setPage(1) }}
+                  className="h-10 rounded-xl text-xs w-36 bg-white border border-border"
+                />
+                <span className="text-xs text-slate-400">–</span>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => { setEndDate(e.target.value); setPage(1) }}
+                  className="h-10 rounded-xl text-xs w-36 bg-white border border-border"
+                />
+                {(startDate || endDate) && (
+                  <button
+                    onClick={() => { setStartDate(''); setEndDate(''); setPage(1) }}
+                    className="text-xs text-slate-400 hover:text-slate-650 px-2 cursor-pointer font-bold border-0 bg-transparent"
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
 
               {/* Method Dropdown */}

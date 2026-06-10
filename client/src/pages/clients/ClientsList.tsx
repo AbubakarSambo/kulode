@@ -13,7 +13,8 @@ import {
   Delete02Icon,
   ArrowDown01Icon,
   UserGroupIcon,
-  FilterHorizontalIcon
+  FilterHorizontalIcon,
+  Download04Icon,
 } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Button, Input, Card, CardContent, ConfirmDialog, EmptyState, DropdownPanel } from '@/components/ui'
@@ -103,12 +104,37 @@ export function ClientsListPage() {
         category="Directory"
         badgeText={data?.meta.total}
         action={
-          <Link to="/clients/new">
-            <Button>
-              <HugeiconsIcon icon={PlusSignIcon} size={16} className="mr-2" strokeWidth={1.5} />
-              Add Client
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                const rows = data?.data ?? []
+                if (!rows.length) { toast.error('No clients to export'); return }
+                const headers = ['Name', 'Email', 'Phone', 'Status', 'Invoices']
+                const lines = rows.map(c => [
+                  c.name, c.email ?? '', c.phone ?? '',
+                  c.isActive ? 'Active' : 'Inactive',
+                  c._count?.invoices ?? 0,
+                ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+                const csv = [headers.join(','), ...lines].join('\n')
+                const blob = new Blob([csv], { type: 'text/csv' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url; a.download = 'clients.csv'; a.click()
+                URL.revokeObjectURL(url)
+                toast.success('Clients exported')
+              }}
+            >
+              <HugeiconsIcon icon={Download04Icon} size={16} className="mr-2" strokeWidth={1.5} />
+              Export
             </Button>
-          </Link>
+            <Link to="/clients/new">
+              <Button>
+                <HugeiconsIcon icon={PlusSignIcon} size={16} className="mr-2" strokeWidth={1.5} />
+                Add Client
+              </Button>
+            </Link>
+          </div>
         }
       />
 

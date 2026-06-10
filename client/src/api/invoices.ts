@@ -76,6 +76,15 @@ export const invoicesApi = {
     return response.data.data
   },
 
+  sendReminder: async (id: string): Promise<void> => {
+    await apiClient.post(`/invoices/${id}/send-reminder`)
+  },
+
+  duplicate: async (id: string): Promise<Invoice> => {
+    const response = await apiClient.post<ApiResponse<Invoice>>(`/invoices/${id}/duplicate`)
+    return response.data.data
+  },
+
   generatePaymentLink: async (id: string, email: string, amount: number): Promise<{ paymentUrl: string; reference: string }> => {
     const response = await apiClient.post<ApiResponse<{ paymentUrl: string; reference: string }>>(`/invoices/${id}/generate-payment-link`, { email, amount })
     return response.data.data
