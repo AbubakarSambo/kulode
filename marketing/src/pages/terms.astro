@@ -1,7 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro'
 
-const appUrl = 'http://localhost:5173'
+const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
 const contactEmail = 'legal@kulode.app'
 const effectiveDate = '16 April 2026'
 ---
