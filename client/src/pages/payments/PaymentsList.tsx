@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Download, Pencil, Trash2, ChevronDown } from 'lucide-react'
+import { Download, Pencil, Trash2, ChevronDown, Calendar, FileDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { Header } from '@/components/layout'
-import { Button, Card, CardContent } from '@/components/ui'
+import { Button, Input, Card, CardContent } from '@/components/ui'
 import { paymentsApi } from '@/api'
 import { formatCurrency, formatDate, cn } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
@@ -34,10 +34,36 @@ export function PaymentsListPage() {
   const [limit, setLimit] = useState(10)
   const [limitOpen, setLimitOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const user = useAuthStore((s) => s.user)
   const isSuperAdmin = user?.role === 'SUPER_ADMIN'
   const queryClient = useQueryClient()
+
+  const handleExportCSV = () => {
+    const rows = data?.data ?? []
+    if (!rows.length) { toast.error('No payments to export'); return }
+    const headers = ['Invoice', 'Client', 'Method', 'Date', 'Reference', 'Amount']
+    const lines = rows.map(p => [
+      p.invoice?.invoiceNumber ?? '',
+      p.invoice?.client?.name ?? '',
+      p.paymentMethod,
+      p.paymentDate,
+      p.reference ?? '',
+      p.amount,
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    const csv = [headers.join(','), ...lines].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'payments.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+    posthog.capture('payments_exported')
+    toast.success('Payments exported')
+  }
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => paymentsApi.delete(id),
@@ -77,8 +103,8 @@ export function PaymentsListPage() {
   }
 
   const { data, isLoading } = useQuery({
-    queryKey: ['payments', { page, limit, paymentMethod }],
-    queryFn: () => paymentsApi.list({ page, limit, paymentMethod: paymentMethod || undefined }),
+    queryKey: ['payments', { page, limit, paymentMethod, startDate, endDate }],
+    queryFn: () => paymentsApi.list({ page, limit, paymentMethod: paymentMethod || undefined, startDate: startDate || undefined, endDate: endDate || undefined }),
   })
 
   return (
@@ -89,11 +115,50 @@ export function PaymentsListPage() {
         icon={PaymentsIcon}
         category="Finance"
         badgeText={data?.meta.total}
+        action={
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={handleExportCSV} className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">
+              <FileDown className="mr-2 h-4 w-4" strokeWidth={1.5} />
+              Export CSV
+            </Button>
+            <Link to="/invoices">
+              <Button className="h-10 px-4 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white shadow-[0px_4px_12px_rgba(0,55,176,0.15)] hover:opacity-95">
+                Record Payment
+              </Button>
+            </Link>
+          </div>
+        }
       />
 
       <div className="flex-1 overflow-auto p-4 sm:p-6">
         {/* Filters */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between stagger-in sticky top-0 md:static z-20 bg-[#f8f9ff]/95 backdrop-blur-sm py-3 -mx-4 px-4 md:-mx-0 md:px-0 md:bg-transparent md:py-0 md:mb-6 border-b border-[#eef4ff]/30 md:border-b-0">
+        <div className="mb-6 flex flex-col gap-3 stagger-in sticky top-0 md:static z-20 bg-[#f8f9ff]/95 backdrop-blur-sm py-3 -mx-4 px-4 md:-mx-0 md:px-0 md:bg-transparent md:py-0 md:mb-6 border-b border-[#eef4ff]/30 md:border-b-0">
+          {/* Date range filter */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Calendar className="h-4 w-4 text-slate-400 shrink-0" strokeWidth={1.5} />
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => { setStartDate(e.target.value); setPage(1) }}
+              className="h-9 rounded-xl text-xs w-36 bg-white border border-[#eef4ff]"
+            />
+            <span className="text-xs text-slate-400">–</span>
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => { setEndDate(e.target.value); setPage(1) }}
+              className="h-9 rounded-xl text-xs w-36 bg-white border border-[#eef4ff]"
+            />
+            {(startDate || endDate) && (
+              <button
+                onClick={() => { setStartDate(''); setEndDate(''); setPage(1) }}
+                className="text-xs text-slate-400 hover:text-slate-600 px-2"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
           <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-2 whitespace-nowrap">Method:</span>
             {([

@@ -413,6 +413,53 @@ function ExpenseForm({ expenseId }: { expenseId?: string }) {
                 />
               </div>
 
+              {/* Receipt upload */}
+              <div className="space-y-2">
+                <Label htmlFor="receipt">Receipt / Attachment</Label>
+                <div className="flex items-center gap-3">
+                  <label
+                    htmlFor="receipt"
+                    className="flex items-center gap-2 cursor-pointer rounded-lg border border-dashed border-slate-300 bg-slate-50/50 px-4 py-3 text-sm text-slate-500 hover:border-slate-400 hover:bg-slate-100/50 transition-colors flex-1"
+                  >
+                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
+                    </svg>
+                    <span>Attach receipt (PDF, JPG, PNG)</span>
+                    <input id="receipt" type="file" className="sr-only" accept=".pdf,.jpg,.jpeg,.png" />
+                  </label>
+                </div>
+                <p className="text-xs text-muted-foreground">Receipt storage coming soon — file will be saved locally for your records.</p>
+              </div>
+
+              {/* Recurring option */}
+              {!isEditing && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50/30 p-4 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <input
+                      id="isRecurring"
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-slate-300 accent-primary cursor-pointer"
+                      {...register('isRecurring' as any)}
+                    />
+                    <label htmlFor="isRecurring" className="text-sm font-medium text-slate-700 cursor-pointer">
+                      This is a recurring expense
+                    </label>
+                  </div>
+                  {watch('isRecurring' as any) && (
+                    <div className="space-y-1 pl-7">
+                      <Label htmlFor="recurringFrequency" className="text-xs">Frequency</Label>
+                      <Select id="recurringFrequency" {...register('recurringFrequency' as any)} className="max-w-xs">
+                        <option value="WEEKLY">Weekly</option>
+                        <option value="MONTHLY">Monthly</option>
+                        <option value="QUARTERLY">Quarterly</option>
+                        <option value="YEARLY">Yearly</option>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">Automated scheduling coming soon — set a reminder to record this expense.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="flex gap-3 pt-4">
                 <Button type="submit" isLoading={isPending}>
                   {isEditing ? 'Update Expense' : 'Record Expense'}

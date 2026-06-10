@@ -11,7 +11,7 @@ import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 import { clientsApi, invoicesApi, organizationsApi, inventoryApi } from '@/api'
 import type { CreateInventoryItemData } from '@/api/inventory'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, cn } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
 import type { Client, ServiceItem, InventoryItem } from '@/types'
 
@@ -371,10 +371,6 @@ function ItemCombobox({
                   </>
                 )}
 
-                {!hasResults && (
-                  <p className="px-2 py-4 text-center text-sm text-muted-foreground">No items found</p>
-                )}
-
                 <div className="border-t mt-1 pt-1 space-y-0.5">
                   <button
                     type="button"
@@ -400,11 +396,19 @@ function ItemCombobox({
                       setOpen(false)
                       setQuery('')
                     }}
-                    className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    className="flex w-full items-start gap-2 rounded-sm px-2 py-1.5 text-left hover:bg-accent"
                   >
-                    Custom item
+                    <Plus className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm text-foreground">Custom item</p>
+                      <p className="text-xs text-muted-foreground">Type a description and price manually</p>
+                    </div>
                   </button>
                 </div>
+
+                {!hasResults && (
+                  <p className="px-2 py-2 text-center text-xs text-muted-foreground">No saved items match your search</p>
+                )}
               </div>
             </>
           ) : (
@@ -707,6 +711,43 @@ export function NewInvoicePage() {
       />
 
       <div className="flex-1 overflow-auto p-4 sm:p-6">
+        {/* Form progress indicator */}
+        {(() => {
+          const clientDone = !!watch('clientId') && !!watch('issueDate') && !!watch('dueDate')
+          const itemsDone = watchItems.some(i => i.description && (i.unitPrice ?? 0) > 0)
+          const steps = [
+            { label: 'Invoice Details', done: clientDone },
+            { label: 'Line Items', done: itemsDone },
+            { label: 'Submit', done: false },
+          ]
+          const currentStep = clientDone ? (itemsDone ? 2 : 1) : 0
+          return (
+            <div className="mx-auto max-w-4xl mb-6 flex items-center gap-2">
+              {steps.map((step, i) => (
+                <div key={i} className="flex items-center gap-2 flex-1">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className={cn(
+                      "w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0",
+                      step.done ? "bg-[#0037b0] text-white" : i === currentStep ? "border-2 border-[#0037b0] text-[#0037b0]" : "border-2 border-slate-200 text-slate-400"
+                    )}>
+                      {step.done ? '✓' : i + 1}
+                    </div>
+                    <span className={cn(
+                      "text-xs font-semibold truncate hidden sm:block",
+                      step.done ? "text-[#0037b0]" : i === currentStep ? "text-slate-800" : "text-slate-400"
+                    )}>
+                      {step.label}
+                    </span>
+                  </div>
+                  {i < steps.length - 1 && (
+                    <div className={cn("flex-1 h-px", step.done ? "bg-[#0037b0]" : "bg-slate-200")} />
+                  )}
+                </div>
+              ))}
+            </div>
+          )
+        })()}
+
         <form onSubmit={handleSubmit(onSubmit, onFormError)} className="mx-auto max-w-4xl space-y-6">
           {/* Client & Dates */}
           <Card>
@@ -755,7 +796,14 @@ export function NewInvoicePage() {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => append({ serviceItemId: undefined, inventoryItemId: undefined, description: '', quantity: 1, unitPrice: 0 })}
+                onClick={() => {
+                  const lastItem = watchItems[fields.length - 1]
+                  if (!lastItem || lastItem.description || (lastItem.unitPrice ?? 0) > 0) {
+                    append({ serviceItemId: undefined, inventoryItemId: undefined, description: '', quantity: 1, unitPrice: 0 })
+                  } else {
+                    toast('Complete the current item first', { duration: 2000 })
+                  }
+                }}
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Add Item
@@ -765,7 +813,7 @@ export function NewInvoicePage() {
               <div className="space-y-4">
                 {/* Header - hidden on mobile */}
                 <div className="hidden sm:grid sm:grid-cols-12 sm:gap-4 text-sm font-medium text-muted-foreground">
-                  <div className="col-span-5">Item / Description</div>
+                  <div className="col-span-5">Item</div>
                   <div className="col-span-2">Quantity</div>
                   <div className="col-span-2">Unit Price</div>
                   <div className="col-span-2 text-right">Amount</div>

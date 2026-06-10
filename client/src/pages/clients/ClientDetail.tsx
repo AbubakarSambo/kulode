@@ -161,6 +161,17 @@ export function ClientDetailPage() {
                 <HugeiconsIcon icon={Invoice03Icon} size={20} strokeWidth={1.5} />
                 Invoices
               </CardTitle>
+              {client.invoices && client.invoices.length > 0 && (() => {
+                const outstanding = client.invoices!
+                  .filter(inv => inv.status !== 'PAID' && inv.status !== 'CANCELLED')
+                  .reduce((sum, inv) => sum + Number(inv.total), 0)
+                return outstanding > 0 ? (
+                  <div className="text-right">
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Outstanding</p>
+                    <p className="text-sm font-extrabold text-rose-600">{formatCurrency(outstanding)}</p>
+                  </div>
+                ) : null
+              })()}
             </CardHeader>
             <CardContent>
               {client.invoices && client.invoices.length > 0 ? (
