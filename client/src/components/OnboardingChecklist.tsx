@@ -23,15 +23,7 @@ const steps = [
     icon: Building2,
     color: "text-amber-600",
     bgColor: "bg-amber-50/70 border-amber-100/50",
-  },
-  {
-    key: "onlinePayments" as const,
-    label: "Link Paystack Account",
-    description: "Crucial step to receive payments online",
-    href: "/settings/paystack",
-    icon: CreditCard,
-    color: "text-[#0037b0]",
-    bgColor: "bg-[#0037b0]/5 border-[#0037b0]/10",
+    optional: false,
   },
   {
     key: "firstClient" as const,
@@ -41,6 +33,7 @@ const steps = [
     icon: Users,
     color: "text-blue-600",
     bgColor: "bg-blue-50/70 border-blue-100/50",
+    optional: false,
   },
   {
     key: "inventoryItems" as const,
@@ -50,15 +43,27 @@ const steps = [
     icon: Package,
     color: "text-teal-600",
     bgColor: "bg-teal-50/70 border-teal-100/50",
+    optional: false,
   },
   {
     key: "firstInvoice" as const,
     label: "Create First Invoice",
-    description: "Draft & send your first payment link",
+    description: "Draft & send your first invoice",
     href: "/invoices/new",
     icon: FileText,
     color: "text-violet-600",
     bgColor: "bg-violet-50/70 border-violet-100/50",
+    optional: false,
+  },
+  {
+    key: "onlinePayments" as const,
+    label: "Enable Online Payments",
+    description: "Let clients pay you instantly via card or bank transfer",
+    href: "/settings/paystack",
+    icon: CreditCard,
+    color: "text-[#0037b0]",
+    bgColor: "bg-[#0037b0]/5 border-[#0037b0]/10",
+    optional: true,
   },
   {
     key: "expenseCategories" as const,
@@ -68,6 +73,7 @@ const steps = [
     icon: Tags,
     color: "text-slate-600",
     bgColor: "bg-slate-50 border-slate-100/55",
+    optional: false,
   },
 ];
 
@@ -106,10 +112,10 @@ export function OnboardingChecklist() {
           </div>
           <div>
             <h2 className="text-base font-extrabold text-slate-900 tracking-tight">
-              Get Paid Automatically
+              Set Up Your Business
             </h2>
             <p className="text-xs font-medium text-slate-400 mt-0.5">
-              Complete these steps to send your first invoice and start accepting Paystack settlements.
+              A few quick steps to get invoicing and tracking payments.
             </p>
           </div>
         </div>
@@ -149,7 +155,7 @@ export function OnboardingChecklist() {
               key={step.key}
               to={step.href}
               className={cn(
-                "group flex items-start gap-3.5 p-4 rounded-[20px] bg-white border border-slate-200/50 shadow-[0_4px_12px_rgba(0,55,176,0.01)] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,55,176,0.04)] hover:border-[#0037b0]/15 hover:bg-white transition-all duration-300",
+                "group flex items-start gap-3.5 p-4 rounded-[20px] bg-white border border-slate-200/50 shadow-[0_4px_12px_rgba(0,55,176,0.01)] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,55,176,0.04)] hover:border-[#0037b0]/15 hover:bg-white transition-all duration-300 relative",
                 completed && "opacity-60 hover:opacity-80"
               )}
             >
@@ -166,12 +172,19 @@ export function OnboardingChecklist() {
 
               {/* Middle Description */}
               <div className="flex-1 min-w-0">
-                <p className={cn(
-                  "text-xs font-bold text-slate-800 tracking-tight",
-                  completed && "line-through text-slate-400"
-                )}>
-                  {step.label}
-                </p>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <p className={cn(
+                    "text-xs font-bold text-slate-800 tracking-tight",
+                    completed && "line-through text-slate-400"
+                  )}>
+                    {step.label}
+                  </p>
+                  {step.optional && !completed && (
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100 shrink-0">
+                      Recommended
+                    </span>
+                  )}
+                </div>
                 <p className="text-[10px] font-semibold text-slate-400 mt-1 leading-normal group-hover:text-slate-500 transition-colors">
                   {step.description}
                 </p>
