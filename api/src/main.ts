@@ -37,7 +37,7 @@ async function bootstrap() {
 
   // Swagger documentation
   const config = new DocumentBuilder()
-    .setTitle('Kulode API')
+    .setTitle('Tari1 API')
     .setDescription('Multi-tenant invoicing and financial management API')
     .setVersion('1.0')
     .addBearerAuth()

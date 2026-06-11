@@ -2,19 +2,19 @@
 import Layout from '../layouts/Layout.astro'
 
 const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
-const contactEmail = 'privacy@kulode.app'
+const contactEmail = 'privacy@tari1.app'
 const effectiveDate = '16 April 2026'
 ---
 
 <Layout
-  title="Privacy Policy — Kulode"
-  description="How Kulode collects, uses, and protects your personal and business data."
+  title="Privacy Policy — Tari1"
+  description="How Tari1 collects, uses, and protects your personal and business data."
 >
   <!-- Nav -->
   <nav class="w-full sticky top-0 z-50 bg-background/80 backdrop-blur-xl shadow-[0_12px_32px_rgba(0,55,176,0.08)]">
     <div class="flex justify-between items-center px-container-padding max-w-7xl mx-auto h-[72px]">
       <div class="flex items-center gap-12">
-        <a href="/" class="text-[24px] font-extrabold tracking-tighter text-primary">Kulode</a>
+        <a href="/" class="flex items-center"><img src="/logo.svg" alt="Tari1 Logo" class="h-10 w-auto" /></a>
         <div class="hidden md:flex items-center gap-8">
           <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/#features">Features</a>
           <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/how-it-works">How It Works</a>
@@ -42,7 +42,7 @@ const effectiveDate = '16 April 2026'
         <section class="bg-card p-8 rounded-[24px] shadow-sm border border-outline-variant">
           <h2 class="text-lg font-bold text-text-primary mb-3">1. Who we are</h2>
           <p>
-            Kulode ("we", "us", "our") is an invoicing and financial management platform for small businesses and freelancers.
+            Tari1 ("we", "us", "our") is an invoicing and financial management platform for small businesses and freelancers.
             We are subject to the <strong>Nigeria Data Protection Act 2023 (NDPA)</strong> and take our obligations under it seriously.
             Our data controller contact is <a href={`mailto:${contactEmail}`} class="text-primary hover:underline font-semibold">{contactEmail}</a>.
           </p>
@@ -53,7 +53,7 @@ const effectiveDate = '16 April 2026'
           <p class="mb-3">We collect the following categories of personal and business data:</p>
           <ul class="list-disc pl-6 space-y-2">
             <li><strong>Account data:</strong> your name, email address, organisation name, and password (stored securely).</li>
-            <li><strong>Business data:</strong> invoices, clients, expenses, vendors, and any other content you create inside Kulode.</li>
+            <li><strong>Business data:</strong> invoices, clients, expenses, vendors, and any other content you create inside Tari1.</li>
             <li><strong>Payment data:</strong> subscription billing is processed by <strong>Paystack</strong>. We store only a tokenised authorisation reference.</li>
             <li><strong>Usage data:</strong> pages visited, features used, errors encountered, and session metadata, collected via <strong>PostHog</strong> to help us improve the product.</li>
             <li><strong>Technical data:</strong> IP address, browser type, device type, and timestamps associated with your requests.</li>
@@ -66,7 +66,7 @@ const effectiveDate = '16 April 2026'
           <h2 class="text-lg font-bold text-text-primary mb-3">3. How we use your data</h2>
           <p class="mb-3">We use your data only for the following purposes:</p>
           <ul class="list-disc pl-6 space-y-2">
-            <li>Providing, maintaining, and improving the Kulode service.</li>
+            <li>Providing, maintaining, and improving the Tari1 service.</li>
             <li>Processing your subscription payments and managing your account.</li>
             <li>Sending transactional emails (invoice notifications, payment receipts, account alerts).</li>
             <li>Generating tax filing reports and financial summaries you request.</li>
@@ -158,15 +158,15 @@ const effectiveDate = '16 April 2026'
   <footer class="w-full py-12 bg-surface border-t border-outline-variant">
     <div class="flex flex-col md:flex-row justify-between items-center gap-element-gap px-container-padding max-w-7xl mx-auto">
       <div class="flex flex-col gap-4 items-center md:items-start">
-        <span class="text-2xl font-bold tracking-tight text-primary">Kulode</span>
+        <span class="text-2xl font-bold tracking-tight text-primary">Tari1</span>
         <p class="text-sm text-text-secondary text-center md:text-left max-w-xs">
-          © {new Date().getFullYear()} Kulode. All rights reserved. Built for the modern freelancer.
+          © {new Date().getFullYear()} Tari1. All rights reserved. Built for the modern freelancer.
         </p>
       </div>
       <div class="flex flex-wrap justify-center gap-8">
         <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/privacy">Privacy Policy</a>
         <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/terms">Terms of Service</a>
-        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="mailto:abubakar.sambo@kulode.app">Contact Support</a>
+        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="mailto:abubakar.sambo@tari1.app">Contact Support</a>
       </div>
     </div>
   </footer>

@@ -49,4 +49,10 @@ export class UpdateUserDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({ example: 'Founder', description: 'User role in business' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  businessRole?: string;
 }

@@ -105,6 +105,8 @@ model Organization {
   showQrCode             Boolean  @default(false) @map("show_qr_code")
   paymentTerms           String?  @map("payment_terms")
   defaultNotes           String?  @map("default_notes")
+  businessType           String?  @map("business_type")
+  organizationSize       String?  @map("organization_size")
   onboardingDismissedAt  DateTime? @map("onboarding_dismissed_at")
   clientReminderSentAt   DateTime? @map("client_reminder_sent_at")
 
@@ -153,6 +155,7 @@ model User {
   firstName       String   @map("first_name")
   lastName        String   @map("last_name")
   role            UserRole @default(STAFF)
+  businessRole    String?  @map("business_role")
   isActive        Boolean  @default(true) @map("is_active")
   isEmailVerified Boolean  @default(false) @map("is_email_verified")
   isPlatformAdmin Boolean  @default(false) @map("is_platform_admin")

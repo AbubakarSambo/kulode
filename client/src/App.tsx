@@ -75,7 +75,7 @@ function HomeRedirect() {
     return null
   }
 
-  const landingUrl = 'https://www.kulode.app'
+  const landingUrl = 'https://www.tari1.app'
   window.location.replace(landingUrl)
   return null
 }

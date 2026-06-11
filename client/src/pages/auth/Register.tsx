@@ -24,7 +24,7 @@ const GOOGLE_AUTH_URL = import.meta.env.VITE_API_URL
 
 const LANDING_URL = import.meta.env.DEV
   ? `http://${window.location.hostname}:4321`
-  : 'https://www.kulode.app'
+  : 'https://www.tari1.app'
 
 const registerSchema = z.object({
   organizationName: z.string().min(2, 'Organization name is required'),
@@ -54,10 +54,7 @@ function LeftPanel() {
       
       {/* Logo */}
       <div className="relative z-10 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center font-black text-white text-lg">
-          K
-        </div>
-        <span className="text-2xl font-extrabold tracking-tighter">Kulode</span>
+        <img src="/logo-white.png" alt="Tari1 Logo" className="h-11 w-auto" />
       </div>
       
       {/* Center Content & Animated Mockups */}
@@ -99,8 +96,8 @@ function LeftPanel() {
                 <MessageCircle size={12} className="text-white fill-white" />
               </div>
               <div>
-                <p className="text-[8px] text-[#128c7e] font-bold">Kulode Notification</p>
-                <p className="text-[9px] text-slate-800 leading-snug mt-0.5">Pay instantly at <span className="text-blue-600 underline">pay.kulode.app/inv-001</span></p>
+                <p className="text-[8px] text-[#128c7e] font-bold">Tari1 Notification</p>
+                <p className="text-[9px] text-slate-800 leading-snug mt-0.5">Pay instantly at <span className="text-blue-600 underline">pay.tari1.app/inv-001</span></p>
               </div>
             </div>
 
@@ -127,7 +124,7 @@ function LeftPanel() {
 
       {/* Footer */}
       <div className="relative z-10 flex justify-between items-center text-xs text-blue-200/50">
-        <p>© {new Date().getFullYear()} Kulode. All rights reserved.</p>
+        <p>© {new Date().getFullYear()} Tari1. All rights reserved.</p>
         <a href="/privacy" className="hover:text-white transition-colors">Privacy & Terms</a>
       </div>
     </div>
@@ -289,7 +286,7 @@ export function RegisterPage() {
         <Card className="w-full max-w-md border border-slate-200/60 shadow-[0_20px_50px_rgba(0,55,176,0.06)] bg-white rounded-[32px] p-2">
           <CardHeader className="text-center pb-4 pt-6">
             <div className="mb-4 lg:hidden flex justify-center">
-              <span className="text-3xl font-extrabold tracking-tighter text-[#00247d]">Kulode</span>
+              <img src="/logo.svg" alt="Tari1 Logo" className="h-10 w-auto" />
             </div>
             <CardTitle className="text-2xl font-black text-slate-900 tracking-tight">Create your free account</CardTitle>
             <CardDescription className="text-xs text-slate-500 mt-1">Start professionalizing your freelance business today.</CardDescription>

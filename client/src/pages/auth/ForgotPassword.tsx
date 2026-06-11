@@ -30,8 +30,8 @@ export function ForgotPasswordPage() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mb-4">
-            <span className="text-3xl font-bold text-primary">Kulode</span>
+          <div className="mb-4 flex justify-center">
+            <img src="/logo.svg" alt="Tari1" className="h-10 w-auto" />
           </div>
           <CardTitle>Forgot your password?</CardTitle>
           <CardDescription>

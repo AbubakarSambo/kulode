@@ -77,7 +77,7 @@ const steps = [
   },
 ];
 
-export function OnboardingChecklist() {
+export function OnboardingChecklist({ onStartInvoiceWizard }: { onStartInvoiceWizard?: () => void }) {
   const queryClient = useQueryClient();
 
   const { data: status, isLoading } = useQuery({
@@ -149,16 +149,10 @@ export function OnboardingChecklist() {
         {steps.map((step) => {
           const completed = status.steps[step.key];
           const Icon = step.icon;
+          const isWizardStep = step.key === "firstInvoice" && onStartInvoiceWizard && !completed;
 
-          return (
-            <Link
-              key={step.key}
-              to={step.href}
-              className={cn(
-                "group flex items-start gap-3.5 p-4 rounded-[20px] bg-white border border-slate-200/50 shadow-[0_4px_12px_rgba(0,55,176,0.01)] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,55,176,0.04)] hover:border-[#0037b0]/15 hover:bg-white transition-all duration-300 relative",
-                completed && "opacity-60 hover:opacity-80"
-              )}
-            >
+          const content = (
+            <>
               {/* Left Circle Checklist Indicator */}
               <div className="shrink-0 mt-0.5 relative">
                 {completed ? (
@@ -171,7 +165,7 @@ export function OnboardingChecklist() {
               </div>
 
               {/* Middle Description */}
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 text-left">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <p className={cn(
                     "text-xs font-bold text-slate-800 tracking-tight",
@@ -182,6 +176,11 @@ export function OnboardingChecklist() {
                   {step.optional && !completed && (
                     <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100 shrink-0">
                       Recommended
+                    </span>
+                  )}
+                  {isWizardStep && (
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[#0037b0]/5 text-[#0037b0] border border-[#0037b0]/10 shrink-0 animate-pulse">
+                      60s Setup
                     </span>
                   )}
                 </div>
@@ -197,6 +196,35 @@ export function OnboardingChecklist() {
               )}>
                 <Icon className={cn("w-4.5 h-4.5", step.color)} strokeWidth={1.5} />
               </div>
+            </>
+          );
+
+          if (isWizardStep) {
+            return (
+              <button
+                key={step.key}
+                onClick={onStartInvoiceWizard}
+                type="button"
+                className={cn(
+                  "group flex items-start gap-3.5 p-4 rounded-[20px] bg-white border border-slate-200/50 shadow-[0_4px_12px_rgba(0,55,176,0.01)] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,55,176,0.04)] hover:border-[#0037b0]/15 hover:bg-white transition-all duration-300 relative w-full cursor-pointer",
+                  completed && "opacity-60 hover:opacity-80"
+                )}
+              >
+                {content}
+              </button>
+            );
+          }
+
+          return (
+            <Link
+              key={step.key}
+              to={step.href}
+              className={cn(
+                "group flex items-start gap-3.5 p-4 rounded-[20px] bg-white border border-slate-200/50 shadow-[0_4px_12px_rgba(0,55,176,0.01)] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,55,176,0.04)] hover:border-[#0037b0]/15 hover:bg-white transition-all duration-300 relative",
+                completed && "opacity-60 hover:opacity-80"
+              )}
+            >
+              {content}
             </Link>
           );
         })}

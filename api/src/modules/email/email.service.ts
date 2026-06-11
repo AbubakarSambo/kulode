@@ -18,7 +18,7 @@ export class EmailService {
       apiKey = 're_mock_key';
     }
     this.resend = new Resend(apiKey);
-    this.fromEmail = this.configService.get<string>('resend.fromEmail') || 'Kulode <noreply@kulode.app>';
+    this.fromEmail = this.configService.get<string>('resend.fromEmail') || 'Tari1 <noreply@tari1.app>';
     this.frontendUrl = this.configService.get<string>('resend.frontendUrl') || 'http://localhost:5173';
   }
 
@@ -54,10 +54,10 @@ export class EmailService {
 
     await this.sendEmail({
       to: email,
-      subject: 'Verify your email - Kulode',
+      subject: 'Verify your email - Tari1',
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>Welcome to Kulode, ${firstName}!</h2>
+          <h2>Welcome to Tari1, ${firstName}!</h2>
           <p>Thanks for signing up. Please verify your email address by clicking the button below:</p>
           <div style="margin: 32px 0;">
             <a href="${verifyUrl}" style="background-color: #0f172a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
@@ -76,11 +76,11 @@ export class EmailService {
 
     await this.sendEmail({
       to: email,
-      subject: `You've been invited to ${orgName} - Kulode`,
+      subject: `You've been invited to ${orgName} - Tari1`,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
           <h2>Hi ${firstName},</h2>
-          <p>You've been invited to join <strong>${orgName}</strong> on Kulode.</p>
+          <p>You've been invited to join <strong>${orgName}</strong> on Tari1.</p>
           <p>Click the button below to set your password and activate your account:</p>
           <div style="margin: 32px 0;">
             <a href="${setupUrl}" style="background-color: #0f172a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
@@ -99,10 +99,10 @@ export class EmailService {
 
     await this.sendEmail({
       to: email,
-      subject: 'Activate your Kulode account',
+      subject: 'Activate your Tari1 account',
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>Welcome to Kulode, ${firstName}!</h2>
+          <h2>Welcome to Tari1, ${firstName}!</h2>
           <p>Click the button below to activate your account — no password needed yet.</p>
           <div style="margin: 32px 0;">
             <a href="${verifyUrl}" style="background-color: #0f172a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
@@ -121,7 +121,7 @@ export class EmailService {
 
     await this.sendEmail({
       to: email,
-      subject: 'Add a password to your Kulode account',
+      subject: 'Add a password to your Tari1 account',
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
           <h2>Hi ${firstName},</h2>
@@ -148,7 +148,7 @@ export class EmailService {
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
           <h2>Hi ${firstName},</h2>
-          <p>You've set up your Kulode account — great start! The only thing left before you can send your first invoice is adding a client.</p>
+          <p>You've set up your Tari1 account — great start! The only thing left before you can send your first invoice is adding a client.</p>
           <p>It takes less than a minute:</p>
           <div style="margin: 32px 0;">
             <a href="${clientsUrl}" style="background-color: #0f172a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
@@ -166,11 +166,11 @@ export class EmailService {
 
     await this.sendEmail({
       to: email,
-      subject: 'Your Kulode subscription could not be renewed',
+      subject: 'Your Tari1 subscription could not be renewed',
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
           <h2>Hi ${firstName},</h2>
-          <p>We were unable to automatically renew your <strong>Kulode ${planTier}</strong> subscription. This may be due to an expired card, insufficient funds, or a change in your payment details.</p>
+          <p>We were unable to automatically renew your <strong>Tari1 ${planTier}</strong> subscription. This may be due to an expired card, insufficient funds, or a change in your payment details.</p>
           <p>To avoid losing access to your account features, please update your payment method and renew your subscription:</p>
           <div style="margin: 32px 0;">
             <a href="${loginUrl}" style="background-color: #0f172a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
@@ -188,7 +188,7 @@ export class EmailService {
 
     await this.sendEmail({
       to: email,
-      subject: 'Reset your password - Kulode',
+      subject: 'Reset your password - Tari1',
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
           <h2>Hi ${firstName},</h2>

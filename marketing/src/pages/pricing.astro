@@ -4,12 +4,12 @@ import Layout from '../layouts/Layout.astro'
 const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
 ---
 
-<Layout title="Pricing Plans — Kulode">
+<Layout title="Pricing Plans — Tari1">
   <!-- Nav -->
   <nav class="w-full sticky top-0 z-50 bg-background/80 backdrop-blur-xl shadow-[0_12px_32px_rgba(0,55,176,0.08)]">
     <div class="flex justify-between items-center px-container-padding max-w-7xl mx-auto h-[72px]">
       <div class="flex items-center gap-12">
-        <a href="/" class="text-[24px] font-extrabold tracking-tighter text-primary">Kulode</a>
+        <a href="/" class="flex items-center"><img src="/logo.svg" alt="Tari1 Logo" class="h-10 w-auto" /></a>
         <div class="hidden md:flex items-center gap-8">
           <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/#features">Features</a>
           <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/how-it-works">How It Works</a>
@@ -272,7 +272,7 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
             <i class="hgi-stroke hgi-plus-sign text-primary toggle-icon"></i>
           </div>
           <p class="text-sm text-text-secondary mt-4 hidden">
-            Yes. All online card, bank transfer, and USSD payments are initialized and processed directly on Paystack's PCI-DSS compliant gateways. Kulode never stores your clients' card numbers or credentials.
+            Yes. All online card, bank transfer, and USSD payments are initialized and processed directly on Paystack's PCI-DSS compliant gateways. Tari1 never stores your clients' card numbers or credentials.
           </p>
         </div>
       </div>
@@ -283,15 +283,15 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
   <footer class="w-full py-12 bg-surface border-t border-outline-variant">
     <div class="flex flex-col md:flex-row justify-between items-center gap-element-gap px-container-padding max-w-7xl mx-auto">
       <div class="flex flex-col gap-4 items-center md:items-start">
-        <span class="text-2xl font-bold tracking-tight text-primary">Kulode</span>
+        <span class="text-2xl font-bold tracking-tight text-primary">Tari1</span>
         <p class="text-sm text-text-secondary text-center md:text-left max-w-xs">
-          © {new Date().getFullYear()} Kulode. All rights reserved. Built for the modern freelancer.
+          © {new Date().getFullYear()} Tari1. All rights reserved. Built for the modern freelancer.
         </p>
       </div>
       <div class="flex flex-wrap justify-center gap-8">
         <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/privacy">Privacy Policy</a>
         <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/terms">Terms of Service</a>
-        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="mailto:abubakar.sambo@kulode.app">Contact Support</a>
+        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="mailto:abubakar.sambo@tari1.app">Contact Support</a>
       </div>
     </div>
   </footer>

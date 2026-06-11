@@ -58,7 +58,7 @@ interface InvoiceData {
 @Injectable()
 export class InvoicePdfService {
   async generatePdf(invoice: InvoiceData): Promise<Buffer> {
-    // Paying PRO/BUSINESS orgs don't show "Powered by Kulode"; FREE and trialing orgs do
+    // Paying PRO/BUSINESS orgs don't show "Powered by Tari1"; FREE and trialing orgs do
     const isPayingPro = (invoice.organization.planTier === 'PRO' || invoice.organization.planTier === 'BUSINESS')
       && invoice.organization.subscriptionStatus !== 'TRIALING';
     const isPro = isPayingPro;
@@ -539,7 +539,7 @@ export class InvoicePdfService {
           .fillColor('#94a3b8')
           .fontSize(8)
           .font('Helvetica')
-          .text('Powered by Kulode', 50, footerY + 24, {
+          .text('Powered by Tari1', 50, footerY + 24, {
             width: 495,
             align: 'center',
           });

@@ -4,7 +4,7 @@ import sitemap from '@astrojs/sitemap';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-  site: 'https://www.kulode.app',
+  site: 'https://www.tari1.app',
   integrations: [sitemap()],
   vite: {
     plugins: [tailwindcss()]

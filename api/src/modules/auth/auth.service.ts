@@ -3,6 +3,7 @@ import {
   ConflictException,
   UnauthorizedException,
   BadRequestException,
+  NotFoundException,
   Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -276,6 +277,7 @@ export class AuthService {
           firstName: user.firstName,
           lastName: user.lastName,
           role: user.role,
+          businessRole: user.businessRole,
           organizationId: user.organizationId,
           organizationName: user.organization.name,
           isPlatformAdmin: user.isPlatformAdmin,
@@ -284,6 +286,16 @@ export class AuthService {
             subscriptionStatus: user.organization.subscriptionStatus,
             trialEndDate: user.organization.trialEndDate,
             isGrandfathered: user.organization.isGrandfathered,
+          },
+          organization: {
+            id: user.organization.id,
+            name: user.organization.name,
+            slug: user.organization.slug,
+            isPaystackVerified: user.organization.isPaystackVerified,
+            businessType: user.organization.businessType,
+            organizationSize: user.organization.organizationSize,
+            vatEnabled: user.organization.vatEnabled,
+            taxRate: Number(user.organization.taxRate),
           },
         },
       };
@@ -355,6 +367,7 @@ export class AuthService {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
+        businessRole: user.businessRole,
         organizationId: user.organizationId,
         organizationName: user.organization.name,
         isPlatformAdmin: user.isPlatformAdmin,
@@ -363,6 +376,16 @@ export class AuthService {
           subscriptionStatus: user.organization.subscriptionStatus,
           trialEndDate: user.organization.trialEndDate,
           isGrandfathered: user.organization.isGrandfathered,
+        },
+        organization: {
+          id: user.organization.id,
+          name: user.organization.name,
+          slug: user.organization.slug,
+          isPaystackVerified: user.organization.isPaystackVerified,
+          businessType: user.organization.businessType,
+          organizationSize: user.organization.organizationSize,
+          vatEnabled: user.organization.vatEnabled,
+          taxRate: Number(user.organization.taxRate),
         },
       },
     };
@@ -416,6 +439,7 @@ export class AuthService {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
+        businessRole: user.businessRole,
         organizationId: user.organizationId,
         organizationName: user.organization.name,
         isPlatformAdmin: user.isPlatformAdmin,
@@ -424,6 +448,16 @@ export class AuthService {
           subscriptionStatus: user.organization.subscriptionStatus,
           trialEndDate: user.organization.trialEndDate,
           isGrandfathered: user.organization.isGrandfathered,
+        },
+        organization: {
+          id: user.organization.id,
+          name: user.organization.name,
+          slug: user.organization.slug,
+          isPaystackVerified: user.organization.isPaystackVerified,
+          businessType: user.organization.businessType,
+          organizationSize: user.organization.organizationSize,
+          vatEnabled: user.organization.vatEnabled,
+          taxRate: Number(user.organization.taxRate),
         },
       },
     };
@@ -695,6 +729,26 @@ export class AuthService {
     };
   }
 
+  async getLatestToken(email: string): Promise<{ token?: string }> {
+    if (process.env.NODE_ENV !== 'development') {
+      throw new NotFoundException();
+    }
+    const tokenRecord = await this.prisma.emailVerificationToken.findFirst({
+      where: {
+        user: {
+          email: email.toLowerCase(),
+        },
+        type: TokenType.EMAIL_VERIFICATION,
+        usedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+    return { token: tokenRecord?.token };
+  }
+
   async getProfile(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -711,6 +765,7 @@ export class AuthService {
       firstName: user.firstName,
       lastName: user.lastName,
       role: user.role,
+      businessRole: user.businessRole,
       organizationId: user.organizationId,
       organizationName: user.organization.name,
       isPlatformAdmin: user.isPlatformAdmin,
@@ -725,6 +780,10 @@ export class AuthService {
         name: user.organization.name,
         slug: user.organization.slug,
         isPaystackVerified: user.organization.isPaystackVerified,
+        businessType: user.organization.businessType,
+        organizationSize: user.organization.organizationSize,
+        vatEnabled: user.organization.vatEnabled,
+        taxRate: Number(user.organization.taxRate),
       },
     };
   }
@@ -755,5 +814,26 @@ export class AuthService {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
+  }
+
+  async verifyPassword(userId: string, password?: string): Promise<{ valid: boolean; isSSO: boolean }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    if (!user.passwordHash) {
+      return { valid: false, isSSO: true };
+    }
+
+    if (!password) {
+      return { valid: false, isSSO: false };
+    }
+
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    return { valid, isSSO: false };
   }
 }
