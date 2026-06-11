@@ -730,7 +730,8 @@ export class AuthService {
   }
 
   async getLatestToken(email: string): Promise<{ token?: string }> {
-    if (process.env.NODE_ENV !== 'development') {
+    const nodeEnv = this.configService.get<string>('app.nodeEnv') || process.env.NODE_ENV;
+    if (nodeEnv !== 'development') {
       throw new NotFoundException();
     }
     const tokenRecord = await this.prisma.emailVerificationToken.findFirst({

@@ -17,8 +17,9 @@ export function CheckEmailPage() {
       const fetchToken = async () => {
         try {
           const response = await apiClient.get(`/auth/dev/latest-token?email=${encodeURIComponent(email)}`)
-          if (response.data?.token) {
-            setDevToken(response.data.token)
+          const token = response.data?.data?.token || response.data?.token
+          if (token) {
+            setDevToken(token)
           }
         } catch (err) {
           console.error('Failed to fetch dev token:', err)
