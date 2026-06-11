@@ -16,9 +16,11 @@ import {
   LifeBuoy,
   LogOut,
   X,
-  Lock
+  Lock,
+  LucideIcon
 } from 'lucide-react'
 import { Sidebar } from './Sidebar'
+import { WelcomeStepper } from '@/components/WelcomeStepper'
 import { TrialBanner } from '../shared/TrialBanner'
 import { useAuthStore } from '@/stores/auth'
 import { useLogout } from '@/hooks'
@@ -67,7 +69,7 @@ export function AppLayout() {
     { name: 'Reports', href: '/reports', icon: BarChart3, requiresPlan: 'PRO' as PlanTier, visible: canViewReports },
     { name: 'Tax', href: '/tax', icon: BookOpen, requiresPlan: 'PRO' as PlanTier, visible: user?.role !== 'STAFF' },
     { name: 'Settings', href: '/settings', icon: Settings, visible: isAdmin },
-  ].filter((item) => item.visible !== false) as Array<{ name: string; href: string; icon: any; requiresPlan?: PlanTier; visible?: boolean }>
+  ].filter((item) => item.visible !== false) as Array<{ name: string; href: string; icon: LucideIcon; requiresPlan?: PlanTier; visible?: boolean }>
 
   const isHideMobileNav = location.pathname.includes('/new') || 
     (location.pathname.startsWith('/invoices/') && location.pathname !== '/invoices') ||
@@ -77,16 +79,15 @@ export function AppLayout() {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <WelcomeStepper />
 
       <main className="flex flex-1 flex-col overflow-hidden relative">
         {/* Mobile header with brand mark (with top notch safe-area support) */}
         <div className="flex h-[calc(3.5rem+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] items-center justify-between bg-background/80 backdrop-blur-md px-6 lg:hidden border-b border-[#eef4ff]/50 z-30">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] flex items-center justify-center font-bold text-white text-xs shadow-md shadow-[#0037b0]/25">
-              K
-            </div>
+            <img src="/favicon.svg" alt="Tari1 Logo" className="w-7 h-7 object-contain" />
             <span className="text-base font-bold tracking-tight text-slate-900">
-              {getPageTitle() ? getPageTitle() : 'Kulode'}
+              {getPageTitle() ? getPageTitle() : 'Tari1'}
             </span>
           </div>
         </div>
@@ -204,7 +205,7 @@ export function AppLayout() {
                 </div>
 
                 <a
-                  href="mailto:abubakar.sambo@kulode.app"
+                  href="mailto:abubakar.sambo@tari1.app"
                   onClick={() => setMoreOpen(false)}
                   className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 transition-colors"
                 >

@@ -15,6 +15,7 @@ import {
 import { Link } from "react-router-dom";
 import { Header } from "@/components/layout";
 import { OnboardingChecklist } from "@/components/OnboardingChecklist";
+import { useOnboardingStore } from "@/stores/onboarding";
 import {
   Card,
   CardContent,
@@ -51,6 +52,7 @@ const periodLabels: Record<ReportPeriod, string> = {
 
 export function DashboardPage() {
   const scrollContainerRef = useOverscrollBounce<HTMLDivElement>();
+  const openOnboarding = useOnboardingStore((state) => state.openOnboarding);
   const [period, setPeriod] = useState<ReportPeriod>("THIS_MONTH");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -254,7 +256,7 @@ export function DashboardPage() {
             </div>
           )}
         </div>
-        <OnboardingChecklist />
+        <OnboardingChecklist onStartInvoiceWizard={() => openOnboarding(3)} />
 
         {/* Stats Grid */}
         <div className="mb-8 grid gap-4 grid-cols-2 lg:grid-cols-4">

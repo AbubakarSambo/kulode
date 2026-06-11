@@ -12,11 +12,26 @@ vi.mock('@/hooks/useSubscription', () => ({
 }))
 
 vi.mock('@/stores/auth', () => ({
-  useAuthStore: (selector: any) => selector({ user: mockUseAuthStore() }),
+  useAuthStore: <T,>(selector: (state: { user: Record<string, unknown> }) => T) => selector({ user: mockUseAuthStore() }),
 }))
 
 vi.mock('@/hooks', () => ({
   useLogout: () => mockLogout,
+}))
+
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: () => ({
+    data: {
+      percent: 40,
+      steps: [
+        { id: 'profile', label: 'Personalize Profile', completed: true },
+        { id: 'bank', label: 'Link Settlement Bank', completed: false },
+        { id: 'client', label: 'Register First Client', completed: false },
+        { id: 'item', label: 'Add Billing Details', completed: false },
+        { id: 'invoice', label: 'Preview & Send', completed: false },
+      ],
+    },
+  }),
 }))
 
 const adminUser = {

@@ -107,6 +107,14 @@ export class AuthController {
   }
 
   @Public()
+  @Get('dev/latest-token')
+  @ApiOperation({ summary: 'Get the latest verification token for an email (Dev-only)' })
+  @ApiResponse({ status: 200, description: 'The verification token' })
+  async getLatestToken(@Query('email') email: string) {
+    return this.authService.getLatestToken(email);
+  }
+
+  @Public()
   @Get('google')
   @UseGuards(AuthGuard('google'))
   @ApiOperation({ summary: 'Initiate Google OAuth login' })
@@ -135,5 +143,16 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getProfile(@CurrentUser() user: CurrentUserData) {
     return this.authService.getProfile(user.id);
+  }
+
+  @Post('verify-password')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Verify user password for security validation' })
+  @ApiResponse({ status: 200, description: 'Verification result' })
+  async verifyPassword(
+    @CurrentUser() user: CurrentUserData,
+    @Body('password') password?: string,
+  ) {
+    return this.authService.verifyPassword(user.id, password);
   }
 }

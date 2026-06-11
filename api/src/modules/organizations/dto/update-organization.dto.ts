@@ -72,4 +72,16 @@ export class UpdateOrganizationDto {
   @IsOptional()
   @IsString()
   logo?: string | null;
+
+  @ApiPropertyOptional({ example: 'Freelance', description: 'Type of business' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  businessType?: string;
+
+  @ApiPropertyOptional({ example: '2-10', description: 'Size of organization' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  organizationSize?: string;
 }

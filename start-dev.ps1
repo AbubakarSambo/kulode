@@ -25,16 +25,34 @@ if (-not $portCheck) {
     Write-Host "PostgreSQL already running on port 5433." -ForegroundColor Cyan
 }
 
+# 2.5 Clean up any existing processes on application ports (API, Client, Marketing)
+$appPorts = @(3003, 5173, 4321)
+foreach ($port in $appPorts) {
+    $conn = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+    if ($conn) {
+        foreach ($c in $conn) {
+            $procId = $c.OwningProcess
+            if ($procId -gt 0) {
+                $proc = Get-Process -Id $procId -ErrorAction SilentlyContinue
+                if ($proc) {
+                    Write-Host "Port $port is in use by $($proc.ProcessName) (PID: $procId). Stopping process..." -ForegroundColor Yellow
+                    Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
+                }
+            }
+        }
+    }
+}
+
 # 3. Start application servers in labelled windows
 Write-Host "Starting NestJS API, React Client, and Astro Marketing..." -ForegroundColor Green
 
-Start-Process cmd.exe -ArgumentList "/k title Kulode-API && npm.cmd run start:dev" `
+Start-Process cmd.exe -ArgumentList '/k "title Kulode-API & npm run start:dev"' `
     -WorkingDirectory "$ProjectRoot\api"
 
-Start-Process cmd.exe -ArgumentList "/k title Kulode-Client && npm.cmd run dev" `
+Start-Process cmd.exe -ArgumentList '/k "title Kulode-Client & npm run dev"' `
     -WorkingDirectory "$ProjectRoot\client"
 
-Start-Process cmd.exe -ArgumentList "/k title Kulode-Marketing && npm.cmd run dev" `
+Start-Process cmd.exe -ArgumentList '/k "title Kulode-Marketing & npm run dev"' `
     -WorkingDirectory "$ProjectRoot\marketing"
 
 Write-Host ""

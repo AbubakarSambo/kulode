@@ -2,19 +2,19 @@
 import Layout from '../layouts/Layout.astro'
 
 const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
-const contactEmail = 'legal@kulode.app'
+const contactEmail = 'legal@tari1.app'
 const effectiveDate = '16 April 2026'
 ---
 
 <Layout
-  title="Terms of Service — Kulode"
-  description="The terms and conditions governing your use of the Kulode platform."
+  title="Terms of Service — Tari1"
+  description="The terms and conditions governing your use of the Tari1 platform."
 >
   <!-- Nav -->
   <nav class="w-full sticky top-0 z-50 bg-background/80 backdrop-blur-xl shadow-[0_12px_32px_rgba(0,55,176,0.08)]">
     <div class="flex justify-between items-center px-container-padding max-w-7xl mx-auto h-[72px]">
       <div class="flex items-center gap-12">
-        <a href="/" class="text-[24px] font-extrabold tracking-tighter text-primary">Kulode</a>
+        <a href="/" class="flex items-center"><img src="/logo.svg" alt="Tari1 Logo" class="h-10 w-auto" /></a>
         <div class="hidden md:flex items-center gap-8">
           <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/#features">Features</a>
           <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/how-it-works">How It Works</a>
@@ -42,14 +42,14 @@ const effectiveDate = '16 April 2026'
         <section class="bg-card p-8 rounded-[24px] shadow-sm border border-outline-variant">
           <h2 class="text-lg font-bold text-text-primary mb-3">1. Agreement to terms</h2>
           <p>
-            By creating an account or using the Kulode platform ("Service"), you agree to be bound by these Terms of Service ("Terms"). If you are using Kulode on behalf of an organisation, you represent that you have authority to bind that organisation to these Terms.
+            By creating an account or using the Tari1 platform ("Service"), you agree to be bound by these Terms of Service ("Terms"). If you are using Tari1 on behalf of an organisation, you represent that you have authority to bind that organisation to these Terms.
           </p>
         </section>
 
         <section class="bg-card p-8 rounded-[24px] shadow-sm border border-outline-variant">
           <h2 class="text-lg font-bold text-text-primary mb-3">2. Description of service</h2>
           <p>
-            Kulode is a cloud-based invoicing and financial management platform that allows businesses and freelancers to create invoices, accept payments, track expenses, generate financial reports, and prepare tax filing packs.
+            Tari1 is a cloud-based invoicing and financial management platform that allows businesses and freelancers to create invoices, accept payments, track expenses, generate financial reports, and prepare tax filing packs.
           </p>
         </section>
 
@@ -73,13 +73,13 @@ const effectiveDate = '16 April 2026'
 
         <section class="bg-card p-8 rounded-[24px] shadow-sm border border-outline-variant">
           <h2 class="text-lg font-bold text-text-primary mb-3">5. Acceptable use</h2>
-          <p>You agree not to use Kulode to violate laws, create fraudulent invoices, transmit malware, or scrape the platform.</p>
+          <p>You agree not to use Tari1 to violate laws, create fraudulent invoices, transmit malware, or scrape the platform.</p>
         </section>
 
         <section class="bg-card p-8 rounded-[24px] shadow-sm border border-outline-variant">
           <h2 class="text-lg font-bold text-text-primary mb-3">6. Tax and compliance</h2>
           <p>
-            Kulode provides helpful data compilation tools. This does not constitute tax, accounting, or compliance advice. Consult a tax professional before filing. We are not liable for tax penalties.
+            Tari1 provides helpful data compilation tools. This does not constitute tax, accounting, or compliance advice. Consult a tax professional before filing. We are not liable for tax penalties.
           </p>
         </section>
       </div>
@@ -90,15 +90,15 @@ const effectiveDate = '16 April 2026'
   <footer class="w-full py-12 bg-surface border-t border-outline-variant">
     <div class="flex flex-col md:flex-row justify-between items-center gap-element-gap px-container-padding max-w-7xl mx-auto">
       <div class="flex flex-col gap-4 items-center md:items-start">
-        <span class="text-2xl font-bold tracking-tight text-primary">Kulode</span>
+        <span class="text-2xl font-bold tracking-tight text-primary">Tari1</span>
         <p class="text-sm text-text-secondary text-center md:text-left max-w-xs">
-          © {new Date().getFullYear()} Kulode. All rights reserved. Built for the modern freelancer.
+          © {new Date().getFullYear()} Tari1. All rights reserved. Built for the modern freelancer.
         </p>
       </div>
       <div class="flex flex-wrap justify-center gap-8">
         <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/privacy">Privacy Policy</a>
         <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/terms">Terms of Service</a>
-        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="mailto:abubakar.sambo@kulode.app">Contact Support</a>
+        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="mailto:abubakar.sambo@tari1.app">Contact Support</a>
       </div>
     </div>
   </footer>

@@ -117,13 +117,13 @@ export function TaxFilingPackPage() {
     setIsDownloading(type)
     try {
       if (type === 'pdf') {
-        const filename = `kulode-tax-summary-${startDate}-to-${endDate}.pdf`
+        const filename = `tari1-tax-summary-${startDate}-to-${endDate}.pdf`
         await taxApi.triggerDownload(
           `/tax/filing-pack/download/pdf-summary?startDate=${startDate}&endDate=${endDate}`,
           filename,
         )
       } else {
-        const filename = `kulode-tax-data-${startDate}-to-${endDate}.csv`
+        const filename = `tari1-tax-data-${startDate}-to-${endDate}.csv`
         await taxApi.triggerDownload(
           `/tax/filing-pack/download/csv?startDate=${startDate}&endDate=${endDate}`,
           filename,
