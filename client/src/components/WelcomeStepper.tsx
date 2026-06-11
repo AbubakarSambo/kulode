@@ -6,6 +6,8 @@ import { organizationsApi } from "@/api/organizations";
 import { authApi } from "@/api/auth";
 import { clientsApi } from "@/api/clients";
 import { invoicesApi } from "@/api/invoices";
+import { inventoryApi } from "@/api/inventory";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import apiClient from "@/api/client";
 import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -18,32 +20,41 @@ import {
   ArrowLeft02Icon,
   ArrowRight02Icon,
   Sent02Icon,
+  PlusSignIcon,
+  Delete02Icon,
 } from "@hugeicons/core-free-icons";
 import { WowCelebration } from "./WowCelebration";
-import { formatCurrency, cn } from "@/lib/utils";
+import { formatCurrency, cn, formatAmountInput, parseAmountInput } from "@/lib/utils";
 
 const IS_DEV = import.meta.env.DEV;
 
 // Nigerian DNFBP and standard categories
 const BUSINESS_CATEGORIES = [
-  { group: "Standard Categories", items: [
-    { id: "freelancer", label: "Freelancer / Sole Proprietor" },
-    { id: "agency", label: "Creative / Marketing Agency" },
-    { id: "consulting", label: "Consulting / Professional Services" },
-    { id: "retail", label: "Retail / E-commerce" },
-    { id: "tech", label: "Tech / Software" },
-  ]},
-  { group: "Nigerian DNFBP Compliance Categories", items: [
-    { id: "dnfbp_real_estate", label: "DNFBP: Real Estate Agent / Developer" },
-    { id: "dnfbp_law_firm", label: "DNFBP: Law Firm / Legal Practitioner" },
-    { id: "dnfbp_accounting", label: "DNFBP: Accounting / Tax Consultant" },
-    { id: "dnfbp_hospitality", label: "DNFBP: Hotels & Hospitality Services" },
-    { id: "dnfbp_car_dealer", label: "DNFBP: Car & Vehicle Dealer" },
-    { id: "dnfbp_ngo", label: "DNFBP: Non-Governmental Organization (NGO/NPO)" },
-  ]},
-  { group: "Other", items: [
-    { id: "other", label: "Other / Custom Category..." }
-  ]}
+  {
+    group: "Standard Categories",
+    items: [
+      { id: "freelancer", label: "Freelancer / Sole Proprietor" },
+      { id: "agency", label: "Creative / Marketing Agency" },
+      { id: "consulting", label: "Consulting / Professional Services" },
+      { id: "retail", label: "Retail / E-commerce" },
+      { id: "tech", label: "Tech / Software" },
+    ],
+  },
+  {
+    group: "Nigerian DNFBP Compliance Categories",
+    items: [
+      { id: "dnfbp_real_estate", label: "DNFBP: Real Estate Agent / Developer" },
+      { id: "dnfbp_law_firm", label: "DNFBP: Law Firm / Legal Practitioner" },
+      { id: "dnfbp_accounting", label: "DNFBP: Accounting / Tax Consultant" },
+      { id: "dnfbp_hospitality", label: "DNFBP: Hotels & Hospitality Services" },
+      { id: "dnfbp_car_dealer", label: "DNFBP: Car & Vehicle Dealer" },
+      { id: "dnfbp_ngo", label: "DNFBP: Non-Governmental Organization (NGO/NPO)" },
+    ],
+  },
+  {
+    group: "Other",
+    items: [{ id: "other", label: "Other / Custom Category..." }],
+  },
 ];
 
 const ORG_SIZES = [
@@ -65,16 +76,31 @@ interface Bank {
   code: string;
 }
 
+interface BillingItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  type: "service" | "product";
+}
+
 export function WelcomeStepper() {
   const queryClient = useQueryClient();
   const { user, updateUser } = useAuthStore();
   const { isOpen, startAtStep, closeOnboarding } = useOnboardingStore();
-  
+
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("");
   const [showCelebration, setShowCelebration] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
+
+  // Completed Invoice State for Celebration
+  const [createdInvoiceId, setCreatedInvoiceId] = useState<string | undefined>(undefined);
+  const [createdInvoiceNumber, setCreatedInvoiceNumber] = useState<string | undefined>(undefined);
+  const [createdPaymentUrl, setCreatedPaymentUrl] = useState<string | null | undefined>(undefined);
+  const [createdInvoiceTotal, setCreatedInvoiceTotal] = useState<number | undefined>(undefined);
+  const [createdShareToken, setCreatedShareToken] = useState<string | null | undefined>(undefined);
 
   // Form States - Step 1: Personalization
   const [businessType, setBusinessType] = useState("");
@@ -90,16 +116,22 @@ export function WelcomeStepper() {
   const [isSavingBank, setIsSavingBank] = useState(false);
   const [isBankConnected, setIsBankConnected] = useState(false);
 
-  // Form States - Step 3: Client details (Pre-filled in DEV mode)
+  // Form States - Step 3: Client details
+  const [clientType, setClientType] = useState<"individual" | "business">("business");
   const [clientName, setClientName] = useState(IS_DEV ? "Adebayo Technology Solutions" : "");
   const [clientEmail, setClientEmail] = useState(IS_DEV ? "billing@adebayotech.ng" : "");
+  const [clientPhone, setClientPhone] = useState("");
 
-  // Form States - Step 4: Billing details (Pre-filled in DEV mode)
-  const [itemDesc, setItemDesc] = useState(
-    IS_DEV ? "Enterprise Cloud Security Assessment & Compliance Audit" : ""
-  );
-  const [itemQty, setItemQty] = useState(IS_DEV ? 1 : 0);
-  const [itemPrice, setItemPrice] = useState(IS_DEV ? 450000 : 0);
+  // Form States - Step 4: Billing details (Multi-item support)
+  const [billingItems, setBillingItems] = useState<BillingItem[]>([
+    {
+      id: "1",
+      description: IS_DEV ? "Enterprise Cloud Security Assessment & Compliance Audit" : "",
+      quantity: IS_DEV ? 1 : 1,
+      unitPrice: IS_DEV ? 450000 : 0,
+      type: "service",
+    },
+  ]);
 
   // Fetch bank list for Step 2
   const { data: banks } = useQuery<Bank[]>({
@@ -112,7 +144,7 @@ export function WelcomeStepper() {
   });
 
   // Calculations for Step 5 Preview
-  const subtotal = itemQty * itemPrice;
+  const subtotal = billingItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
   const vatRate = user?.organization?.vatEnabled ? Number(user?.organization?.taxRate || 7.5) : 0;
   const vatAmount = (subtotal * vatRate) / 100;
   const total = subtotal + vatAmount;
@@ -162,11 +194,10 @@ export function WelcomeStepper() {
       });
       setIsBankConnected(true);
       toast.success("Payout bank connected successfully");
-      
-      // Force refresh user & onboarding status query keys
+
       queryClient.invalidateQueries({ queryKey: ["paystack-status"] });
       queryClient.invalidateQueries({ queryKey: ["onboarding-status"] });
-      
+
       setStep(3); // Advance
     } catch (err) {
       const error = err as { response?: { data?: { message?: string } } };
@@ -176,6 +207,33 @@ export function WelcomeStepper() {
     } finally {
       setIsSavingBank(false);
     }
+  };
+
+  const handleAddItem = () => {
+    setBillingItems([
+      ...billingItems,
+      {
+        id: Date.now().toString(),
+        description: "",
+        quantity: 1,
+        unitPrice: 0,
+        type: "service",
+      },
+    ]);
+  };
+
+  const handleRemoveItem = (index: number) => {
+    if (billingItems.length > 1) {
+      const updated = [...billingItems];
+      updated.splice(index, 1);
+      setBillingItems(updated);
+    }
+  };
+
+  const handleUpdateItem = (index: number, key: keyof BillingItem, val: any) => {
+    const updated = [...billingItems];
+    updated[index] = { ...updated[index], [key]: val };
+    setBillingItems(updated);
   };
 
   const handleNext = () => {
@@ -198,7 +256,6 @@ export function WelcomeStepper() {
       }
       setStep(2);
     } else if (step === 2) {
-      // Step 2 is optional. If they filled details but didn't save, warn them or let them continue
       setStep(3);
     } else if (step === 3) {
       if (!clientName.trim()) {
@@ -211,17 +268,21 @@ export function WelcomeStepper() {
       }
       setStep(4);
     } else if (step === 4) {
-      if (!itemDesc.trim()) {
-        toast.error("Please enter item description");
-        return;
-      }
-      if (itemQty <= 0) {
-        toast.error("Quantity must be greater than 0");
-        return;
-      }
-      if (itemPrice <= 0) {
-        toast.error("Unit price must be greater than 0");
-        return;
+      // Validate all billing items
+      for (let i = 0; i < billingItems.length; i++) {
+        const item = billingItems[i];
+        if (!item.description.trim()) {
+          toast.error(`Please enter a description for item #${i + 1}`);
+          return;
+        }
+        if (item.quantity <= 0) {
+          toast.error(`Quantity for item #${i + 1} must be greater than 0`);
+          return;
+        }
+        if (item.unitPrice <= 0) {
+          toast.error(`Price for item #${i + 1} must be greater than 0`);
+          return;
+        }
       }
       setStep(5);
     }
@@ -231,7 +292,6 @@ export function WelcomeStepper() {
     if (step > 1) setStep(step - 1);
   };
 
-  // Skip / Setup Later handler (Dismisses stepper and saves Step 1 if completed)
   const handleSkipOrDismiss = async () => {
     if (!user) return;
     if (step > 1 && !isPersonalized && businessType && orgSize && role) {
@@ -260,7 +320,7 @@ export function WelcomeStepper() {
           },
         });
       } catch {
-        // Silently skip if step 1 save fails
+        // Silently skip
       }
     }
 
@@ -268,12 +328,11 @@ export function WelcomeStepper() {
     closeOnboarding();
   };
 
-  // Submit complete workflow (creates client + creates invoice + sends + generates payment link)
   const handleFinishSend = async () => {
     if (!user) return;
     setIsLoading(true);
     try {
-      // 1. If Step 1 details are not yet personalized, save them first
+      // 1. Personalize Profile
       if (!isPersonalized) {
         setLoadingText("Personalizing workspace profile…");
         const finalBusinessType =
@@ -306,50 +365,98 @@ export function WelcomeStepper() {
       const client = await clientsApi.create({
         name: clientName,
         email: clientEmail || undefined,
+        phone: clientPhone || undefined,
+        notes: `Type: ${clientType === "business" ? "Business" : "Individual"}`,
       });
 
-      // 3. Draft Invoice
-      setLoadingText("Generating compliance invoice…");
+      // 3. Register Items in Catalog & Build Invoice Payload
+      setLoadingText("Registering catalog and generating invoice…");
       const today = new Date().toISOString().split("T")[0];
       const nextWeek = new Date();
       nextWeek.setDate(nextWeek.getDate() + 7);
       const dueDate = nextWeek.toISOString().split("T")[0];
 
+      const invoiceItems = [];
+      for (const item of billingItems) {
+        if (item.type === "service") {
+          try {
+            const service = await invoicesApi.createServiceItem({
+              name: item.description,
+              description: "Created during onboarding",
+              unitPrice: item.unitPrice,
+            });
+            invoiceItems.push({
+              serviceItemId: service.id,
+              description: item.description,
+              quantity: Number(item.quantity),
+              unitPrice: Number(item.unitPrice),
+            });
+          } catch {
+            invoiceItems.push({
+              description: item.description,
+              quantity: Number(item.quantity),
+              unitPrice: Number(item.unitPrice),
+            });
+          }
+        } else {
+          try {
+            const product = await inventoryApi.create({
+              name: item.description,
+              description: "Created during onboarding",
+              unitPrice: item.unitPrice,
+              initialStock: 10,
+            });
+            invoiceItems.push({
+              inventoryItemId: product.id,
+              description: item.description,
+              quantity: Number(item.quantity),
+              unitPrice: Number(item.unitPrice),
+            });
+          } catch {
+            invoiceItems.push({
+              description: item.description,
+              quantity: Number(item.quantity),
+              unitPrice: Number(item.unitPrice),
+            });
+          }
+        }
+      }
+
       const invoice = await invoicesApi.create({
         clientId: client.id,
         issueDate: today,
         dueDate: dueDate,
-        items: [
-          {
-            description: itemDesc,
-            quantity: Number(itemQty),
-            unitPrice: Number(itemPrice),
-          },
-        ],
+        items: invoiceItems,
       });
 
-      // 4. Send Invoice (Updates status to SENT)
+      // 4. Send Invoice
       setLoadingText("Publishing invoice ledger…");
       await invoicesApi.send(invoice.id);
 
-      // 5. Generate Payment Link (If bank payouts setup is active)
+      // 5. Generate Payment Link
+      let paymentUrl: string | null = null;
       const hasPayouts = isBankConnected || user?.organization?.isPaystackVerified;
       if (hasPayouts && clientEmail) {
         setLoadingText("Initializing Paystack transaction link…");
         try {
-          await invoicesApi.generatePaymentLink(invoice.id, clientEmail, total);
+          const linkData = await invoicesApi.generatePaymentLink(invoice.id, clientEmail, total);
+          paymentUrl = linkData.paymentUrl;
         } catch (linkErr) {
-          // Gracefully continue if link generation fails (e.g. mock connection failure in live mode)
           console.warn("Could not auto-generate payment link:", linkErr);
         }
       }
 
-      // Invalidate React Query caches
+      setCreatedInvoiceId(invoice.id);
+      setCreatedInvoiceNumber(invoice.invoiceNumber);
+      setCreatedPaymentUrl(paymentUrl || invoice.paymentUrl);
+      setCreatedInvoiceTotal(total);
+      setCreatedShareToken(invoice.shareToken);
+
+      // Invalidate caches
       queryClient.invalidateQueries({ queryKey: ["onboarding-status"] });
       queryClient.invalidateQueries({ queryKey: ["reports"] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
 
-      // Trigger celebration
       setShowCelebration(true);
     } catch (err) {
       const error = err as { response?: { data?: { message?: string } } };
@@ -373,6 +480,12 @@ export function WelcomeStepper() {
         description={`Success! Your profile is personalized and your first invoice for ${formatCurrency(
           total
         )} has been sent to ${clientName}.`}
+        invoiceId={createdInvoiceId}
+        invoiceNumber={createdInvoiceNumber}
+        paymentUrl={createdPaymentUrl}
+        total={createdInvoiceTotal}
+        clientName={clientName}
+        shareToken={createdShareToken}
         onClose={() => {
           setShowCelebration(false);
           setIsDismissed(true);
@@ -382,13 +495,11 @@ export function WelcomeStepper() {
     );
   }
 
-
-
   return (
-    <div className="fixed inset-0 z-[9990] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+    <div className="fixed inset-0 z-[9990] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
       <div className="bg-white rounded-[24px] w-full max-w-xl shadow-[0_16px_48px_rgba(0,55,176,0.08)] flex flex-col overflow-hidden max-h-[92vh] font-sans antialiased text-slate-900">
         
-        {/* Header bar (no 1px lines, colored tint anchor) */}
+        {/* Header bar (no 1px lines, bg shift) */}
         <div className="px-8 pt-8 pb-4 flex items-center justify-between bg-[#f8f9ff]/40 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#0037b0]/8 text-[#0037b0] flex items-center justify-center">
@@ -400,14 +511,14 @@ export function WelcomeStepper() {
               } size={20} strokeWidth={1.5} />
             </div>
             <div>
-              <h2 className="text-base font-extrabold tracking-tight text-[#121c28]">
+              <h2 className="text-base font-semibold tracking-tight text-[#121c28]">
                 {step === 1 ? "Welcome to Tari1" : 
                  step === 2 ? "Configure Payout Bank" :
                  step === 3 ? "Register First Client" :
                  step === 4 ? "Add Billing Details" :
                  "Preview & Publish"}
               </h2>
-              <p className="text-[10px] font-semibold text-slate-400 mt-0.5 uppercase tracking-wider">
+              <p className="text-[10px] font-semibold text-slate-450 mt-0.5 uppercase tracking-wider">
                 {step === 1 ? "Step 1 of 5: Personalization" : `Step ${step} of 5: Quick Setup`}
               </p>
             </div>
@@ -416,7 +527,7 @@ export function WelcomeStepper() {
           <button
             onClick={handleSkipOrDismiss}
             disabled={isLoading}
-            className="px-3 py-2 text-xs font-semibold text-slate-400 hover:text-[#0037b0] transition-colors cursor-pointer min-h-[44px] flex items-center"
+            className="px-3 py-2 text-xs font-semibold text-slate-400 hover:text-[#0037b0] transition-colors cursor-pointer min-h-[44px] flex items-center bg-transparent border-0"
           >
             {step === 1 ? "Skip Setup" : "Setup Later"}
           </button>
@@ -448,7 +559,7 @@ export function WelcomeStepper() {
                 <div className="absolute inset-0 rounded-full border-4 border-[#0037b0]/10" />
                 <div className="absolute inset-0 rounded-full border-4 border-[#0037b0] border-t-transparent animate-spin" />
               </div>
-              <h4 className="text-sm font-extrabold text-[#121c28] tracking-tight">{loadingText}</h4>
+              <h4 className="text-sm font-semibold text-[#121c28] tracking-tight">{loadingText}</h4>
               <p className="text-[10px] text-slate-400 font-semibold mt-1">Configuring your digital ledger…</p>
             </div>
           ) : (
@@ -461,21 +572,18 @@ export function WelcomeStepper() {
                       <HugeiconsIcon icon={Store04Icon} size={15} strokeWidth={1.5} className="text-slate-400" />
                       Business Category
                     </label>
-                    <select
+                    <SearchableSelect
                       id="businessSelect"
+                      options={BUSINESS_CATEGORIES}
                       value={businessType}
-                      onChange={(e) => setBusinessType(e.target.value)}
-                      className="w-full h-11 px-4 text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 cursor-pointer shadow-[0_4px_12px_rgba(0,55,176,0.01)]"
-                    >
-                      <option value="" disabled>-- Select your Business type --</option>
-                      {BUSINESS_CATEGORIES.map((group) => (
-                        <optgroup key={group.group} label={group.group}>
-                          {group.items.map((item) => (
-                            <option key={item.id} value={item.id}>{item.label}</option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
+                      onChange={(val) => {
+                        setBusinessType(val);
+                        if (val !== "other") {
+                          setCustomBusinessType("");
+                        }
+                      }}
+                      placeholder="Select your Business category"
+                    />
                   </div>
 
                   {/* Progressive Custom Type field */}
@@ -501,17 +609,13 @@ export function WelcomeStepper() {
                       <HugeiconsIcon icon={UserGroupIcon} size={15} strokeWidth={1.5} className="text-slate-400" />
                       Team / Organization Size
                     </label>
-                    <select
+                    <SearchableSelect
                       id="orgSizeSelect"
+                      options={ORG_SIZES}
                       value={orgSize}
-                      onChange={(e) => setOrgSize(e.target.value)}
-                      className="w-full h-11 px-4 text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 cursor-pointer shadow-[0_4px_12px_rgba(0,55,176,0.01)]"
-                    >
-                      <option value="" disabled>-- Select organization size --</option>
-                      {ORG_SIZES.map((size) => (
-                        <option key={size.id} value={size.id}>{size.label}</option>
-                      ))}
-                    </select>
+                      onChange={setOrgSize}
+                      placeholder="Select organization size"
+                    />
                   </div>
 
                   {/* Your Job Role */}
@@ -520,17 +624,13 @@ export function WelcomeStepper() {
                       <HugeiconsIcon icon={CheckmarkCircle02Icon} size={15} strokeWidth={1.5} className="text-slate-400" />
                       Your Job Role
                     </label>
-                    <select
+                    <SearchableSelect
                       id="roleSelect"
+                      options={ROLES}
                       value={role}
-                      onChange={(e) => setRole(e.target.value)}
-                      className="w-full h-11 px-4 text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 cursor-pointer shadow-[0_4px_12px_rgba(0,55,176,0.01)]"
-                    >
-                      <option value="" disabled>-- Select your role --</option>
-                      {ROLES.map((r) => (
-                        <option key={r.id} value={r.id}>{r.label}</option>
-                      ))}
-                    </select>
+                      onChange={setRole}
+                      placeholder="Select your role"
+                    />
                   </div>
                 </div>
               )}
@@ -547,20 +647,16 @@ export function WelcomeStepper() {
                     <label htmlFor="bankSelect" className="text-xs font-bold uppercase tracking-wider text-slate-500">
                       Destination Bank
                     </label>
-                    <select
+                    <SearchableSelect
                       id="bankSelect"
+                      options={banks ? banks.map((b) => ({ id: b.code, label: b.name })) : []}
                       value={bankCode}
-                      onChange={(e) => {
-                        setBankCode(e.target.value);
+                      onChange={(val) => {
+                        setBankCode(val);
                         setVerifiedAccountName(null);
                       }}
-                      className="w-full h-11 px-4 text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 cursor-pointer"
-                    >
-                      <option value="">Choose your bank</option>
-                      {banks?.map((bank) => (
-                        <option key={bank.code} value={bank.code}>{bank.name}</option>
-                      ))}
-                    </select>
+                      placeholder="Choose your bank"
+                    />
                   </div>
 
                   <div className="space-y-2">
@@ -584,7 +680,7 @@ export function WelcomeStepper() {
                         type="button"
                         onClick={handleVerifyBank}
                         disabled={!bankCode || accountNumber.length !== 10 || isVerifyingBank}
-                        className="h-11 px-5 rounded-xl border border-[#c4c5d7]/40 text-[#0037b0] hover:bg-[#eef4ff] text-xs font-bold disabled:opacity-40 min-h-[44px] cursor-pointer"
+                        className="h-11 px-5 rounded-xl border border-[#c4c5d7]/40 text-[#0037b0] hover:bg-[#eef4ff] text-xs font-bold disabled:opacity-40 min-h-[44px] cursor-pointer bg-white"
                       >
                         {isVerifyingBank ? "Checking…" : "Verify"}
                       </button>
@@ -605,7 +701,7 @@ export function WelcomeStepper() {
                       type="button"
                       onClick={handleSaveBank}
                       disabled={isSavingBank}
-                      className="w-full h-11 bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white rounded-xl font-bold text-xs shadow-md transition-all active:scale-98 min-h-[44px] cursor-pointer"
+                      className="w-full h-11 bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white rounded-xl font-bold text-xs shadow-md transition-all active:scale-98 min-h-[44px] cursor-pointer border-0"
                     >
                       {isSavingBank ? "Connecting Bank…" : "Confirm & Link Payout Bank"}
                     </button>
@@ -617,13 +713,46 @@ export function WelcomeStepper() {
                 <div className="space-y-4">
                   <div className="bg-[#eef4ff]/40 p-4.5 rounded-2xl border border-[#0037b0]/5">
                     <p className="text-xs text-slate-500 font-semibold leading-relaxed">
-                      Enter the name and email of your first client. Tari1 will securely store this in your client directory.
+                      Enter the name, phone number, and email of your first client.
                     </p>
                     {IS_DEV && (
                       <span className="inline-block mt-2 text-[9px] font-bold text-[#0037b0] bg-[#0037b0]/5 px-2 py-0.5 rounded-full uppercase tracking-wider">
                         ⚡ Local Test: Dummy data pre-filled
                       </span>
                     )}
+                  </div>
+
+                  {/* Client Type Selector */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Client Type
+                    </label>
+                    <div className="flex gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200/40 h-11 items-center w-full">
+                      <button
+                        type="button"
+                        onClick={() => setClientType("business")}
+                        className={cn(
+                          "flex-1 h-9 rounded-lg text-xs font-bold transition-all border-0 cursor-pointer",
+                          clientType === "business"
+                            ? "bg-white text-[#0037b0] shadow-sm"
+                            : "text-slate-400 hover:text-slate-600 bg-transparent"
+                        )}
+                      >
+                        Business / Organization
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setClientType("individual")}
+                        className={cn(
+                          "flex-1 h-9 rounded-lg text-xs font-bold transition-all border-0 cursor-pointer",
+                          clientType === "individual"
+                            ? "bg-white text-[#0037b0] shadow-sm"
+                            : "text-slate-400 hover:text-slate-600 bg-transparent"
+                        )}
+                      >
+                        Individual Client
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -633,25 +762,40 @@ export function WelcomeStepper() {
                     <input
                       id="clientNameInput"
                       type="text"
-                      placeholder="e.g. Amina Ventures Ltd"
+                      placeholder={clientType === "business" ? "e.g. Amina Ventures Ltd" : "e.g. Samir Abubakar"}
                       value={clientName}
                       onChange={(e) => setClientName(e.target.value)}
                       className="w-full h-11 px-4 text-xs rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700"
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <label htmlFor="clientEmailInput" className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                      Client Email Address
-                    </label>
-                    <input
-                      id="clientEmailInput"
-                      type="email"
-                      placeholder="e.g. billing@amina.ng"
-                      value={clientEmail}
-                      onChange={(e) => setClientEmail(e.target.value)}
-                      className="w-full h-11 px-4 text-xs rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700"
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label htmlFor="clientEmailInput" className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                        Client Email Address
+                      </label>
+                      <input
+                        id="clientEmailInput"
+                        type="email"
+                        placeholder="e.g. billing@amina.ng"
+                        value={clientEmail}
+                        onChange={(e) => setClientEmail(e.target.value)}
+                        className="w-full h-11 px-4 text-xs rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="clientPhoneInput" className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                        Client Phone Number (Optional)
+                      </label>
+                      <input
+                        id="clientPhoneInput"
+                        type="text"
+                        placeholder="e.g. +234 80 123 4567"
+                        value={clientPhone}
+                        onChange={(e) => setClientPhone(e.target.value)}
+                        className="w-full h-11 px-4 text-xs rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700"
+                      />
+                    </div>
                   </div>
                 </div>
               )}
@@ -660,62 +804,121 @@ export function WelcomeStepper() {
                 <div className="space-y-4">
                   <div className="bg-[#eef4ff]/40 p-4.5 rounded-2xl border border-[#0037b0]/5">
                     <p className="text-xs text-slate-500 font-semibold leading-relaxed">
-                      Add the details of the service or product you want to bill this client for.
+                      Add the details of the services or products you want to bill this client for. You can add multiple line items.
                     </p>
                   </div>
 
-                  <div className="space-y-2">
-                    <label htmlFor="itemDescInput" className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                      Billing Item Description
-                    </label>
-                    <input
-                      id="itemDescInput"
-                      type="text"
-                      placeholder="e.g. Consulting, Design project"
-                      value={itemDesc}
-                      onChange={(e) => setItemDesc(e.target.value)}
-                      className="w-full h-11 px-4 text-xs rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="col-span-1 space-y-2">
-                      <label htmlFor="itemQtyInput" className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                        Qty
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                        Billing Items
                       </label>
-                      <input
-                        id="itemQtyInput"
-                        type="number"
-                        min="1"
-                        value={itemQty || ""}
-                        onChange={(e) => setItemQty(Number(e.target.value))}
-                        className="w-full h-11 px-4 text-xs rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 text-center"
-                      />
+                      <button
+                        type="button"
+                        onClick={handleAddItem}
+                        className="text-xs font-bold text-[#0037b0] hover:text-[#1d4ed8] flex items-center gap-1 cursor-pointer bg-transparent border-0"
+                      >
+                        <HugeiconsIcon icon={PlusSignIcon} size={14} strokeWidth={1.5} />
+                        Add Line Item
+                      </button>
                     </div>
-                    <div className="col-span-2 space-y-2">
-                      <label htmlFor="itemPriceInput" className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                        Unit Price (₦)
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-4 top-3 text-xs font-bold text-slate-400 select-none">
-                          ₦
-                        </span>
-                        <input
-                          id="itemPriceInput"
-                          type="number"
-                          placeholder="0.00"
-                          value={itemPrice || ""}
-                          onChange={(e) => setItemPrice(Number(e.target.value))}
-                          className="w-full h-11 pl-8 pr-4 text-xs rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700"
-                        />
-                      </div>
+
+                    <div className="space-y-3.5 max-h-[42vh] overflow-y-auto pr-1">
+                      {billingItems.map((item, index) => (
+                        <div
+                          key={item.id}
+                          className="p-4 bg-slate-50/60 border border-slate-100 rounded-xl flex flex-col gap-3 relative animate-in fade-in duration-200"
+                        >
+                          {/* Item Header & Delete */}
+                          <div className="flex justify-between items-center">
+                            {/* Service/Product Toggle */}
+                            <div className="flex gap-1 bg-white p-0.5 rounded-lg border border-slate-200/50">
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateItem(index, "type", "service")}
+                                className={cn(
+                                  "px-2.5 py-1 text-[9px] font-bold rounded-md transition-all border-0 cursor-pointer",
+                                  item.type === "service"
+                                    ? "bg-[#0037b0] text-white shadow-sm"
+                                    : "text-slate-400 hover:text-slate-650 bg-transparent"
+                                )}
+                              >
+                                Service
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateItem(index, "type", "product")}
+                                className={cn(
+                                  "px-2.5 py-1 text-[9px] font-bold rounded-md transition-all border-0 cursor-pointer",
+                                  item.type === "product"
+                                    ? "bg-[#0037b0] text-white shadow-sm"
+                                    : "text-slate-400 hover:text-slate-650 bg-transparent"
+                                )}
+                              >
+                                Product
+                              </button>
+                            </div>
+
+                            {billingItems.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveItem(index)}
+                                className="w-7 h-7 rounded-full flex items-center justify-center bg-white text-rose-500 hover:bg-rose-50 border border-slate-250 cursor-pointer"
+                              >
+                                <HugeiconsIcon icon={Delete02Icon} size={13} strokeWidth={1.5} />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Description */}
+                          <div className="space-y-1.5">
+                            <input
+                              type="text"
+                              placeholder={item.type === "service" ? "Service Description (e.g. Web Design)" : "Product Description (e.g. Office Chair)"}
+                              value={item.description}
+                              onChange={(e) => handleUpdateItem(index, "description", e.target.value)}
+                              className="w-full h-9 px-3 text-xs bg-white rounded-lg border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700"
+                            />
+                          </div>
+
+                          {/* Qty & Price Grid */}
+                          <div className="grid grid-cols-3 gap-2.5">
+                            <div className="col-span-1">
+                              <input
+                                type="number"
+                                min="1"
+                                placeholder="Qty"
+                                value={item.quantity || ""}
+                                onChange={(e) => handleUpdateItem(index, "quantity", Number(e.target.value))}
+                                className="w-full h-9 px-3 text-xs bg-white rounded-lg border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 text-center"
+                              />
+                            </div>
+                            <div className="col-span-2 relative">
+                              <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400 select-none">
+                                ₦
+                              </span>
+                              <input
+                                type="text"
+                                placeholder="0.00"
+                                value={item.unitPrice === 0 ? "" : formatAmountInput(item.unitPrice)}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  const numericValue = parseAmountInput(val);
+                                  handleUpdateItem(index, "unitPrice", numericValue);
+                                }}
+                                className="w-full h-9 pl-7 pr-3 text-xs bg-white rounded-lg border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
               )}
 
               {step === 5 && (
-                <div className="space-y-4">
+                <div className="space-y-4 animate-in fade-in duration-200">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                     Mobile Invoice Preview
                   </span>
@@ -724,7 +927,7 @@ export function WelcomeStepper() {
                   <div className="p-5 rounded-[20px] bg-[#f8f9ff] border border-slate-200/40 relative overflow-hidden text-slate-800">
                     <div className="flex justify-between items-start mb-4">
                       <div>
-                        <h4 className="text-xs font-black text-[#0037b0] uppercase tracking-tight">
+                        <h4 className="text-xs font-bold text-[#0037b0] uppercase tracking-tight">
                           {user?.organizationName}
                         </h4>
                         <p className="text-[8px] text-slate-400 font-semibold mt-0.5">Lagos, Nigeria</p>
@@ -739,11 +942,11 @@ export function WelcomeStepper() {
 
                     <div className="border-t border-slate-200/30 pt-3 mb-4">
                       <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Billed To</p>
-                      <p className="text-[10px] font-extrabold text-slate-800 mt-0.5">{clientName}</p>
+                      <p className="text-[10px] font-bold text-slate-800 mt-0.5">{clientName}</p>
                       {clientEmail && <p className="text-[8px] text-slate-400 font-medium">{clientEmail}</p>}
                     </div>
 
-                    <div className="space-y-2 mb-4 bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                    <div className="space-y-2 mb-4 bg-white p-3 rounded-xl border border-slate-100 shadow-sm max-h-40 overflow-y-auto">
                       <div className="flex justify-between items-center text-[9px] font-bold border-b border-slate-50 pb-1.5 text-slate-400 uppercase tracking-wider">
                         <span>Description</span>
                         <div className="flex gap-4">
@@ -751,13 +954,20 @@ export function WelcomeStepper() {
                           <span>Total</span>
                         </div>
                       </div>
-                      <div className="flex justify-between items-start text-[9px] font-bold text-slate-700 leading-normal pt-1">
-                        <span className="line-clamp-2 max-w-[200px]">{itemDesc}</span>
-                        <div className="flex gap-6 shrink-0">
-                          <span>{itemQty}</span>
-                          <span>{formatCurrency(subtotal)}</span>
+                      {billingItems.map((item) => (
+                        <div key={item.id} className="flex justify-between items-start text-[9px] font-bold text-slate-700 leading-normal pt-1.5 border-b border-slate-50/50 pb-1.5 last:border-b-0 last:pb-0">
+                          <span className="line-clamp-2 max-w-[200px] flex items-center gap-1.5">
+                            <span className="text-[7px] px-1 py-0.2 bg-slate-100 rounded text-slate-500 uppercase tracking-wider scale-90 origin-left select-none">
+                              {item.type === "service" ? "SRV" : "PRD"}
+                            </span>
+                            {item.description}
+                          </span>
+                          <div className="flex gap-6 shrink-0">
+                            <span>{item.quantity}</span>
+                            <span>{formatCurrency(item.quantity * item.unitPrice)}</span>
+                          </div>
                         </div>
-                      </div>
+                      ))}
                     </div>
 
                     <div className="flex flex-col items-end gap-1.5 border-t border-slate-200/30 pt-3">
@@ -773,7 +983,7 @@ export function WelcomeStepper() {
                       )}
                       <div className="flex justify-between w-full max-w-[150px] text-[10px] font-bold border-t border-slate-200/30 pt-1.5">
                         <span className="text-[#0037b0]">Amount Due:</span>
-                        <span className="tabular-nums text-slate-900 font-black">{formatCurrency(total)}</span>
+                        <span className="tabular-nums text-slate-900 font-bold">{formatCurrency(total)}</span>
                       </div>
                     </div>
                   </div>
@@ -790,7 +1000,7 @@ export function WelcomeStepper() {
               {step > 1 && (
                 <button
                   onClick={handleBack}
-                  className="h-11 px-4 inline-flex items-center gap-1.5 text-xs font-bold text-[#0037b0] hover:text-[#1d4ed8] transition-colors cursor-pointer min-h-[44px]"
+                  className="h-11 px-4 inline-flex items-center gap-1.5 text-xs font-bold text-[#0037b0] hover:text-[#1d4ed8] transition-colors cursor-pointer min-h-[44px] bg-transparent border-0"
                 >
                   <HugeiconsIcon icon={ArrowLeft02Icon} size={16} />
                   Back
