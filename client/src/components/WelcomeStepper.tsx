@@ -680,7 +680,7 @@ export function WelcomeStepper() {
       <div className="bg-white rounded-[24px] w-full max-w-xl shadow-[0_16px_48px_rgba(0,55,176,0.08)] flex flex-col overflow-hidden max-h-[92vh] font-sans antialiased text-slate-900">
         
         {/* Header bar (no 1px lines, bg shift) */}
-        <div className="px-8 pt-8 pb-4 flex items-center justify-between bg-[#f8f9ff]/40 shrink-0">
+        <div className="px-4 sm:px-8 pt-8 pb-4 flex items-center justify-between bg-[#f8f9ff]/40 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#0037b0]/8 text-[#0037b0] flex items-center justify-center">
               <HugeiconsIcon icon={
@@ -720,7 +720,7 @@ export function WelcomeStepper() {
         </div>
 
         {/* Form Body Scroll Area */}
-        <div className="flex-1 overflow-y-auto px-8 py-6">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6">
           
           {/* Progress Tracker Capsules */}
           {!isLoading && (
@@ -796,7 +796,7 @@ export function WelcomeStepper() {
                         placeholder="e.g. Photography, Logistics, Agriculture, Car Rental"
                         value={customBusinessType}
                         onChange={(e) => setCustomBusinessType(e.target.value)}
-                        className="w-full h-11 px-4 text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700"
+                        className="w-full h-11 px-4 text-[16px] sm:text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700"
                       />
                     </div>
                   )}
@@ -909,7 +909,7 @@ export function WelcomeStepper() {
                         rows={2}
                         value={companyAddress}
                         onChange={(e) => setCompanyAddress(e.target.value)}
-                        className="w-full px-4 py-3 text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] focus:ring-1 focus:ring-[#0037b0] outline-none font-semibold text-slate-700 resize-none leading-relaxed transition-colors"
+                        className="w-full px-4 py-3 text-[16px] sm:text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] focus:ring-1 focus:ring-[#0037b0] outline-none font-semibold text-slate-700 resize-none leading-relaxed transition-colors"
                       />
                     </div>
                   </div>
@@ -986,7 +986,7 @@ export function WelcomeStepper() {
                               setAccountNumber(e.target.value.replace(/\D/g, ""));
                               setVerifiedAccountName(null);
                             }}
-                            className="flex-1 h-11 px-4 text-xs rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700"
+                            className="flex-1 h-11 px-4 text-[16px] sm:text-xs rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700"
                           />
                           <button
                             type="button"
@@ -1079,7 +1079,7 @@ export function WelcomeStepper() {
                       placeholder={clientType === "business" ? "e.g. Amina Ventures Ltd" : "e.g. Samir Abubakar"}
                       value={clientName}
                       onChange={(e) => setClientName(e.target.value)}
-                      className="w-full h-11 px-4 text-xs rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700"
+                      className="w-full h-11 px-4 text-[16px] sm:text-xs rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700"
                     />
                   </div>
 
@@ -1094,7 +1094,7 @@ export function WelcomeStepper() {
                         placeholder="e.g. billing@amina.ng"
                         value={clientEmail}
                         onChange={(e) => setClientEmail(e.target.value)}
-                        className="w-full h-11 px-4 text-xs rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700"
+                        className="w-full h-11 px-4 text-[16px] sm:text-xs rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700"
                       />
                     </div>
                     <div className="space-y-2">
@@ -1107,7 +1107,7 @@ export function WelcomeStepper() {
                         placeholder="e.g. +234 80 123 4567"
                         value={clientPhone}
                         onChange={(e) => setClientPhone(e.target.value)}
-                        className="w-full h-11 px-4 text-xs rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700"
+                        className="w-full h-11 px-4 text-[16px] sm:text-xs rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700"
                       />
                       {clientPhone && (
                         <label className="flex items-center gap-2 mt-1.5 cursor-pointer select-none">
@@ -1136,7 +1136,7 @@ export function WelcomeStepper() {
                       rows={2}
                       value={clientAddress}
                       onChange={(e) => setClientAddress(e.target.value)}
-                      className="w-full px-4 py-3 text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 resize-none leading-relaxed transition-colors"
+                      className="w-full px-4 py-3 text-[16px] sm:text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 resize-none leading-relaxed transition-colors"
                     />
                   </div>
                 </div>
@@ -1326,7 +1326,7 @@ export function WelcomeStepper() {
                           placeholder="0"
                           value={discountPercent || ""}
                           onChange={(e) => setDiscountPercent(Number(e.target.value))}
-                          className="w-20 h-8 px-2 text-center bg-white border border-[#c4c5d7]/40 rounded-lg font-bold text-[#0037b0] text-xs outline-none focus:border-[#0037b0]"
+                          className="w-20 h-8 px-2 text-center bg-white border border-[#c4c5d7]/40 rounded-lg font-bold text-[#0037b0] text-[16px] sm:text-xs outline-none focus:border-[#0037b0]"
                         />
                         <div className="flex rounded-lg border border-[#c4c5d7]/40 overflow-hidden bg-white">
                           <button
