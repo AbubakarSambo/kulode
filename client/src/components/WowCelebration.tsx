@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Link02Icon,
-  Copy01Icon,
   Share02Icon,
   Download02Icon,
 } from "@hugeicons/core-free-icons";
@@ -22,6 +21,7 @@ interface WowCelebrationProps {
   clientName?: string;
   shareToken?: string | null;
   onClose: () => void;
+  clientPhone?: string;
 }
 
 interface ConfettiParticle {
@@ -63,6 +63,7 @@ export function WowCelebration({
   clientName,
   shareToken,
   onClose,
+  clientPhone,
 }: WowCelebrationProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [showCard, setShowCard] = useState(false);
@@ -183,12 +184,7 @@ export function WowCelebration({
     return `${window.location.origin}/i/${shareToken || ""}`;
   };
 
-  const copyPaymentLink = () => {
-    if (paymentUrl) {
-      navigator.clipboard.writeText(paymentUrl);
-      toast.success("Payment link copied to clipboard");
-    }
-  };
+
 
   const copyPublicLink = () => {
     navigator.clipboard.writeText(getPublicInvoiceUrl());
@@ -205,7 +201,11 @@ export function WowCelebration({
     const text = `Hello! Here is invoice ${invoiceNumber || ""} for ${formatCurrency(
       total
     )}.${link ? ` You can view details or pay online here: ${link}` : ""}`;
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, "_blank");
+    const cleanPhone = clientPhone ? clientPhone.replace(/\D/g, "") : "";
+    const url = cleanPhone
+      ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(url, "_blank");
   };
 
   const downloadPdf = async () => {
@@ -284,24 +284,16 @@ export function WowCelebration({
               </span>
 
               <div className="grid grid-cols-2 gap-2">
-                {paymentUrl && (
+                {shareToken && (
                   <button
-                    onClick={copyPaymentLink}
+                    onClick={copyPublicLink}
                     className="col-span-2 py-3 px-4 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white text-xs font-bold shadow-md hover:opacity-95 active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer border-0"
                   >
                     <HugeiconsIcon icon={Link02Icon} size={15} strokeWidth={1.5} />
-                    Copy Payment Link
+                    Copy Link to Pay
                   </button>
                 )}
                 
-                <button
-                  onClick={copyPublicLink}
-                  className="py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer bg-white transition-all active:scale-98"
-                >
-                  <HugeiconsIcon icon={Copy01Icon} size={14} strokeWidth={1.5} />
-                  Copy Invoice Link
-                </button>
-
                 <button
                   onClick={openPublicLink}
                   className="py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer bg-white transition-all active:scale-98"
@@ -321,7 +313,7 @@ export function WowCelebration({
                 <button
                   onClick={downloadPdf}
                   disabled={isDownloading}
-                  className="py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer bg-white disabled:opacity-50 transition-all active:scale-98"
+                  className="col-span-2 py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer bg-white disabled:opacity-50 transition-all active:scale-98"
                 >
                   <HugeiconsIcon icon={Download02Icon} size={14} strokeWidth={1.5} />
                   {isDownloading ? "Downloading..." : "Download PDF"}

@@ -60,7 +60,7 @@ function LeftPanel() {
       {/* Center Content & Animated Mockups */}
       <div className="relative z-10 my-auto py-6 grid grid-cols-1 xl:grid-cols-12 gap-8 items-center">
         <div className="xl:col-span-6 space-y-6">
-          <h1 className="text-4xl xl:text-5xl font-black leading-[1.1] tracking-tight text-white">
+          <h1 className="text-4xl xl:text-5xl font-semibold leading-[1.1] tracking-[-0.02em] text-white">
             Nigeria's modern invoicing & <span className="bg-gradient-to-r from-blue-300 via-indigo-200 to-white bg-clip-text text-transparent">compliance engine</span>
           </h1>
           <p className="text-base text-blue-100/80 leading-relaxed max-w-lg">
@@ -243,7 +243,7 @@ export function RegisterPage() {
   const registerMutation = useRegister()
   const magicLinkMutation = useMagicLinkRegister()
   const [showPassword, setShowPassword] = useState(false)
-  const [useMagicLink, setUseMagicLink] = useState(true)
+  const [useMagicLink, setUseMagicLink] = useState(false)
   const hasTrackedStart = useState(false)
   const mountedAt = useRef(Date.now())
 
@@ -288,7 +288,7 @@ export function RegisterPage() {
             <div className="mb-4 lg:hidden flex justify-center">
               <img src="/logo.svg" alt="Tari1 Logo" className="h-10 w-auto" />
             </div>
-            <CardTitle className="text-2xl font-black text-slate-900 tracking-tight">Create your free account</CardTitle>
+            <CardTitle className="text-2xl font-semibold text-slate-900 tracking-tight">Create your account</CardTitle>
             <CardDescription className="text-xs text-slate-500 mt-1">Start professionalizing your freelance business today.</CardDescription>
           </CardHeader>
 
@@ -373,7 +373,7 @@ export function RegisterPage() {
                   )}
                 </div>
                 <Button type="submit" className="w-full py-6 rounded-2xl text-sm font-bold shadow-lg shadow-[#0037b0]/20 active:scale-98 transition-all btn-gradient" isLoading={registerMutation.isPending}>
-                  Create free account
+                  Create account
                 </Button>
                 <button
                   type="button"

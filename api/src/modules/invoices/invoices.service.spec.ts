@@ -4,6 +4,7 @@ import { InvoicesService } from './invoices.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { InventoryService } from '../inventory/inventory.service';
+import { PaystackService } from '../paystack/paystack.service';
 
 // ─── Mock helpers ────────────────────────────────────────────────────────────
 
@@ -114,6 +115,14 @@ describe('InvoicesService — invoice limit enforcement', () => {
           useValue: {
             reserveForInvoice: jest.fn(),
             releaseReservation: jest.fn(),
+          },
+        },
+        {
+          provide: PaystackService,
+          useValue: {
+            initializeTransaction: jest.fn(),
+            initializeInstallmentTransaction: jest.fn(),
+            verifyTransaction: jest.fn(),
           },
         },
       ],

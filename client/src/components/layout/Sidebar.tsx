@@ -326,14 +326,11 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                     onClick={() => {
                       let targetStep = 1;
                       if (onboardingStatus.steps.businessProfile) {
-                        if (!onboardingStatus.steps.firstClient) {
-                          targetStep = 3; // Step 3: Client Info
-                        } else if (!onboardingStatus.steps.inventoryItems) {
-                          targetStep = 4; // Step 4: Item Info
-                        } else if (!onboardingStatus.steps.firstInvoice) {
-                          targetStep = 5; // Step 5: Preview & Send
+                        const savedStep = parseInt(localStorage.getItem('tari1-onboarding-step') || '0', 10);
+                        if (savedStep >= 2 && savedStep <= 6) {
+                          targetStep = savedStep;
                         } else {
-                          targetStep = 3;
+                          targetStep = 2;
                         }
                       }
                       openOnboarding(targetStep);
@@ -366,14 +363,11 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                     onClick={() => {
                       let targetStep = 1;
                       if (onboardingStatus.steps.businessProfile) {
-                        if (!onboardingStatus.steps.firstClient) {
-                          targetStep = 3; // Step 3: Client Info
-                        } else if (!onboardingStatus.steps.inventoryItems) {
-                          targetStep = 4; // Step 4: Item Info
-                        } else if (!onboardingStatus.steps.firstInvoice) {
-                          targetStep = 5; // Step 5: Preview & Send
+                        const savedStep = parseInt(localStorage.getItem('tari1-onboarding-step') || '0', 10);
+                        if (savedStep >= 2 && savedStep <= 6) {
+                          targetStep = savedStep;
                         } else {
-                          targetStep = 3;
+                          targetStep = 2;
                         }
                       }
                       openOnboarding(targetStep);

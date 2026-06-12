@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css'
+import RebrandBanner from '../components/RebrandBanner.astro'
 
 interface Props {
   title: string
@@ -44,6 +45,7 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site).href
     <title>{title}</title>
   </head>
   <body class="bg-white text-gray-900 antialiased">
+    <RebrandBanner />
     <slot />
   </body>
 </html>

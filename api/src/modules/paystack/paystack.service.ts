@@ -59,6 +59,7 @@ export class PaystackService {
   private readonly baseUrl: string;
   private readonly secretKey: string;
   private readonly callbackUrl: string;
+  public readonly publicKey: string;
 
   constructor(
     private configService: ConfigService,
@@ -67,6 +68,7 @@ export class PaystackService {
   ) {
     this.baseUrl = this.configService.get<string>('paystack.baseUrl') || 'https://api.paystack.co';
     this.secretKey = this.configService.get<string>('paystack.secretKey') || '';
+    this.publicKey = this.configService.get<string>('paystack.publicKey') || '';
     this.callbackUrl = this.configService.get<string>('paystack.callbackUrl') || 'http://localhost:5173/payment/callback';
   }
 
@@ -271,6 +273,7 @@ export class PaystackService {
         callback_url: this.callbackUrl,
         subaccount: organization.paystackSubaccountCode,
         bearer: 'subaccount', // Subaccount bears Paystack fees
+        channels: ['bank_transfer', 'bank', 'card', 'ussd', 'qr', 'mobile_money'],
         metadata: {
           invoice_id: invoiceId,
           organization_id: organizationId,
@@ -351,6 +354,7 @@ export class PaystackService {
         callback_url: this.callbackUrl,
         subaccount: organization.paystackSubaccountCode,
         bearer: 'subaccount',
+        channels: ['bank_transfer', 'bank', 'card', 'ussd', 'qr', 'mobile_money'],
         metadata: {
           invoice_id: invoiceId,
           organization_id: organizationId,
