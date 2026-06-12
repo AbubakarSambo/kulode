@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import { CheckCircle, Landmark, X } from 'lucide-react'
 import { Header } from '@/components/layout'
-import { Button, Input, Label, Select, Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui'
+import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle, CardDescription, SearchableSelect } from '@/components/ui'
 import apiClient from '@/api/client'
 import { posthog } from '@/lib/posthog'
 import { useAuthStore } from '@/stores/auth'
@@ -80,6 +80,7 @@ export function PaystackPage() {
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<SetupFormData>({
     resolver: zodResolver(setupSchema),
@@ -332,20 +333,18 @@ export function PaystackPage() {
                     <Label htmlFor="bankCode" required className="text-sm font-semibold text-[#121c28]">
                       Destination Bank
                     </Label>
-                    <Select
+                    <SearchableSelect
                       id="bankCode"
-                      {...register('bankCode')}
-                      error={errors.bankCode?.message}
+                      options={banks ? banks.map((b) => ({ id: b.code, label: b.name })) : []}
+                      value={bankCode}
+                      onChange={(val) => {
+                        setValue('bankCode', val, { shouldValidate: true })
+                        setVerifiedName(null)
+                      }}
+                      placeholder="Choose your bank"
                       disabled={banksLoading}
-                      className="border-[#c4c5d7]/40 bg-white text-[#121c28] focus:border-[#0037b0] transition-colors"
-                    >
-                      <option value="">Choose your bank</option>
-                      {banks?.map((bank) => (
-                        <option key={bank.code} value={bank.code}>
-                          {bank.name}
-                        </option>
-                      ))}
-                    </Select>
+                      error={errors.bankCode?.message}
+                    />
                   </div>
 
                   <div className="space-y-2">

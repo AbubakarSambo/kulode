@@ -67,6 +67,8 @@ export interface User {
     organizationSize?: string
     vatEnabled?: boolean
     taxRate?: number
+    logo?: string
+    address?: string
   }
 }
 

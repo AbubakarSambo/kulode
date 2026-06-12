@@ -103,6 +103,8 @@ export class OrganizationsService {
             address: true,
             isPaystackVerified: true,
             onboardingDismissedAt: true,
+            businessType: true,
+            organizationSize: true,
           },
         }),
         this.prisma.inventoryItem.count({
@@ -124,7 +126,7 @@ export class OrganizationsService {
     }
 
     const steps = {
-      businessProfile: !!(organization.email && organization.address),
+      businessProfile: !!(organization.businessType && organization.organizationSize),
       inventoryItems: inventoryItemCount > 0,
       firstClient: clientCount > 0,
       firstInvoice: invoiceCount > 0,

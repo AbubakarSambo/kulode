@@ -17,12 +17,14 @@ import {
 } from './dto';
 import { paginate, PLAN_LIMITS } from '../../common';
 import { InventoryService } from '../inventory/inventory.service';
+import { PaystackService } from '../paystack/paystack.service';
 
 @Injectable()
 export class InvoicesService {
   constructor(
     private prisma: PrismaService,
     private inventoryService: InventoryService,
+    private paystackService: PaystackService,
   ) {}
 
   async findAll(organizationId: string, filter: InvoiceFilterDto) {
@@ -574,7 +576,7 @@ export class InvoicesService {
   }
 
   async findByShareToken(token: string) {
-    const invoice = await this.prisma.invoice.findFirst({
+    let invoice = await this.prisma.invoice.findFirst({
       where: {
         shareToken: token,
         deletedAt: null,
@@ -591,6 +593,10 @@ export class InvoicesService {
             planTier: true,
             subscriptionStatus: true,
             showQrCode: true,
+            paystackSubaccountCode: true,
+            bankAccountNumber: true,
+            bankAccountName: true,
+            settlementBank: true,
           },
         },
         client: {
@@ -620,6 +626,86 @@ export class InvoicesService {
       throw new NotFoundException('Invoice not found');
     }
 
+    // Auto-generate payment link and transaction reference if missing
+    const balanceDue = Number(invoice.total) - Number(invoice.amountPaid);
+    if (balanceDue > 0 && invoice.client.email && invoice.organization.paystackSubaccountCode) {
+      try {
+        let updated = false;
+        if (invoice.installments && invoice.installments.length > 0) {
+          for (const inst of invoice.installments) {
+            if (!inst.isPaid && !inst.paymentUrl) {
+              await this.paystackService.initializeInstallmentTransaction(
+                invoice.organizationId,
+                invoice.id,
+                inst.id,
+                invoice.client.email,
+                Number(inst.amount),
+              );
+              updated = true;
+            }
+          }
+        } else if (!invoice.paymentUrl) {
+          await this.paystackService.initializeTransaction(
+            invoice.organizationId,
+            invoice.id,
+            invoice.client.email,
+            balanceDue,
+          );
+          updated = true;
+        }
+
+        if (updated) {
+          // Re-fetch invoice with new payment parameters
+          const refreshed = await this.prisma.invoice.findFirst({
+            where: { id: invoice.id },
+            include: {
+              organization: {
+                select: {
+                  name: true,
+                  email: true,
+                  phone: true,
+                  address: true,
+                  logo: true,
+                  planTier: true,
+                  subscriptionStatus: true,
+                  showQrCode: true,
+                  paystackSubaccountCode: true,
+                  bankAccountNumber: true,
+                  bankAccountName: true,
+                  settlementBank: true,
+                },
+              },
+              client: {
+                select: {
+                  name: true,
+                  email: true,
+                  phone: true,
+                  address: true,
+                },
+              },
+              items: {
+                orderBy: { createdAt: 'asc' },
+                select: {
+                  description: true,
+                  quantity: true,
+                  unitPrice: true,
+                  amount: true,
+                },
+              },
+              installments: {
+                orderBy: { sequence: 'asc' },
+              },
+            },
+          });
+          if (refreshed) {
+            invoice = refreshed;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to auto-generate payment link on findByShareToken:', error);
+      }
+    }
+
     return {
       id: invoice.id,
       organizationId: invoice.organizationId,
@@ -638,6 +724,10 @@ export class InvoicesService {
       notes: invoice.notes,
       terms: invoice.terms,
       paymentUrl: invoice.paymentUrl,
+      paystackAccessCode: invoice.paystackAccessCode,
+      paystackReference: invoice.paystackReference,
+      paystackPublicKey: this.paystackService.publicKey,
+      paystackSubaccountCode: invoice.organization.paystackSubaccountCode,
       organization: invoice.organization,
       client: invoice.client,
       items: invoice.items.map(item => ({
@@ -654,6 +744,8 @@ export class InvoicesService {
         amount: Number(inst.amount),
         isPaid: inst.isPaid,
         paymentUrl: inst.paymentUrl,
+        paystackReference: inst.paystackReference,
+        paystackAccessCode: inst.paystackAccessCode,
       })),
     };
   }
