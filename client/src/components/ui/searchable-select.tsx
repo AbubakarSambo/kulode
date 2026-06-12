@@ -136,7 +136,7 @@ export function SearchableSelect({
               placeholder="Search..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-8 text-xs font-semibold text-slate-700 outline-none border-0 p-0 bg-transparent placeholder-slate-400 focus:ring-0 focus:outline-none"
+              className="w-full h-8 text-[16px] sm:text-xs font-semibold text-slate-700 outline-none border-0 p-0 bg-transparent placeholder-slate-400 focus:ring-0 focus:outline-none"
               autoFocus
             />
           </div>

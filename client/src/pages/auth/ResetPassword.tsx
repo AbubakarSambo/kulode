@@ -12,9 +12,7 @@ const passwordSchema = z.object({
   password: z
     .string()
     .min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Must contain an uppercase letter')
-    .regex(/[a-z]/, 'Must contain a lowercase letter')
-    .regex(/(\d|\W)/, 'Must contain a number or special character'),
+    .regex(/[A-Z]/, 'Must contain an uppercase letter'),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Passwords do not match',

@@ -4,9 +4,10 @@ import { InvoicesController, ServiceItemsController } from './invoices.controlle
 import { InvoicePdfService } from './invoice-pdf.service';
 import { PaystackModule } from '../paystack/paystack.module';
 import { InventoryModule } from '../inventory/inventory.module';
+import { EmailModule } from '../email/email.module';
 
 @Module({
-  imports: [forwardRef(() => PaystackModule), InventoryModule],
+  imports: [forwardRef(() => PaystackModule), InventoryModule, EmailModule],
   controllers: [InvoicesController, ServiceItemsController],
   providers: [InvoicesService, InvoicePdfService],
   exports: [InvoicesService],

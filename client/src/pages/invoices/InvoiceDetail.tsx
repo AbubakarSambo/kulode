@@ -17,11 +17,12 @@ import {
   Share02Icon,
   Download02Icon,
   AlertDiamondIcon,
+
+  Notification03Icon,
+  Copy01Icon,
   ArrowDown01Icon,
   Invoice03Icon,
   ArrowLeft02Icon,
-  Notification03Icon,
-  Copy01Icon,
 } from '@hugeicons/core-free-icons'
 
 function MailIcon({ className }: { className?: string }) {
@@ -130,6 +131,7 @@ export function InvoiceDetailPage() {
     queryKey: ['invoices', id],
     queryFn: () => invoicesApi.get(id!),
     enabled: !!id,
+    staleTime: 30_000,
   })
 
   const outstanding = invoice ? Number(invoice.total) - Number(invoice.amountPaid) : 0
@@ -142,7 +144,10 @@ export function InvoiceDetailPage() {
   const sendMutation = useMutation({
     mutationFn: () => invoicesApi.send(id!),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices', id] })
+      queryClient.setQueryData(['invoices', id], (old: typeof invoice) =>
+        old ? { ...old, status: 'SENT' as const } : old
+      )
+      queryClient.invalidateQueries({ queryKey: ['invoices'], exact: false, refetchType: 'none' })
       posthog.capture('invoice_sent', { invoice_id: id })
       toast.success('Invoice sent', { description: 'Invoice has been marked as sent' })
     },
@@ -151,7 +156,10 @@ export function InvoiceDetailPage() {
   const cancelMutation = useMutation({
     mutationFn: () => invoicesApi.cancel(id!),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices', id] })
+      queryClient.setQueryData(['invoices', id], (old: typeof invoice) =>
+        old ? { ...old, status: 'CANCELLED' as const } : old
+      )
+      queryClient.invalidateQueries({ queryKey: ['invoices'], exact: false, refetchType: 'none' })
       posthog.capture('invoice_cancelled', { invoice_id: id })
       toast.success('Invoice cancelled')
     },
@@ -689,6 +697,7 @@ export function InvoiceDetailPage() {
               <HugeiconsIcon icon={ArrowLeft02Icon} size={16} />
               Back to Invoices
             </Link>
+
           </div>
 
           {/* Mobile Quick Action Strip (only visible on mobile screens) */}
@@ -739,6 +748,7 @@ export function InvoiceDetailPage() {
               {!duplicateMutation.isPending && <HugeiconsIcon icon={Copy01Icon} size={14} className="mr-1.5" strokeWidth={1.5} />}
               Duplicate
             </Button>
+
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

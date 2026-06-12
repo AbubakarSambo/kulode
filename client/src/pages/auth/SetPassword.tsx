@@ -11,17 +11,13 @@ import { useSetPassword } from '@/hooks'
 const PASSWORD_RULES = [
   { label: 'At least 8 characters', test: (v: string) => v.length >= 8 },
   { label: 'One uppercase letter', test: (v: string) => /[A-Z]/.test(v) },
-  { label: 'One lowercase letter', test: (v: string) => /[a-z]/.test(v) },
-  { label: 'One number or special character', test: (v: string) => /(\d|\W)/.test(v) },
 ]
 
 const passwordSchema = z.object({
   password: z
     .string()
     .min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Must contain an uppercase letter')
-    .regex(/[a-z]/, 'Must contain a lowercase letter')
-    .regex(/(\d|\W)/, 'Must contain a number or special character'),
+    .regex(/[A-Z]/, 'Must contain an uppercase letter'),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Passwords do not match',

@@ -46,6 +46,12 @@
   border-color: var(--color-border);
 }
 
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
 body {
   background-color: var(--color-background);
   color: var(--color-foreground);
@@ -71,16 +77,12 @@ body {
   background: color-mix(in srgb, var(--color-muted-foreground) 40%, transparent);
 }
 
-/* Enable smooth native touch scrolling on all scroll containers and their children */
-.overflow-auto, 
+/* Enable smooth native touch scrolling on scroll containers only.
+   Do NOT cascade touch-action to children — it blocks pinch-to-zoom inside modals. */
+.overflow-auto,
 .overflow-y-auto {
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
-}
-
-.overflow-auto *,
-.overflow-y-auto * {
-  touch-action: pan-y;
 }
 
 

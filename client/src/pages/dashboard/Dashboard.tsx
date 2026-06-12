@@ -279,8 +279,8 @@ export function DashboardPage() {
                       <p className="mt-1 sm:mt-2 text-lg sm:text-3xl font-semibold tracking-normal text-slate-800 tabular-nums truncate">
                         {formatCurrency(stat.value)}
                       </p>
-                      <div className="mt-1.5 sm:mt-2 flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 sm:px-2 py-0.5 rounded-full truncate">
+                      <div className="mt-1.5 sm:mt-2 flex items-center gap-1.5">
+                        <span className="text-[9px] sm:text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 sm:px-2 py-0.5 rounded-full truncate">
                           {stat.subtext}
                         </span>
                         {change !== null && period !== "CUSTOM" && (

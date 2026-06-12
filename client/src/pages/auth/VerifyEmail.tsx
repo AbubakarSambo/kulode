@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
 import { Button, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui'
@@ -10,9 +10,11 @@ export function VerifyEmailPage() {
   const verify = useVerifyEmail()
   const resend = useResendVerification()
   const [email, setEmail] = useState('')
+  const hasVerified = useRef(false)
 
   useEffect(() => {
-    if (token && !verify.isSuccess && !verify.isError && !verify.isPending) {
+    if (token && !hasVerified.current) {
+      hasVerified.current = true
       verify.mutate(token)
     }
   }, [token])

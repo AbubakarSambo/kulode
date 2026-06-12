@@ -161,6 +161,56 @@ export class EmailService {
     });
   }
 
+  async sendInvoiceReminderEmail(
+    email: string,
+    clientName: string,
+    invoiceNumber: string,
+    orgName: string,
+    dueDate: string,
+    total: string,
+    outstanding: string,
+    paymentUrl: string | null,
+  ): Promise<void> {
+    await this.sendEmail({
+      to: email,
+      subject: `Payment reminder: Invoice ${invoiceNumber} from ${orgName}`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>Payment Reminder</h2>
+          <p>Hi ${clientName},</p>
+          <p>This is a friendly reminder that invoice <strong>${invoiceNumber}</strong> from <strong>${orgName}</strong> is due for payment.</p>
+          <table style="width: 100%; border-collapse: collapse; margin: 24px 0;">
+            <tr>
+              <td style="padding: 8px 0; color: #64748b;">Invoice Number</td>
+              <td style="padding: 8px 0; font-weight: bold; text-align: right;">${invoiceNumber}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #64748b;">Total Amount</td>
+              <td style="padding: 8px 0; font-weight: bold; text-align: right;">${total}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #64748b;">Amount Due</td>
+              <td style="padding: 8px 0; font-weight: bold; color: #dc2626; text-align: right;">${outstanding}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #64748b;">Due Date</td>
+              <td style="padding: 8px 0; font-weight: bold; text-align: right;">${dueDate}</td>
+            </tr>
+          </table>
+          ${paymentUrl ? `
+          <div style="margin: 32px 0;">
+            <a href="${paymentUrl}" style="background-color: #0f172a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+              Pay Now
+            </a>
+          </div>
+          ` : ''}
+          <p style="color: #64748b; font-size: 14px;">If you have already made this payment, please disregard this message.</p>
+          <p style="color: #64748b; font-size: 14px;">Thank you for your prompt attention.</p>
+        </div>
+      `,
+    });
+  }
+
   async sendRenewalFailedEmail(email: string, firstName: string, planTier: string): Promise<void> {
     const loginUrl = `${this.frontendUrl}/settings/billing`;
 
