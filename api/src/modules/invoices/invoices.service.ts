@@ -18,6 +18,7 @@ import {
 import { paginate, PLAN_LIMITS } from '../../common';
 import { InventoryService } from '../inventory/inventory.service';
 import { PaystackService } from '../paystack/paystack.service';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class InvoicesService {
@@ -25,6 +26,7 @@ export class InvoicesService {
     private prisma: PrismaService,
     private inventoryService: InventoryService,
     private paystackService: PaystackService,
+    private emailService: EmailService,
   ) {}
 
   async findAll(organizationId: string, filter: InvoiceFilterDto) {
@@ -548,6 +550,105 @@ export class InvoicesService {
     });
 
     return { message: 'Invoice deleted successfully' };
+  }
+
+  async sendReminder(id: string, organizationId: string) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id, organizationId, deletedAt: null },
+      include: {
+        client: { select: { name: true, email: true } },
+        organization: { select: { name: true } },
+      },
+    });
+
+    if (!invoice) {
+      throw new NotFoundException('Invoice not found');
+    }
+
+    if (invoice.status !== 'SENT' && invoice.status !== 'OVERDUE') {
+      throw new BadRequestException('Reminders can only be sent for SENT or OVERDUE invoices');
+    }
+
+    if (!invoice.client.email) {
+      throw new BadRequestException('Client does not have an email address');
+    }
+
+    const dueDate = invoice.dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    const total = Number(invoice.total).toLocaleString('en-NG', { style: 'currency', currency: 'NGN' });
+    const outstanding = (Number(invoice.total) - Number(invoice.amountPaid)).toLocaleString('en-NG', { style: 'currency', currency: 'NGN' });
+
+    await this.emailService.sendInvoiceReminderEmail(
+      invoice.client.email,
+      invoice.client.name,
+      invoice.invoiceNumber,
+      invoice.organization.name,
+      dueDate,
+      total,
+      outstanding,
+      invoice.paymentUrl,
+    );
+
+    return { message: 'Reminder sent successfully' };
+  }
+
+  async duplicate(id: string, organizationId: string, userId: string) {
+    const source = await this.prisma.invoice.findFirst({
+      where: { id, organizationId, deletedAt: null },
+      include: { items: true },
+    });
+
+    if (!source) {
+      throw new NotFoundException('Invoice not found');
+    }
+
+    const organization = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { invoicePrefix: true },
+    });
+
+    const invoiceNumber = await this.generateInvoiceNumber(organizationId, organization!.invoicePrefix);
+
+    // Shift issue/due dates relative to today
+    const originalDurationMs = source.dueDate.getTime() - source.issueDate.getTime();
+    const issueDate = new Date();
+    issueDate.setHours(0, 0, 0, 0);
+    const dueDate = new Date(issueDate.getTime() + originalDurationMs);
+
+    const newInvoice = await this.prisma.invoice.create({
+      data: {
+        organizationId,
+        clientId: source.clientId,
+        createdById: userId,
+        invoiceNumber,
+        issueDate,
+        dueDate,
+        subtotal: source.subtotal,
+        discountType: source.discountType,
+        discountPercent: source.discountPercent,
+        discountAmount: source.discountAmount,
+        taxRate: source.taxRate,
+        taxAmount: source.taxAmount,
+        total: source.total,
+        notes: source.notes,
+        terms: source.terms,
+        status: 'DRAFT',
+        items: {
+          create: source.items.map((item) => ({
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            amount: item.amount,
+            ...(item.serviceItemId && { serviceItemId: item.serviceItemId }),
+          })),
+        },
+      },
+      include: {
+        client: true,
+        items: true,
+      },
+    });
+
+    return newInvoice;
   }
 
   async generateShareToken(id: string, organizationId: string) {

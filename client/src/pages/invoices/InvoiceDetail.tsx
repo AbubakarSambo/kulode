@@ -130,6 +130,7 @@ export function InvoiceDetailPage() {
     queryKey: ['invoices', id],
     queryFn: () => invoicesApi.get(id!),
     enabled: !!id,
+    staleTime: 30_000,
   })
 
   const outstanding = invoice ? Number(invoice.total) - Number(invoice.amountPaid) : 0
@@ -142,7 +143,10 @@ export function InvoiceDetailPage() {
   const sendMutation = useMutation({
     mutationFn: () => invoicesApi.send(id!),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices', id] })
+      queryClient.setQueryData(['invoices', id], (old: typeof invoice) =>
+        old ? { ...old, status: 'SENT' as const } : old
+      )
+      queryClient.invalidateQueries({ queryKey: ['invoices'], exact: false, refetchType: 'none' })
       posthog.capture('invoice_sent', { invoice_id: id })
       toast.success('Invoice sent', { description: 'Invoice has been marked as sent' })
     },
@@ -151,7 +155,10 @@ export function InvoiceDetailPage() {
   const cancelMutation = useMutation({
     mutationFn: () => invoicesApi.cancel(id!),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices', id] })
+      queryClient.setQueryData(['invoices', id], (old: typeof invoice) =>
+        old ? { ...old, status: 'CANCELLED' as const } : old
+      )
+      queryClient.invalidateQueries({ queryKey: ['invoices'], exact: false, refetchType: 'none' })
       posthog.capture('invoice_cancelled', { invoice_id: id })
       toast.success('Invoice cancelled')
     },

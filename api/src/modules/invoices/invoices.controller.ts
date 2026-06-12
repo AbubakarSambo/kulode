@@ -90,6 +90,28 @@ export class InvoicesController {
     return this.invoicesService.markAsSent(id, organizationId);
   }
 
+  @Post(':id/send-reminder')
+  @ApiOperation({ summary: 'Send payment reminder to client' })
+  @ApiResponse({ status: 200, description: 'Reminder sent' })
+  @ApiResponse({ status: 400, description: 'Invoice not in a remindable state or client has no email' })
+  async sendReminder(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.invoicesService.sendReminder(id, organizationId);
+  }
+
+  @Post(':id/duplicate')
+  @ApiOperation({ summary: 'Duplicate an invoice as a new draft' })
+  @ApiResponse({ status: 201, description: 'Duplicated invoice' })
+  @ApiResponse({ status: 404, description: 'Invoice not found' })
+  async duplicate(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.invoicesService.duplicate(id, user.organizationId, user.id);
+  }
+
   @Post(':id/cancel')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: 'Cancel invoice' })
