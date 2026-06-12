@@ -77,8 +77,8 @@ const getInitials = (name: string) => {
 export function InvoicesListPage() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<InvoiceStatus | ''>('')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  const [startDate, _setStartDate] = useState('')
+  const [endDate, _setEndDate] = useState('')
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
   const [limitOpen, setLimitOpen] = useState(false)
