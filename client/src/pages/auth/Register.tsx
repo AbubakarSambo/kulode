@@ -34,10 +34,7 @@ const registerSchema = z.object({
   password: z
     .string()
     .min(8, 'Password must be at least 8 characters')
-    .regex(
-      /((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/,
-      'Password must contain uppercase, lowercase, and a number or special character'
-    ),
+    .regex(/[A-Z]/, 'Password must contain at least 1 uppercase letter'),
 })
 
 type RegisterForm = z.infer<typeof registerSchema>
