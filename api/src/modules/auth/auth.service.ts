@@ -316,6 +316,45 @@ export class AuthService {
     }
 
     if (tokenRecord.usedAt) {
+      // Idempotent: if the user is already verified (e.g. Strict Mode double-fire, double-click),
+      // return success rather than an error so the UX flow completes normally.
+      if (tokenRecord.user.isEmailVerified) {
+        const u = tokenRecord.user;
+        const org = u.organization;
+        const accessToken = this.generateToken(u);
+        return {
+          accessToken,
+          needsPasswordSetup: false,
+          setupToken: undefined,
+          user: {
+            id: u.id,
+            email: u.email,
+            firstName: u.firstName,
+            lastName: u.lastName,
+            role: u.role,
+            businessRole: u.businessRole,
+            organizationId: u.organizationId,
+            organizationName: org.name,
+            isPlatformAdmin: u.isPlatformAdmin,
+            plan: {
+              planTier: org.planTier,
+              subscriptionStatus: org.subscriptionStatus,
+              trialEndDate: org.trialEndDate,
+              isGrandfathered: org.isGrandfathered,
+            },
+            organization: {
+              id: org.id,
+              name: org.name,
+              slug: org.slug,
+              isPaystackVerified: org.isPaystackVerified,
+              businessType: org.businessType,
+              organizationSize: org.organizationSize,
+              vatEnabled: org.vatEnabled,
+              taxRate: Number(org.taxRate),
+            },
+          },
+        };
+      }
       throw new BadRequestException('This token has already been used');
     }
 
