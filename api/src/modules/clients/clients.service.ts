@@ -65,6 +65,7 @@ export class ClientsService {
             invoiceNumber: true,
             status: true,
             total: true,
+            amountPaid: true,
             issueDate: true,
             dueDate: true,
           },

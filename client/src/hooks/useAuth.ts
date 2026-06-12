@@ -57,7 +57,7 @@ export function useVerifyEmail() {
       if (data.needsPasswordSetup && data.setupToken) {
         navigate(`/set-password?token=${data.setupToken}`)
       } else {
-        toast.success('Email verified!', { description: 'Welcome to Kulode' })
+        toast.success('Email verified!', { description: 'Welcome to Tari1' })
         navigate('/dashboard')
       }
     },

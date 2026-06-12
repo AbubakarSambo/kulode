@@ -1,10 +1,13 @@
+import { useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, CreditCard, FileText } from 'lucide-react'
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui'
+import { RebrandBanner } from '@/components/shared'
 import apiClient from '@/api/client'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
+import { toast } from 'sonner'
 import type { InvoiceStatus } from '@/types'
 
 interface PublicInvoiceData {
@@ -23,11 +26,19 @@ interface PublicInvoiceData {
   notes?: string
   terms?: string
   paymentUrl?: string
+  paystackAccessCode?: string
+  paystackReference?: string
+  paystackPublicKey?: string
+  paystackSubaccountCode?: string
   organization: {
     name: string
     email?: string
     phone?: string
     address?: string
+    logo?: string | null
+    bankAccountNumber?: string | null
+    bankAccountName?: string | null
+    settlementBank?: string | null
   }
   client: {
     name: string
@@ -41,6 +52,17 @@ interface PublicInvoiceData {
     unitPrice: number
     amount: number
   }>
+  installments?: Array<{
+    id: string
+    label: string
+    sequence: number
+    percentage: number
+    amount: number
+    isPaid: boolean
+    paystackAccessCode?: string
+    paystackReference?: string
+    paymentUrl?: string
+  }>
 }
 
 const statusColors: Record<InvoiceStatus, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
@@ -52,10 +74,27 @@ const statusColors: Record<InvoiceStatus, 'default' | 'secondary' | 'success' | 
   CANCELLED: 'secondary',
 }
 
+const loadPaystackScript = (): Promise<boolean> => {
+  return new Promise((resolve) => {
+    if ('PaystackPop' in window) {
+      resolve(true)
+      return
+    }
+    const script = document.createElement('script')
+    script.src = 'https://js.paystack.co/v2/inline.js'
+    script.async = true
+    script.onload = () => resolve(true)
+    script.onerror = () => resolve(false)
+    document.body.appendChild(script)
+  })
+}
+
 export function PublicInvoicePage() {
   const { token } = useParams<{ token: string }>()
+  const queryClient = useQueryClient()
+  const [isPaying, setIsPaying] = useState(false)
 
-  const { data: invoice, isLoading, error } = useQuery({
+  const { data: invoice, isLoading, isError } = useQuery({
     queryKey: ['public-invoice', token],
     queryFn: async () => {
       const response = await apiClient.get<{ data: PublicInvoiceData }>(`/invoices/public/${token}`)
@@ -63,6 +102,58 @@ export function PublicInvoicePage() {
     },
     enabled: !!token,
   })
+
+  const handlePayNow = async (accessCode?: string) => {
+    if (!invoice) return
+    const code = accessCode || invoice.paystackAccessCode
+    setIsPaying(true)
+    posthog.capture('public_invoice_pay_now_clicked', { invoice_number: invoice.invoiceNumber })
+
+    try {
+      const loaded = await loadPaystackScript()
+      if (!loaded) {
+        toast.error('Failed to load payment gateway. Please try again.')
+        if (invoice.paymentUrl && !accessCode) {
+          window.open(invoice.paymentUrl, '_blank')
+        }
+        return
+      }
+
+      if (!code) {
+        if (invoice.paymentUrl && !accessCode) {
+          window.open(invoice.paymentUrl, '_blank')
+        } else {
+          toast.error('Online payment is not enabled for this invoice.')
+        }
+        return
+      }
+
+      const paystack = new (window as unknown as {
+        PaystackPop: new () => {
+          resumeTransaction: (config: {
+            access_code: string
+            onSuccess: () => void
+            onCancel: () => void
+          }) => void
+        }
+      }).PaystackPop()
+      paystack.resumeTransaction({
+        access_code: code,
+        onSuccess: () => {
+          toast.success('Payment received! Updating invoice status...')
+          queryClient.invalidateQueries({ queryKey: ['public-invoice', token] })
+        },
+        onCancel: () => {
+          toast.info('Payment cancelled.')
+        },
+      })
+    } catch (err) {
+      console.error('Paystack checkout error:', err)
+      toast.error('An error occurred during checkout. Please try again.')
+    } finally {
+      setIsPaying(false)
+    }
+  }
 
   const downloadPdf = async () => {
     try {
@@ -93,7 +184,7 @@ export function PublicInvoicePage() {
     )
   }
 
-  if (error || !invoice) {
+  if (isError || !invoice) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-muted p-4">
         <FileText className="h-16 w-16 text-muted-foreground" />
@@ -107,42 +198,51 @@ export function PublicInvoicePage() {
 
   const outstanding = invoice.total - invoice.amountPaid
   const isPaid = invoice.status === 'PAID'
+  const nextUnpaidInstallment = invoice.installments?.find(inst => !inst.isPaid)
 
   return (
-    <div className="min-h-screen bg-muted p-4 md:p-8">
-      <div className="mx-auto max-w-3xl">
+    <div className="min-h-screen bg-[#f8f9ff]">
+      <RebrandBanner />
+      <div className="p-4 md:p-8">
+        <div className="mx-auto max-w-3xl">
         {/* Header */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-primary">{invoice.organization.name}</h1>
-            <p className="text-muted-foreground">Invoice {invoice.invoiceNumber}</p>
+            <h1 className="text-2xl font-bold text-[#0037b0] tracking-tight">{invoice.organization.name}</h1>
+            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-1">Invoice {invoice.invoiceNumber}</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={downloadPdf}>
-              <Download className="mr-2 h-4 w-4" />
+            <Button variant="outline" onClick={downloadPdf} className="h-10 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/60 rounded-xl cursor-pointer">
+              <Download className="mr-2 h-4 w-4 text-slate-500" />
               Download PDF
             </Button>
-            {invoice.paymentUrl && !isPaid && (
-              <a href={invoice.paymentUrl} target="_blank" rel="noopener noreferrer" onClick={() => posthog.capture('public_invoice_pay_now_clicked', { invoice_number: invoice.invoiceNumber })}>
-                <Button>
-                  <CreditCard className="mr-2 h-4 w-4" />
-                  Pay Now
-                </Button>
-              </a>
+            {invoice.paymentUrl && !isPaid && (!invoice.installments || invoice.installments.length === 0) && (
+              <Button onClick={() => handlePayNow()} isLoading={isPaying} className="bg-[#0037b0] hover:bg-[#1d4ed8] text-white text-xs font-bold h-10 px-4 rounded-xl cursor-pointer border-0 shadow-md">
+                <CreditCard className="mr-2 h-4 w-4" />
+                Pay Now
+              </Button>
             )}
           </div>
         </div>
 
         {/* Status Banner */}
         {isPaid ? (
-          <div className="mb-6 rounded-lg bg-success/10 border border-success p-4 text-center">
-            <p className="font-semibold text-success">This invoice has been paid in full</p>
+          <div className="mb-6 rounded-2xl bg-emerald-50 border border-emerald-100 p-5 text-center shadow-[0px_12px_32px_rgba(0,108,73,0.04)] animate-in fade-in duration-300">
+            <p className="font-bold text-[#006c49] text-base">This invoice has been paid in full</p>
           </div>
         ) : (
-          <div className="mb-6 rounded-lg bg-primary/10 border border-primary p-4 text-center">
-            <p className="text-sm text-muted-foreground">Amount Due</p>
-            <p className="text-3xl font-bold text-primary">{formatCurrency(outstanding)}</p>
-            <p className="mt-1 text-sm text-muted-foreground">Due {formatDate(invoice.dueDate)}</p>
+          <div className="mb-6 rounded-2xl bg-[#eef4ff] border border-slate-200/30 p-5 text-center shadow-[0px_12px_32px_rgba(0,55,176,0.02)] animate-in fade-in duration-300">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              {invoice.installments && invoice.installments.length > 0 ? 'Next Installment Due' : 'Amount Due'}
+            </p>
+            <p className="text-3xl font-black text-[#0037b0] tracking-tight mt-1">
+              {formatCurrency(invoice.installments && invoice.installments.length > 0 && nextUnpaidInstallment ? nextUnpaidInstallment.amount : outstanding)}
+            </p>
+            <p className="mt-1.5 text-xs text-slate-500 font-semibold">
+              {invoice.installments && invoice.installments.length > 0 && nextUnpaidInstallment 
+                ? `Installment: "${nextUnpaidInstallment.label}"` 
+                : `Due ${formatDate(invoice.dueDate)}`}
+            </p>
           </div>
         )}
 
@@ -260,16 +360,119 @@ export function PublicInvoicePage() {
           </CardContent>
         </Card>
 
-        {/* Pay Now CTA */}
-        {invoice.paymentUrl && !isPaid && (
+        {/* Payment Schedule Card (for split payments) */}
+        {invoice.installments && invoice.installments.length > 0 && (
+          <Card className="mt-6 border border-slate-200/30 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-2xl overflow-hidden">
+            <CardHeader className="bg-slate-50/50 border-b border-slate-100/60 p-4">
+              <CardTitle className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-[#0037b0]" />
+                Payment Schedule
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 space-y-3 bg-white">
+              <div className="space-y-2.5">
+                {invoice.installments.map((inst) => (
+                  <div key={inst.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl border border-slate-100 bg-[#f8f9ff]/50 gap-3 transition-all">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                        inst.isPaid 
+                          ? 'bg-emerald-50 text-[#006c49] border border-emerald-100' 
+                          : 'bg-[#eef4ff] text-[#0037b0] border border-blue-100'
+                      }`}>
+                        {inst.sequence}
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-800">{inst.label}</p>
+                        <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{inst.percentage}% of total</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between sm:justify-end gap-4">
+                      <span className="text-xs font-black text-slate-850 tabular-nums">
+                        {formatCurrency(inst.amount)}
+                      </span>
+                      {inst.isPaid ? (
+                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-100 text-[#006c49] text-[9px] font-bold uppercase tracking-wider">
+                          Paid
+                        </span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() => handlePayNow(inst.paystackAccessCode)}
+                          isLoading={isPaying}
+                          className="bg-[#0037b0] hover:bg-[#1d4ed8] text-white text-[10px] font-bold h-8 px-3 rounded-lg border-0 cursor-pointer shadow-sm flex items-center"
+                        >
+                          <CreditCard className="mr-1.5 h-3.5 w-3.5" />
+                          Pay Installment
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Settlement Bank Details Card (for manual direct transfers) */}
+        {invoice.organization.bankAccountNumber && !isPaid && (
+          <Card className="mt-6 border border-slate-200/30 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-2xl overflow-hidden">
+            <CardHeader className="bg-slate-50/50 border-b border-slate-100/60 p-4">
+              <CardTitle className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <FileText className="h-4 w-4 text-[#006c49]" />
+                Direct Bank Transfer
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 space-y-4 bg-white">
+              <p className="text-xs text-slate-500 font-semibold leading-relaxed">
+                If you prefer to pay via direct bank transfer, please make payments to the merchant's verified account details below:
+              </p>
+              <div className="bg-[#f8f9ff] p-4 rounded-xl space-y-3 border border-slate-200/20">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-400 font-semibold">Bank Name</span>
+                  <span className="font-bold text-slate-850">{invoice.organization.settlementBank}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs border-t border-slate-200/10 pt-2.5">
+                  <span className="text-slate-400 font-semibold">Account Number</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-slate-850 tabular-nums select-all">
+                      {invoice.organization.bankAccountNumber}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (invoice.organization.bankAccountNumber) {
+                          navigator.clipboard.writeText(invoice.organization.bankAccountNumber);
+                          toast.success("Account number copied!");
+                        }
+                      }}
+                      className="text-[#0037b0] hover:text-[#1d4ed8] font-bold text-[10px] cursor-pointer bg-slate-200/60 hover:bg-slate-250 px-1.5 py-0.5 rounded transition-all active:scale-95 border-0"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center text-xs border-t border-slate-200/10 pt-2.5">
+                  <span className="text-slate-400 font-semibold">Account Name</span>
+                  <span className="font-bold text-slate-850 uppercase tracking-tight">
+                    {invoice.organization.bankAccountName || invoice.organization.name}
+                  </span>
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-400 font-semibold italic text-center">
+                Note: Manual transfers may take up to 24 hours to be processed and marked as paid by the vendor.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Pay Now online button (only if NOT paid and NOT using installments) */}
+        {invoice.paymentUrl && !isPaid && (!invoice.installments || invoice.installments.length === 0) && (
           <div className="mt-6 text-center">
-            <a href={invoice.paymentUrl} target="_blank" rel="noopener noreferrer" onClick={() => posthog.capture('public_invoice_pay_now_clicked', { invoice_number: invoice.invoiceNumber })}>
-              <Button size="lg" className="w-full sm:w-auto">
-                <CreditCard className="mr-2 h-5 w-5" />
-                Pay {formatCurrency(outstanding)} Now
-              </Button>
-            </a>
-            <p className="mt-2 text-xs text-muted-foreground">
+            <Button size="lg" className="w-full sm:w-auto bg-[#0037b0] hover:bg-[#1d4ed8] text-white font-bold h-11 border-0 rounded-xl shadow-md cursor-pointer" onClick={() => handlePayNow()} isLoading={isPaying}>
+              <CreditCard className="mr-2 h-5 w-5" />
+              Pay {formatCurrency(outstanding)} Online
+            </Button>
+            <p className="mt-2 text-xs text-slate-400 font-semibold">
               Secure payment powered by Paystack
             </p>
           </div>
@@ -280,6 +483,7 @@ export function PublicInvoicePage() {
           <p>Invoice from {invoice.organization.name}</p>
           {invoice.organization.email && <p>{invoice.organization.email}</p>}
         </div>
+      </div>
       </div>
     </div>
   )

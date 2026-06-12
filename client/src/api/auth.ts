@@ -22,6 +22,11 @@ export const authApi = {
     return response.data.data
   },
 
+  updateProfile: async (userId: string, data: { firstName?: string; lastName?: string; businessRole?: string }): Promise<User> => {
+    const response = await apiClient.patch<ApiResponse<User>>(`/users/${userId}`, data)
+    return response.data.data
+  },
+
   verifyEmail: async (token: string): Promise<AuthResponse> => {
     const response = await apiClient.post<ApiResponse<AuthResponse>>('/auth/verify-email', { token })
     return response.data.data

@@ -198,7 +198,7 @@ export function OrganizationPage() {
                 <div className="flex items-center justify-between rounded-md border border-dashed p-4">
                   <div className="flex items-center gap-3 text-sm text-muted-foreground">
                     <Lock className="h-4 w-4 shrink-0" />
-                    <span>Free plan invoices show <strong>"Powered by Kulode"</strong>. Upgrade to add your logo.</span>
+                    <span>Free plan invoices show <strong>"Powered by Tari1"</strong>. Upgrade to add your logo.</span>
                   </div>
                   <Link to="/settings/billing">
                     <Button type="button" size="sm">Upgrade</Button>

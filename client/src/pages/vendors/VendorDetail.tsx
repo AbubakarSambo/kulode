@@ -8,8 +8,10 @@ import { vendorsApi, expensesApi } from '@/api'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
 import { useAuthStore } from '@/stores/auth'
+import { useOverscrollBounce } from '@/hooks'
 
 export function VendorDetailPage() {
+  const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -95,7 +97,7 @@ export function VendorDetailPage() {
         }
       />
 
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto p-4 sm:p-6">
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Service Description */}
           {vendor.serviceDescription && (

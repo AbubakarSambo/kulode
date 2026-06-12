@@ -4,12 +4,12 @@ import Layout from '../layouts/Layout.astro'
 const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
 ---
 
-<Layout title="Kulode — Invoicing that gets you paid faster">
+<Layout title="Tari1 — Invoicing that gets you paid faster">
   <!-- Nav -->
   <nav class="w-full sticky top-0 z-50 bg-background/80 backdrop-blur-xl shadow-[0_12px_32px_rgba(0,55,176,0.08)]">
     <div class="flex justify-between items-center px-container-padding max-w-7xl mx-auto h-[72px]">
       <div class="flex items-center gap-12">
-        <a href="/" class="text-[24px] font-extrabold tracking-tighter text-primary">Kulode</a>
+        <a href="/" class="flex items-center"><img src="/logo.svg" alt="Tari1 Logo" class="h-10 w-auto" /></a>
         <div class="hidden md:flex items-center gap-8">
           <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/#features">Features</a>
           <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/how-it-works">How It Works</a>
@@ -45,28 +45,88 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
           </div>
         </div>
       </div>
-      <div class="relative stagger-in">
-        <div class="absolute -top-10 -left-10 w-40 h-40 bg-surface-container rounded-full blur-3xl opacity-50 -z-10"></div>
-        <div class="rounded-[48px] overflow-hidden shadow-[0_32px_64px_rgba(0,55,176,0.12)] bg-surface-container-lowest p-4 float-slow">
-          <img alt="Professional Freelancer" class="w-full h-auto rounded-[32px] object-cover aspect-[4/5]" src="/service_provider_persona.png">
+      <!-- ── Hero Right Column: Stacked layout (no overlaps) ── -->
+      <div class="relative w-full flex flex-col gap-4 min-h-[560px] md:min-h-[620px] stagger-in hero-visual-col">
+
+        <!-- Ambient glow -->
+        <div class="absolute inset-0 flex items-center justify-end pointer-events-none -z-10">
+          <div class="w-[60%] h-[60%] rounded-full bg-primary/8 blur-3xl"></div>
         </div>
-        <!-- Glass Overlay Element -->
-        <div class="absolute bottom-12 -left-8 glass-card p-6 rounded-[24px] shadow-xl border border-white/20 max-w-[240px]">
-          <div class="flex items-center gap-4 mb-3">
-            <div class="w-10 h-10 rounded-full bg-success/20 flex items-center justify-center text-success">
-              <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+
+        <!-- ── Desktop App Screenshot (top, full column width) ── -->
+        <div class="relative z-10 w-full rounded-[20px] p-[1.5px] bg-gradient-to-r from-primary/30 via-primary to-primary/30 animate-shimmer-border shadow-2xl transition-all duration-500 hover:scale-[1.01] desktop-mockup-hero">
+          <div class="rounded-[19.5px] overflow-hidden bg-surface-container-lowest">
+            <div class="flex items-center gap-1.5 px-4 py-3 bg-surface-container border-b border-outline-variant/10 shrink-0">
+              <div class="flex gap-1">
+                <span class="w-2.5 h-2.5 rounded-full bg-[#ff5f56]"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-[#27c93f]"></span>
+              </div>
+              <div class="mx-auto bg-surface-container-lowest border border-outline-variant/10 rounded-md px-4 py-0.5 text-[10px] text-text-secondary select-none flex items-center gap-1.5 w-full max-w-[240px] justify-center truncate">
+                <i class="hgi-stroke hgi-lock text-[8px] text-success"></i>
+                app.tari1.com/invoices/ACM-2026-0020
+              </div>
+            </div>
+            <img alt="Tari1 Invoice Detail" class="w-full h-auto object-cover" src="/uploaded_desktop_invoice.png">
+          </div>
+        </div>
+
+        <!-- ── Bottom row: Lady card (left) + Mobile mockup (right) ── -->
+        <div class="relative flex items-end gap-4">
+
+          <!-- Lady card — rounded card with natural background -->
+          <div class="persona-card relative flex-1 h-[220px] md:h-[260px] rounded-[28px] overflow-hidden shadow-xl shadow-primary/15 border border-white/20 z-10 persona-card-hover">
+            <img
+              src="/original_lady.png"
+              alt="Professional freelancer using Tari1"
+              class="absolute inset-0 w-full h-full object-cover object-center"
+            />
+            <!-- Light bottom gradient for polish -->
+            <div class="absolute inset-0 bg-gradient-to-t from-primary/30 via-transparent to-transparent pointer-events-none"></div>
+          </div>
+
+          <!-- Mobile Phone Mockup -->
+          <div class="relative w-[30%] aspect-[9/16] z-20 rounded-[24px] border-[5px] border-slate-900 overflow-hidden shadow-2xl bg-slate-900 hidden sm:block hover-tilt-mobile cursor-pointer">
+            <img alt="Mobile Invoice Details" class="w-full h-full object-cover" src="/uploaded_mobile_invoice.png">
+          </div>
+
+        </div>
+
+        <!-- ── Floating "Payment Received" badge (bottom-left) ── -->
+        <div class="absolute bottom-4 -left-6 z-40 glass-card p-4 rounded-[24px] shadow-xl border border-white/20 max-w-[195px] animate-float-card">
+          <div class="flex items-center gap-3 mb-2">
+            <div class="w-8 h-8 rounded-full bg-success/20 flex items-center justify-center text-success shrink-0">
+              <i class="hgi-stroke hgi-checkmark-circle-01 text-[18px]"></i>
             </div>
             <div>
-              <p class="text-xs font-bold text-text-primary">Payment Received</p>
-              <p class="text-[10px] text-text-secondary">Just now • invoice #442</p>
+              <p class="text-[10px] font-bold text-text-primary">Payment Received</p>
+              <p class="text-[8px] text-text-secondary">Just now • invoice #442</p>
             </div>
           </div>
-          <p class="text-xl font-bold text-primary tabular-nums">₦240,000.00</p>
+          <p class="text-lg font-bold text-primary tabular-nums">₦240,000.00</p>
         </div>
+
+        <!-- ── Floating "Invoice Sent" badge (top-right) ── -->
+        <div class="absolute top-2 -right-4 z-40 glass-card p-3 rounded-[20px] shadow-lg border border-white/20 flex items-center gap-2.5 animate-float-card-alt">
+          <div class="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white shrink-0">
+            <i class="hgi-stroke hgi-mail-send-02 text-[13px]"></i>
+          </div>
+          <div>
+            <p class="text-[10px] font-bold text-text-primary">Invoice Sent ✓</p>
+            <p class="text-[8px] text-text-secondary">2s ago · WhatsApp</p>
+          </div>
+        </div>
+
       </div>
     </section>
 
-
+    <!-- Scroll-down caret indicator -->
+    <div class="flex justify-center pb-8 -mt-4 hidden md:flex">
+      <div class="flex flex-col items-center gap-1 opacity-40 hover:opacity-80 transition-opacity cursor-pointer" onclick="window.scrollBy({top: window.innerHeight, behavior: 'smooth'})">
+        <span class="text-[10px] text-text-secondary uppercase tracking-widest font-bold">Scroll</span>
+        <div class="w-4 h-4 border-r-2 border-b-2 border-primary animate-scroll-caret"></div>
+      </div>
+    </div>
 
     <!-- Interactive Distribution & Payment Demo Section -->
     <section class="max-w-7xl mx-auto px-container-padding py-24 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
@@ -79,16 +139,16 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
         <div class="space-y-6">
           <div class="flex items-start gap-4">
             <div class="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center text-primary shrink-0">
-              <span class="material-symbols-outlined text-lg">mail</span>
+              <i class="hgi-stroke hgi-mail-01 text-lg"></i>
             </div>
             <div>
               <p class="text-sm font-bold text-text-primary">Email Delivery Automation</p>
-              <p class="text-xs text-text-secondary">Kulode auto-sends professional invoices with inline action buttons directly to your customer's inbox.</p>
+              <p class="text-xs text-text-secondary">Tari1 auto-sends professional invoices with inline action buttons directly to your customer's inbox.</p>
             </div>
           </div>
           <div class="flex items-start gap-4">
             <div class="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center text-success shrink-0">
-              <span class="material-symbols-outlined text-lg">chat</span>
+              <i class="hgi-stroke hgi-whatsapp text-lg"></i>
             </div>
             <div>
               <p class="text-sm font-bold text-text-primary">Direct WhatsApp Sharing</p>
@@ -97,7 +157,7 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
           </div>
           <div class="flex items-start gap-4">
             <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-800 shrink-0">
-              <span class="material-symbols-outlined text-lg">flash_on</span>
+              <i class="hgi-stroke hgi-flash text-lg"></i>
             </div>
             <div>
               <p class="text-sm font-bold text-text-primary">One-Click Paystack Settlement</p>
@@ -121,7 +181,7 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
           <!-- Email flying card -->
           <div class="absolute -top-6 -left-12 glass-card p-4 rounded-[20px] shadow-lg border border-white/20 max-w-[200px] flex items-center gap-3 animate-float-email">
             <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white shrink-0">
-              <span class="material-symbols-outlined text-sm">mail</span>
+              <i class="hgi-stroke hgi-mail-01 text-sm"></i>
             </div>
             <div>
               <p class="text-[10px] font-bold text-text-primary leading-tight">Invoice Sent</p>
@@ -132,11 +192,11 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
           <!-- WhatsApp Chat bubble -->
           <div class="absolute top-[35%] -right-16 bg-[#d9fdd3] p-4 rounded-[20px] rounded-tr-none shadow-md border border-[#c2f0b7] max-w-[220px] flex items-start gap-3 animate-slide-whatsapp">
             <div class="w-6 h-6 rounded-full bg-[#25d366] flex items-center justify-center text-white shrink-0 mt-0.5">
-              <span class="material-symbols-outlined text-xs text-white" style="font-variation-settings: 'FILL' 1;">chat</span>
+              <i class="hgi-stroke hgi-whatsapp text-xs text-white"></i>
             </div>
             <div>
-              <p class="text-[9px] text-[#128c7e] font-bold">Kulode Notification</p>
-              <p class="text-[10px] text-text-primary leading-snug mt-1">Hello! Here is your invoice. Pay instantly at <span class="text-blue-600 underline">pay.kulode.app/inv-001</span></p>
+              <p class="text-[9px] text-[#128c7e] font-bold">Tari1 Notification</p>
+              <p class="text-[10px] text-text-primary leading-snug mt-1">Hello! Here is your invoice. Pay instantly at <span class="text-blue-600 underline">pay.tari1.app/inv-001</span></p>
             </div>
           </div>
 
@@ -152,7 +212,7 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
                 </div>
                 <!-- Hand clicking cursor -->
                 <div class="absolute right-4 bottom-[-16px] w-6 h-6 text-primary animate-cursor-click pointer-events-none">
-                  <span class="material-symbols-outlined text-xl" style="font-variation-settings: 'FILL' 1;">touch_app</span>
+                  <i class="hgi-stroke hgi-touch-01 text-xl"></i>
                 </div>
               </div>
             </div>
@@ -167,30 +227,30 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
       <div class="max-w-7xl mx-auto px-container-padding">
         <div class="text-center mb-20 stagger-in">
           <h2 class="text-3xl font-extrabold text-primary mb-4">Everything you need to manage your money</h2>
-          <p class="text-base text-text-secondary max-w-2xl mx-auto">Stop juggling multiple spreadsheets and apps. Kulode centralizes your entire financial workflow into a single, beautiful dashboard.</p>
+          <p class="text-base text-text-secondary max-w-2xl mx-auto">Stop juggling multiple spreadsheets and apps. Tari1 centralizes your entire financial workflow into a single, beautiful dashboard.</p>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
           <!-- Feature 1: Compliance -->
-          <div class="bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] hover:shadow-[0_20px_40px_rgba(0,55,176,0.10)] hover:-translate-y-1 transition-all duration-300 stagger-in">
+          <div class="feature-card bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] stagger-in">
             <span class="inline-block px-3 py-1 rounded-full bg-[#ffddb8] text-[#121c28] text-[10px] font-bold uppercase tracking-widest mb-4">Compliance</span>
-            <div class="w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
-              <span class="material-symbols-outlined text-[32px]">receipt_long</span>
+            <div class="feature-icon w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
+              <i class="hgi-stroke hgi-invoice-03 text-[32px]"></i>
             </div>
             <h3 class="text-lg font-bold text-text-primary mb-4">Automated NFIU Reporting</h3>
             <p class="text-sm text-text-secondary">Auto-prepare required currency reports for the Nigerian Financial Intelligence Unit (NFIU) when cash sales cross ₦5M (for individuals) or ₦10M (for corporates) seamlessly.</p>
           </div>
           <!-- Feature 2: Payments -->
-          <div class="bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] hover:shadow-[0_20px_40px_rgba(0,55,176,0.10)] hover:-translate-y-1 transition-all duration-300 stagger-in">
-            <div class="w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
-              <span class="material-symbols-outlined text-[32px]">contactless</span>
+          <div class="feature-card bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] stagger-in">
+            <div class="feature-icon w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
+              <i class="hgi-stroke hgi-credit-card text-[32px]"></i>
             </div>
             <h3 class="text-lg font-bold text-text-primary mb-4">Online Payments & Auto-Reconciliation</h3>
             <p class="text-sm text-text-secondary">Accept local bank transfers, cards, and copy-paste checkout links for WhatsApp or Instagram DMs. Payments are auto-matched instantly.</p>
           </div>
           <!-- Feature 3: Tax -->
-          <div class="bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] hover:shadow-[0_20px_40px_rgba(0,55,176,0.10)] hover:-translate-y-1 transition-all duration-300 stagger-in">
-            <div class="w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
-              <span class="material-symbols-outlined text-[32px]">account_balance_wallet</span>
+          <div class="feature-card bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] stagger-in">
+            <div class="feature-icon w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
+              <i class="hgi-stroke hgi-wallet-01 text-[32px]"></i>
             </div>
             <h3 class="text-lg font-bold text-text-primary mb-4">Tax & FIRS Preparation</h3>
             <p class="text-sm text-text-secondary">Automatically calculate VAT (7.5%) and WHT (2024 simplified rates) and export ready-to-file FIRS tax schedules.</p>
@@ -201,23 +261,38 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
 
     <!-- Collaboration Section -->
     <section class="max-w-7xl mx-auto px-container-padding py-32 grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
-      <div class="order-2 lg:order-1 rounded-[40px] overflow-hidden shadow-2xl shadow-primary/10">
-        <img alt="Team Collaboration" class="w-full h-auto object-cover aspect-video lg:aspect-square" src="/social_merchant_persona.png">
+      <div class="order-2 lg:order-1 relative w-full aspect-video lg:aspect-square flex items-center justify-center min-h-[380px]">
+        <!-- Base photo -->
+        <div class="w-[85%] rounded-[40px] overflow-hidden shadow-2xl shadow-primary/10 border border-outline-variant/10">
+          <img alt="Team Collaboration" class="w-full h-auto object-cover aspect-video lg:aspect-square" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBANxp1viD2yKWSejL3GhhfiNc0kSIhSMZM7gFJ95M9az-zYzBcd1kX-O5hubYxQnibzr8fjmVrh9cnd3K8eX7x_T9i_HDIgnhsVch5M0a-Rv0DQ2nAQkQxGCauV3Qej3GzUwubxkDhDL83tyYeU2Qtxgm_GkiA8l4lE6R-vXqNos_OANYV9ZKRfrHE1YV2Fkqxh5yxS3IQQF_7u3ulL2sMRTHuVg21hHa2FVNO7m55KeugIILhlcM7PXLH0MHsP4IPCFl6yFxhobY">
+        </div>
+        <!-- Overlapping Settings / Accountant Portal Screen -->
+        <div class="absolute -right-4 -bottom-4 w-[60%] z-20 rounded-2xl border border-outline-variant/20 overflow-hidden shadow-2xl bg-surface-container-lowest transition-all hover:scale-[1.02] duration-300">
+          <!-- Mini browser bar -->
+          <div class="flex items-center gap-1 px-3 py-2 bg-surface-container border-b border-outline-variant/20">
+            <div class="flex gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+            </div>
+          </div>
+          <img alt="Analytics Reports" class="w-full h-auto" src="/uploaded_reports_page.png">
+        </div>
       </div>
       <div class="order-1 lg:order-2">
         <span class="bg-surface-container px-4 py-2 rounded-full text-primary text-xs font-bold mb-8 inline-block uppercase tracking-wider">For Teams</span>
         <h2 class="text-4xl font-extrabold text-primary mb-8">Scale your operations with multi-user access</h2>
-        <p class="text-base text-text-secondary mb-10">Kulode isn't just for solo-preneurs. Grant access to your accountant, business partners, or employees with granular permissions. Manage multiple entities from a single unified profile.</p>
+        <p class="text-base text-text-secondary mb-10">Tari1 isn't just for solo-preneurs. Grant access to your accountant, business partners, or employees with granular permissions. Manage multiple entities from a single unified profile.</p>
         <ul class="space-y-6">
           <li class="flex items-start gap-4">
-            <span class="material-symbols-outlined text-primary mt-1">check_circle</span>
+            <i class="hgi-stroke hgi-checkmark-circle-01 text-primary mt-1"></i>
             <div>
               <p class="text-lg font-bold text-text-primary">Granular Permissions</p>
               <p class="text-sm text-text-secondary">Control exactly what each team member can see or edit.</p>
             </div>
           </li>
           <li class="flex items-start gap-4">
-            <span class="material-symbols-outlined text-primary mt-1">check_circle</span>
+            <i class="hgi-stroke hgi-checkmark-circle-01 text-primary mt-1"></i>
             <div>
               <p class="text-lg font-bold text-text-primary">Accountant Portal</p>
               <p class="text-sm text-text-secondary">Invite your accountant to pull reports directly, no more emailing files.</p>
@@ -232,10 +307,10 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
       <!-- Decorative circle -->
       <div class="absolute -top-20 -right-20 w-96 h-96 bg-white/5 rounded-full blur-3xl"></div>
       <div class="max-w-7xl mx-auto px-container-padding text-center relative z-10">
-        <div class="flex justify-center mb-10">
-          <span class="material-symbols-outlined text-[64px] opacity-30" style="font-variation-settings: 'FILL' 1;">format_quote</span>
+        <div class="flex justify-center mb-10 text-[#ffffff4d]">
+          <i class="hgi-stroke hgi-quote-up text-[64px]"></i>
         </div>
-        <blockquote class="text-3xl md:text-4xl leading-snug mb-12 max-w-4xl mx-auto font-bold">"Kulode has completely transformed how I handle my business finances. I get paid within 24 hours and my tax schedules are automatically ready for FIRS."</blockquote>
+        <blockquote class="testimonial-quote text-3xl md:text-4xl leading-snug mb-12 max-w-4xl mx-auto font-bold">"Tari1 has completely transformed how I handle my business finances. I get paid within 24 hours and my tax schedules are automatically ready for FIRS."</blockquote>
         <div class="flex flex-col items-center">
           <div class="w-16 h-16 rounded-full bg-surface-container mb-4 overflow-hidden border-2 border-white/20">
             <div class="w-full h-full bg-accent-gradient"></div>
@@ -250,7 +325,7 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
     <section class="py-32 px-container-padding">
       <div class="max-w-5xl mx-auto bg-surface-container p-12 md:p-20 rounded-[48px] text-center shadow-xl border border-white/20">
         <h2 class="text-3xl font-extrabold text-primary mb-6">Ready to get your time back?</h2>
-        <p class="text-base text-text-secondary mb-12 max-w-xl mx-auto">Join thousands of entrepreneurs who trust Kulode to power their financial growth. No credit card required to start.</p>
+        <p class="text-base text-text-secondary mb-12 max-w-xl mx-auto">Join thousands of entrepreneurs who trust Tari1 to power their financial growth. No credit card required to start.</p>
         <a href={`${appUrl}/register`} class="inline-block bg-primary text-on-primary px-12 py-5 rounded-[12px] text-base font-bold shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all btn-gradient">
           Start your 30-day free trial
         </a>
@@ -262,15 +337,15 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
   <footer class="w-full py-12 bg-surface border-t border-outline-variant">
     <div class="flex flex-col md:flex-row justify-between items-center gap-element-gap px-container-padding max-w-7xl mx-auto">
       <div class="flex flex-col gap-4 items-center md:items-start">
-        <span class="text-2xl font-bold tracking-tight text-primary">Kulode</span>
+        <span class="text-2xl font-bold tracking-tight text-primary">Tari1</span>
         <p class="text-sm text-text-secondary text-center md:text-left max-w-xs">
-          © {new Date().getFullYear()} Kulode. All rights reserved. Built for the modern freelancer.
+          © {new Date().getFullYear()} Tari1. All rights reserved. Built for the modern freelancer.
         </p>
       </div>
       <div class="flex flex-wrap justify-center gap-8">
         <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/privacy">Privacy Policy</a>
         <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/terms">Terms of Service</a>
-        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="mailto:abubakar.sambo@kulode.app">Contact Support</a>
+        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="mailto:abubakar.sambo@tari1.app">Contact Support</a>
       </div>
     </div>
   </footer>
@@ -309,132 +384,92 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
   </script>
 
   <style>
-    /* Keyframes for the person look page animations */
-    @keyframes floatEmail {
-      0%, 100% {
-        transform: translate(0, 40px);
-        opacity: 0;
-      }
-      10%, 40% {
-        opacity: 1;
-        transform: translate(0, 0);
-      }
-      50%, 90% {
-        transform: translate(-10px, -20px);
-        opacity: 1;
-      }
+    /* ── index.astro specific styles ── */
+
+    /* Scroll-down chevron bounce in hero */
+    @keyframes scrollBounce {
+      0%, 100% { transform: translateY(0) rotate(45deg); opacity: 0.5; }
+      50%       { transform: translateY(6px) rotate(45deg); opacity: 1; }
+    }
+    .animate-scroll-caret {
+      animation: scrollBounce 1.8s ease-in-out infinite;
     }
 
-    @keyframes slideWhatsapp {
-      0%, 100% {
-        transform: translate(30px, 10px);
-        opacity: 0;
-      }
-      10%, 40% {
-        opacity: 1;
-        transform: translate(0, 0);
-      }
-      50%, 90% {
-        transform: translate(5px, -5px);
-        opacity: 1;
-      }
+    /* Feature card subtle lift with icon pop on hover */
+    .feature-card {
+      transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+                  box-shadow 0.3s ease;
+    }
+    .feature-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 20px 48px rgba(0, 55, 176, 0.11);
+    }
+    .feature-card:hover .feature-icon {
+      transform: scale(1.14) rotate(-4deg);
+      background-color: rgba(0, 55, 176, 0.12);
+    }
+    .feature-icon {
+      transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+                  background-color 0.3s ease;
     }
 
-    @keyframes payFlow {
-      0%, 100% {
-        transform: scale(1);
-      }
-      45% {
-        transform: scale(1);
-      }
-      50% {
-        transform: scale(0.98);
-      }
-      60% {
-        transform: scale(1);
-      }
+    /* Testimonial blockquote subtle underline accent reveal */
+    .testimonial-quote {
+      position: relative;
+    }
+    .testimonial-quote::after {
+      content: '';
+      position: absolute;
+      bottom: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 60px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+      border-radius: 9999px;
+      animation: underlineGrow 3s ease-in-out infinite;
+    }
+    @keyframes underlineGrow {
+      0%, 100% { width: 40px; opacity: 0.4; }
+      50%       { width: 90px; opacity: 0.8; }
     }
 
-    @keyframes cursorClick {
-      0%, 100% {
-        transform: translate(15px, 15px) scale(1);
-        opacity: 0;
-      }
-      40% {
-        transform: translate(5px, 5px) scale(1);
-        opacity: 1;
-      }
-      50% {
-        transform: translate(0, 0) scale(0.85);
-        opacity: 1;
-      }
-      60% {
-        transform: translate(10px, 10px) scale(1);
-        opacity: 0;
-      }
+    /* Distribution section card image hover subtle scale */
+    .distribution-card-img {
+      transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+    .distribution-card-img:hover {
+      transform: scale(1.015);
     }
 
-    @keyframes btnPayBg {
-      0%, 48%, 95%, 100% {
-        background-color: #0037b0;
-      }
-      52%, 90% {
-        background-color: #006c49;
-      }
+    /* ── Hero persona card hover lift ── */
+    .persona-card-hover {
+      transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1),
+                  box-shadow 0.4s ease;
+    }
+    .persona-card-hover:hover {
+      transform: translateY(-6px) scale(1.015);
+      box-shadow: 0 32px 64px rgba(0, 55, 176, 0.22);
     }
 
-    @keyframes textPayNow {
-      0%, 48%, 95%, 100% {
-        opacity: 1;
-      }
-      52%, 90% {
-        opacity: 0;
-      }
+    /* Desktop mockup subtle entry from left */
+    .desktop-mockup-hero {
+      animation: slideInLeft 0.8s cubic-bezier(0.25, 1, 0.5, 1) both;
+      animation-delay: 0.3s;
+    }
+    @keyframes slideInLeft {
+      from { opacity: 0; transform: translateX(-24px); }
+      to   { opacity: 1; transform: translateX(0); }
     }
 
-    @keyframes textPaid {
-      0%, 48%, 95%, 100% {
-        opacity: 0;
-      }
-      52%, 90% {
-        opacity: 1;
-      }
+    /* Alternate float for Invoice Sent badge (different phase) */
+    @keyframes floatCardAlt {
+      0%, 100% { transform: translateY(0px) rotate(1deg); }
+      50%       { transform: translateY(-10px) rotate(-1deg); }
     }
-
-    .animate-float-email {
-      animation: floatEmail 6s cubic-bezier(0.25, 1, 0.5, 1) infinite;
-    }
-
-    .animate-slide-whatsapp {
-      animation: slideWhatsapp 6s cubic-bezier(0.25, 1, 0.5, 1) infinite;
-      animation-delay: 1s;
-      opacity: 0;
-    }
-
-    .animate-pay-flow {
-      animation: payFlow 6s ease-in-out infinite;
-      animation-delay: 2s;
-    }
-
-    .animate-btn-pay {
-      animation: btnPayBg 6s ease-in-out infinite;
-      animation-delay: 2s;
-    }
-
-    .animate-text-paynow {
-      animation: textPayNow 6s ease-in-out infinite;
-      animation-delay: 2s;
-    }
-
-    .animate-text-paid {
-      animation: textPaid 6s ease-in-out infinite;
-      animation-delay: 2s;
-    }
-
-    .animate-cursor-click {
-      animation: cursorClick 6s cubic-bezier(0.25, 1, 0.5, 1) infinite;
-      animation-delay: 2s;
-      opacity: 0;
+    .animate-float-card-alt {
+      animation: floatCardAlt 5s ease-in-out infinite;
+      animation-delay: 1.2s;
     }
   </style>
 </Layout>

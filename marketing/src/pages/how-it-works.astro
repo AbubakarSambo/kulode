@@ -4,12 +4,12 @@ import Layout from '../layouts/Layout.astro'
 const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
 ---
 
-<Layout title="How it Works — Kulode">
+<Layout title="How it Works — Tari1">
   <!-- Nav -->
   <nav class="w-full sticky top-0 z-50 bg-background/80 backdrop-blur-xl shadow-[0_12px_32px_rgba(0,55,176,0.08)]">
     <div class="flex justify-between items-center px-container-padding max-w-7xl mx-auto h-[72px]">
       <div class="flex items-center gap-12">
-        <a href="/" class="text-[24px] font-extrabold tracking-tighter text-primary">Kulode</a>
+        <a href="/" class="flex items-center"><img src="/logo.svg" alt="Tari1 Logo" class="h-10 w-auto" /></a>
         <div class="hidden md:flex items-center gap-8">
           <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/#features">Features</a>
           <a class="text-sm text-primary font-bold" href="/how-it-works">How It Works</a>
@@ -33,11 +33,9 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
         A financial engine built for <span class="text-surface-tint">compliance & speed</span>
       </h1>
       <p class="text-lg text-text-secondary max-w-2xl mx-auto mb-10">
-        From first click to tax season, Kulode automates your core billing cycles, connects you directly to local payment methods, and keeps you aligned with FIRS and NFIU regulations.
+        From first click to tax season, Tari1 automates your core billing cycles, connects you directly to local payment methods, and keeps you aligned with FIRS and NFIU regulations.
       </p>
     </section>
-
-
 
     <!-- The 4-Step Visual Flow -->
     <section class="py-16 max-w-7xl mx-auto px-container-padding">
@@ -45,52 +43,146 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
         <!-- Connecting line decoration for desktop -->
         <div class="hidden lg:block absolute top-1/4 left-1/8 right-1/8 h-0.5 bg-outline-variant -z-10"></div>
 
-        <!-- Step 1 -->
-        <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant hover:border-primary/20 hover:shadow-lg transition-all duration-300 flex flex-col items-center text-center stagger-in">
-          <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2">
-            <span class="material-symbols-outlined text-[32px]">domain</span>
+        <!-- ── Step 1 ── -->
+        <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant transition-all duration-300 flex flex-col justify-between items-center text-center stagger-in group cursor-pointer relative overflow-hidden">
+          <div>
+            <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2 mx-auto">
+              <i class="hgi-stroke hgi-briefcase-02 text-[32px]"></i>
+            </div>
+            <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4 mx-auto">1</div>
+            <h3 class="text-lg font-bold text-text-primary mb-2">Setup Organization</h3>
+            <p class="text-xs text-text-secondary leading-relaxed">
+              Create your workspace. Set your currency, default notes, payment terms, prefix, and enable VAT compliance.
+            </p>
           </div>
-          <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4">1</div>
-          <h3 class="text-lg font-bold text-text-primary mb-2">Setup Organization</h3>
-          <p class="text-xs text-text-secondary leading-relaxed">
-            Create your workspace. Set your currency, default notes, payment terms, prefix, and enable VAT compliance.
-          </p>
+          <div class="mt-6 w-[80%] rounded-[24px] border-[5px] border-slate-900 overflow-hidden shadow-lg bg-slate-900 relative aspect-[9/16]">
+            <img src="/mobile_step1_setup.png" alt="Workspace Setup mobile view" class="w-full h-full object-cover" />
+            <!-- overlay — hidden by default, revealed on .group:hover via CSS -->
+            <div class="step-overlay absolute inset-0 bg-black/50 flex flex-col justify-center items-center gap-3 p-4 backdrop-blur-[2px]">
+              <div class="step1-card-a bg-white rounded-xl p-3 shadow-lg w-full max-w-[140px] text-left border border-white/20">
+                <p class="text-[9px] font-bold text-text-primary flex items-center gap-1.5">
+                  <span class="w-3.5 h-3.5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-[8px] font-extrabold">✓</span>
+                  Currency: NGN
+                </p>
+              </div>
+              <div class="step1-card-b bg-white rounded-xl p-3 shadow-lg w-full max-w-[140px] text-left border border-white/20">
+                <p class="text-[9px] font-bold text-text-primary flex items-center gap-1.5">
+                  <span class="w-3.5 h-3.5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-[8px] font-extrabold">✓</span>
+                  VAT Rate: 7.5%
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- Step 2 -->
-        <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant hover:border-primary/20 hover:shadow-lg transition-all duration-300 flex flex-col items-center text-center stagger-in">
-          <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2">
-            <span class="material-symbols-outlined text-[32px]">account_balance</span>
+        <!-- ── Step 2 ── -->
+        <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant transition-all duration-300 flex flex-col justify-between items-center text-center stagger-in group cursor-pointer relative overflow-hidden">
+          <div>
+            <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2 mx-auto">
+              <i class="hgi-stroke hgi-bank text-[32px]"></i>
+            </div>
+            <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4 mx-auto">2</div>
+            <h3 class="text-lg font-bold text-text-primary mb-2">Link Settlement Bank</h3>
+            <p class="text-xs text-text-secondary leading-relaxed">
+              Add bank details to register your Paystack subaccount. Get verified to routing incoming payments directly.
+            </p>
           </div>
-          <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4">2</div>
-          <h3 class="text-lg font-bold text-text-primary mb-2">Link Settlement Bank</h3>
-          <p class="text-xs text-text-secondary leading-relaxed">
-            Add bank details to register your Paystack subaccount. Get verified to routing incoming payments directly.
-          </p>
+          <div class="mt-6 w-[80%] rounded-[24px] border-[5px] border-slate-900 overflow-hidden shadow-lg bg-slate-900 relative aspect-[9/16]">
+            <img src="/mobile_step2_bank.png" alt="Link Settlement Bank mobile view" class="w-full h-full object-cover" />
+            <div class="step-overlay absolute inset-0 bg-black/50 flex flex-col justify-center items-center p-4 backdrop-blur-[2px]">
+              <div class="relative flex items-center justify-center">
+                <!-- Sonar rings — animated via .group:hover CSS below -->
+                <div class="step2-ring-1 absolute w-12 h-12 rounded-full border-2 border-emerald-400"></div>
+                <div class="step2-ring-2 absolute w-12 h-12 rounded-full border-2 border-emerald-300"></div>
+                <div class="step2-shield w-12 h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xl relative z-10 text-xl font-bold">
+                  ✓
+                </div>
+              </div>
+              <div class="step2-label bg-white rounded-lg px-3 py-1.5 shadow-md text-[9px] font-bold text-slate-800 mt-4">
+                Settlement Live ⚡
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- Step 3 -->
-        <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant hover:border-primary/20 hover:shadow-lg transition-all duration-300 flex flex-col items-center text-center stagger-in">
-          <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2">
-            <span class="material-symbols-outlined text-[32px]">receipt_long</span>
+        <!-- ── Step 3 ── -->
+        <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant transition-all duration-300 flex flex-col justify-between items-center text-center stagger-in group cursor-pointer relative overflow-hidden">
+          <div>
+            <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2 mx-auto">
+              <i class="hgi-stroke hgi-invoice-03 text-[32px]"></i>
+            </div>
+            <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4 mx-auto">3</div>
+            <h3 class="text-lg font-bold text-text-primary mb-2">Issue & Collect</h3>
+            <p class="text-xs text-text-secondary leading-relaxed">
+              Send shareable links. Clients pay via bank transfer or card. The system auto-updates invoice states.
+            </p>
           </div>
-          <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4">3</div>
-          <h3 class="text-lg font-bold text-text-primary mb-2">Issue & Collect</h3>
-          <p class="text-xs text-text-secondary leading-relaxed">
-            Send shareable links. Clients pay via bank transfer or card. The system auto-updates invoice states.
-          </p>
+          <div class="mt-6 w-[80%] rounded-[24px] border-[5px] border-slate-900 overflow-hidden shadow-lg bg-slate-900 relative aspect-[9/16]">
+            <img src="/mobile_step3_invoice.png" alt="Issue & Collect mobile view" class="w-full h-full object-cover" />
+            <div class="step-overlay absolute inset-0 bg-black/50 backdrop-blur-[1px]">
+              <!-- Typing bubble -->
+              <div class="step3-typing absolute bottom-[72px] left-1/2 -translate-x-1/2 bg-white rounded-2xl px-3 py-2 shadow-md flex items-center gap-1.5 w-14 justify-center">
+                <span class="step3-dot w-1.5 h-1.5 rounded-full bg-slate-400" style="animation-delay:0s"></span>
+                <span class="step3-dot w-1.5 h-1.5 rounded-full bg-slate-400" style="animation-delay:0.2s"></span>
+                <span class="step3-dot w-1.5 h-1.5 rounded-full bg-slate-400" style="animation-delay:0.4s"></span>
+              </div>
+              <!-- WhatsApp message bubble -->
+              <div class="step3-bubble absolute bottom-[52px] left-1/2 -translate-x-1/2 bg-[#d9fdd3] rounded-xl rounded-tr-none p-2 border border-[#c2f0b7] w-[128px]">
+                <p class="text-[8px] leading-snug text-slate-800">Invoice: <span class="text-blue-600 underline">pay.tari1.app/inv</span> 🔗</p>
+                <div class="flex justify-end items-center mt-1 gap-1 text-[7px] text-slate-500">
+                  <span>09:41</span>
+                  <!-- grey ticks -->
+                  <span class="step3-ticks-grey">✓✓</span>
+                  <!-- blue ticks -->
+                  <span class="step3-ticks-blue text-[#34b7f1]">✓✓</span>
+                </div>
+              </div>
+              <!-- Toast -->
+              <div class="step3-toast absolute bottom-3 left-1/2 -translate-x-1/2 bg-white rounded-lg px-2.5 py-1.5 shadow-lg border border-slate-100 text-[8px] font-bold text-slate-700 whitespace-nowrap flex items-center gap-1.5">
+                <span class="text-[#25d366]">✉</span> Shared via WhatsApp
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- Step 4 -->
-        <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant hover:border-primary/20 hover:shadow-lg transition-all duration-300 flex flex-col items-center text-center stagger-in">
-          <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2">
-            <span class="material-symbols-outlined text-[32px]">gavel</span>
+        <!-- ── Step 4 ── -->
+        <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant transition-all duration-300 flex flex-col justify-between items-center text-center stagger-in group cursor-pointer relative overflow-hidden">
+          <div>
+            <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2 mx-auto">
+              <i class="hgi-stroke hgi-auction text-[32px]"></i>
+            </div>
+            <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4 mx-auto">4</div>
+            <h3 class="text-lg font-bold text-text-primary mb-2">Automate Compliance</h3>
+            <p class="text-xs text-text-secondary leading-relaxed">
+              Expense logs prepare VAT/WHT schedules. Track SCUML transaction limits effortlessly.
+            </p>
           </div>
-          <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4">4</div>
-          <h3 class="text-lg font-bold text-text-primary mb-2">Automate Compliance</h3>
-          <p class="text-xs text-text-secondary leading-relaxed">
-            Expense logs automatically prepare VAT/WHT schedules. Track SCUML transaction limits effortlessly.
-          </p>
+          <div class="mt-6 w-[80%] rounded-[24px] border-[5px] border-slate-900 overflow-hidden shadow-lg bg-slate-900 relative aspect-[9/16]">
+            <img src="/mobile_step4_tax.png" alt="Automate Compliance mobile view" class="w-full h-full object-cover" />
+            <div class="step-overlay absolute inset-0 bg-black/50 flex flex-col justify-center items-center p-3 backdrop-blur-[2px]">
+              <!-- Progress card -->
+              <div class="step4-card bg-white rounded-xl p-3 shadow-xl w-[85%] max-w-[130px] border border-white/10 relative overflow-hidden min-h-[54px] flex flex-col justify-center">
+                <!-- Downloading state -->
+                <div class="step4-downloading w-full text-center">
+                  <p class="text-[8px] font-extrabold text-blue-700 mb-1.5">Downloading Pack</p>
+                  <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden relative">
+                    <div class="step4-bar h-full bg-blue-600 rounded-full absolute left-0 top-0">
+                      <div class="step4-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent -skew-x-12"></div>
+                    </div>
+                  </div>
+                </div>
+                <!-- Done state -->
+                <div class="step4-done absolute inset-0 bg-white rounded-xl flex flex-col justify-center items-center">
+                  <span class="text-xl mb-1">✅</span>
+                  <p class="text-[8px] font-extrabold text-emerald-600">Done!</p>
+                </div>
+              </div>
+              <!-- Toast -->
+              <div class="step4-toast absolute bottom-3 left-1/2 -translate-x-1/2 bg-emerald-600 text-white rounded-lg px-2.5 py-1.5 shadow-md text-[8px] font-bold whitespace-nowrap">
+                FIRS pack saved ✓
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -102,7 +194,7 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
           <span class="inline-block px-4 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-widest mb-4">Live Sandbox</span>
           <h2 class="text-3xl font-extrabold text-primary mb-4">Try the Invoice Simulator</h2>
           <p class="text-base text-text-secondary max-w-2xl mx-auto">
-            Experience how easy invoice generation is with Kulode. Change the values below to watch the invoice compute and updates in real-time.
+            Experience how easy invoice generation is with Tari1. Change the values below to watch the invoice compute and updates in real-time.
           </p>
         </div>
 
@@ -110,7 +202,7 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
           <!-- Configuration panel -->
           <div class="bg-white p-8 md:p-10 rounded-[32px] shadow-xl border border-outline-variant">
             <h3 class="text-xl font-bold text-text-primary mb-8 flex items-center gap-3">
-              <span class="material-symbols-outlined text-primary">tune</span>
+              <i class="hgi-stroke hgi-settings-02 text-primary"></i>
               Invoice Parameters
             </h3>
 
@@ -138,10 +230,15 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
                 </div>
                 <div>
                   <label class="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-2">VAT Compliance</label>
-                  <div class="flex items-center gap-3 h-[44px]">
-                    <input id="sim-vat" type="checkbox" checked class="w-5 h-5 accent-primary rounded cursor-pointer" />
-                    <span class="text-sm text-text-secondary font-medium">Add 7.5% VAT</span>
-                  </div>
+                  <label class="flex items-center gap-3 h-[44px] cursor-pointer select-none">
+                    <input id="sim-vat" type="checkbox" checked class="sr-only peer" />
+                    <div class="vat-box w-6 h-6 rounded-[6px] border-2 border-slate-300 bg-white flex items-center justify-center transition-all duration-300 relative">
+                      <svg class="vat-check w-4 h-4 text-white stroke-2 stroke-current fill-none" viewBox="0 0 24 24">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                    </div>
+                    <span class="text-sm text-text-secondary font-medium peer-checked:text-text-primary transition-colors">Add 7.5% VAT</span>
+                  </label>
                 </div>
               </div>
             </div>
@@ -153,7 +250,7 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
             
             <div class="flex justify-between items-start mb-8">
               <div>
-                <span class="text-lg font-extrabold tracking-tighter text-primary">Kulode Simulator</span>
+                <span class="text-lg font-extrabold tracking-tighter text-primary">Tari1 Simulator</span>
                 <p class="text-[10px] text-text-secondary mt-1">ACME Solutions Ltd</p>
               </div>
               <div class="text-right">
@@ -168,29 +265,29 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
               <div class="flex justify-between items-center">
                 <div>
                   <p class="text-sm font-bold text-text-primary" id="preview-desc">Premium Consulting Services</p>
-                  <p class="text-xs text-text-secondary mt-1">Qty: <span id="preview-qty">2</span> × ₦<span id="preview-price">150,000.00</span></p>
+                  <p class="text-xs text-text-secondary mt-1">Qty: <span id="preview-qty" class="inline-block">2</span> × ₦<span id="preview-price" class="inline-block">150,000.00</span></p>
                 </div>
-                <p class="text-sm font-bold text-text-primary tabular-nums">₦<span id="preview-raw-total">300,000.00</span></p>
+                <p class="text-sm font-bold text-text-primary tabular-nums">₦<span id="preview-raw-total" class="inline-block">300,000.00</span></p>
               </div>
             </div>
 
             <!-- Invoice Summary -->
-            <div class="space-y-3 pl-1/4">
+            <div class="space-y-3">
               <div class="flex justify-between text-xs text-text-secondary">
                 <span>Subtotal</span>
-                <span class="tabular-nums">₦<span id="preview-subtotal">300,000.00</span></span>
+                <span class="tabular-nums">₦<span id="preview-subtotal" class="inline-block">300,000.00</span></span>
               </div>
               <div class="flex justify-between text-xs text-rose-600 font-medium">
                 <span>Discount (<span id="preview-discount-percent">10</span>%)</span>
-                <span class="tabular-nums">-₦<span id="preview-discount">30,000.00</span></span>
+                <span class="tabular-nums">-₦<span id="preview-discount" class="inline-block">30,000.00</span></span>
               </div>
               <div class="flex justify-between text-xs text-text-secondary" id="preview-vat-row">
                 <span>VAT (7.5%)</span>
-                <span class="tabular-nums">₦<span id="preview-vat">20,250.00</span></span>
+                <span class="tabular-nums">₦<span id="preview-vat" class="inline-block">20,250.00</span></span>
               </div>
               <div class="flex justify-between text-sm font-extrabold text-primary border-t border-outline-variant/60 pt-3">
                 <span>Total Amount Due</span>
-                <span class="tabular-nums">₦<span id="preview-total">290,250.00</span></span>
+                <span class="tabular-nums">₦<span id="preview-total" class="inline-block">290,250.00</span></span>
               </div>
             </div>
 
@@ -222,21 +319,21 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
   <footer class="w-full py-12 bg-surface border-t border-outline-variant">
     <div class="flex flex-col md:flex-row justify-between items-center gap-element-gap px-container-padding max-w-7xl mx-auto">
       <div class="flex flex-col gap-4 items-center md:items-start">
-        <span class="text-2xl font-bold tracking-tight text-primary">Kulode</span>
+        <span class="text-2xl font-bold tracking-tight text-primary">Tari1</span>
         <p class="text-sm text-text-secondary text-center md:text-left max-w-xs">
-          © {new Date().getFullYear()} Kulode. All rights reserved. Built for the modern freelancer.
+          © {new Date().getFullYear()} Tari1. All rights reserved. Built for the modern freelancer.
         </p>
       </div>
       <div class="flex flex-wrap justify-center gap-8">
         <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/privacy">Privacy Policy</a>
         <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/terms">Terms of Service</a>
-        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="mailto:abubakar.sambo@kulode.app">Contact Support</a>
+        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="mailto:abubakar.sambo@tari1.app">Contact Support</a>
       </div>
     </div>
   </footer>
 
   <script>
-    // Intersection Observer for scroll stagger animations
+    // Scroll stagger animations
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
@@ -245,77 +342,314 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
         }
       });
     }, { threshold: 0.1 });
-
     document.querySelectorAll('.stagger-in').forEach(el => {
       (el as HTMLElement).style.animationPlayState = 'paused';
       observer.observe(el);
     });
 
+    // Custom VAT checkbox
+    const vatInput = document.getElementById('sim-vat') as HTMLInputElement;
+    const vatBox = document.querySelector('.vat-box') as HTMLElement;
+    function syncVatBox() {
+      if (vatInput.checked) {
+        vatBox.style.background = '#0037b0';
+        vatBox.style.borderColor = '#0037b0';
+      } else {
+        vatBox.style.background = '#ffffff';
+        vatBox.style.borderColor = '#c4c5d7';
+      }
+    }
+    vatInput?.addEventListener('change', syncVatBox);
+    syncVatBox();
+
     // Invoice sandbox logic
-    const inputDesc = document.getElementById('sim-desc') as HTMLInputElement;
-    const inputPrice = document.getElementById('sim-price') as HTMLInputElement;
-    const inputQty = document.getElementById('sim-qty') as HTMLInputElement;
+    const inputDesc     = document.getElementById('sim-desc') as HTMLInputElement;
+    const inputPrice    = document.getElementById('sim-price') as HTMLInputElement;
+    const inputQty      = document.getElementById('sim-qty') as HTMLInputElement;
     const inputDiscount = document.getElementById('sim-discount') as HTMLInputElement;
-    const inputVat = document.getElementById('sim-vat') as HTMLInputElement;
+    const inputVat      = document.getElementById('sim-vat') as HTMLInputElement;
 
-    const previewDesc = document.getElementById('preview-desc') as HTMLParagraphElement;
-    const previewQty = document.getElementById('preview-qty') as HTMLSpanElement;
-    const previewPrice = document.getElementById('preview-price') as HTMLSpanElement;
-    const previewRawTotal = document.getElementById('preview-raw-total') as HTMLSpanElement;
-    const previewSubtotal = document.getElementById('preview-subtotal') as HTMLSpanElement;
-    const previewDiscountPercent = document.getElementById('preview-discount-percent') as HTMLSpanElement;
-    const previewDiscount = document.getElementById('preview-discount') as HTMLSpanElement;
-    const previewVatRow = document.getElementById('preview-vat-row') as HTMLDivElement;
-    const previewVat = document.getElementById('preview-vat') as HTMLSpanElement;
-    const previewTotal = document.getElementById('preview-total') as HTMLSpanElement;
+    const previewDesc            = document.getElementById('preview-desc') as HTMLElement;
+    const previewQty             = document.getElementById('preview-qty') as HTMLElement;
+    const previewPrice           = document.getElementById('preview-price') as HTMLElement;
+    const previewRawTotal        = document.getElementById('preview-raw-total') as HTMLElement;
+    const previewSubtotal        = document.getElementById('preview-subtotal') as HTMLElement;
+    const previewDiscountPercent = document.getElementById('preview-discount-percent') as HTMLElement;
+    const previewDiscount        = document.getElementById('preview-discount') as HTMLElement;
+    const previewVatRow          = document.getElementById('preview-vat-row') as HTMLElement;
+    const previewVat             = document.getElementById('preview-vat') as HTMLElement;
+    const previewTotal           = document.getElementById('preview-total') as HTMLElement;
 
-    function formatCurrency(val: number): string {
+    function fmt(val: number): string {
       return val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
-    function calculate() {
-      const desc = inputDesc.value || 'Custom Invoice Item';
-      const price = parseFloat(inputPrice.value) || 0;
-      const qty = parseFloat(inputQty.value) || 0;
-      const discountPercent = parseFloat(inputDiscount.value) || 0;
-      const hasVat = inputVat.checked;
-
-      const rawTotal = price * qty;
-      const subtotal = rawTotal;
-      const discountVal = (subtotal * discountPercent) / 100;
-      const subtotalAfterDiscount = subtotal - discountVal;
-      const vatVal = hasVat ? (subtotalAfterDiscount * 0.075) : 0;
-      const total = subtotalAfterDiscount + vatVal;
-
-      previewDesc.textContent = desc;
-      previewQty.textContent = qty.toString();
-      previewPrice.textContent = formatCurrency(price);
-      previewRawTotal.textContent = formatCurrency(rawTotal);
-      previewSubtotal.textContent = formatCurrency(subtotal);
-      previewDiscountPercent.textContent = discountPercent.toString();
-      previewDiscount.textContent = formatCurrency(discountVal);
-      
-      if (hasVat) {
-        previewVatRow.style.display = 'flex';
-        previewVat.textContent = formatCurrency(vatVal);
-      } else {
-        previewVatRow.style.display = 'none';
-      }
-
-      previewTotal.textContent = formatCurrency(total);
+    function pulse(el: HTMLElement | null) {
+      if (!el) return;
+      el.classList.remove('num-pulse');
+      void el.offsetWidth;
+      el.classList.add('num-pulse');
     }
 
-    // Bind event listeners
-    [inputDesc, inputPrice, inputQty, inputDiscount, inputVat].forEach(elem => {
-      if (elem) {
-        elem.addEventListener('input', calculate);
-        elem.addEventListener('change', calculate);
-      }
-    });
+    let firstRun = true;
+    function calculate() {
+      const desc    = inputDesc.value || 'Custom Invoice Item';
+      const price   = parseFloat(inputPrice.value) || 0;
+      const qty     = parseFloat(inputQty.value) || 0;
+      const disc    = parseFloat(inputDiscount.value) || 0;
+      const hasVat  = inputVat.checked;
 
-    // Run initial calculation
+      const raw     = price * qty;
+      const discVal = (raw * disc) / 100;
+      const after   = raw - discVal;
+      const vatVal  = hasVat ? after * 0.075 : 0;
+      const total   = after + vatVal;
+
+      previewDesc.textContent            = desc;
+      previewQty.textContent             = qty.toString();
+      previewPrice.textContent           = fmt(price);
+      previewRawTotal.textContent        = fmt(raw);
+      previewSubtotal.textContent        = fmt(raw);
+      previewDiscountPercent.textContent = disc.toString();
+      previewDiscount.textContent        = fmt(discVal);
+      previewVatRow.style.display        = hasVat ? 'flex' : 'none';
+      if (hasVat) previewVat.textContent = fmt(vatVal);
+      previewTotal.textContent           = fmt(total);
+
+      if (!firstRun) {
+        [previewQty, previewPrice, previewRawTotal, previewSubtotal, previewDiscount, previewVat, previewTotal]
+          .forEach(pulse);
+      }
+      firstRun = false;
+    }
+
+    [inputDesc, inputPrice, inputQty, inputDiscount].forEach(el => {
+      el?.addEventListener('input', calculate);
+    });
+    vatInput?.addEventListener('change', calculate);
     calculate();
   </script>
 
+  <style>
+    /* ── Overlay visibility controlled purely via CSS .group:hover ── */
+    .step-overlay {
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .group:hover .step-overlay {
+      opacity: 1;
+    }
 
+    /* Phone frame scale on hover */
+    .group:hover .aspect-\[9\/16\] {
+      transform: scale(1.04);
+      box-shadow: 0 30px 60px rgba(0,0,0,0.4);
+    }
+    .aspect-\[9\/16\] {
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    /* ── Step 1: staggered card slide-up ── */
+    .step1-card-a,
+    .step1-card-b {
+      opacity: 0;
+      transform: translateY(16px);
+      transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    .group:hover .step1-card-a {
+      opacity: 1;
+      transform: translateY(0);
+      transition-delay: 0.1s;
+    }
+    .group:hover .step1-card-b {
+      opacity: 1;
+      transform: translateY(0);
+      transition-delay: 0.25s;
+    }
+
+    /* ── Step 2: sonar rings + shield pop ── */
+    .step2-ring-1,
+    .step2-ring-2 {
+      opacity: 0;
+    }
+    .group:hover .step2-ring-1 {
+      animation: sonarRing 1.6s ease-out infinite;
+      animation-delay: 0s;
+    }
+    .group:hover .step2-ring-2 {
+      animation: sonarRing 1.6s ease-out infinite;
+      animation-delay: 0.5s;
+    }
+    @keyframes sonarRing {
+      0%   { transform: scale(0.8); opacity: 0.8; }
+      100% { transform: scale(2.2); opacity: 0; }
+    }
+    .step2-shield {
+      transform: scale(0.5);
+      transition: transform 0.5s cubic-bezier(0.34,1.56,0.64,1);
+      transition-delay: 0.1s;
+    }
+    .group:hover .step2-shield {
+      transform: scale(1);
+    }
+    .step2-label {
+      opacity: 0;
+      transform: translateY(6px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
+      transition-delay: 0.3s;
+    }
+    .group:hover .step2-label {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ── Step 3: WhatsApp staged sequence ── */
+    .step3-typing {
+      opacity: 0;
+    }
+    .step3-dot {
+      animation: none;
+    }
+    .step3-bubble {
+      opacity: 0;
+      transform: scale(0.7) translateY(8px);
+    }
+    .step3-ticks-grey { display: inline; }
+    .step3-ticks-blue { display: none; }
+    .step3-toast {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+
+    /* On hover, run the 4.5s looping sequence */
+    .group:hover .step3-typing {
+      animation: wa-typing-seq 4.5s ease-in-out infinite;
+    }
+    .group:hover .step3-dot {
+      animation: wa-dot-bounce 0.6s ease-in-out infinite alternate;
+    }
+    .group:hover .step3-dot:nth-child(2) { animation-delay: 0.15s; }
+    .group:hover .step3-dot:nth-child(3) { animation-delay: 0.3s; }
+    .group:hover .step3-bubble {
+      animation: wa-bubble-seq 4.5s cubic-bezier(0.34,1.56,0.64,1) infinite;
+    }
+    .group:hover .step3-ticks-grey {
+      animation: wa-ticks-grey 4.5s ease-in-out infinite;
+    }
+    .group:hover .step3-ticks-blue {
+      display: inline;
+      animation: wa-ticks-blue 4.5s ease-in-out infinite;
+    }
+    .group:hover .step3-toast {
+      animation: wa-toast-seq 4.5s cubic-bezier(0.34,1.56,0.64,1) infinite;
+    }
+
+    @keyframes wa-dot-bounce {
+      from { transform: translateY(0); }
+      to   { transform: translateY(-3px); }
+    }
+    @keyframes wa-typing-seq {
+      0%        { opacity:0; transform:scale(0.9) translateY(4px); }
+      5%        { opacity:1; transform:scale(1) translateY(0); }
+      22%       { opacity:1; }
+      28%, 100% { opacity:0; transform:scale(0.9) translateY(-4px); }
+    }
+    @keyframes wa-bubble-seq {
+      0%, 26%  { opacity:0; transform:scale(0.7) translateY(8px); }
+      32%      { opacity:1; transform:scale(1.05) translateY(0); }
+      36%, 100%{ opacity:1; transform:scale(1) translateY(0); }
+    }
+    @keyframes wa-ticks-grey {
+      0%, 35%   { opacity:1; }
+      52%, 100% { opacity:0; }
+    }
+    @keyframes wa-ticks-blue {
+      0%, 53%   { opacity:0; }
+      58%, 100% { opacity:1; }
+    }
+    @keyframes wa-toast-seq {
+      0%, 65%   { opacity:0; transform:translateY(14px); }
+      72%       { opacity:1; transform:translateY(-2px); }
+      77%, 100% { opacity:1; transform:translateY(0); }
+    }
+
+    /* ── Step 4: download progress sequence ── */
+    .step4-card {
+      transform: scale(0.9);
+      transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    .group:hover .step4-card {
+      transform: scale(1);
+    }
+    .step4-bar  { width: 0; }
+    .step4-shimmer { transform: skewX(-12deg) translateX(-100%); }
+    .step4-done { opacity: 0; }
+    .step4-toast { opacity: 0; transform: translateY(14px); }
+
+    .group:hover .step4-bar {
+      animation: bar-fill 4.5s ease-in-out infinite;
+    }
+    .group:hover .step4-shimmer {
+      animation: shimmer-sweep 1.3s linear infinite;
+    }
+    .group:hover .step4-downloading {
+      animation: dl-state 4.5s ease-in-out infinite;
+    }
+    .group:hover .step4-done {
+      animation: done-state 4.5s cubic-bezier(0.34,1.56,0.64,1) infinite;
+    }
+    .group:hover .step4-toast {
+      animation: dl-toast 4.5s cubic-bezier(0.34,1.56,0.64,1) infinite;
+    }
+
+    @keyframes bar-fill {
+      0%, 10%   { width:0; }
+      60%, 100% { width:100%; }
+    }
+    @keyframes shimmer-sweep {
+      0%   { transform:skewX(-12deg) translateX(-100%); }
+      100% { transform:skewX(-12deg) translateX(280%); }
+    }
+    @keyframes dl-state {
+      0%, 62%   { opacity:1; }
+      68%, 100% { opacity:0; }
+    }
+    @keyframes done-state {
+      0%, 65%   { opacity:0; transform:scale(0.7); }
+      71%       { opacity:1; transform:scale(1.08); }
+      76%, 100% { opacity:1; transform:scale(1); }
+    }
+    @keyframes dl-toast {
+      0%, 75%   { opacity:0; transform:translateY(14px); }
+      81%       { opacity:1; transform:translateY(-2px); }
+      86%, 100% { opacity:1; transform:translateY(0); }
+    }
+
+    /* ── Invoice Simulator: number pulse on recalc ── */
+    .num-pulse {
+      animation: numPulse 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    @keyframes numPulse {
+      0%   { transform:scale(1); color:inherit; }
+      45%  { transform:scale(1.12); color:#006c49; }
+      100% { transform:scale(1); color:inherit; }
+    }
+
+    /* ── Custom VAT checkbox ── */
+    .vat-check {
+      stroke-dasharray: 22;
+      stroke-dashoffset: 22;
+      transition: stroke-dashoffset 0.28s cubic-bezier(0.4,0,0.2,1);
+    }
+    input#sim-vat:checked ~ div .vat-check,
+    .peer:checked + .vat-box .vat-check {
+      stroke-dashoffset: 0;
+    }
+
+    /* Card hover border glow */
+    .group:hover {
+      border-color: rgba(0,55,176,0.2);
+      box-shadow: 0 20px 40px rgba(0,55,176,0.08);
+    }
+  </style>
 </Layout>

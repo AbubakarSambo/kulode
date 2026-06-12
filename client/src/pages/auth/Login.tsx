@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -16,7 +16,7 @@ import {
 } from "@/components/ui";
 import { useLogin, useResendVerification } from "@/hooks";
 import { posthog } from "@/lib/posthog";
-import { Receipt, Mail, MessageCircle, Pointer, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { Mail, MessageCircle, Pointer, ArrowLeft, Eye, EyeOff } from "lucide-react";
 
 const GOOGLE_AUTH_URL = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/api/v1/auth/google`
@@ -24,7 +24,7 @@ const GOOGLE_AUTH_URL = import.meta.env.VITE_API_URL
 
 const LANDING_URL = import.meta.env.DEV
   ? `http://${window.location.hostname}:4321`
-  : "https://www.kulode.app";
+  : "https://www.tari1.app";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -39,6 +39,30 @@ export function LoginPage() {
   const [showResend, setShowResend] = useState(false);
   const [loginEmail, setLoginEmail] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [overscrollActive, setOverscrollActive] = useState(false);
+
+  useEffect(() => {
+    let timeoutId: any;
+    const handleScroll = () => {
+      const threshold = 10;
+      const totalHeight = document.documentElement.scrollHeight;
+      const scrollPosition = window.innerHeight + window.scrollY;
+
+      if (totalHeight > window.innerHeight && scrollPosition >= totalHeight - threshold) {
+        setOverscrollActive(true);
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          setOverscrollActive(false);
+        }, 500);
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      clearTimeout(timeoutId);
+    };
+  }, []);
 
   const {
     register,
@@ -72,10 +96,7 @@ export function LoginPage() {
         
         {/* Logo */}
         <div className="relative z-10 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center font-black text-white text-lg">
-            K
-          </div>
-          <span className="text-2xl font-extrabold tracking-tighter">Kulode</span>
+          <img src="/logo-white.png" alt="Tari1 Logo" className="h-11 w-auto" />
         </div>
         
         {/* Center Content & Animated Mockups */}
@@ -117,8 +138,8 @@ export function LoginPage() {
                   <MessageCircle size={12} className="text-white fill-white" />
                 </div>
                 <div>
-                  <p className="text-[8px] text-[#128c7e] font-bold">Kulode Notification</p>
-                  <p className="text-[9px] text-slate-800 leading-snug mt-0.5">Pay instantly at <span className="text-blue-600 underline">pay.kulode.app/inv-001</span></p>
+                  <p className="text-[8px] text-[#128c7e] font-bold">Tari1 Notification</p>
+                  <p className="text-[9px] text-slate-800 leading-snug mt-0.5">Pay instantly at <span className="text-blue-600 underline">pay.tari1.app/inv-001</span></p>
                 </div>
               </div>
 
@@ -145,13 +166,13 @@ export function LoginPage() {
 
         {/* Footer */}
         <div className="relative z-10 flex justify-between items-center text-xs text-blue-200/50">
-          <p>© {new Date().getFullYear()} Kulode. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Tari1. All rights reserved.</p>
           <a href="/privacy" className="hover:text-white transition-colors">Privacy & Terms</a>
         </div>
       </div>
 
       {/* Right Form Panel (5 cols on large screens) */}
-      <div className="flex flex-col items-center justify-center p-6 md:p-12 lg:col-span-5 bg-[#f8f9ff]">
+      <div className="flex flex-col items-center justify-center p-6 md:p-12 lg:col-span-5 bg-background">
         {/* Back navigation — lives ABOVE the card, not inside it */}
         <div className="w-full max-w-md mb-4">
           <a
@@ -165,21 +186,14 @@ export function LoginPage() {
           </a>
         </div>
 
-        <Card className="w-full max-w-md border border-slate-200/60 shadow-[0_20px_50px_rgba(0,55,176,0.06)] bg-white rounded-[32px] p-2">
+        <Card className={`w-full max-w-md border border-slate-200/60 shadow-[0_20px_50px_rgba(0,55,176,0.06)] bg-white rounded-[32px] p-2 transition-transform duration-300 ${overscrollActive ? "animate-rubber-bottom" : ""}`}>
           <CardHeader className="text-center pb-4 pt-6">
             <div className="mb-4 lg:hidden flex justify-center">
-              <span className="text-3xl font-extrabold tracking-tighter text-[#00247d]">Kulode</span>
+              <img src="/logo.svg" alt="Tari1 Logo" className="h-10 w-auto" />
             </div>
             <CardTitle className="text-2xl font-black text-slate-900 tracking-tight">Welcome back</CardTitle>
             <CardDescription className="text-xs text-slate-500 mt-1">Sign in to your account to continue</CardDescription>
-            
-            {/* Action pill highlight */}
-            <div className="mt-4 flex items-center justify-center gap-3 rounded-2xl bg-[#0037b0]/5 px-4 py-3 border border-[#0037b0]/10">
-              <Receipt size={16} className="text-[#0037b0] shrink-0" />
-              <p className="text-xs text-[#0037b0] font-semibold text-left leading-tight">
-                <span className="font-extrabold">Compliance Alert:</span> Export your FIRS-ready tax summaries in one click
-              </p>
-            </div>
+
           </CardHeader>
 
           <CardContent className="space-y-4">
@@ -233,12 +247,6 @@ export function LoginPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password" className="text-xs font-bold uppercase tracking-wider text-slate-500">Password</Label>
-                  <Link
-                    to="/forgot-password"
-                    className="text-xs text-[#0037b0] hover:underline font-extrabold"
-                  >
-                    Forgot password?
-                  </Link>
                 </div>
                 <div className="relative">
                   <Input
@@ -257,6 +265,14 @@ export function LoginPage() {
                   >
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
+                </div>
+                <div className="text-right mt-1">
+                  <Link
+                    to="/forgot-password"
+                    className="text-xs text-[#0037b0] hover:underline font-extrabold min-h-[44px] inline-flex items-center"
+                  >
+                    Forgot password?
+                  </Link>
                 </div>
               </div>
               
@@ -286,7 +302,7 @@ export function LoginPage() {
                 Sign in
               </Button>
               <p className="text-center text-xs text-slate-500">
-                New to Kulode?{" "}
+                New to Tari1?{" "}
                 <Link to="/register" className="text-[#0037b0] hover:underline font-extrabold">
                   Create an account
                 </Link>

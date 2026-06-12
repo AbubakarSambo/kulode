@@ -12,6 +12,8 @@ export interface UpdateOrganizationData {
   showQrCode?: boolean
   paymentTerms?: string
   defaultNotes?: string
+  businessType?: string
+  organizationSize?: string
 }
 
 export const organizationsApi = {

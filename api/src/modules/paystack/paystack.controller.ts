@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Body,
   Param,
   Headers,
@@ -46,7 +47,7 @@ export class PaystackController {
 
   @Post('organizations/setup-paystack')
   @ApiBearerAuth()
-  @Roles(Role.SUPER_ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: 'Set up Paystack subaccount for organization' })
   @ApiResponse({ status: 201, description: 'Subaccount created' })
   async setupPaystack(
@@ -122,5 +123,16 @@ export class PaystackController {
   @ApiResponse({ status: 200, description: 'Payment verification result' })
   async verifyTransaction(@Param('reference') reference: string) {
     return this.paystackService.verifyTransaction(reference);
+  }
+
+  @Delete('organizations/disconnect-paystack')
+  @ApiBearerAuth()
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'Disconnect Paystack integration' })
+  @ApiResponse({ status: 200, description: 'Paystack disconnected' })
+  async disconnectPaystack(
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.paystackService.disconnectSubaccount(organizationId);
   }
 }

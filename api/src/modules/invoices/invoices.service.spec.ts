@@ -3,10 +3,13 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { InvoicesService } from './invoices.service';
 import { PrismaService } from '../prisma/prisma.service';
 
+import { InventoryService } from '../inventory/inventory.service';
+import { PaystackService } from '../paystack/paystack.service';
+
 // ─── Mock helpers ────────────────────────────────────────────────────────────
 
 function createMockPrisma() {
-  return {
+  const prismaInstance = {
     client: { findFirst: jest.fn() },
     organization: { findUnique: jest.fn() },
     invoice: {
@@ -26,6 +29,8 @@ function createMockPrisma() {
     },
     $transaction: jest.fn(),
   };
+  prismaInstance.$transaction.mockImplementation((cb: any) => cb(prismaInstance));
+  return prismaInstance;
 }
 
 const ORG_ID = 'org-abc-123';
@@ -105,6 +110,21 @@ describe('InvoicesService — invoice limit enforcement', () => {
       providers: [
         InvoicesService,
         { provide: PrismaService, useValue: prisma },
+        {
+          provide: InventoryService,
+          useValue: {
+            reserveForInvoice: jest.fn(),
+            releaseReservation: jest.fn(),
+          },
+        },
+        {
+          provide: PaystackService,
+          useValue: {
+            initializeTransaction: jest.fn(),
+            initializeInstallmentTransaction: jest.fn(),
+            verifyTransaction: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -131,32 +151,32 @@ describe('InvoicesService — invoice limit enforcement', () => {
 
   // ─── FREE plan limits ────────────────────────────────────────────────────
 
-  it('allows invoice creation when FREE plan is under the 50-invoice limit', async () => {
+  it('allows invoice creation when FREE plan is under the 5-invoice limit', async () => {
     const org = orgWith({ planTier: 'FREE' });
     setupHappyPathMocks(prisma, org);
-    prisma.invoice.count.mockResolvedValue(49);
+    prisma.invoice.count.mockResolvedValue(4);
     await expect(service.create(ORG_ID, USER_ID, baseCreateDto as any)).resolves.toBeDefined();
   });
 
-  it('throws INVOICE_LIMIT_REACHED when FREE plan reaches 50 invoices', async () => {
+  it('throws INVOICE_LIMIT_REACHED when FREE plan reaches 5 invoices', async () => {
     prisma.client.findFirst.mockResolvedValue(mockClient);
     prisma.organization.findUnique.mockResolvedValue(orgWith({ planTier: 'FREE' }));
-    prisma.invoice.count.mockResolvedValue(50);
+    prisma.invoice.count.mockResolvedValue(5);
 
     await expect(service.create(ORG_ID, USER_ID, baseCreateDto as any)).rejects.toMatchObject({
       response: expect.objectContaining({
         code: 'INVOICE_LIMIT_REACHED',
         currentPlan: 'FREE',
-        limit: 50,
-        current: 50,
+        limit: 5,
+        current: 5,
       }),
     });
   });
 
-  it('throws INVOICE_LIMIT_REACHED when FREE plan exceeds 50 invoices', async () => {
+  it('throws INVOICE_LIMIT_REACHED when FREE plan exceeds 5 invoices', async () => {
     prisma.client.findFirst.mockResolvedValue(mockClient);
     prisma.organization.findUnique.mockResolvedValue(orgWith({ planTier: 'FREE' }));
-    prisma.invoice.count.mockResolvedValue(60);
+    prisma.invoice.count.mockResolvedValue(6);
 
     await expect(service.create(ORG_ID, USER_ID, baseCreateDto as any)).rejects.toThrow(ForbiddenException);
   });
@@ -209,13 +229,13 @@ describe('InvoicesService — invoice limit enforcement', () => {
     prisma.organization.findUnique.mockResolvedValue(
       orgWith({ planTier: 'PRO', subscriptionStatus: 'TRIALING', trialEndDate: pastDate }),
     );
-    prisma.invoice.count.mockResolvedValue(51); // above FREE limit, below PRO limit
+    prisma.invoice.count.mockResolvedValue(6); // above FREE limit, below PRO limit
 
     await expect(service.create(ORG_ID, USER_ID, baseCreateDto as any)).rejects.toMatchObject({
       response: expect.objectContaining({
         code: 'INVOICE_LIMIT_REACHED',
         currentPlan: 'FREE',
-        limit: 50,
+        limit: 5,
       }),
     });
   });
@@ -225,7 +245,7 @@ describe('InvoicesService — invoice limit enforcement', () => {
     prisma.organization.findUnique.mockResolvedValue(
       orgWith({ planTier: 'PRO', subscriptionStatus: 'EXPIRED' }),
     );
-    prisma.invoice.count.mockResolvedValue(51);
+    prisma.invoice.count.mockResolvedValue(6);
 
     await expect(service.create(ORG_ID, USER_ID, baseCreateDto as any)).rejects.toMatchObject({
       response: expect.objectContaining({
@@ -235,10 +255,10 @@ describe('InvoicesService — invoice limit enforcement', () => {
     });
   });
 
-  it('allows invoice when expired BUSINESS org is under FREE limit (50 invoices)', async () => {
+  it('allows invoice when expired BUSINESS org is under FREE limit (5 invoices)', async () => {
     const org = orgWith({ planTier: 'BUSINESS', subscriptionStatus: 'EXPIRED' });
     setupHappyPathMocks(prisma, org);
-    prisma.invoice.count.mockResolvedValue(49);
+    prisma.invoice.count.mockResolvedValue(4);
     await expect(service.create(ORG_ID, USER_ID, baseCreateDto as any)).resolves.toBeDefined();
   });
 

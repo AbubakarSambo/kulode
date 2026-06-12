@@ -59,6 +59,7 @@ export class PaystackService {
   private readonly baseUrl: string;
   private readonly secretKey: string;
   private readonly callbackUrl: string;
+  public readonly publicKey: string;
 
   constructor(
     private configService: ConfigService,
@@ -67,12 +68,13 @@ export class PaystackService {
   ) {
     this.baseUrl = this.configService.get<string>('paystack.baseUrl') || 'https://api.paystack.co';
     this.secretKey = this.configService.get<string>('paystack.secretKey') || '';
+    this.publicKey = this.configService.get<string>('paystack.publicKey') || '';
     this.callbackUrl = this.configService.get<string>('paystack.callbackUrl') || 'http://localhost:5173/payment/callback';
   }
 
   private async makeRequest<T>(
     endpoint: string,
-    method: 'GET' | 'POST' = 'GET',
+    method: 'GET' | 'POST' | 'PUT' = 'GET',
     body?: any,
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
@@ -107,12 +109,32 @@ export class PaystackService {
     }
   }
 
+  private get isMockMode(): boolean {
+    return !this.secretKey || this.secretKey.includes('xxxx');
+  }
+
   async getBanks(): Promise<PaystackBank[]> {
+    if (this.isMockMode) {
+      return [
+        { name: 'Access Bank', code: '044' },
+        { name: 'Guaranty Trust Bank', code: '058' },
+        { name: 'Zenith Bank', code: '057' },
+        { name: 'United Bank for Africa', code: '033' },
+        { name: 'First Bank of Nigeria', code: '011' },
+      ];
+    }
     return this.makeRequest<PaystackBank[]>('/bank?country=nigeria');
   }
 
   async verifyBankAccount(dto: VerifyBankAccountDto): Promise<PaystackAccountVerification> {
     const { accountNumber, bankCode } = dto;
+    if (this.isMockMode) {
+      return {
+        account_number: accountNumber,
+        account_name: 'Acme Corp Settlement Account',
+        bank_id: 1,
+      };
+    }
     return this.makeRequest<PaystackAccountVerification>(
       `/bank/resolve?account_number=${accountNumber}&bank_code=${bankCode}`,
     );
@@ -138,33 +160,75 @@ export class PaystackService {
     const banks = await this.getBanks();
     const bank = banks.find((b) => b.code === dto.bankCode);
 
-    // Create subaccount on Paystack
-    const subaccount = await this.makeRequest<PaystackSubaccount>('/subaccount', 'POST', {
-      business_name: organization.name,
-      bank_code: dto.bankCode,
-      account_number: dto.accountNumber,
-      percentage_charge: Number(organization.platformFeePercent),
-    });
+    let subaccountCode = organization.paystackSubaccountCode;
+
+    if (this.isMockMode) {
+      if (!subaccountCode) {
+        subaccountCode = 'ACCT_MOCK_' + Math.random().toString(36).substring(7).toUpperCase();
+      }
+    } else {
+      if (subaccountCode) {
+        // Update existing subaccount on Paystack
+        await this.makeRequest<any>(`/subaccount/${subaccountCode}`, 'PUT', {
+          settlement_bank: dto.bankCode,
+          account_number: dto.accountNumber,
+        });
+      } else {
+        // Create new subaccount on Paystack
+        const subaccount = await this.makeRequest<PaystackSubaccount>('/subaccount', 'POST', {
+          business_name: organization.name,
+          bank_code: dto.bankCode,
+          account_number: dto.accountNumber,
+          percentage_charge: Number(organization.platformFeePercent),
+        });
+        subaccountCode = subaccount.subaccount_code;
+      }
+    }
 
     // Update organization with subaccount details
     await this.prisma.organization.update({
       where: { id: organizationId },
       data: {
-        paystackSubaccountCode: subaccount.subaccount_code,
+        paystackSubaccountCode: subaccountCode,
         bankCode: dto.bankCode,
         bankAccountNumber: dto.accountNumber,
         bankAccountName: verification.account_name,
-        settlementBank: bank?.name || subaccount.settlement_bank,
+        settlementBank: bank?.name || 'Unknown Bank',
         isPaystackVerified: true,
       },
     });
 
     return {
-      subaccountCode: subaccount.subaccount_code,
+      subaccountCode,
       accountName: verification.account_name,
       accountNumber: dto.accountNumber,
-      bankName: bank?.name || subaccount.settlement_bank,
+      bankName: bank?.name || 'Unknown Bank',
     };
+  }
+
+  async disconnectSubaccount(organizationId: string) {
+    const organization = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+    });
+
+    if (!organization) {
+      throw new BadRequestException('Organization not found');
+    }
+
+    // Clear db fields
+    await this.prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        paystackSubaccountCode: null,
+        bankCode: null,
+        bankAccountNumber: null,
+        bankAccountName: null,
+        settlementBank: null,
+        isPaystackVerified: false,
+      },
+    });
+
+    return { success: true };
   }
 
   async initializeTransaction(
@@ -194,39 +258,47 @@ export class PaystackService {
     // Generate unique reference
     const reference = `${invoice.invoiceNumber}-${Date.now()}`;
 
-    const result = await this.makeRequest<{
-      authorization_url: string;
-      access_code: string;
-      reference: string;
-    }>('/transaction/initialize', 'POST', {
-      email,
-      amount: Math.round(amount * 100), // Convert to kobo
-      reference,
-      callback_url: this.callbackUrl,
-      subaccount: organization.paystackSubaccountCode,
-      bearer: 'subaccount', // Subaccount bears Paystack fees
-      metadata: {
-        invoice_id: invoiceId,
-        organization_id: organizationId,
-        invoice_number: invoice.invoiceNumber,
-      },
-    });
+    let authorization_url = `http://localhost:5173/payment/callback?reference=${reference}`;
+    let access_code = 'MOCK_ACCESS_CODE';
+
+    if (!this.isMockMode) {
+      const result = await this.makeRequest<{
+        authorization_url: string;
+        access_code: string;
+        reference: string;
+      }>('/transaction/initialize', 'POST', {
+        email,
+        amount: Math.round(amount * 100), // Convert to kobo
+        reference,
+        callback_url: this.callbackUrl,
+        subaccount: organization.paystackSubaccountCode,
+        bearer: 'subaccount', // Subaccount bears Paystack fees
+        channels: ['bank_transfer', 'bank', 'card', 'ussd', 'qr', 'mobile_money'],
+        metadata: {
+          invoice_id: invoiceId,
+          organization_id: organizationId,
+          invoice_number: invoice.invoiceNumber,
+        },
+      });
+      authorization_url = result.authorization_url;
+      access_code = result.access_code;
+    }
 
     // Update invoice with payment link and transition DRAFT → SENT
     await this.prisma.invoice.update({
       where: { id: invoiceId },
       data: {
-        paystackReference: result.reference,
-        paystackAccessCode: result.access_code,
-        paymentUrl: result.authorization_url,
+        paystackReference: reference,
+        paystackAccessCode: access_code,
+        paymentUrl: authorization_url,
         ...(invoice.status === 'DRAFT' && { status: 'SENT' }),
       },
     });
 
     return {
-      paymentUrl: result.authorization_url,
-      reference: result.reference,
-      accessCode: result.access_code,
+      paymentUrl: authorization_url,
+      reference,
+      accessCode: access_code,
     };
   }
 
@@ -267,39 +339,47 @@ export class PaystackService {
     // Generate unique reference
     const reference = `${invoice.invoiceNumber}-INST${installment.sequence}-${Date.now()}`;
 
-    const result = await this.makeRequest<{
-      authorization_url: string;
-      access_code: string;
-      reference: string;
-    }>('/transaction/initialize', 'POST', {
-      email,
-      amount: Math.round(amount * 100), // Convert to kobo
-      reference,
-      callback_url: this.callbackUrl,
-      subaccount: organization.paystackSubaccountCode,
-      bearer: 'subaccount',
-      metadata: {
-        invoice_id: invoiceId,
-        organization_id: organizationId,
-        invoice_number: invoice.invoiceNumber,
-        installment_id: installmentId,
-        installment_label: installment.label,
-      },
-    });
+    let authorization_url = `http://localhost:5173/payment/callback?reference=${reference}`;
+    let access_code = 'MOCK_ACCESS_CODE';
+
+    if (!this.isMockMode) {
+      const result = await this.makeRequest<{
+        authorization_url: string;
+        access_code: string;
+        reference: string;
+      }>('/transaction/initialize', 'POST', {
+        email,
+        amount: Math.round(amount * 100), // Convert to kobo
+        reference,
+        callback_url: this.callbackUrl,
+        subaccount: organization.paystackSubaccountCode,
+        bearer: 'subaccount',
+        channels: ['bank_transfer', 'bank', 'card', 'ussd', 'qr', 'mobile_money'],
+        metadata: {
+          invoice_id: invoiceId,
+          organization_id: organizationId,
+          invoice_number: invoice.invoiceNumber,
+          installment_id: installmentId,
+          installment_label: installment.label,
+        },
+      });
+      authorization_url = result.authorization_url;
+      access_code = result.access_code;
+    }
 
     // Update installment with payment link
     await this.prisma.paymentInstallment.update({
       where: { id: installmentId },
       data: {
-        paystackReference: result.reference,
-        paystackAccessCode: result.access_code,
-        paymentUrl: result.authorization_url,
+        paystackReference: reference,
+        paystackAccessCode: access_code,
+        paymentUrl: authorization_url,
       },
     });
 
     return {
-      paymentUrl: result.authorization_url,
-      reference: result.reference,
+      paymentUrl: authorization_url,
+      reference,
     };
   }
 

@@ -35,6 +35,7 @@ export class UsersService {
           firstName: true,
           lastName: true,
           role: true,
+          businessRole: true,
           isActive: true,
           isEmailVerified: true,
           createdAt: true,
@@ -56,6 +57,7 @@ export class UsersService {
         firstName: true,
         lastName: true,
         role: true,
+        businessRole: true,
         isActive: true,
         isEmailVerified: true,
         createdAt: true,
@@ -241,6 +243,7 @@ export class UsersService {
       ...(dto.lastName && { lastName: dto.lastName }),
       ...(dto.email && { email: dto.email.toLowerCase() }),
       ...(dto.role && { role: dto.role }),
+      ...(dto.businessRole !== undefined && { businessRole: dto.businessRole }),
       ...(typeof dto.isActive === 'boolean' && { isActive: dto.isActive }),
     };
 
@@ -257,6 +260,7 @@ export class UsersService {
         firstName: true,
         lastName: true,
         role: true,
+        businessRole: true,
         isActive: true,
         isEmailVerified: true,
         createdAt: true,

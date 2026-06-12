@@ -12,11 +12,26 @@ vi.mock('@/hooks/useSubscription', () => ({
 }))
 
 vi.mock('@/stores/auth', () => ({
-  useAuthStore: (selector: any) => selector({ user: mockUseAuthStore() }),
+  useAuthStore: <T,>(selector: (state: { user: Record<string, unknown> }) => T) => selector({ user: mockUseAuthStore() }),
 }))
 
 vi.mock('@/hooks', () => ({
   useLogout: () => mockLogout,
+}))
+
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: () => ({
+    data: {
+      percent: 40,
+      steps: [
+        { id: 'profile', label: 'Personalize Profile', completed: true },
+        { id: 'bank', label: 'Link Settlement Bank', completed: false },
+        { id: 'client', label: 'Register First Client', completed: false },
+        { id: 'item', label: 'Add Billing Details', completed: false },
+        { id: 'invoice', label: 'Preview & Send', completed: false },
+      ],
+    },
+  }),
 }))
 
 const adminUser = {
@@ -57,20 +72,20 @@ describe('Sidebar', () => {
     const expenses = screen.getByText('Expenses').closest('a')!
     const reports = screen.getByText('Reports').closest('a')!
 
-    // Lock icon is an SVG with class containing opacity-50
-    expect(dashboard.querySelector('.opacity-50')).toBeInTheDocument()
-    expect(vendors.querySelector('.opacity-50')).toBeInTheDocument()
-    expect(expenses.querySelector('.opacity-50')).toBeInTheDocument()
-    expect(reports.querySelector('.opacity-50')).toBeInTheDocument()
+    // Lock icon is an SVG with class containing opacity-40
+    expect(dashboard.querySelector('.opacity-40')).toBeInTheDocument()
+    expect(vendors.querySelector('.opacity-40')).toBeInTheDocument()
+    expect(expenses.querySelector('.opacity-40')).toBeInTheDocument()
+    expect(reports.querySelector('.opacity-40')).toBeInTheDocument()
 
     // These items don't require PRO — no lock icon
     const clients = screen.getByText('Clients').closest('a')!
     const invoices = screen.getByText('Invoices').closest('a')!
     const payments = screen.getByText('Payments').closest('a')!
 
-    expect(clients.querySelector('.opacity-50')).not.toBeInTheDocument()
-    expect(invoices.querySelector('.opacity-50')).not.toBeInTheDocument()
-    expect(payments.querySelector('.opacity-50')).not.toBeInTheDocument()
+    expect(clients.querySelector('.opacity-40')).not.toBeInTheDocument()
+    expect(invoices.querySelector('.opacity-40')).not.toBeInTheDocument()
+    expect(payments.querySelector('.opacity-40')).not.toBeInTheDocument()
   })
 
   it('shows no lock icons for PRO user', () => {
@@ -85,10 +100,10 @@ describe('Sidebar', () => {
     const expenses = screen.getByText('Expenses').closest('a')!
     const reports = screen.getByText('Reports').closest('a')!
 
-    expect(dashboard.querySelector('.opacity-50')).not.toBeInTheDocument()
-    expect(vendors.querySelector('.opacity-50')).not.toBeInTheDocument()
-    expect(expenses.querySelector('.opacity-50')).not.toBeInTheDocument()
-    expect(reports.querySelector('.opacity-50')).not.toBeInTheDocument()
+    expect(dashboard.querySelector('.opacity-40')).not.toBeInTheDocument()
+    expect(vendors.querySelector('.opacity-40')).not.toBeInTheDocument()
+    expect(expenses.querySelector('.opacity-40')).not.toBeInTheDocument()
+    expect(reports.querySelector('.opacity-40')).not.toBeInTheDocument()
   })
 
   it('shows no lock icons for grandfathered user', () => {
@@ -100,7 +115,7 @@ describe('Sidebar', () => {
 
     const navLinks = screen.getAllByRole('link')
     navLinks.forEach((link) => {
-      expect(link.querySelector('.opacity-50')).not.toBeInTheDocument()
+      expect(link.querySelector('.opacity-40')).not.toBeInTheDocument()
     })
   })
 

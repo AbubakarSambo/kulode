@@ -71,10 +71,11 @@ function HomeRedirect() {
   }
 
   if (import.meta.env.DEV) {
-    return <Navigate to="/login" replace />
+    window.location.replace(`http://${window.location.hostname}:4321`)
+    return null
   }
 
-  const landingUrl = 'https://www.kulode.app'
+  const landingUrl = 'https://www.tari1.app'
   window.location.replace(landingUrl)
   return null
 }

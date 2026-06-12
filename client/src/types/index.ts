@@ -57,6 +57,19 @@ export interface User {
   isEmailVerified?: boolean
   isPlatformAdmin?: boolean
   plan?: PlanInfo
+  businessRole?: string
+  organization?: {
+    id: string
+    name: string
+    slug: string
+    isPaystackVerified: boolean
+    businessType?: string
+    organizationSize?: string
+    vatEnabled?: boolean
+    taxRate?: number
+    logo?: string
+    address?: string
+  }
 }
 
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'ACCOUNTANT' | 'STAFF'
@@ -109,6 +122,8 @@ export interface Organization {
   isPaystackVerified: boolean
   bankAccountName?: string
   settlementBank?: string
+  businessType?: string
+  organizationSize?: string
 }
 
 // Onboarding

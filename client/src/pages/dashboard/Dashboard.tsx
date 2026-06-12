@@ -15,17 +15,20 @@ import {
 import { Link } from "react-router-dom";
 import { Header } from "@/components/layout";
 import { OnboardingChecklist } from "@/components/OnboardingChecklist";
+import { useOnboardingStore } from "@/stores/onboarding";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-  Input,
+  DropdownPanel,
+  DatePicker,
 } from "@/components/ui";
 import { reportsApi, type ReportPeriod } from "@/api/reports";
 import { taxApi } from "@/api";
 import { formatCurrency, cn } from "@/lib/utils";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useOverscrollBounce } from "@/hooks";
 
 const prevPeriodMap: Record<ReportPeriod, ReportPeriod> = {
   THIS_MONTH: "LAST_MONTH",
@@ -48,10 +51,13 @@ const periodLabels: Record<ReportPeriod, string> = {
 };
 
 export function DashboardPage() {
+  const scrollContainerRef = useOverscrollBounce<HTMLDivElement>();
+  const openOnboarding = useOnboardingStore((state) => state.openOnboarding);
   const [period, setPeriod] = useState<ReportPeriod>("THIS_MONTH");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [mobileDropdownOpen, setMobileDropdownOpen] = useState(false);
   const { hasRequiredPlan } = useSubscription();
   const isPro = hasRequiredPlan("PRO");
   const currentYear = new Date().getFullYear();
@@ -147,66 +153,68 @@ export function DashboardPage() {
 
   const activeOption = periodOptions.find((opt) => opt.value === period);
 
+  const renderDropdownSelector = (isOpen: boolean, setIsOpen: (open: boolean) => void, align: 'left' | 'right') => (
+    <div className="relative inline-block text-left w-full sm:w-auto">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="h-11 px-4 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all flex items-center justify-between gap-2.5 shadow-[0px_4px_12px_rgba(0,55,176,0.01)] cursor-pointer min-w-[150px] w-full sm:w-auto text-left"
+      >
+        <div className="flex items-center gap-2">
+          <HugeiconsIcon icon={Calendar03Icon} size={16} color="currentColor" strokeWidth={1.5} className="text-slate-400" />
+          <span>{activeOption?.label}</span>
+        </div>
+        <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform duration-200", isOpen && "rotate-180")} strokeWidth={1.5} />
+      </button>
+
+      <DropdownPanel
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        align={align}
+        widthClass="w-full sm:w-48"
+        zIndexClass="z-20"
+      >
+        {periodOptions.map((opt) => (
+          <button
+            key={opt.value}
+            onClick={() => {
+              setPeriod(opt.value);
+              setIsOpen(false);
+            }}
+            className={cn(
+              "w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors block cursor-pointer",
+              period === opt.value 
+                ? "bg-[#0037b0]/5 text-[#0037b0]" 
+                : "text-slate-700 hover:bg-slate-50"
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </DropdownPanel>
+    </div>
+  );
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <Header
         title="Dashboard"
         description={`Overview of your business performance ${periodLabels[period]}`}
         action={
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Custom styled select popover */}
-            <div className="relative inline-block text-left">
-              <button
-                onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="h-11 px-4 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all flex items-center justify-between gap-2.5 shadow-[0px_4px_12px_rgba(0,55,176,0.01)] cursor-pointer min-w-[150px]"
-              >
-                <HugeiconsIcon icon={Calendar03Icon} size={16} color="currentColor" strokeWidth={1.5} className="text-slate-400" />
-                <span>{activeOption?.label}</span>
-                <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform duration-200", dropdownOpen && "rotate-180")} strokeWidth={1.5} />
-              </button>
-
-              {dropdownOpen && (
-                <>
-                  <div 
-                    className="fixed inset-0 z-10" 
-                    onClick={() => setDropdownOpen(false)}
-                  />
-                  <div className="absolute right-0 mt-2 w-48 rounded-xl bg-white py-1 shadow-[0px_12px_32px_rgba(0,55,176,0.08)] ring-1 ring-black/5 z-20 animate-in fade-in slide-in-from-top-1 duration-150 text-left">
-                    {periodOptions.map((opt) => (
-                      <button
-                        key={opt.value}
-                        onClick={() => {
-                          setPeriod(opt.value);
-                          setDropdownOpen(false);
-                        }}
-                        className={cn(
-                          "w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors block cursor-pointer",
-                          period === opt.value 
-                            ? "bg-[#0037b0]/5 text-[#0037b0]" 
-                            : "text-slate-700 hover:bg-slate-50"
-                        )}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-
+          <div className="flex items-center gap-2">
+            {renderDropdownSelector(dropdownOpen, setDropdownOpen, 'right')}
             {period === "CUSTOM" && (
               <>
-                <Input
-                  type="date"
+                <DatePicker
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={(val) => setStartDate(val)}
                   className="w-36"
+                  align="right"
                 />
-                <Input
-                  type="date"
+                <DatePicker
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  onChange={(val) => setEndDate(val)}
                   className="w-36"
+                  align="right"
                 />
               </>
             )}
@@ -220,8 +228,35 @@ export function DashboardPage() {
         }
       />
 
-      <div className="flex-1 overflow-auto p-4 sm:p-6 stagger-in">
-        <OnboardingChecklist />
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto p-4 sm:p-6 stagger-in">
+        {/* Mobile Period Filter (Visible only on mobile screen widths) */}
+        <div className="flex sm:hidden flex-col gap-3.5 bg-white p-4 rounded-2xl border border-slate-100 shadow-[0px_4px_12px_rgba(0,55,176,0.01)] mb-6">
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Select Period</span>
+            {renderDropdownSelector(mobileDropdownOpen, setMobileDropdownOpen, 'left')}
+          </div>
+          {period === 'CUSTOM' && (
+            <div className="flex flex-col gap-2.5 mt-1 border-t border-slate-50 pt-3">
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold text-slate-400">Start Date</span>
+                <DatePicker
+                  value={startDate}
+                  onChange={(val) => setStartDate(val)}
+                  className="w-full"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold text-slate-400">End Date</span>
+                <DatePicker
+                  value={endDate}
+                  onChange={(val) => setEndDate(val)}
+                  className="w-full"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+        <OnboardingChecklist onStartInvoiceWizard={() => openOnboarding(3)} />
 
         {/* Stats Grid */}
         <div className="mb-8 grid gap-4 grid-cols-2 lg:grid-cols-4">
@@ -238,14 +273,14 @@ export function DashboardPage() {
                 <CardContent className="p-4 sm:p-8">
                   <div className="flex items-start sm:items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-400 truncate">
+                      <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-400 truncate">
                         {stat.title}
                       </p>
-                      <p className="mt-1 sm:mt-2 text-lg sm:text-3xl font-bold tracking-tight text-slate-900 tabular-nums truncate">
+                      <p className="mt-1 sm:mt-2 text-lg sm:text-3xl font-semibold tracking-normal text-slate-800 tabular-nums truncate">
                         {formatCurrency(stat.value)}
                       </p>
-                      <div className="mt-1.5 sm:mt-2 flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 sm:px-2 py-0.5 rounded-full truncate">
+                      <div className="mt-1.5 sm:mt-2 flex items-center gap-1.5">
+                        <span className="text-[9px] sm:text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 sm:px-2 py-0.5 rounded-full truncate">
                           {stat.subtext}
                         </span>
                         {change !== null && period !== "CUSTOM" && (
@@ -273,8 +308,8 @@ export function DashboardPage() {
         {isPro && (
           <Card className="mb-8 overflow-hidden hover:shadow-[0px_20px_40px_rgba(0,55,176,0.08)]">
             <CardHeader className="p-8 pb-4">
-              <CardTitle className="flex items-center gap-2.5 text-lg font-bold text-slate-900">
-                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+              <CardTitle className="flex items-center gap-2.5 text-lg font-semibold text-slate-700">
+                <div className="w-8 h-8 rounded-lg bg-[#0037b0]/5 flex items-center justify-center text-[#0037b0]">
                   <HugeiconsIcon icon={CheckmarkCircle02Icon} size={20} color="currentColor" strokeWidth={1.5} />
                 </div>
                 Deductible Expenses YTD ({currentYear})
@@ -285,16 +320,16 @@ export function DashboardPage() {
                 <div>
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                         Total Deductible Expenses
                       </p>
-                      <p className="text-3xl font-bold text-emerald-600 mt-1 tabular-nums">
+                      <p className="text-3xl font-semibold text-slate-800 mt-1 tabular-nums">
                         {formatCurrency(deductibleSummary.total)}
                       </p>
                     </div>
                     <Link
                       to="/tax"
-                      className="inline-flex items-center gap-1.5 text-sm font-bold text-[#0037b0] hover:underline"
+                      className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0037b0] hover:underline"
                     >
                       View tax filing pack
                       <span className="text-lg">→</span>
@@ -309,7 +344,7 @@ export function DashboardPage() {
                           .sort((a, b) => b.total - a.total)
                           .map((cat, idx) => {
                             const pct = deductibleSummary.total > 0 ? (cat.total / deductibleSummary.total) * 100 : 0;
-                            const colors = ['bg-[#0037b0]', 'bg-[#3b82f6]', 'bg-[#10b981]', 'bg-[#f59e0b]', 'bg-[#ec4899]'];
+                            const colors = ['bg-[#0037b0]', 'bg-[#0037b0]/85', 'bg-[#0037b0]/70', 'bg-[#0037b0]/55', 'bg-[#0037b0]/40', 'bg-[#0037b0]/25', 'bg-[#0037b0]/15'];
                             return (
                               <div
                                 key={cat.category}
@@ -327,7 +362,7 @@ export function DashboardPage() {
                           .sort((a, b) => b.total - a.total)
                           .map((cat, idx) => {
                             const pct = deductibleSummary.total > 0 ? (cat.total / deductibleSummary.total) * 100 : 0;
-                            const dotColors = ['bg-[#0037b0]', 'bg-[#3b82f6]', 'bg-[#10b981]', 'bg-[#f59e0b]', 'bg-[#ec4899]'];
+                            const dotColors = ['bg-[#0037b0]', 'bg-[#0037b0]/85', 'bg-[#0037b0]/70', 'bg-[#0037b0]/55', 'bg-[#0037b0]/40', 'bg-[#0037b0]/25', 'bg-[#0037b0]/15'];
                             return (
                               <div
                                 key={cat.category}
@@ -335,15 +370,15 @@ export function DashboardPage() {
                               >
                                 <div className="flex items-center gap-2">
                                   <span className={`w-2.5 h-2.5 rounded-full ${dotColors[idx % dotColors.length]}`}></span>
-                                  <span className="text-xs font-bold text-slate-700">
+                                  <span className="text-xs font-semibold text-slate-700">
                                     {cat.label}
                                   </span>
                                 </div>
                                 <div className="text-right">
-                                  <span className="text-xs font-semibold text-slate-900 block tabular-nums">
+                                  <span className="text-xs font-medium text-slate-800 block tabular-nums">
                                     {formatCurrency(cat.total)}
                                   </span>
-                                  <span className="text-[9px] font-semibold text-slate-400 block">
+                                  <span className="text-[9px] font-medium text-slate-400 block">
                                     {pct.toFixed(1)}%
                                   </span>
                                 </div>
@@ -407,7 +442,7 @@ export function DashboardPage() {
           {/* Invoice Status Card */}
           <Card className="hover:shadow-[0px_20px_40px_rgba(0,55,176,0.08)]">
             <CardHeader className="p-8 pb-4">
-              <CardTitle className="flex items-center gap-2.5 text-base font-bold text-slate-900">
+              <CardTitle className="flex items-center gap-2.5 text-base font-semibold text-slate-700">
                 <HugeiconsIcon icon={Invoice03Icon} size={20} color="currentColor" strokeWidth={1.5} className="text-slate-500" />
                 Invoice Status
               </CardTitle>
@@ -428,14 +463,14 @@ export function DashboardPage() {
                         className="flex items-center justify-between p-3 rounded-2xl bg-slate-50/50 hover:bg-[#eef4ff]/30 transition-all"
                       >
                         <div className="flex items-center gap-2.5">
-                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md ${statusClass}`}>
+                          <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded-md ${statusClass}`}>
                             {status.replace("_", " ")}
                           </span>
                           <span className="text-xs text-slate-400">
                             {data.count} invoice{data.count !== 1 ? "s" : ""}
                           </span>
                         </div>
-                        <span className="text-sm font-bold text-slate-800 tabular-nums">
+                        <span className="text-sm font-semibold text-slate-800 tabular-nums">
                           {formatCurrency(data.total)}
                         </span>
                       </div>
@@ -452,7 +487,7 @@ export function DashboardPage() {
           {/* Recent Outstanding Card */}
           <Card className="hover:shadow-[0px_20px_40px_rgba(0,55,176,0.08)]">
             <CardHeader className="p-8 pb-4">
-              <CardTitle className="flex items-center gap-2.5 text-base font-bold text-slate-900">
+              <CardTitle className="flex items-center gap-2.5 text-base font-semibold text-slate-700">
                 <HugeiconsIcon icon={AlertDiamondIcon} size={20} color="currentColor" strokeWidth={1.5} className="text-amber-500" />
                 Outstanding Invoices
               </CardTitle>
@@ -460,23 +495,23 @@ export function DashboardPage() {
             <CardContent className="p-8 pt-0">
               {outstanding?.invoices?.length > 0 ? (
                 <div className="space-y-4">
-                  {outstanding.invoices.slice(0, 5).map((inv: any) => (
+                  {outstanding.invoices.slice(0, 5).map((inv: { id: string; invoiceNumber: string; client: { name: string }; outstanding: number; isOverdue: boolean; daysPastDue: number }) => (
                     <div
                       key={inv.id}
                       className="flex items-center justify-between p-3 rounded-2xl bg-slate-50/50 hover:bg-rose-50/20 transition-all border border-transparent hover:border-rose-100"
                     >
                       <div>
-                        <p className="text-xs font-bold text-slate-900">{inv.invoiceNumber}</p>
-                        <p className="text-[10px] font-bold text-slate-400 mt-0.5">
+                        <p className="text-xs font-semibold text-slate-800">{inv.invoiceNumber}</p>
+                        <p className="text-[10px] font-semibold text-slate-400 mt-0.5">
                           {inv.client.name}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs font-bold text-slate-900 tabular-nums">
+                        <p className="text-xs font-semibold text-slate-800 tabular-nums">
                           {formatCurrency(inv.outstanding)}
                         </p>
                         {inv.isOverdue && (
-                          <span className="inline-block mt-0.5 text-[8px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">
+                          <span className="inline-block mt-0.5 text-[8px] font-semibold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">
                             {inv.daysPastDue}d overdue
                           </span>
                         )}
@@ -497,7 +532,7 @@ export function DashboardPage() {
           {/* Top Client Card */}
           <Card className="hover:shadow-[0px_20px_40px_rgba(0,55,176,0.08)]">
             <CardHeader className="p-8 pb-4">
-              <CardTitle className="flex items-center gap-2.5 text-base font-bold text-slate-900">
+              <CardTitle className="flex items-center gap-2.5 text-base font-semibold text-slate-700">
                 <HugeiconsIcon icon={Award01Icon} size={20} color="currentColor" strokeWidth={1.5} className="text-amber-500" />
                 Top Client
               </CardTitle>
@@ -506,10 +541,10 @@ export function DashboardPage() {
               {topClient ? (
                 <div className="p-5 rounded-[24px] bg-gradient-to-br from-[#0037b0]/5 to-[#1d4ed8]/5 border border-[#0037b0]/10 flex flex-col justify-between h-full">
                   <div>
-                    <span className="text-[9px] font-bold uppercase tracking-wider bg-[#0037b0]/10 text-[#0037b0] px-2 py-0.5 rounded-full">
+                    <span className="text-[9px] font-semibold uppercase tracking-wider bg-[#0037b0]/10 text-[#0037b0] px-2 py-0.5 rounded-full">
                       VIP Client
                     </span>
-                    <p className="text-xl font-bold text-slate-950 mt-3">
+                    <p className="text-xl font-semibold text-slate-800 mt-3">
                       {topClient.clientId ? (
                         <Link
                           to={`/clients/${topClient.clientId}`}
@@ -523,8 +558,8 @@ export function DashboardPage() {
                     </p>
                   </div>
                   <div className="mt-6">
-                    <p className="text-xs font-bold text-slate-400">Total Settled</p>
-                    <p className="text-3xl font-bold text-emerald-600 tabular-nums">
+                    <p className="text-xs font-semibold text-slate-400">Total Settled</p>
+                    <p className="text-3xl font-semibold text-[#0037b0] tabular-nums">
                       {formatCurrency(topClient.total)}
                     </p>
                     <p className="text-xs font-medium text-slate-500 mt-1">

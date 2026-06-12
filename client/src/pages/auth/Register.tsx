@@ -3,7 +3,7 @@ import { useForm, UseFormReturn } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link } from 'react-router-dom'
-import { Eye, EyeOff, Receipt, Mail, MessageCircle, Pointer, ArrowLeft } from 'lucide-react'
+import { Eye, EyeOff, Mail, MessageCircle, Pointer, ArrowLeft } from 'lucide-react'
 import {
   Button,
   Input,
@@ -24,7 +24,7 @@ const GOOGLE_AUTH_URL = import.meta.env.VITE_API_URL
 
 const LANDING_URL = import.meta.env.DEV
   ? `http://${window.location.hostname}:4321`
-  : 'https://www.kulode.app'
+  : 'https://www.tari1.app'
 
 const registerSchema = z.object({
   organizationName: z.string().min(2, 'Organization name is required'),
@@ -54,16 +54,13 @@ function LeftPanel() {
       
       {/* Logo */}
       <div className="relative z-10 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center font-black text-white text-lg">
-          K
-        </div>
-        <span className="text-2xl font-extrabold tracking-tighter">Kulode</span>
+        <img src="/logo-white.png" alt="Tari1 Logo" className="h-11 w-auto" />
       </div>
       
       {/* Center Content & Animated Mockups */}
       <div className="relative z-10 my-auto py-6 grid grid-cols-1 xl:grid-cols-12 gap-8 items-center">
         <div className="xl:col-span-6 space-y-6">
-          <h1 className="text-4xl xl:text-5xl font-black leading-[1.1] tracking-tight text-white">
+          <h1 className="text-4xl xl:text-5xl font-semibold leading-[1.1] tracking-[-0.02em] text-white">
             Nigeria's modern invoicing & <span className="bg-gradient-to-r from-blue-300 via-indigo-200 to-white bg-clip-text text-transparent">compliance engine</span>
           </h1>
           <p className="text-base text-blue-100/80 leading-relaxed max-w-lg">
@@ -99,8 +96,8 @@ function LeftPanel() {
                 <MessageCircle size={12} className="text-white fill-white" />
               </div>
               <div>
-                <p className="text-[8px] text-[#128c7e] font-bold">Kulode Notification</p>
-                <p className="text-[9px] text-slate-800 leading-snug mt-0.5">Pay instantly at <span className="text-blue-600 underline">pay.kulode.app/inv-001</span></p>
+                <p className="text-[8px] text-[#128c7e] font-bold">Tari1 Notification</p>
+                <p className="text-[9px] text-slate-800 leading-snug mt-0.5">Pay instantly at <span className="text-blue-600 underline">pay.tari1.app/inv-001</span></p>
               </div>
             </div>
 
@@ -127,7 +124,7 @@ function LeftPanel() {
 
       {/* Footer */}
       <div className="relative z-10 flex justify-between items-center text-xs text-blue-200/50">
-        <p>© {new Date().getFullYear()} Kulode. All rights reserved.</p>
+        <p>© {new Date().getFullYear()} Tari1. All rights reserved.</p>
         <a href="/privacy" className="hover:text-white transition-colors">Privacy & Terms</a>
       </div>
     </div>
@@ -246,7 +243,7 @@ export function RegisterPage() {
   const registerMutation = useRegister()
   const magicLinkMutation = useMagicLinkRegister()
   const [showPassword, setShowPassword] = useState(false)
-  const [useMagicLink, setUseMagicLink] = useState(true)
+  const [useMagicLink, setUseMagicLink] = useState(false)
   const hasTrackedStart = useState(false)
   const mountedAt = useRef(Date.now())
 
@@ -272,7 +269,7 @@ export function RegisterPage() {
       <LeftPanel />
 
       {/* Right Form Panel */}
-      <div className="flex flex-col items-center justify-center p-6 md:p-12 lg:col-span-5 bg-[#f8f9ff]">
+      <div className="flex flex-col items-center justify-center p-6 md:p-12 lg:col-span-5 bg-background">
         {/* Back navigation — lives ABOVE the card, not inside it */}
         <div className="w-full max-w-md mb-4">
           <a
@@ -289,18 +286,10 @@ export function RegisterPage() {
         <Card className="w-full max-w-md border border-slate-200/60 shadow-[0_20px_50px_rgba(0,55,176,0.06)] bg-white rounded-[32px] p-2">
           <CardHeader className="text-center pb-4 pt-6">
             <div className="mb-4 lg:hidden flex justify-center">
-              <span className="text-3xl font-extrabold tracking-tighter text-[#00247d]">Kulode</span>
+              <img src="/logo.svg" alt="Tari1 Logo" className="h-10 w-auto" />
             </div>
-            <CardTitle className="text-2xl font-black text-slate-900 tracking-tight">Create your free account</CardTitle>
+            <CardTitle className="text-2xl font-semibold text-slate-900 tracking-tight">Create your account</CardTitle>
             <CardDescription className="text-xs text-slate-500 mt-1">Start professionalizing your freelance business today.</CardDescription>
-            
-            {/* Action pill highlight */}
-            <div className="mt-4 flex items-center justify-center gap-3 rounded-2xl bg-[#0037b0]/5 px-4 py-3 border border-[#0037b0]/10">
-              <Receipt size={16} className="text-[#0037b0] shrink-0" />
-              <p className="text-xs text-[#0037b0] font-semibold text-left leading-tight">
-                <span className="font-extrabold">New:</span> Export FIRS-ready tax reports in one click
-              </p>
-            </div>
           </CardHeader>
 
           <CardContent className="space-y-4">
@@ -384,7 +373,7 @@ export function RegisterPage() {
                   )}
                 </div>
                 <Button type="submit" className="w-full py-6 rounded-2xl text-sm font-bold shadow-lg shadow-[#0037b0]/20 active:scale-98 transition-all btn-gradient" isLoading={registerMutation.isPending}>
-                  Create free account
+                  Create account
                 </Button>
                 <button
                   type="button"
