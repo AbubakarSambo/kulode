@@ -676,7 +676,7 @@ export function WelcomeStepper() {
   }
 
   return (
-    <div className="fixed inset-0 z-[9990] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
+    <div className="fixed inset-0 z-[9990] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto overflow-x-hidden">
       <div className="bg-white rounded-[24px] w-full max-w-xl shadow-[0_16px_48px_rgba(0,55,176,0.08)] flex flex-col overflow-hidden max-h-[92vh] font-sans antialiased text-slate-900">
         
         {/* Header bar (no 1px lines, bg shift) */}
@@ -1234,7 +1234,7 @@ export function WelcomeStepper() {
                               placeholder={item.type === "service" ? "Service Description (e.g. Web Design)" : "Product Description (e.g. Office Chair)"}
                               value={item.description}
                               onChange={(e) => handleUpdateItem(index, "description", e.target.value)}
-                              className="w-full h-9 px-3 text-xs bg-white rounded-lg border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700"
+                              className="w-full h-9 px-3 text-[16px] sm:text-xs bg-white rounded-lg border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700"
                             />
                           </div>
 
@@ -1247,7 +1247,7 @@ export function WelcomeStepper() {
                               placeholder="Qty"
                               value={item.quantity || ""}
                               onChange={(e) => handleUpdateItem(index, "quantity", Number(e.target.value))}
-                              className="w-full h-9 px-3 text-xs bg-white rounded-lg border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 text-center"
+                              className="w-full h-9 px-3 text-[16px] sm:text-xs bg-white rounded-lg border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 text-center"
                             />
                           </div>
 
@@ -1267,7 +1267,7 @@ export function WelcomeStepper() {
                                   const numericValue = parseAmountInput(val);
                                   handleUpdateItem(index, "unitPrice", numericValue);
                                 }}
-                                className="w-full h-9 pl-7 pr-3 text-xs bg-white rounded-lg border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700"
+                                className="w-full h-9 pl-7 pr-3 text-[16px] sm:text-xs bg-white rounded-lg border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700"
                               />
                             </div>
                           </div>
