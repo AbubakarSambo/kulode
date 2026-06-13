@@ -88,7 +88,7 @@ interface BillingItem {
 export function WelcomeStepper() {
   const queryClient = useQueryClient();
   const { user, updateUser } = useAuthStore();
-  const { isOpen, startAtStep, closeOnboarding } = useOnboardingStore();
+  const { isOpen, startAtStep, closeOnboarding, openOnboarding } = useOnboardingStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleLogoFile = (file: File) => {
@@ -212,7 +212,7 @@ export function WelcomeStepper() {
   const [invoiceNotes, setInvoiceNotes] = useState(() => {
     return localStorage.getItem("tari1-onboarding-invoiceNotes") || "";
   });
-  const [sendEmail, setSendEmail] = useState(true);
+  const [sendEmail, setSendEmail] = useState(false);
   const [billingItems, setBillingItems] = useState<BillingItem[]>(() => {
     const saved = localStorage.getItem("tari1-onboarding-billingItems");
     if (saved) {
@@ -619,6 +619,17 @@ export function WelcomeStepper() {
   const handleFinishSend = async (bypassConfirm = false) => {
     if (!user) return;
 
+    if (sendEmail) {
+      if (!clientEmail.trim()) {
+        toast.error("Please enter a client email address to send the invoice");
+        return;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail.trim())) {
+        toast.error("Please enter a valid client email address");
+        return;
+      }
+    }
+
     const hasPayouts = isBankConnected || user?.organization?.isPaystackVerified;
     const isBypassed = bypassConfirm === true;
     if (!hasPayouts && !isBypassed) {
@@ -883,6 +894,7 @@ export function WelcomeStepper() {
               queryClient.invalidateQueries({ queryKey: ["onboarding-status"] });
               
               // Open setup stepper at step 1 (Branding)
+              openOnboarding(1);
               setStep(1);
               localStorage.setItem('tari1-onboarding-step', '1');
               toast.success("Profile personalized successfully!");
@@ -1874,24 +1886,39 @@ export function WelcomeStepper() {
                   </div>
 
                   {/* Send Email Copy Toggle Checkbox */}
-                  {clientEmail && (
-                    <label className="flex items-center gap-3 p-3.5 bg-slate-50 hover:bg-[#eef4ff]/50 border border-slate-200/50 rounded-xl cursor-pointer select-none transition-all duration-200 shadow-[0px_4px_12px_rgba(0,55,176,0.02)]">
+                  <div className="p-3.5 bg-slate-50 border border-slate-200/50 rounded-[20px] shadow-[0px_4px_12px_rgba(0,55,176,0.02)] space-y-3">
+                    <div className="flex items-center gap-3">
                       <input
                         type="checkbox"
+                        id="sendEmailCheckbox"
                         checked={sendEmail}
                         onChange={(e) => setSendEmail(e.target.checked)}
                         className="w-4 h-4 rounded text-[#0037b0] border-[#c4c5d7]/60 focus:ring-[#0037b0] cursor-pointer"
                       />
-                      <div className="text-left">
-                        <span className="text-xs font-bold text-slate-800 block">
-                          Send email copy to client now
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-semibold mt-0.5 block">
-                          Deliver invoice PDF and online payment link immediately to {clientEmail}
-                        </span>
+                      <label htmlFor="sendEmailCheckbox" className="text-xs font-bold text-slate-800 cursor-pointer select-none">
+                        Send email copy to client now
+                      </label>
+                    </div>
+                    
+                    {sendEmail && (
+                      <div className="pl-7 space-y-1.5 text-left animate-in fade-in slide-in-from-top-1 duration-200">
+                        <label htmlFor="confirmEmailInput" className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block font-sans">
+                          Recipient Email Address
+                        </label>
+                        <input
+                          id="confirmEmailInput"
+                          type="email"
+                          placeholder="client@example.com"
+                          value={clientEmail}
+                          onChange={(e) => setClientEmail(e.target.value)}
+                          className="w-full h-10 px-3 text-[16px] sm:text-xs bg-white rounded-lg border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 focus:ring-1 focus:ring-[#0037b0]"
+                        />
+                        <p className="text-[9px] text-slate-450 font-semibold leading-relaxed">
+                          Please verify this address carefully to prevent delivery failures and bounced emails.
+                        </p>
                       </div>
-                    </label>
-                  )}
+                    )}
+                  </div>
                 </div>
               )}
             </>
