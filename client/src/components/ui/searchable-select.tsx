@@ -38,23 +38,17 @@ export function SearchableSelect({
   const [search, setSearch] = useState("");
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Close dropdown on click outside
+  // Close dropdown on click outside and reset search
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+        setSearch("");
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  // Reset search when dropdown closes
-  useEffect(() => {
-    if (!isOpen) {
-      setSearch("");
-    }
-  }, [isOpen]);
 
   // Find currently selected option label
   const getSelectedLabel = () => {
@@ -96,12 +90,26 @@ export function SearchableSelect({
 
   const hasOptions = filteredOptions.length > 0;
 
+  const handleToggle = () => {
+    const nextState = !isOpen;
+    setIsOpen(nextState);
+    if (!nextState) {
+      setSearch("");
+    }
+  };
+
+  const handleSelectOption = (optionId: string) => {
+    onChange(optionId);
+    setIsOpen(false);
+    setSearch("");
+  };
+
   return (
     <div ref={containerRef} className={cn("w-full relative", className)} id={id}>
       <button
         type="button"
         disabled={disabled}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggle}
         className={cn(
           "w-full h-11 px-4 text-[16px] sm:text-xs bg-white rounded-xl border outline-none font-semibold text-slate-700 cursor-pointer flex items-center justify-between transition-all select-none",
           isOpen ? "border-[#0037b0] ring-2 ring-[#0037b0]/10" : "border-[#c4c5d7]/40 hover:border-[#c4c5d7]/80",
@@ -137,7 +145,6 @@ export function SearchableSelect({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full h-8 text-[16px] sm:text-xs font-semibold text-slate-700 outline-none border-0 p-0 bg-transparent placeholder-slate-400 focus:ring-0 focus:outline-none"
-              autoFocus
             />
           </div>
 
@@ -155,10 +162,7 @@ export function SearchableSelect({
                         <button
                           key={item.id}
                           type="button"
-                          onClick={() => {
-                            onChange(item.id);
-                            setIsOpen(false);
-                          }}
+                          onClick={() => handleSelectOption(item.id)}
                           className={cn(
                             "w-full px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-[#eef4ff] hover:text-[#0037b0] transition-colors cursor-pointer select-none text-left flex items-center justify-between border-0 bg-transparent",
                             value === item.id && "bg-[#eef4ff]/60 text-[#0037b0]"
@@ -177,10 +181,7 @@ export function SearchableSelect({
                     <button
                       key={opt.id}
                       type="button"
-                      onClick={() => {
-                        onChange(opt.id);
-                        setIsOpen(false);
-                      }}
+                      onClick={() => handleSelectOption(opt.id)}
                       className={cn(
                         "w-full px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-[#eef4ff] hover:text-[#0037b0] transition-colors cursor-pointer select-none text-left flex items-center justify-between border-0 bg-transparent",
                         value === opt.id && "bg-[#eef4ff]/60 text-[#0037b0]"

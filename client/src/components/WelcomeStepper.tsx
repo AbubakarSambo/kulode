@@ -834,16 +834,25 @@ export function WelcomeStepper() {
 
   if (showSurvey) {
     return (
-      <div className="fixed inset-0 z-[9990] bg-[#f8f9ff] flex items-center justify-center p-4 sm:p-6 font-sans antialiased text-slate-900 overflow-y-auto animate-in fade-in duration-300">
-        <div className="w-full max-w-[480px] bg-white rounded-[32px] p-8 sm:p-10 shadow-[0_20px_50px_rgba(0,55,176,0.06)] relative border border-slate-100 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+      <div className="fixed inset-0 z-[9990] bg-[#f8f9ff] flex items-center justify-center p-3 sm:p-6 font-sans antialiased text-slate-900 overflow-y-auto animate-in fade-in duration-300">
+        <div className="w-full max-w-[480px] bg-white rounded-[32px] pt-8 px-6 pb-24 sm:pt-10 sm:px-10 sm:pb-28 shadow-[0_20px_50px_rgba(0,55,176,0.06)] relative border border-slate-100 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
           
-          {/* Animated top badge with premium hugeicon bounce */}
-          <div className="w-16 h-16 rounded-2xl bg-[#0037b0]/8 text-[#0037b0] flex items-center justify-center mb-6 animate-bounce shadow-inner">
-            <HugeiconsIcon icon={Store04Icon} size={28} strokeWidth={1.5} />
+          {/* Layered Premium Fintech Badge Icon */}
+          <div className="relative mb-6 flex items-center justify-center select-none">
+            {/* Outer pulsating gradient halo */}
+            <div className="absolute w-20 h-20 bg-gradient-to-tr from-[#0037b0]/20 to-[#1d4ed8]/5 rounded-[24px] animate-pulse blur-md" />
+            
+            {/* Middle decorative border card */}
+            <div className="absolute w-18 h-18 bg-white border border-[#0037b0]/15 rounded-[22px] rotate-6 transition-transform duration-500 hover:rotate-12" />
+            
+            {/* Inner primary card with the icon */}
+            <div className="relative w-16 h-16 rounded-[20px] bg-gradient-to-tr from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0_8px_24px_rgba(0,55,176,0.2)]">
+              <HugeiconsIcon icon={Store04Icon} size={28} strokeWidth={1.5} className="animate-bounce" />
+            </div>
           </div>
 
           <div className="mb-6">
-            <h2 className="text-2xl font-extrabold text-[#121c28] tracking-tight">
+            <h2 className="text-[24px] font-bold text-slate-900 tracking-tight font-sans">
               Welcome, <span className="text-[#0037b0]">{user?.firstName || "there"}</span>!
             </h2>
             <p className="text-xs font-semibold text-slate-455 mt-1.5 uppercase tracking-wider">
@@ -997,8 +1006,8 @@ export function WelcomeStepper() {
   }
 
   return (
-    <div className="fixed inset-0 z-[9990] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto overflow-x-hidden animate-in fade-in duration-200">
-      <div className="bg-white rounded-[24px] w-full max-w-xl shadow-[0_16px_48px_rgba(0,55,176,0.08)] flex flex-col overflow-hidden max-h-[92vh] font-sans antialiased text-slate-900 animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-[9990] flex items-center justify-center p-1 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto overflow-x-hidden animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl sm:rounded-[24px] w-full max-w-xl shadow-[0_16px_48px_rgba(0,55,176,0.08)] flex flex-col overflow-hidden max-h-[96vh] sm:max-h-[92vh] font-sans antialiased text-slate-900 animate-in zoom-in-95 duration-200">
         
         {/* Header bar (no 1px lines, bg shift) */}
         <div className="px-4 sm:px-8 pt-8 pb-4 flex items-center justify-between bg-[#f8f9ff]/40 shrink-0">
@@ -1018,7 +1027,7 @@ export function WelcomeStepper() {
                  step === 3 ? "What Are You Charging For?" :
                  "Review & Send"}
               </h2>
-              <p className="text-[10px] font-semibold text-slate-450 mt-0.5 uppercase tracking-wider">
+              <p className="text-[10px] font-semibold text-slate-455 mt-0.5 uppercase tracking-wider">
                 {`Step ${step} of 4: Quick Setup`}
               </p>
             </div>
@@ -1034,7 +1043,7 @@ export function WelcomeStepper() {
         </div>
 
         {/* Form Body Scroll Area */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6">
+        <div className="flex-1 overflow-y-auto px-3.5 sm:px-8 py-5">
           
           {/* Progress Tracker Capsules */}
           {!isLoading && (
@@ -1394,6 +1403,8 @@ export function WelcomeStepper() {
                               type="number"
                               min="1"
                               placeholder="Qty"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
                               value={item.quantity || ""}
                               onChange={(e) => handleUpdateItem(index, "quantity", Number(e.target.value))}
                               className="w-full h-9 px-3 text-[16px] sm:text-xs bg-white rounded-lg border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 text-center focus:ring-1 focus:ring-[#0037b0]"
@@ -1410,6 +1421,7 @@ export function WelcomeStepper() {
                               <input
                                 type="text"
                                 placeholder="0.00"
+                                inputMode="decimal"
                                 value={item.unitPrice === 0 ? "" : formatAmountInput(item.unitPrice)}
                                 onChange={(e) => {
                                   const val = e.target.value;
@@ -1457,6 +1469,7 @@ export function WelcomeStepper() {
                           <input
                             type="number"
                             value={taxRate}
+                            inputMode="decimal"
                             onChange={(e) => setTaxRate(Number(e.target.value))}
                             className="w-12 h-7 px-1.5 text-center bg-white border border-[#c4c5d7]/40 rounded-md font-bold text-[#0037b0]"
                           />
@@ -1473,6 +1486,7 @@ export function WelcomeStepper() {
                           type="number"
                           min="0"
                           placeholder="0"
+                          inputMode="decimal"
                           value={discountPercent || ""}
                           onChange={(e) => setDiscountPercent(Number(e.target.value))}
                           className="w-20 h-8 px-2 text-center bg-white border border-[#c4c5d7]/40 rounded-lg font-bold text-[#0037b0] text-[16px] sm:text-xs outline-none focus:border-[#0037b0]"
@@ -1549,6 +1563,8 @@ export function WelcomeStepper() {
                                 <input
                                   type="number"
                                   placeholder="0"
+                                  inputMode="numeric"
+                                  pattern="[0-9]*"
                                   value={inst.percentage || ""}
                                   onChange={(e) => {
                                     const newInst = [...installments];
@@ -1724,6 +1740,8 @@ export function WelcomeStepper() {
                               type="text"
                               placeholder="0123456789"
                               maxLength={10}
+                              inputMode="numeric"
+                              pattern="[0-9]*"
                               value={accountNumber}
                               onChange={(e) => {
                                 setAccountNumber(e.target.value.replace(/\D/g, ""));
