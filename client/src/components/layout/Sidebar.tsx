@@ -327,7 +327,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                       let targetStep = 1;
                       if (onboardingStatus.steps.businessProfile) {
                         const savedStep = parseInt(localStorage.getItem('tari1-onboarding-step') || '0', 10);
-                        if (savedStep >= 2 && savedStep <= 6) {
+                        if (savedStep >= 2 && savedStep <= 4) {
                           targetStep = savedStep;
                         } else {
                           targetStep = 2;
@@ -364,7 +364,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                       let targetStep = 1;
                       if (onboardingStatus.steps.businessProfile) {
                         const savedStep = parseInt(localStorage.getItem('tari1-onboarding-step') || '0', 10);
-                        if (savedStep >= 2 && savedStep <= 6) {
+                        if (savedStep >= 2 && savedStep <= 4) {
                           targetStep = savedStep;
                         } else {
                           targetStep = 2;

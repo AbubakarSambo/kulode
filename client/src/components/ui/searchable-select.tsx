@@ -103,7 +103,7 @@ export function SearchableSelect({
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "w-full h-11 px-4 text-xs bg-white rounded-xl border outline-none font-semibold text-slate-700 cursor-pointer flex items-center justify-between transition-all select-none",
+          "w-full h-11 px-4 text-[16px] sm:text-xs bg-white rounded-xl border outline-none font-semibold text-slate-700 cursor-pointer flex items-center justify-between transition-all select-none",
           isOpen ? "border-[#0037b0] ring-2 ring-[#0037b0]/10" : "border-[#c4c5d7]/40 hover:border-[#c4c5d7]/80",
           error && "border-rose-500 focus:ring-rose-500/10",
           disabled && "opacity-50 cursor-not-allowed bg-slate-50"

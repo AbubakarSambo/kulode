@@ -69,6 +69,8 @@ export interface User {
     taxRate?: number
     logo?: string
     address?: string
+    paymentTerms?: string
+    defaultNotes?: string
   }
 }
 

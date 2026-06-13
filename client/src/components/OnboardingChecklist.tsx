@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { organizationsApi } from "@/api/organizations";
 import { cn } from "@/lib/utils";
+import { useOnboardingStore } from "@/stores/onboarding";
 
 const steps = [
   {
@@ -79,6 +80,7 @@ const steps = [
 
 export function OnboardingChecklist({ onStartInvoiceWizard }: { onStartInvoiceWizard?: () => void }) {
   const queryClient = useQueryClient();
+  const openOnboarding = useOnboardingStore((state) => state.openOnboarding);
 
   const { data: status, isLoading } = useQuery({
     queryKey: ["onboarding-status"],
@@ -121,6 +123,23 @@ export function OnboardingChecklist({ onStartInvoiceWizard }: { onStartInvoiceWi
         </div>
 
         <div className="flex items-center gap-3 shrink-0 ml-auto sm:ml-0">
+          <button
+            onClick={() => {
+              let targetStep = 1;
+              if (status.steps.businessProfile) {
+                const savedStep = parseInt(localStorage.getItem('tari1-onboarding-step') || '0', 10);
+                if (savedStep >= 2 && savedStep <= 4) {
+                  targetStep = savedStep;
+                } else {
+                  targetStep = 2;
+                }
+              }
+              openOnboarding(targetStep);
+            }}
+            className="px-3.5 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] hover:from-[#002f9c] hover:to-[#173fa3] rounded-full transition-all duration-300 shadow-sm hover:shadow-md cursor-pointer flex items-center gap-1.5 select-none"
+          >
+            Resume Setup
+          </button>
           <span className="text-xs font-bold text-[#0037b0] bg-[#0037b0]/8 px-3 py-1 rounded-full">
             {status.completedCount} / {status.totalSteps} Completed
           </span>

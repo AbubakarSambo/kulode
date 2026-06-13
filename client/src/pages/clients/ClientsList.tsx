@@ -14,9 +14,7 @@ import {
   ArrowDown01Icon,
   UserGroupIcon,
   FilterHorizontalIcon,
-  Download04Icon,
-  UserGroupIcon,
-  FilterHorizontalIcon
+  Download04Icon
 } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Button, Input, Card, CardContent, ConfirmDialog, EmptyState, DropdownPanel } from '@/components/ui'
