@@ -7,7 +7,6 @@ import {
   Users,
   FileText,
   CreditCard,
-  Tags,
   Check,
   Sparkles,
 } from "lucide-react";
@@ -65,16 +64,6 @@ const steps = [
     color: "text-[#0037b0]",
     bgColor: "bg-[#0037b0]/5 border-[#0037b0]/10",
     optional: true,
-  },
-  {
-    key: "expenseCategories" as const,
-    label: "Expense Ledger",
-    description: "Tailor tax-deductible categories",
-    href: "/settings/categories",
-    icon: Tags,
-    color: "text-slate-600",
-    bgColor: "bg-slate-50 border-slate-100/55",
-    optional: false,
   },
 ];
 

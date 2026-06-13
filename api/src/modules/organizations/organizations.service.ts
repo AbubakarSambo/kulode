@@ -94,7 +94,7 @@ export class OrganizationsService {
   }
 
   async getOnboardingStatus(organizationId: string) {
-    const [organization, inventoryItemCount, clientCount, invoiceCount, expenseCount] =
+    const [organization, inventoryItemCount, clientCount, invoiceCount] =
       await Promise.all([
         this.prisma.organization.findUnique({
           where: { id: organizationId },
@@ -117,9 +117,6 @@ export class OrganizationsService {
         this.prisma.invoice.count({
           where: { organizationId, deletedAt: null },
         }),
-        this.prisma.expense.count({
-          where: { organizationId, deletedAt: null },
-        }),
       ]);
 
     if (!organization) {
@@ -132,7 +129,6 @@ export class OrganizationsService {
       firstClient: clientCount > 0,
       firstInvoice: invoiceCount > 0,
       onlinePayments: organization.isPaystackVerified,
-      expenseCategories: expenseCount > 0,
     };
 
     const completedCount = Object.values(steps).filter(Boolean).length;

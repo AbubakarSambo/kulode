@@ -1,11 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
-import { organizationsApi } from '@/api/organizations'
-import { useOnboardingStore } from '@/stores/onboarding'
-import { HugeiconsIcon } from '@hugeicons/react'
-import { Store04Icon } from '@hugeicons/core-free-icons'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { useLogout } from '@/hooks'
@@ -75,13 +70,6 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const user = useAuthStore((state) => state.user)
   const logout = useLogout()
   const { hasRequiredPlan } = useSubscription()
-  const openOnboarding = useOnboardingStore((state) => state.openOnboarding)
-
-  const { data: onboardingStatus } = useQuery({
-    queryKey: ["onboarding-status"],
-    queryFn: organizationsApi.getOnboardingStatus,
-    staleTime: 30_000,
-  })
 
   const [isCollapsed, setIsCollapsed] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -317,69 +305,6 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
         {/* User profile / support section at bottom */}
         <div className="p-4 mt-auto space-y-2 shrink-0 border-t border-slate-100/50 pt-4">
-          {onboardingStatus && !onboardingStatus.allComplete && (
-            <>
-              {/* Collapsed view (Circular badge button) */}
-              {isCollapsed ? (
-                <div className="flex justify-center mb-2">
-                  <button
-                    onClick={() => {
-                      let targetStep = 1;
-                      if (onboardingStatus.steps.businessProfile) {
-                        const savedStep = parseInt(localStorage.getItem('tari1-onboarding-step') || '0', 10);
-                        if (savedStep >= 2 && savedStep <= 4) {
-                          targetStep = savedStep;
-                        } else {
-                          targetStep = 2;
-                        }
-                      }
-                      openOnboarding(targetStep);
-                    }}
-                    className="w-9 h-9 rounded-xl flex items-center justify-center bg-[#0037b0]/5 text-[#0037b0] hover:bg-[#0037b0]/15 transition-all relative group cursor-pointer border-0"
-                  >
-                    <HugeiconsIcon icon={Store04Icon} size={18} strokeWidth={1.5} className="animate-pulse" />
-                    <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#0037b0] text-[8px] font-bold text-white flex items-center justify-center shadow-sm">
-                      {onboardingStatus.completedCount}
-                    </div>
-                    <div className="hidden lg:group-hover:block absolute left-20 bg-slate-900/90 backdrop-blur-md text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-md whitespace-nowrap z-55 pointer-events-none">
-                      Resume Setup ({Math.round((onboardingStatus.completedCount / onboardingStatus.totalSteps) * 100)}%)
-                    </div>
-                  </button>
-                </div>
-              ) : (
-                /* Expanded view (Progress card) */
-                <div className="rounded-2xl border border-[#0037b0]/10 bg-[#eef4ff]/30 p-3.5 mb-2 transition-all">
-                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">
-                    <span>Setup Progress</span>
-                    <span className="text-[#0037b0] font-extrabold">{onboardingStatus.completedCount}/{onboardingStatus.totalSteps}</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden mb-2">
-                    <div
-                      className="h-full bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] rounded-full transition-all duration-500"
-                      style={{ width: `${(onboardingStatus.completedCount / onboardingStatus.totalSteps) * 100}%` }}
-                    />
-                  </div>
-                  <button
-                    onClick={() => {
-                      let targetStep = 1;
-                      if (onboardingStatus.steps.businessProfile) {
-                        const savedStep = parseInt(localStorage.getItem('tari1-onboarding-step') || '0', 10);
-                        if (savedStep >= 2 && savedStep <= 4) {
-                          targetStep = savedStep;
-                        } else {
-                          targetStep = 2;
-                        }
-                      }
-                      openOnboarding(targetStep);
-                    }}
-                    className="w-full h-8 flex items-center justify-center bg-[#0037b0]/5 hover:bg-[#0037b0]/10 text-[#0037b0] text-[10px] font-bold rounded-xl transition-all cursor-pointer border-0"
-                  >
-                    Resume Setup
-                  </button>
-                </div>
-              )}
-            </>
-          )}
 
           <div className={cn(
             "rounded-2xl border border-[#0037b0]/8 bg-[#0037b0]/[0.02] p-3 transition-all duration-200 hover:bg-[#0037b0]/[0.05]",
