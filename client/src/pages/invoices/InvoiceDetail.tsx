@@ -322,11 +322,13 @@ export function InvoiceDetailPage() {
   const hasPaymentLink = !!invoice.paymentUrl
 
   const copyPaymentLink = () => {
-    const url = invoice.paymentUrl
-    if (url) {
-      navigator.clipboard.writeText(url)
+    if (invoice?.shareToken) {
+      const publicUrl = `${window.location.origin}/i/${invoice.shareToken}`
+      navigator.clipboard.writeText(publicUrl)
       posthog.capture('payment_link_copied', { invoice_id: id })
-      toast.success('Payment link copied to clipboard')
+      toast.success('Invoice link copied to clipboard')
+    } else {
+      toast.error('Invoice is in DRAFT. Please mark as sent first.')
     }
   }
 
@@ -381,7 +383,7 @@ export function InvoiceDetailPage() {
 
   const shareWhatsApp = () => {
     if (!invoice) return
-    const text = `Hello! Here is invoice ${invoice.invoiceNumber} for ${formatCurrency(invoice.total)}.${invoice.paymentUrl ? ` You can pay online here: ${invoice.paymentUrl}` : ''}`
+    const text = `Hello! Here is invoice ${invoice.invoiceNumber} for ${formatCurrency(invoice.total)}.${invoice.shareToken ? ` You can view and pay online here: ${window.location.origin}/i/${invoice.shareToken}` : ''}`
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank')
   }
 
@@ -637,13 +639,13 @@ export function InvoiceDetailPage() {
                 Generate Payment Link
               </Button>
             )}
-            {hasPaymentLink && (
+            {invoice.status !== 'DRAFT' && invoice.shareToken && (
               <>
                 <Button variant="outline" onClick={copyPaymentLink} className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">
                   <HugeiconsIcon icon={CopyIcon} size={16} className="mr-2" strokeWidth={1.5} />
                   Copy Link
                 </Button>
-                <a href={invoice.paymentUrl} target="_blank" rel="noopener noreferrer">
+                <a href={`/i/${invoice.shareToken}`} target="_blank" rel="noopener noreferrer">
                   <Button variant="outline" className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">
                     <HugeiconsIcon icon={Share02Icon} size={16} className="mr-2" strokeWidth={1.5} />
                     Open Link

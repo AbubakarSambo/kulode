@@ -297,6 +297,7 @@ export class InvoicesService {
           taxRate: orgTaxRate,
           taxAmount,
           total,
+          shareToken: randomBytes(16).toString('hex'),
           notes: dto.notes || organization!.defaultNotes || null,
           terms: dto.terms || organization!.paymentTerms || null,
           items: {
@@ -631,6 +632,7 @@ export class InvoicesService {
         total: source.total,
         notes: source.notes,
         terms: source.terms,
+        shareToken: randomBytes(16).toString('hex'),
         status: 'DRAFT',
         items: {
           create: source.items.map((item) => ({
@@ -727,14 +729,21 @@ export class InvoicesService {
       throw new NotFoundException('Invoice not found');
     }
 
-    // Auto-generate payment link and transaction reference if missing
+    // Auto-generate payment link and transaction reference if missing or expired (older than 20 mins)
     const balanceDue = Number(invoice.total) - Number(invoice.amountPaid);
     if (balanceDue > 0 && invoice.client.email && invoice.organization.paystackSubaccountCode) {
       try {
         let updated = false;
+        const TOKEN_EXPIRY_MS = 20 * 60 * 1000; // 20 minutes
+        const now = new Date();
+
         if (invoice.installments && invoice.installments.length > 0) {
           for (const inst of invoice.installments) {
-            if (!inst.isPaid && !inst.paymentUrl) {
+            const tokenAge = inst.paystackTokenGeneratedAt
+              ? now.getTime() - new Date(inst.paystackTokenGeneratedAt).getTime()
+              : Infinity;
+
+            if (!inst.isPaid && (!inst.paymentUrl || !inst.paystackAccessCode || tokenAge > TOKEN_EXPIRY_MS)) {
               await this.paystackService.initializeInstallmentTransaction(
                 invoice.organizationId,
                 invoice.id,
@@ -745,14 +754,20 @@ export class InvoicesService {
               updated = true;
             }
           }
-        } else if (!invoice.paymentUrl) {
-          await this.paystackService.initializeTransaction(
-            invoice.organizationId,
-            invoice.id,
-            invoice.client.email,
-            balanceDue,
-          );
-          updated = true;
+        } else {
+          const tokenAge = invoice.paystackTokenGeneratedAt
+            ? now.getTime() - new Date(invoice.paystackTokenGeneratedAt).getTime()
+            : Infinity;
+
+          if (!invoice.paymentUrl || !invoice.paystackAccessCode || tokenAge > TOKEN_EXPIRY_MS) {
+            await this.paystackService.initializeTransaction(
+              invoice.organizationId,
+              invoice.id,
+              invoice.client.email,
+              balanceDue,
+            );
+            updated = true;
+          }
         }
 
         if (updated) {

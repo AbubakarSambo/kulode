@@ -273,7 +273,7 @@ export class PaystackService {
         callback_url: this.callbackUrl,
         subaccount: organization.paystackSubaccountCode,
         bearer: 'subaccount', // Subaccount bears Paystack fees
-        channels: ['bank_transfer', 'bank', 'card', 'ussd', 'qr', 'mobile_money'],
+        channels: ['bank_transfer', 'card', 'bank', 'ussd', 'qr', 'mobile_money'],
         metadata: {
           invoice_id: invoiceId,
           organization_id: organizationId,
@@ -291,6 +291,7 @@ export class PaystackService {
         paystackReference: reference,
         paystackAccessCode: access_code,
         paymentUrl: authorization_url,
+        paystackTokenGeneratedAt: new Date(),
         ...(invoice.status === 'DRAFT' && { status: 'SENT' }),
       },
     });
@@ -354,7 +355,7 @@ export class PaystackService {
         callback_url: this.callbackUrl,
         subaccount: organization.paystackSubaccountCode,
         bearer: 'subaccount',
-        channels: ['bank_transfer', 'bank', 'card', 'ussd', 'qr', 'mobile_money'],
+        channels: ['bank_transfer', 'card', 'bank', 'ussd', 'qr', 'mobile_money'],
         metadata: {
           invoice_id: invoiceId,
           organization_id: organizationId,
@@ -374,6 +375,7 @@ export class PaystackService {
         paystackReference: reference,
         paystackAccessCode: access_code,
         paymentUrl: authorization_url,
+        paystackTokenGeneratedAt: new Date(),
       },
     });
 

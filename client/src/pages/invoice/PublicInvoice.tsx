@@ -93,6 +93,7 @@ export function PublicInvoicePage() {
   const { token } = useParams<{ token: string }>()
   const queryClient = useQueryClient()
   const [isPaying, setIsPaying] = useState(false)
+  const [isSimulating, setIsSimulating] = useState<string | null>(null)
 
   const { data: invoice, isLoading, isError } = useQuery({
     queryKey: ['public-invoice', token],
@@ -101,6 +102,10 @@ export function PublicInvoicePage() {
       return response.data.data
     },
     enabled: !!token,
+    refetchInterval: (query) => {
+      const data = query.state.data
+      return data && data.status !== 'PAID' ? 5000 : false;
+    },
   })
 
   const handlePayNow = async (accessCode?: string) => {
@@ -130,15 +135,16 @@ export function PublicInvoicePage() {
 
       const paystack = new (window as unknown as {
         PaystackPop: new () => {
-          resumeTransaction: (config: {
-            access_code: string
-            onSuccess: () => void
-            onCancel: () => void
-          }) => void
+          resumeTransaction: (
+            accessCode: string,
+            config?: {
+              onSuccess?: () => void
+              onCancel?: () => void
+            }
+          ) => void
         }
       }).PaystackPop()
-      paystack.resumeTransaction({
-        access_code: code,
+      paystack.resumeTransaction(code, {
         onSuccess: () => {
           toast.success('Payment received! Updating invoice status...')
           queryClient.invalidateQueries({ queryKey: ['public-invoice', token] })
@@ -152,6 +158,21 @@ export function PublicInvoicePage() {
       toast.error('An error occurred during checkout. Please try again.')
     } finally {
       setIsPaying(false)
+    }
+  }
+
+  const simulatePayment = async (reference?: string, installmentId?: string) => {
+    const ref = reference || invoice?.paystackReference
+    if (!ref || !invoice) return
+    setIsSimulating(installmentId || ref)
+    try {
+      await apiClient.post('/paystack/simulate-success', { reference: ref })
+      toast.success('Payment simulated! Status updating...')
+      queryClient.invalidateQueries({ queryKey: ['public-invoice', token] })
+    } catch {
+      toast.error('Simulation failed. Is the API running in dev mode?')
+    } finally {
+      setIsSimulating(null)
     }
   }
 
@@ -172,7 +193,7 @@ export function PublicInvoicePage() {
       window.URL.revokeObjectURL(url)
       posthog.capture('public_invoice_pdf_downloaded', { invoice_number: invoice?.invoiceNumber })
     } catch (error) {
-      console.error('Failed to download PDF')
+      console.error('Failed to download PDF', error)
     }
   }
 
@@ -214,12 +235,23 @@ export function PublicInvoicePage() {
           <div className="flex gap-2">
             <Button variant="outline" onClick={downloadPdf} className="h-10 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/60 rounded-xl cursor-pointer">
               <Download className="mr-2 h-4 w-4 text-slate-500" />
-              Download PDF
+              {isPaid ? 'Download Receipt' : 'Download PDF'}
             </Button>
             {invoice.paymentUrl && !isPaid && (!invoice.installments || invoice.installments.length === 0) && (
               <Button onClick={() => handlePayNow()} isLoading={isPaying} className="bg-[#0037b0] hover:bg-[#1d4ed8] text-white text-xs font-bold h-10 px-4 rounded-xl cursor-pointer border-0 shadow-md">
                 <CreditCard className="mr-2 h-4 w-4" />
                 Pay Now
+              </Button>
+            )}
+            {/* DEV-ONLY: simulate payment — stripped out by Vite in production builds */}
+            {import.meta.env.DEV && !isPaid && invoice.paystackReference && (!invoice.installments || invoice.installments.length === 0) && (
+              <Button
+                variant="outline"
+                onClick={() => simulatePayment()}
+                isLoading={isSimulating === invoice.paystackReference}
+                className="h-10 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl cursor-pointer"
+              >
+                ✓ Simulate Payment
               </Button>
             )}
           </div>
@@ -395,15 +427,28 @@ export function PublicInvoicePage() {
                           Paid
                         </span>
                       ) : (
-                        <Button
-                          size="sm"
-                          onClick={() => handlePayNow(inst.paystackAccessCode)}
-                          isLoading={isPaying}
-                          className="bg-[#0037b0] hover:bg-[#1d4ed8] text-white text-[10px] font-bold h-8 px-3 rounded-lg border-0 cursor-pointer shadow-sm flex items-center"
-                        >
-                          <CreditCard className="mr-1.5 h-3.5 w-3.5" />
-                          Pay Installment
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => handlePayNow(inst.paystackAccessCode)}
+                            isLoading={isPaying}
+                            className="bg-[#0037b0] hover:bg-[#1d4ed8] text-white text-[10px] font-bold h-8 px-3 rounded-lg border-0 cursor-pointer shadow-sm flex items-center"
+                          >
+                            <CreditCard className="mr-1.5 h-3.5 w-3.5" />
+                            Pay Installment
+                          </Button>
+                          {import.meta.env.DEV && inst.paystackReference && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => simulatePayment(inst.paystackReference, inst.id)}
+                              isLoading={isSimulating === inst.id}
+                              className="text-[10px] font-bold h-8 px-2 rounded-lg border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 cursor-pointer"
+                            >
+                              ✓ Simulate
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>

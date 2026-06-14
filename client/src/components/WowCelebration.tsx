@@ -58,7 +58,6 @@ export function WowCelebration({
   description,
   invoiceId,
   invoiceNumber,
-  paymentUrl,
   total = 0,
   clientName,
   shareToken,
@@ -197,7 +196,7 @@ export function WowCelebration({
 
   const shareWhatsApp = () => {
     const publicUrl = getPublicInvoiceUrl();
-    const link = paymentUrl || publicUrl;
+    const link = publicUrl;
     const text = `Hello! Here is invoice ${invoiceNumber || ""} for ${formatCurrency(
       total
     )}.${link ? ` You can view details or pay online here: ${link}` : ""}`;
