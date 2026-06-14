@@ -1,6 +1,6 @@
-# Kulode Client
+# Tari1 Client
 
-React TypeScript frontend for the Kulode invoicing platform.
+React TypeScript frontend for the Tari1 invoicing platform.
 
 ## Tech Stack
 

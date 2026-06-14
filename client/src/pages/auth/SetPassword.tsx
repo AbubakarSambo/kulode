@@ -3,21 +3,24 @@ import { useSearchParams, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { XCircle, Loader2, Check } from 'lucide-react'
+import { XCircle, Loader2, Check, Eye, EyeOff } from 'lucide-react'
 import { Button, Input, Label, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui'
+import { Logo } from '@/components/shared'
 import { authApi } from '@/api'
 import { useSetPassword } from '@/hooks'
 
 const PASSWORD_RULES = [
   { label: 'At least 8 characters', test: (v: string) => v.length >= 8 },
   { label: 'One uppercase letter', test: (v: string) => /[A-Z]/.test(v) },
+  { label: 'One number or special character', test: (v: string) => /[\d\W]/.test(v) },
 ]
 
 const passwordSchema = z.object({
   password: z
     .string()
     .min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Must contain an uppercase letter'),
+    .regex(/[A-Z]/, 'Must contain an uppercase letter')
+    .regex(/[\d\W]/, 'Must contain a number or special character'),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Passwords do not match',
@@ -34,6 +37,8 @@ export function SetPasswordPage() {
   const [validating, setValidating] = useState(true)
   const [valid, setValid] = useState(false)
   const [tokenInfo, setTokenInfo] = useState<{ email?: string; firstName?: string }>({})
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   const {
     register,
@@ -105,7 +110,7 @@ export function SetPasswordPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mb-4 flex justify-center">
-            <img src="/logo.svg" alt="Tari1" className="h-10 w-auto" />
+            <Logo className="h-10 w-auto" />
           </div>
           <CardTitle>One last step</CardTitle>
           <CardDescription>
@@ -117,13 +122,23 @@ export function SetPasswordPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                {...register('password')}
-                error={errors.password?.message}
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  {...register('password')}
+                  error={errors.password?.message}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  className="absolute right-3 top-4 text-slate-400 hover:text-slate-600"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
               <ul className="space-y-1 pt-1">
                 {PASSWORD_RULES.map((rule) => {
                   const met = rule.test(passwordValue)
@@ -138,13 +153,23 @@ export function SetPasswordPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                placeholder="••••••••"
-                {...register('confirmPassword')}
-                error={errors.confirmPassword?.message}
-              />
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  {...register('confirmPassword')}
+                  error={errors.confirmPassword?.message}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(v => !v)}
+                  className="absolute right-3 top-4 text-slate-400 hover:text-slate-600"
+                  tabIndex={-1}
+                >
+                  {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
           </CardContent>
           <CardFooter>

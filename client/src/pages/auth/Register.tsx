@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useForm, UseFormReturn } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -15,6 +15,7 @@ import {
   CardContent,
   CardFooter,
 } from '@/components/ui'
+import { Logo } from '@/components/shared'
 import { useRegister, useMagicLinkRegister } from '@/hooks'
 import { posthog } from '@/lib/posthog'
 
@@ -34,7 +35,8 @@ const registerSchema = z.object({
   password: z
     .string()
     .min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Password must contain at least 1 uppercase letter'),
+    .regex(/[A-Z]/, 'Password must contain at least 1 uppercase letter')
+    .regex(/[\d\W]/, 'Password must contain at least 1 number or special character'),
 })
 
 type RegisterForm = z.infer<typeof registerSchema>
@@ -51,7 +53,7 @@ function LeftPanel() {
       
       {/* Logo */}
       <div className="relative z-10 flex items-center gap-3">
-        <img src="/logo-white.png" alt="Tari1 Logo" className="h-11 w-auto" />
+        <Logo variant="inverted" className="h-11 w-auto" />
       </div>
       
       {/* Center Content & Animated Mockups */}
@@ -131,17 +133,23 @@ function LeftPanel() {
 function GoogleButton() {
   return (
     <>
-      <a href={GOOGLE_AUTH_URL} className="w-full block" onClick={() => posthog.capture('google_oauth_initiated', { page: 'register' })}>
-        <Button type="button" variant="outline" className="w-full gap-3 py-6 rounded-2xl border-slate-200/80 hover:bg-slate-50 text-slate-700 font-bold active:scale-98 transition-all duration-200">
-          <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
-            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
-            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-          </svg>
-          Continue with Google
-        </Button>
-      </a>
+      <div className="relative w-full">
+        {/* Recommended micro-badge */}
+        <div className="absolute -top-2.5 right-4 z-10 bg-[#eef4ff] text-[#0037b0] border border-[#0037b0]/25 text-[10px] font-semibold px-2.5 py-0.5 rounded-full tracking-wide shadow-sm select-none">
+          recommended
+        </div>
+        <a href={GOOGLE_AUTH_URL} className="w-full block" onClick={() => posthog.capture('google_oauth_initiated', { page: 'register' })}>
+          <Button type="button" variant="outline" className="w-full gap-3 py-6 rounded-2xl border-slate-200/80 hover:bg-slate-50 text-slate-700 font-bold active:scale-98 transition-all duration-200 shadow-[0_8px_24px_rgba(0,55,176,0.05)] hover:shadow-[0_8px_24px_rgba(0,55,176,0.12)] hover:border-[#0037b0]/30">
+            <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+            </svg>
+            Continue with Google
+          </Button>
+        </a>
+      </div>
       <div className="relative w-full py-2">
         <div className="absolute inset-0 flex items-center">
           <span className="w-full border-t border-slate-200/60" />
@@ -159,7 +167,9 @@ function SharedFields({
   errors,
   onFocus,
 }: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   form: UseFormReturn<any>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   errors: Record<string, any>
   onFocus: () => void
 }) {
@@ -184,7 +194,7 @@ function SharedFields({
           error={errors.organizationName?.message}
         />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="space-y-2">
           <Label htmlFor="firstName" className="text-xs font-bold uppercase tracking-wider text-slate-500" required>
             First Name
@@ -240,9 +250,13 @@ export function RegisterPage() {
   const registerMutation = useRegister()
   const magicLinkMutation = useMagicLinkRegister()
   const [showPassword, setShowPassword] = useState(false)
-  const [useMagicLink, setUseMagicLink] = useState(false)
+  const [useMagicLink, setUseMagicLink] = useState(true)
   const hasTrackedStart = useState(false)
-  const mountedAt = useRef(Date.now())
+  const mountedAt = useRef(0)
+
+  useEffect(() => {
+    mountedAt.current = Date.now()
+  }, [])
 
   const passwordForm = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
@@ -259,6 +273,18 @@ export function RegisterPage() {
       hasTrackedStart[1](true)
       posthog.capture('register_form_started', { method: useMagicLink ? 'magic_link' : 'password' })
     }
+  }
+
+  const handleMagicLinkSubmit = (data: MagicLinkForm) => {
+    // eslint-disable-next-line react-hooks/purity
+    if (Date.now() - mountedAt.current < 1500) return
+    magicLinkMutation.mutate(data)
+  }
+
+  const handlePasswordSubmit = (data: RegisterForm) => {
+    // eslint-disable-next-line react-hooks/purity
+    if (Date.now() - mountedAt.current < 1500) return
+    registerMutation.mutate(data)
   }
 
   return (
@@ -283,7 +309,7 @@ export function RegisterPage() {
         <Card className="w-full max-w-md border border-slate-200/60 shadow-[0_20px_50px_rgba(0,55,176,0.06)] bg-white rounded-[32px] p-2">
           <CardHeader className="text-center pb-4 pt-6">
             <div className="mb-4 lg:hidden flex justify-center">
-              <img src="/logo.svg" alt="Tari1 Logo" className="h-10 w-auto" />
+              <Logo className="h-10 w-auto" />
             </div>
             <CardTitle className="text-2xl font-semibold text-slate-900 tracking-tight">Create your account</CardTitle>
             <CardDescription className="text-xs text-slate-500 mt-1">Start professionalizing your freelance business today.</CardDescription>
@@ -296,10 +322,7 @@ export function RegisterPage() {
           <CardContent className="pt-0">
             {useMagicLink ? (
               <form
-                onSubmit={magicLinkForm.handleSubmit((data) => {
-                  if (Date.now() - mountedAt.current < 1500) return
-                  magicLinkMutation.mutate(data)
-                })}
+                onSubmit={magicLinkForm.handleSubmit(handleMagicLinkSubmit)}
                 className="space-y-4"
               >
                 <SharedFields
@@ -320,10 +343,7 @@ export function RegisterPage() {
               </form>
             ) : (
               <form
-                onSubmit={passwordForm.handleSubmit((data) => {
-                  if (Date.now() - mountedAt.current < 1500) return
-                  registerMutation.mutate(data)
-                })}
+                onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)}
                 className="space-y-4"
               >
                 <SharedFields

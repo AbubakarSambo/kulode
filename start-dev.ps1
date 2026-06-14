@@ -1,4 +1,4 @@
-# Automated Local Development environment startup script for Kulode
+# Automated Local Development environment startup script for Tari1
 
 # Resolve the project root directory regardless of where the script is called from
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -46,13 +46,13 @@ foreach ($port in $appPorts) {
 # 3. Start application servers in labelled windows
 Write-Host "Starting NestJS API, React Client, and Astro Marketing..." -ForegroundColor Green
 
-Start-Process cmd.exe -ArgumentList '/k "title Kulode-API & npm run start:dev"' `
+Start-Process npm.cmd -ArgumentList "run", "start:dev" `
     -WorkingDirectory "$ProjectRoot\api"
 
-Start-Process cmd.exe -ArgumentList '/k "title Kulode-Client & npm run dev"' `
+Start-Process npm.cmd -ArgumentList "run", "dev" `
     -WorkingDirectory "$ProjectRoot\client"
 
-Start-Process cmd.exe -ArgumentList '/k "title Kulode-Marketing & npm run dev"' `
+Start-Process npm.cmd -ArgumentList "run", "dev" `
     -WorkingDirectory "$ProjectRoot\marketing"
 
 Write-Host ""

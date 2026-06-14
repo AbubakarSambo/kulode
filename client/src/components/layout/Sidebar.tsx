@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { useLogout } from '@/hooks'
+import { Logo } from '@/components/shared'
 import { useSubscription } from '@/hooks/useSubscription'
 import type { PlanTier } from '@/types'
 import {
@@ -155,7 +156,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             {isCollapsed ? (
               <img src="/favicon.svg" alt="Tari1 Logo" className="w-8 h-8 object-contain shrink-0" />
             ) : (
-              <img src="/logo.svg" alt="Tari1 Logo" className="h-10 w-auto object-contain shrink-0" />
+              <Logo className="h-10 w-auto object-contain shrink-0" />
             )}
           </div>
           {/* Close button - mobile only */}

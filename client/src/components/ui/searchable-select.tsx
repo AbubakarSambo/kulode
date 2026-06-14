@@ -36,6 +36,7 @@ export function SearchableSelect({
 }: SearchableSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [openUpward, setOpenUpward] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   // Close dropdown on click outside and reset search
@@ -93,7 +94,16 @@ export function SearchableSelect({
   const handleToggle = () => {
     const nextState = !isOpen;
     setIsOpen(nextState);
-    if (!nextState) {
+    if (nextState && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      if (spaceBelow < 280 && spaceAbove > spaceBelow) {
+        setOpenUpward(true);
+      } else {
+        setOpenUpward(false);
+      }
+    } else if (!nextState) {
       setSearch("");
     }
   };
@@ -131,7 +141,12 @@ export function SearchableSelect({
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-[9995] bg-white border border-[#c4c5d7]/20 rounded-xl shadow-[0_12px_32px_rgba(0,55,176,0.08)] overflow-hidden flex flex-col max-h-64 animate-in fade-in slide-in-from-top-1 duration-150">
+        <div className={cn(
+          "absolute left-0 right-0 z-[9995] bg-white border border-[#c4c5d7]/20 rounded-xl shadow-[0_12px_32px_rgba(0,55,176,0.08)] overflow-hidden flex flex-col max-h-64 animate-in fade-in duration-150",
+          openUpward 
+            ? "bottom-[calc(100%+6px)] origin-bottom slide-in-from-bottom-1" 
+            : "top-[calc(100%+6px)] origin-top slide-in-from-top-1"
+        )}>
           {/* Search Header */}
           <div className="sticky top-0 bg-white p-2 border-b border-[#eef4ff]/50 flex items-center gap-2 shrink-0">
             <HugeiconsIcon
@@ -155,7 +170,7 @@ export function SearchableSelect({
                 if (isGroup(opt)) {
                   return (
                     <div key={`group-${groupIdx}`}>
-                      <div className="px-3 py-1 text-[9px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50 select-none">
+                      <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50 select-none">
                         {opt.group}
                       </div>
                       {opt.items.map((item) => (
@@ -164,7 +179,7 @@ export function SearchableSelect({
                           type="button"
                           onClick={() => handleSelectOption(item.id)}
                           className={cn(
-                            "w-full px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-[#eef4ff] hover:text-[#0037b0] transition-colors cursor-pointer select-none text-left flex items-center justify-between border-0 bg-transparent",
+                            "w-full px-4 py-3 sm:py-2.5 text-[15px] sm:text-xs font-semibold text-slate-700 hover:bg-[#eef4ff] hover:text-[#0037b0] transition-colors cursor-pointer select-none text-left flex items-center justify-between border-0 bg-transparent",
                             value === item.id && "bg-[#eef4ff]/60 text-[#0037b0]"
                           )}
                         >
@@ -183,7 +198,7 @@ export function SearchableSelect({
                       type="button"
                       onClick={() => handleSelectOption(opt.id)}
                       className={cn(
-                        "w-full px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-[#eef4ff] hover:text-[#0037b0] transition-colors cursor-pointer select-none text-left flex items-center justify-between border-0 bg-transparent",
+                        "w-full px-4 py-3 sm:py-2.5 text-[15px] sm:text-xs font-semibold text-slate-700 hover:bg-[#eef4ff] hover:text-[#0037b0] transition-colors cursor-pointer select-none text-left flex items-center justify-between border-0 bg-transparent",
                         value === opt.id && "bg-[#eef4ff]/60 text-[#0037b0]"
                       )}
                     >

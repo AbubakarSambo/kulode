@@ -1,4 +1,4 @@
-# Kulode — AI Rules
+# Tari1 — AI Rules
 
 ## Stack
 - `client/`: React 19, Vite, TypeScript, Tailwind CSS v4, Zustand, TanStack Query v5, React Router v7
@@ -26,7 +26,7 @@
 > ```powershell
 > powershell -ExecutionPolicy Bypass -File .\start-dev.ps1
 > ```
-> **Working directory:** `c:\dev_projects\Kulode`
+> **Working directory:** `c:\dev_projects\Tari1`
 > **Ports:** API `3003` · Client `5173` · Marketing `4321` · PostgreSQL `5433`
 
 ---
@@ -42,8 +42,8 @@ When asked to perform any of these tasks, run the exact command immediately — 
 | Run build + lint | `npm run build && npm run lint` | modified component dir |
 | Run tests | `npm test -- --run` (or `npm test` for API) | modified component dir (`api/` or `client/`) |
 | Run tests + coverage | `npm run test:cov` | `api/` only |
-| Git status | `git status` | `c:\dev_projects\Kulode` |
-| Git commit | `git add -A && git commit -m "<message>"` | `c:\dev_projects\Kulode` |
+| Git status | `git status` | `c:\dev_projects\Tari1` |
+| Git commit | `git add -A && git commit -m "<message>"` | `c:\dev_projects\Tari1` |
 
 ---
 

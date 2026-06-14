@@ -1104,6 +1104,23 @@ export function NewInvoicePage() {
     name: 'installments',
   })
 
+  // Automatically check and rename split items consistently (Payment 1, Payment 2, etc.) when added or removed
+  const watchedInstallments = watch('installments') || []
+  useEffect(() => {
+    let changed = false
+    const updated = watchedInstallments.map((inst, i) => {
+      const expectedLabel = `Payment ${i + 1}`
+      if (inst?.label !== expectedLabel) {
+        changed = true
+        return { ...inst, label: expectedLabel }
+      }
+      return inst
+    })
+    if (changed && watchedInstallments.length > 0) {
+      setValue('installments', updated, { shouldValidate: true })
+    }
+  }, [watchedInstallments.length, setValue])
+
   useEffect(() => {
     if (organization?.paymentTerms && !getValues('terms')) {
       setValue('terms', organization.paymentTerms)
@@ -1668,8 +1685,8 @@ export function NewInvoicePage() {
                       onChange={(e) => {
                         setEnableInstallments(e.target.checked)
                         if (e.target.checked && installmentFields.length === 0) {
-                          appendInstallment({ label: 'First Payment', percentage: 75 })
-                          appendInstallment({ label: 'Final Payment', percentage: 25 })
+                          appendInstallment({ label: 'Payment 1', percentage: 75 })
+                          appendInstallment({ label: 'Payment 2', percentage: 25 })
                         }
                       }}
                       className="h-4 w-4 rounded border-gray-300 text-[#0037b0] focus:ring-[#0037b0]"
@@ -1980,8 +1997,8 @@ export function NewInvoicePage() {
                         onChange={(e) => {
                           setEnableInstallments(e.target.checked)
                           if (e.target.checked && installmentFields.length === 0) {
-                            appendInstallment({ label: 'First Payment', percentage: 75 })
-                            appendInstallment({ label: 'Final Payment', percentage: 25 })
+                            appendInstallment({ label: 'Payment 1', percentage: 75 })
+                            appendInstallment({ label: 'Payment 2', percentage: 25 })
                           }
                         }}
                         className="h-4 w-4 rounded border-gray-300 text-[#0037b0]"

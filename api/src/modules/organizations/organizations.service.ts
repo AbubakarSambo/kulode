@@ -94,7 +94,7 @@ export class OrganizationsService {
   }
 
   async getOnboardingStatus(organizationId: string) {
-    const [organization, inventoryItemCount, clientCount, invoiceCount] =
+    const [organization, inventoryItemCount, serviceItemCount, clientCount, invoiceCount] =
       await Promise.all([
         this.prisma.organization.findUnique({
           where: { id: organizationId },
@@ -111,6 +111,9 @@ export class OrganizationsService {
         this.prisma.inventoryItem.count({
           where: { organizationId, isActive: true },
         }),
+        this.prisma.serviceItem.count({
+          where: { organizationId, isActive: true },
+        }),
         this.prisma.client.count({
           where: { organizationId, isActive: true },
         }),
@@ -125,7 +128,7 @@ export class OrganizationsService {
 
     const steps = {
       businessProfile: !!(organization.address || organization.logo),
-      inventoryItems: inventoryItemCount > 0,
+      inventoryItems: inventoryItemCount > 0 || serviceItemCount > 0,
       firstClient: clientCount > 0,
       firstInvoice: invoiceCount > 0,
       onlinePayments: organization.isPaystackVerified,
