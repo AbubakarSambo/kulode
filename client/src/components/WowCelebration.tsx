@@ -198,8 +198,20 @@ export function WowCelebration({
     window.open(getPublicInvoiceUrl(), "_blank");
   };
 
-  const shareWhatsApp = () => {
+  const shareWhatsApp = async () => {
     const publicUrl = getPublicInvoiceUrl();
+    let displayUrl = publicUrl;
+    if (publicUrl) {
+      try {
+        const res = await apiClient.get<{ url: string }>('/invoices/public/shorten', { params: { url: publicUrl } });
+        if (res.data && res.data.url) {
+          displayUrl = res.data.url;
+        }
+      } catch (err) {
+        // fallback
+      }
+    }
+
     const clientFirstName = clientName ? clientName.split(' ')[0] : null;
     const greeting = clientFirstName ? `Hi ${clientFirstName} 👋` : `Hi there 👋`;
     const senderName = orgName || 'Us';
@@ -213,10 +225,10 @@ export function WowCelebration({
       `📄 *Invoice:* ${invoiceNumber || ''}`,
       `💰 *Amount Due:* ${total !== undefined ? formatCurrency(total) : ''}`,
       `📅 *Due Date:* ${dueStr}`,
-      ...(publicUrl ? [
+      ...(displayUrl ? [
         ``,
         `🔗 *View & Pay Online:*`,
-        publicUrl,
+        displayUrl,
         ``,
         `Via the link above you can:`,
         `✅ View the full invoice details`,

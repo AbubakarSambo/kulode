@@ -381,9 +381,21 @@ export function InvoiceDetailPage() {
     }
   }
 
-  const shareWhatsApp = () => {
+  const shareWhatsApp = async () => {
     if (!invoice) return
     const publicUrl = invoice.shareToken ? `${window.location.origin}/i/${invoice.shareToken}` : null
+    let displayUrl = publicUrl
+    if (publicUrl) {
+      try {
+        const res = await apiClient.get<{ url: string }>('/invoices/public/shorten', { params: { url: publicUrl } })
+        if (res.data && res.data.url) {
+          displayUrl = res.data.url
+        }
+      } catch (err) {
+        // fallback
+      }
+    }
+
     const orgName = organization?.name || 'Us'
     const dueStr = invoice.dueDate ? formatDate(invoice.dueDate) : 'soon'
     const clientGreeting = invoice.client?.name ? `Hi ${invoice.client.name.split(' ')[0]}` : 'Hi there'
@@ -396,10 +408,10 @@ export function InvoiceDetailPage() {
       `📄 *Invoice:* ${invoice.invoiceNumber}`,
       `💰 *Amount Due:* ${formatCurrency(invoice.total)}`,
       `📅 *Due Date:* ${dueStr}`,
-      ...(publicUrl ? [
+      ...(displayUrl ? [
         ``,
         `🔗 *View & Pay Online:*`,
-        publicUrl,
+        displayUrl,
         ``,
         `Via the link above you can:`,
         `✅ View the full invoice details`,

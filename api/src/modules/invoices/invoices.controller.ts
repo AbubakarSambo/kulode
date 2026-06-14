@@ -205,6 +205,32 @@ export class InvoicesController {
     return this.invoicesService.generateShareToken(id, organizationId);
   }
 
+  @Get('public/shorten')
+  @Public()
+  @ApiOperation({ summary: 'Shorten a URL using TinyURL' })
+  async shortenUrl(@Query('url') url: string) {
+    if (!url) {
+      return { url: '' };
+    }
+    try {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), 3000);
+      const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(url)}`, {
+        signal: controller.signal,
+      });
+      clearTimeout(id);
+      if (response.ok) {
+        const text = await response.text();
+        if (text && text.startsWith('http')) {
+          return { url: text.trim() };
+        }
+      }
+    } catch (err) {
+      // Ignore and fallback
+    }
+    return { url };
+  }
+
   @Get('public/:token')
   @Public()
   @ApiOperation({ summary: 'Get invoice by public share token' })
