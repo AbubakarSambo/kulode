@@ -374,6 +374,8 @@ export function WelcomeStepper() {
     !!(onboardingStatus?.steps?.firstClient ||
        onboardingStatus?.steps?.firstInvoice);
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
   // Sync step with store start step
   useEffect(() => {
     if (isOpen) {
@@ -382,6 +384,13 @@ export function WelcomeStepper() {
       setIsDismissed(false);
     }
   }, [isOpen, startAtStep]);
+
+  // Scroll to top of the content container whenever step changes
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
+  }, [step]);
 
   // Sync bank connected state, VAT settings, personalization survey, logo, and terms from database
   useEffect(() => {
@@ -1080,7 +1089,7 @@ export function WelcomeStepper() {
         </div>
 
         {/* Form Body Scroll Area */}
-        <div className="flex-1 overflow-y-auto px-3.5 sm:px-8 py-5">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-3.5 sm:px-8 py-5">
           
           {/* Progress Tracker Capsules */}
           {!isLoading && (
@@ -1413,7 +1422,7 @@ export function WelcomeStepper() {
                                 className={cn(
                                   "py-2 text-xs font-bold rounded-lg transition-all border-0 cursor-pointer min-h-[40px] flex-1 flex items-center justify-center",
                                   item.type === "service"
-                                    ? "bg-[#0037b0] text-white shadow-sm font-extrabold"
+                                    ? "bg-[#0037b0] text-white shadow-sm font-bold"
                                     : "text-slate-500 hover:text-slate-700 bg-transparent"
                                 )}
                               >
@@ -1425,7 +1434,7 @@ export function WelcomeStepper() {
                                 className={cn(
                                   "py-2 text-xs font-bold rounded-lg transition-all border-0 cursor-pointer min-h-[40px] flex-1 flex items-center justify-center",
                                   item.type === "product"
-                                    ? "bg-[#0037b0] text-white shadow-sm font-extrabold"
+                                    ? "bg-[#0037b0] text-white shadow-sm font-bold"
                                     : "text-slate-500 hover:text-slate-700 bg-transparent"
                                 )}
                               >
@@ -1738,21 +1747,21 @@ export function WelcomeStepper() {
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                         No Payout Bank Connected
                       </div>
-                      <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
+                      <p className="text-xs sm:text-[11px] text-slate-500 font-semibold leading-relaxed">
                         Clients will not be able to pay this invoice online (Card, Bank Transfer, USSD). You can configure a bank below or publish offline.
                       </p>
                     </div>
                   )}
 
                   <div className="space-y-4">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block text-left">
+                    <span className="text-xs sm:text-[10px] font-bold text-slate-450 uppercase tracking-wider block text-left">
                       How should clients pay you?
                     </span>
                     
                     {isBankConnected ? (
                       <div className="p-4 bg-emerald-50/50 border border-emerald-100 rounded-[20px] flex items-center justify-between shadow-[0px_8px_24px_rgba(0,108,73,0.02)]">
                         <div className="text-left">
-                          <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-widest flex items-center gap-1.5">
+                          <p className="text-xs sm:text-[10px] font-bold text-emerald-800 uppercase tracking-widest flex items-center gap-1.5">
                             <HugeiconsIcon icon={CheckmarkCircle02Icon} size={13} className="text-emerald-600" strokeWidth={2.5} />
                             Payout Bank Connected
                           </p>
@@ -1760,7 +1769,7 @@ export function WelcomeStepper() {
                             {verifiedAccountName || "Verified Account"}
                           </h4>
                           {accountNumber && accountNumber !== "••••••••••" && (
-                            <p className="text-[10px] text-slate-500 mt-0.5 font-medium">
+                            <p className="text-xs sm:text-[10px] text-slate-500 mt-0.5 font-semibold">
                               Account: {accountNumber} {bankCode ? `· ${banks?.find(b => b.code === bankCode)?.name || bankCode}` : ""}
                             </p>
                           )}
@@ -1774,7 +1783,7 @@ export function WelcomeStepper() {
                             setBankCode("");
                             toast.info("Payout bank details cleared. You can now configure a new account.");
                           }}
-                          className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-655 hover:text-slate-800 text-[10px] font-bold transition-all cursor-pointer min-h-[36px] bg-white active:scale-98"
+                          className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-655 hover:text-slate-800 text-xs sm:text-[10px] font-bold transition-all cursor-pointer min-h-[38px] bg-white active:scale-98"
                         >
                           Clear & Change
                         </button>
@@ -1783,15 +1792,15 @@ export function WelcomeStepper() {
                       <div className="rounded-2xl border border-dashed border-slate-200 p-4 bg-slate-50/50 space-y-3">
                         <div className="flex items-center justify-between">
                           <div className="text-left pr-4">
-                            <p className="text-xs font-bold text-slate-800">Configure Payout Bank</p>
-                            <p className="text-[10px] text-slate-500 font-semibold mt-0.5 leading-normal">
+                            <p className="text-xs font-bold text-slate-850">Configure Payout Bank</p>
+                            <p className="text-xs sm:text-[10px] text-slate-500 font-semibold mt-0.5 leading-normal">
                               Link your settlement bank to enable online invoice payments (Cards, Bank Transfer, USSD).
                             </p>
                           </div>
                           <button
                             type="button"
                             onClick={() => setShowBankAccordion(!showBankAccordion)}
-                            className="h-9 px-4 rounded-lg bg-white border border-slate-200 hover:bg-[#eef4ff] text-[10px] font-bold text-[#0037b0] min-h-[36px] cursor-pointer shrink-0 transition-all active:scale-98"
+                            className="h-10 sm:h-9 px-4 rounded-lg bg-white border border-slate-200 hover:bg-[#eef4ff] text-xs sm:text-[10px] font-bold text-[#0037b0] min-h-[38px] cursor-pointer shrink-0 transition-all active:scale-98"
                           >
                             {showBankAccordion ? "Hide" : "Set Up"}
                           </button>
@@ -1968,7 +1977,7 @@ export function WelcomeStepper() {
                       )}
                       <div className="flex justify-between w-full max-w-[220px] text-sm sm:text-base font-bold border-t border-slate-200/40 pt-2.5">
                         <span className="text-[#0037b0]">Amount Due:</span>
-                        <span className="tabular-nums text-slate-900 font-extrabold">{formatCurrency(total)}</span>
+                        <span className="tabular-nums text-slate-900 font-bold">{formatCurrency(total)}</span>
                       </div>
                     </div>
 
@@ -1983,7 +1992,7 @@ export function WelcomeStepper() {
                                 <span>{inst.label}</span>
                                 <span className="text-slate-400 font-semibold text-[10px]">({inst.percentage}%)</span>
                               </span>
-                              <span className="tabular-nums text-slate-900 font-extrabold">{formatCurrency(total * ((inst.percentage || 0) / 100))}</span>
+                              <span className="tabular-nums text-slate-900 font-bold">{formatCurrency(total * ((inst.percentage || 0) / 100))}</span>
                             </div>
                           ))}
                         </div>
@@ -2050,12 +2059,12 @@ export function WelcomeStepper() {
 
         {/* Footer Actions (no 1px lines, bg shift) */}
         {!isLoading && (
-          <div className="px-6 sm:px-8 pt-5 pb-7 sm:py-5 bg-slate-50/50 flex items-center justify-between shrink-0">
+          <div className="px-5 sm:px-8 pt-5 pb-7 sm:py-5 bg-slate-50/50 flex items-center justify-between shrink-0">
             <div>
               {step > 1 && (
                 <button
                   onClick={handleBack}
-                  className="h-11 px-4 inline-flex items-center gap-1.5 text-xs font-bold text-[#0037b0] hover:text-[#1d4ed8] transition-colors cursor-pointer min-h-[44px] bg-transparent border-0"
+                  className="h-12 sm:h-11 px-4 inline-flex items-center gap-1.5 text-sm sm:text-xs font-bold text-[#0037b0] hover:text-[#1d4ed8] transition-colors cursor-pointer bg-transparent border-0"
                 >
                   <HugeiconsIcon icon={ArrowLeft02Icon} size={16} />
                   Back
@@ -2068,7 +2077,7 @@ export function WelcomeStepper() {
                 <button
                   onClick={handleNext}
                   disabled={isSavingStep}
-                  className="h-11 px-6 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white text-xs font-bold shadow-[0_4px_12px_rgba(0,55,176,0.15)] flex items-center gap-2 hover:opacity-95 cursor-pointer min-h-[44px] border-0 disabled:opacity-50"
+                  className="h-12 sm:h-11 px-6 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white text-sm sm:text-xs font-bold shadow-[0_4px_12px_rgba(0,55,176,0.15)] flex items-center gap-2 hover:opacity-95 cursor-pointer border-0 disabled:opacity-50"
                 >
                   {isSavingStep ? "Saving..." : "Continue"}
                   {!isSavingStep && <HugeiconsIcon icon={ArrowRight02Icon} size={16} />}
@@ -2076,9 +2085,9 @@ export function WelcomeStepper() {
               ) : (
                 <button
                   onClick={() => handleFinishSend()}
-                  className="h-11 px-6 rounded-xl bg-gradient-to-r from-[#006c49] to-[#059669] text-white text-xs font-bold shadow-[0_4px_12px_rgba(0,108,73,0.15)] flex items-center gap-2 hover:opacity-95 cursor-pointer min-h-[44px] border-0"
+                  className="h-12 sm:h-11 px-6 rounded-xl bg-gradient-to-r from-[#006c49] to-[#059669] text-white text-sm sm:text-xs font-bold shadow-[0_4px_12px_rgba(0,108,73,0.15)] flex items-center gap-2 hover:opacity-95 cursor-pointer border-0"
                 >
-                  {sendEmail && clientEmail ? "Publish & Send Invoice" : "Publish Invoice"}
+                  {sendEmail && clientEmail ? "Publish & Send" : "Publish Invoice"}
                   <HugeiconsIcon icon={Sent02Icon} size={16} />
                 </button>
               )}

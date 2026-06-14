@@ -3,7 +3,7 @@ import { useForm, UseFormReturn } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link } from 'react-router-dom'
-import { Eye, EyeOff, Mail, MessageCircle, Pointer, ArrowLeft } from 'lucide-react'
+import { Eye, EyeOff, Mail, MessageCircle, Pointer, ArrowLeft, Check } from 'lucide-react'
 import {
   Button,
   Input,
@@ -18,6 +18,12 @@ import {
 import { Logo } from '@/components/shared'
 import { useRegister, useMagicLinkRegister } from '@/hooks'
 import { posthog } from '@/lib/posthog'
+
+const PASSWORD_RULES = [
+  { label: 'At least 8 characters', test: (v: string) => v.length >= 8 },
+  { label: 'One uppercase letter', test: (v: string) => /[A-Z]/.test(v) },
+  { label: 'One number or special character', test: (v: string) => /[\d\W]/.test(v) },
+]
 
 const GOOGLE_AUTH_URL = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/api/v1/auth/google`
@@ -35,8 +41,8 @@ const registerSchema = z.object({
   password: z
     .string()
     .min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Password must contain at least 1 uppercase letter')
-    .regex(/[\d\W]/, 'Password must contain at least 1 number or special character'),
+    .regex(/[A-Z]/, 'Must contain an uppercase letter')
+    .regex(/[\d\W]/, 'Must contain a number or special character'),
 })
 
 type RegisterForm = z.infer<typeof registerSchema>
@@ -263,6 +269,8 @@ export function RegisterPage() {
     mode: 'onBlur',
   })
 
+  const passwordValue = passwordForm.watch('password', '')
+
   const magicLinkForm = useForm<MagicLinkForm>({
     resolver: zodResolver(magicLinkSchema),
     mode: 'onBlur',
@@ -351,7 +359,7 @@ export function RegisterPage() {
                   errors={passwordForm.formState.errors}
                   onFocus={trackStart}
                 />
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <Label htmlFor="password" className="text-xs font-bold uppercase tracking-wider text-slate-500" required>
                     Password
                   </Label>
@@ -383,11 +391,17 @@ export function RegisterPage() {
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
-                  {!passwordForm.formState.errors.password && (
-                    <p className="text-[10px] text-slate-400">
-                      Min 8 characters, with uppercase, lowercase, and a number or symbol.
-                    </p>
-                  )}
+                  <ul className="space-y-1 pt-1 text-left">
+                    {PASSWORD_RULES.map((rule) => {
+                      const met = rule.test(passwordValue)
+                      return (
+                        <li key={rule.label} className={`flex items-center gap-2 text-xs ${met ? 'text-green-600' : 'text-muted-foreground'}`}>
+                          <Check className={`h-3 w-3 shrink-0 ${met ? 'opacity-100' : 'opacity-30'}`} />
+                          {rule.label}
+                        </li>
+                      )
+                    })}
+                  </ul>
                 </div>
                 <Button type="submit" className="w-full py-6 rounded-2xl text-sm font-bold shadow-lg shadow-[#0037b0]/20 active:scale-98 transition-all btn-gradient" isLoading={registerMutation.isPending}>
                   Create account
