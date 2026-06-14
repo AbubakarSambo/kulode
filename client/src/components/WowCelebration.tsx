@@ -184,7 +184,10 @@ export function WowCelebration({
   }, []);
 
   const getPublicInvoiceUrl = () => {
-    return `${window.location.origin}/i/${shareToken || ""}`;
+    const baseOrigin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+      ? 'https://pay.tari1.app'
+      : window.location.origin;
+    return `${baseOrigin}/i/${shareToken || ""}`;
   };
 
 
@@ -207,7 +210,7 @@ export function WowCelebration({
         if (res.data && res.data.url) {
           displayUrl = res.data.url;
         }
-      } catch (err) {
+      } catch {
         // fallback
       }
     }
