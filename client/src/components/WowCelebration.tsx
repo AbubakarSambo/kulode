@@ -185,7 +185,7 @@ export function WowCelebration({
 
   const getPublicInvoiceUrl = () => {
     const baseOrigin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
-      ? 'https://pay.tari1.app'
+      ? 'https://pay.tarione.com'
       : window.location.origin;
     return `${baseOrigin}/i/${shareToken || ""}`;
   };

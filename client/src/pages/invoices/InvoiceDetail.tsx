@@ -364,7 +364,7 @@ export function InvoiceDetailPage() {
   const shareWhatsApp = async () => {
     if (!invoice) return
     const baseOrigin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
-      ? 'https://pay.tari1.app'
+      ? 'https://pay.tarione.com'
       : window.location.origin
     const publicUrl = invoice.shareToken ? `${baseOrigin}/i/${invoice.shareToken}` : null
     let displayUrl = publicUrl
