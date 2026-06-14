@@ -9,6 +9,7 @@ import { clientsApi } from "@/api/clients";
 import { invoicesApi } from "@/api/invoices";
 import { inventoryApi } from "@/api/inventory";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { PhoneInput } from "@/components/ui/phone-input";
 import apiClient from "@/api/client";
 import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -119,6 +120,7 @@ export function WelcomeStepper() {
   const [createdPaymentUrl, setCreatedPaymentUrl] = useState<string | null | undefined>(undefined);
   const [createdInvoiceTotal, setCreatedInvoiceTotal] = useState<number | undefined>(undefined);
   const [createdShareToken, setCreatedShareToken] = useState<string | null | undefined>(undefined);
+  const [createdDueDate, setCreatedDueDate] = useState<string | undefined>(undefined);
 
   // Form States - Step 1: Personalization
   const [businessType, setBusinessType] = useState("");
@@ -152,6 +154,7 @@ export function WelcomeStepper() {
     const saved = localStorage.getItem("tari1-onboarding-isBankConnected");
     return saved !== null ? saved === "true" : false;
   });
+  const [showBankAccordion, setShowBankAccordion] = useState(false);
 
   // Form States - Client details
   const [clientType, setClientType] = useState<"individual" | "business">("business");
@@ -665,7 +668,14 @@ export function WelcomeStepper() {
 
       if (logoFile) {
         setLoadingText("Uploading company logo…");
-        await organizationsApi.uploadLogo(logoFile);
+        try {
+          await organizationsApi.uploadLogo(logoFile);
+        } catch (logoErr) {
+          console.error("Failed to upload logo:", logoErr);
+          toast.warning("Logo upload failed, but continuing setup...", {
+            description: "You can upload your logo later in Settings.",
+          });
+        }
       }
 
       if (!isPersonalized && role) {
@@ -779,10 +789,14 @@ export function WelcomeStepper() {
       setCreatedPaymentUrl(paymentUrl || invoice.paymentUrl);
       setCreatedInvoiceTotal(total);
       setCreatedShareToken(invoice.shareToken);
+      setCreatedDueDate(dueDate);
 
       queryClient.invalidateQueries({ queryKey: ["onboarding-status"] });
       queryClient.invalidateQueries({ queryKey: ["reports"] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      queryClient.invalidateQueries({ queryKey: ["service-items"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory-items"] });
 
       clearOnboardingLocalStorage();
       setShowCelebration(true);
@@ -822,6 +836,8 @@ export function WelcomeStepper() {
         clientName={clientName}
         shareToken={createdShareToken}
         clientPhone={isWhatsapp ? clientPhone : undefined}
+        dueDate={createdDueDate}
+        orgName={businessName || undefined}
         onClose={() => {
           setShowCelebration(false);
           setIsDismissed(true);
@@ -835,30 +851,35 @@ export function WelcomeStepper() {
   if (showSurvey) {
     return (
       <div className="fixed inset-0 z-[9990] bg-[#f8f9ff] flex items-center justify-center p-3 sm:p-6 font-sans antialiased text-slate-900 overflow-y-auto animate-in fade-in duration-300">
-        <div className="w-full max-w-[480px] bg-white rounded-[32px] pt-8 px-6 pb-24 sm:pt-10 sm:px-10 sm:pb-28 shadow-[0_20px_50px_rgba(0,55,176,0.06)] relative border border-slate-100 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+        <div className="w-full max-w-[480px] bg-white rounded-[32px] pt-8 px-4.5 pb-24 sm:pt-10 sm:px-10 sm:pb-28 shadow-[0_20px_50px_rgba(0,55,176,0.06)] relative border border-slate-100 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
           
           {/* Layered Premium Fintech Badge Icon */}
-          <div className="relative mb-6 flex items-center justify-center select-none">
+          <div className="relative mb-6 flex items-center justify-center select-none scale-105">
             {/* Outer pulsating gradient halo */}
-            <div className="absolute w-20 h-20 bg-gradient-to-tr from-[#0037b0]/20 to-[#1d4ed8]/5 rounded-[24px] animate-pulse blur-md" />
+            <div className="absolute w-24 h-24 bg-gradient-to-tr from-[#0037b0]/15 to-[#1d4ed8]/5 rounded-full animate-pulse blur-lg" />
             
-            {/* Middle decorative border card */}
-            <div className="absolute w-18 h-18 bg-white border border-[#0037b0]/15 rounded-[22px] rotate-6 transition-transform duration-500 hover:rotate-12" />
+            {/* Architectural Grid Background (Fine lines) */}
+            <div className="absolute w-20 h-20 rounded-full border border-dashed border-[#0037b0]/20 animate-spin [animation-duration:40s]" />
+            <div className="absolute w-16 h-16 rounded-full border border-[#0037b0]/10" />
             
             {/* Inner primary card with the icon */}
-            <div className="relative w-16 h-16 rounded-[20px] bg-gradient-to-tr from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0_8px_24px_rgba(0,55,176,0.2)]">
-              <HugeiconsIcon icon={Store04Icon} size={28} strokeWidth={1.5} className="animate-bounce" />
+            <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0_8px_24px_rgba(0,55,176,0.25)] border border-white/20 transform hover:rotate-12 transition-transform duration-300">
+              <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" />
+              </svg>
             </div>
           </div>
 
           <div className="mb-6">
-            <h2 className="text-[24px] font-bold text-slate-900 tracking-tight font-sans">
+            <h2 className="text-[24px] font-semibold text-slate-900 tracking-tight font-inter">
               Welcome, <span className="text-[#0037b0]">{user?.firstName || "there"}</span>!
             </h2>
-            <p className="text-xs font-semibold text-slate-455 mt-1.5 uppercase tracking-wider">
+            <p className="text-xs font-semibold text-slate-400 mt-1.5 uppercase tracking-wider">
               Let's personalize your experience
             </p>
-            <p className="text-[11px] text-slate-500 font-medium leading-relaxed max-w-[320px] mx-auto mt-2 text-center">
+            <p className="text-[13px] sm:text-[11px] text-slate-500 font-medium leading-relaxed max-w-[320px] mx-auto mt-2 text-center">
               Tell us a little bit about your business so we can customize your invoicing and tax compliance ledger.
             </p>
           </div>
@@ -1259,13 +1280,11 @@ export function WelcomeStepper() {
                       <label htmlFor="clientPhoneInput" className="text-xs font-bold uppercase tracking-wider text-slate-500">
                         Client Phone Number (Optional)
                       </label>
-                      <input
+                      <PhoneInput
                         id="clientPhoneInput"
-                        type="text"
-                        placeholder="e.g. +234 80 123 4567"
                         value={clientPhone}
-                        onChange={(e) => setClientPhone(e.target.value)}
-                        className="w-full h-11 px-4 text-[16px] sm:text-xs rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 focus:ring-1 focus:ring-[#0037b0]"
+                        onChange={setClientPhone}
+                        placeholder="803 123 4567"
                       />
                       {clientPhone && (
                         <label className="flex items-center gap-2 mt-1.5 cursor-pointer select-none">
@@ -1351,97 +1370,116 @@ export function WelcomeStepper() {
                       {billingItems.map((item, index) => (
                         <div
                           key={item.id}
-                          className="p-3 bg-slate-50/40 border border-slate-200/40 rounded-xl grid grid-cols-12 gap-3 items-end relative animate-in fade-in duration-200"
+                          className="p-4 sm:p-5 bg-white border border-[#c4c5d7]/30 rounded-xl relative shadow-sm text-left flex flex-col sm:grid sm:grid-cols-12 gap-4 sm:gap-3 animate-in fade-in duration-200"
                         >
-                          {/* Toggle & Details */}
-                          <div className="col-span-12 sm:col-span-6 flex flex-col gap-2">
-                            <div className="flex justify-between items-center sm:justify-start gap-2">
-                              {/* Mobile label */}
-                              <span className="sm:hidden text-[9px] font-bold uppercase tracking-wider text-slate-400">Type</span>
-                              {/* Service/Product Toggle */}
-                              <div className="flex gap-1 bg-white p-0.5 rounded-lg border border-slate-200/50">
-                                <button
-                                  type="button"
-                                  onClick={() => handleUpdateItem(index, "type", "service")}
-                                  className={cn(
-                                    "px-2 py-0.5 text-[9px] font-bold rounded-md transition-all border-0 cursor-pointer",
-                                    item.type === "service"
-                                      ? "bg-[#0037b0] text-white shadow-sm"
-                                      : "text-slate-450 hover:text-slate-650 bg-transparent"
-                                  )}
-                                >
-                                  Service
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleUpdateItem(index, "type", "product")}
-                                  className={cn(
-                                    "px-2 py-0.5 text-[9px] font-bold rounded-md transition-all border-0 cursor-pointer",
-                                    item.type === "product"
-                                      ? "bg-[#0037b0] text-white shadow-sm"
-                                      : "text-slate-450 hover:text-slate-650 bg-transparent"
-                                  )}
-                                >
-                                  Product
-                                </button>
-                              </div>
+                          {/* Header row for Mobile */}
+                          <div className="flex justify-between items-center pb-2.5 border-b border-slate-200/40 sm:hidden">
+                            <span className="text-xs font-bold text-slate-800">Item #{index + 1}</span>
+                            {billingItems.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveItem(index)}
+                                className="w-10 h-10 rounded-xl flex items-center justify-center bg-rose-50 text-rose-600 hover:bg-rose-100 cursor-pointer border-0 active:scale-95 transition-all"
+                                aria-label="Delete item"
+                              >
+                                <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.5} />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Toggle Selector */}
+                          <div className="flex flex-col gap-1.5 sm:col-span-3">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-left">Type</span>
+                            <div className="flex w-full gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/30">
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateItem(index, "type", "service")}
+                                className={cn(
+                                  "py-2 text-xs font-bold rounded-lg transition-all border-0 cursor-pointer min-h-[40px] flex-1 flex items-center justify-center",
+                                  item.type === "service"
+                                    ? "bg-[#0037b0] text-white shadow-sm font-extrabold"
+                                    : "text-slate-500 hover:text-slate-700 bg-transparent"
+                                )}
+                              >
+                                Service
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateItem(index, "type", "product")}
+                                className={cn(
+                                  "py-2 text-xs font-bold rounded-lg transition-all border-0 cursor-pointer min-h-[40px] flex-1 flex items-center justify-center",
+                                  item.type === "product"
+                                    ? "bg-[#0037b0] text-white shadow-sm font-extrabold"
+                                    : "text-slate-500 hover:text-slate-700 bg-transparent"
+                                )}
+                              >
+                                Product
+                              </button>
                             </div>
-                            
+                          </div>
+
+                          {/* Description Input */}
+                          <div className="flex flex-col gap-1.5 sm:col-span-4">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-left">Description</span>
                             <input
                               type="text"
                               placeholder={item.type === "service" ? "Service Description (e.g. Web Design)" : "Product Description (e.g. Office Chair)"}
                               value={item.description}
                               onChange={(e) => handleUpdateItem(index, "description", e.target.value)}
-                              className="w-full h-9 px-3 text-[16px] sm:text-xs bg-white rounded-lg border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 focus:ring-1 focus:ring-[#0037b0]"
+                              className="w-full h-11 px-3 text-[16px] sm:text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 focus:ring-1 focus:ring-[#0037b0]"
                             />
                           </div>
 
-                          {/* Quantity */}
-                          <div className="col-span-5 sm:col-span-2 flex flex-col sm:block gap-1.5">
-                            <span className="sm:hidden text-[9px] font-bold uppercase tracking-wider text-slate-400 text-center">Qty</span>
-                            <input
-                              type="number"
-                              min="1"
-                              placeholder="Qty"
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              value={item.quantity || ""}
-                              onChange={(e) => handleUpdateItem(index, "quantity", Number(e.target.value))}
-                              className="w-full h-9 px-3 text-[16px] sm:text-xs bg-white rounded-lg border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 text-center focus:ring-1 focus:ring-[#0037b0]"
-                            />
-                          </div>
-
-                          {/* Unit Price */}
-                          <div className="col-span-7 sm:col-span-3 flex flex-col sm:block gap-1.5">
-                            <span className="sm:hidden text-[9px] font-bold uppercase tracking-wider text-slate-400 text-left">Unit Price</span>
-                            <div className="relative">
-                              <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400 select-none">
-                                ₦
-                              </span>
+                          {/* Quantity and Unit Price Wrapper for mobile spacing */}
+                          <div className="grid grid-cols-2 gap-3 sm:contents">
+                            {/* Quantity */}
+                            <div className="flex flex-col gap-1.5 sm:col-span-2">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-left">Qty</span>
                               <input
-                                type="text"
-                                placeholder="0.00"
-                                inputMode="decimal"
-                                value={item.unitPrice === 0 ? "" : formatAmountInput(item.unitPrice)}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  const numericValue = parseAmountInput(val);
-                                  handleUpdateItem(index, "unitPrice", numericValue);
-                                }}
-                                className="w-full h-9 pl-7 pr-3 text-[16px] sm:text-xs bg-white rounded-lg border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 focus:ring-1 focus:ring-[#0037b0]"
+                                type="number"
+                                min="1"
+                                placeholder="Qty"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                value={item.quantity || ""}
+                                onChange={(e) => handleUpdateItem(index, "quantity", Number(e.target.value))}
+                                className="w-full h-11 px-3 text-[16px] sm:text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 text-center focus:ring-1 focus:ring-[#0037b0]"
                               />
+                            </div>
+
+                            {/* Unit Price */}
+                            <div className="flex flex-col gap-1.5 sm:col-span-2">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-left">Unit Price</span>
+                              <div className="relative">
+                                <span className="absolute left-3.5 top-3.5 text-xs font-bold text-slate-400 select-none">
+                                  ₦
+                                </span>
+                                <input
+                                  type="text"
+                                  placeholder="0.00"
+                                  inputMode="decimal"
+                                  value={item.unitPrice === 0 ? "" : formatAmountInput(item.unitPrice)}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    const numericValue = parseAmountInput(val);
+                                    handleUpdateItem(index, "unitPrice", numericValue);
+                                  }}
+                                  className="w-full h-11 pl-7 pr-3 text-[16px] sm:text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 focus:ring-1 focus:ring-[#0037b0]"
+                                />
+                              </div>
                             </div>
                           </div>
 
-                          {/* Action - Delete */}
-                          <div className="absolute top-2 right-2 sm:static sm:col-span-1 flex justify-end">
+                          {/* Action - Delete (Desktop only) */}
+                          <div className="hidden sm:flex sm:col-span-1 justify-end items-end pb-1">
                             {billingItems.length > 1 && (
                               <button
                                 type="button"
                                 onClick={() => handleRemoveItem(index)}
-                                className="w-7 h-7 rounded-full flex items-center justify-center bg-white text-rose-500 hover:bg-rose-50 border border-slate-200 cursor-pointer"
+                                className="w-9 h-9 rounded-xl flex items-center justify-center bg-white text-rose-500 hover:bg-rose-50 border border-slate-200 cursor-pointer min-w-[36px] min-h-[36px] active:scale-95 transition-all"
+                                aria-label="Delete item"
                               >
-                                <HugeiconsIcon icon={Delete02Icon} size={13} strokeWidth={1.5} />
+                                <HugeiconsIcon icon={Delete02Icon} size={15} strokeWidth={1.5} />
                               </button>
                             )}
                           </div>
@@ -1547,50 +1585,67 @@ export function WelcomeStepper() {
                       {enableInstallments && (
                         <div className="space-y-2 pt-3 border-t border-slate-200/30 animate-in fade-in duration-200">
                           {installments.map((inst, index) => (
-                            <div key={index} className="flex items-center gap-2">
-                              <input
-                                type="text"
-                                placeholder="Payment Label (e.g. Deposit)"
-                                value={inst.label}
-                                onChange={(e) => {
-                                  const newInst = [...installments];
-                                  newInst[index].label = e.target.value;
-                                  setInstallments(newInst);
-                                }}
-                                className="flex-1 h-8 px-2.5 text-[16px] sm:text-xs bg-white rounded-lg border border-[#c4c5d7]/40 outline-none font-semibold text-slate-700 focus:border-[#0037b0]"
-                              />
-                              <div className="flex items-center gap-1.5 bg-white border border-[#c4c5d7]/40 rounded-lg px-2 h-8">
+                            <div key={index} className="flex flex-col sm:flex-row sm:items-center gap-2 p-2 sm:p-0 bg-[#f8f9ff]/50 sm:bg-transparent rounded-lg border border-slate-200/40 sm:border-0">
+                              <div className="flex items-center gap-2 flex-1 w-full">
                                 <input
-                                  type="number"
-                                  placeholder="0"
-                                  inputMode="numeric"
-                                  pattern="[0-9]*"
-                                  value={inst.percentage || ""}
+                                  type="text"
+                                  placeholder="Payment Label (e.g. Deposit)"
+                                  value={inst.label}
                                   onChange={(e) => {
                                     const newInst = [...installments];
-                                    newInst[index].percentage = Number(e.target.value);
+                                    newInst[index].label = e.target.value;
                                     setInstallments(newInst);
                                   }}
-                                  className="w-10 text-[16px] sm:text-xs font-bold text-[#0037b0] text-center outline-none border-0 p-0 bg-transparent"
+                                  className="flex-1 min-w-0 h-8 px-2.5 text-[15px] sm:text-xs bg-white rounded-lg border border-[#c4c5d7]/40 outline-none font-semibold text-slate-700 focus:border-[#0037b0]"
                                 />
-                                <span className="text-[10px] font-bold text-slate-400 select-none">%</span>
+                                {installments.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const newInst = [...installments];
+                                      newInst.splice(index, 1);
+                                      setInstallments(newInst);
+                                    }}
+                                    className="sm:hidden w-8 h-8 rounded-lg flex items-center justify-center bg-rose-50 text-rose-500 border border-rose-100 cursor-pointer text-sm font-bold shrink-0"
+                                  >
+                                    &times;
+                                  </button>
+                                )}
                               </div>
-                              <span className="text-[10px] font-bold text-slate-650 w-20 text-right shrink-0">
-                                {formatCurrency(total * ((inst.percentage || 0) / 100))}
-                              </span>
-                              {installments.length > 1 && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const newInst = [...installments];
-                                    newInst.splice(index, 1);
-                                    setInstallments(newInst);
-                                  }}
-                                  className="w-6 h-6 rounded-full flex items-center justify-center bg-white text-rose-500 border border-slate-200 cursor-pointer text-xs font-bold flex items-center justify-center"
-                                >
-                                  &times;
-                                </button>
-                              )}
+                              <div className="flex items-center gap-2 justify-between sm:justify-start w-full sm:w-auto">
+                                <div className="flex items-center gap-1.5 bg-white border border-[#c4c5d7]/40 rounded-lg px-2 h-8 w-20 shrink-0">
+                                  <input
+                                    type="number"
+                                    placeholder="0"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    value={inst.percentage || ""}
+                                    onChange={(e) => {
+                                      const newInst = [...installments];
+                                      newInst[index].percentage = Number(e.target.value);
+                                      setInstallments(newInst);
+                                    }}
+                                    className="w-full min-w-0 text-[15px] sm:text-xs font-bold text-[#0037b0] text-center outline-none border-0 p-0 bg-transparent"
+                                  />
+                                  <span className="text-[10px] font-bold text-slate-400 select-none">%</span>
+                                </div>
+                                <span className="text-[11px] sm:text-[10px] font-bold text-slate-650 sm:w-20 text-right sm:shrink-0">
+                                  {formatCurrency(total * ((inst.percentage || 0) / 100))}
+                                </span>
+                                {installments.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const newInst = [...installments];
+                                      newInst.splice(index, 1);
+                                      setInstallments(newInst);
+                                    }}
+                                    className="hidden sm:flex w-6 h-6 rounded-full items-center justify-center bg-white text-rose-500 border border-slate-200 cursor-pointer text-xs font-bold shrink-0"
+                                  >
+                                    &times;
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           ))}
                           
@@ -1709,75 +1764,91 @@ export function WelcomeStepper() {
                         </button>
                       </div>
                     ) : (
-                      <div className="p-5 rounded-[20px] bg-slate-50 border border-slate-200/40 space-y-4">
-                        <p className="text-[11px] text-slate-500 font-semibold leading-relaxed text-left">
-                          Link your settlement bank details to **enable online invoice payments** (Cards, Bank Transfer, USSD).
-                        </p>
-                        
-                        <div className="space-y-2 text-left">
-                          <label htmlFor="step4BankSelect" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                            Destination Bank
-                          </label>
-                          <SearchableSelect
-                            id="step4BankSelect"
-                            options={banks ? banks.map((b) => ({ id: b.code, label: b.name })) : []}
-                            value={bankCode}
-                            onChange={(val) => {
-                              setBankCode(val);
-                              setVerifiedAccountName(null);
-                            }}
-                            placeholder="Choose your bank"
-                          />
-                        </div>
-
-                        <div className="space-y-2 text-left">
-                          <label htmlFor="step4AccountNumber" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                            Account Number
-                          </label>
-                          <div className="flex gap-3">
-                            <input
-                              id="step4AccountNumber"
-                              type="text"
-                              placeholder="0123456789"
-                              maxLength={10}
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              value={accountNumber}
-                              onChange={(e) => {
-                                setAccountNumber(e.target.value.replace(/\D/g, ""));
-                                setVerifiedAccountName(null);
-                              }}
-                              className="flex-1 h-11 px-4 text-[16px] sm:text-xs rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 bg-white focus:ring-1 focus:ring-[#0037b0]"
-                            />
-                            <button
-                              type="button"
-                              onClick={handleVerifyBank}
-                              disabled={!bankCode || accountNumber.length !== 10 || isVerifyingBank}
-                              className="h-11 px-4 rounded-xl border border-[#c4c5d7]/40 text-[#0037b0] hover:bg-[#eef4ff] text-xs font-bold disabled:opacity-40 min-h-[44px] cursor-pointer bg-white"
-                            >
-                              {isVerifyingBank ? "Checking…" : "Verify"}
-                            </button>
-                          </div>
-                        </div>
-
-                        {verifiedAccountName && (
-                          <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 text-[11px] animate-in fade-in duration-200 text-left">
-                            <p className="font-bold text-emerald-800 flex items-center gap-1.5">
-                              <HugeiconsIcon icon={CheckmarkCircle02Icon} size={14} className="text-emerald-600" strokeWidth={2.5} />
-                              Verified: {verifiedAccountName}
+                      <div className="rounded-2xl border border-dashed border-slate-200 p-4 bg-slate-50/50 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="text-left pr-4">
+                            <p className="text-xs font-bold text-slate-800">Configure Payout Bank</p>
+                            <p className="text-[10px] text-slate-500 font-semibold mt-0.5 leading-normal">
+                              Link your settlement bank to enable online invoice payments (Cards, Bank Transfer, USSD).
                             </p>
                           </div>
-                        )}
-
-                        {verifiedAccountName && (
                           <button
                             type="button"
-                            onClick={handleSaveBank}
-                            disabled={isSavingBank}
-                            className="w-full h-11 bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white rounded-xl font-bold text-xs shadow-md transition-all active:scale-98 min-h-[44px] cursor-pointer border-0"
+                            onClick={() => setShowBankAccordion(!showBankAccordion)}
+                            className="h-9 px-4 rounded-lg bg-white border border-slate-200 hover:bg-[#eef4ff] text-[10px] font-bold text-[#0037b0] min-h-[36px] cursor-pointer shrink-0 transition-all active:scale-98"
                           >
-                            {isSavingBank ? "Connecting Bank…" : "Confirm & Link Payout Bank"}
+                            {showBankAccordion ? "Hide" : "Set Up"}
                           </button>
+                        </div>
+
+                        {showBankAccordion && (
+                          <div className="pt-4 border-t border-slate-200/50 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                            <div className="space-y-2 text-left">
+                              <label htmlFor="step4BankSelect" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                Destination Bank
+                              </label>
+                              <SearchableSelect
+                                id="step4BankSelect"
+                                options={banks ? banks.map((b) => ({ id: b.code, label: b.name })) : []}
+                                value={bankCode}
+                                onChange={(val) => {
+                                  setBankCode(val);
+                                  setVerifiedAccountName(null);
+                                }}
+                                placeholder="Choose your bank"
+                              />
+                            </div>
+
+                            <div className="space-y-2 text-left">
+                              <label htmlFor="step4AccountNumber" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                Account Number
+                              </label>
+                              <div className="flex gap-3">
+                                <input
+                                  id="step4AccountNumber"
+                                  type="text"
+                                  placeholder="0123456789"
+                                  maxLength={10}
+                                  inputMode="numeric"
+                                  pattern="[0-9]*"
+                                  value={accountNumber}
+                                  onChange={(e) => {
+                                    setAccountNumber(e.target.value.replace(/\D/g, ""));
+                                    setVerifiedAccountName(null);
+                                  }}
+                                  className="flex-1 h-11 px-4 text-[16px] sm:text-xs rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 bg-white focus:ring-1 focus:ring-[#0037b0]"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={handleVerifyBank}
+                                  disabled={!bankCode || accountNumber.length !== 10 || isVerifyingBank}
+                                  className="h-11 px-4 rounded-xl border border-[#c4c5d7]/40 text-[#0037b0] hover:bg-[#eef4ff] text-xs font-bold disabled:opacity-40 min-h-[44px] cursor-pointer bg-white shrink-0"
+                                >
+                                  {isVerifyingBank ? "Checking…" : "Verify"}
+                                </button>
+                              </div>
+                            </div>
+
+                            {verifiedAccountName && (
+                              <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 text-[11px] animate-in fade-in duration-200 text-left">
+                                <p className="font-bold text-emerald-800 flex items-center gap-1.5">
+                                  <HugeiconsIcon icon={CheckmarkCircle02Icon} size={14} className="text-emerald-600" strokeWidth={2.5} />
+                                  Verified: {verifiedAccountName}
+                                </p>
+                              </div>
+                            )}
+
+                            {verifiedAccountName && (
+                              <button
+                                type="button"
+                                onClick={handleSaveBank}
+                                disabled={isSavingBank}
+                                className="w-full h-11 bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white rounded-xl font-bold text-xs shadow-md transition-all active:scale-98 min-h-[44px] cursor-pointer border-0"
+                              >
+                                {isSavingBank ? "Connecting Bank…" : "Confirm & Link Payout Bank"}
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}
@@ -1945,7 +2016,7 @@ export function WelcomeStepper() {
 
         {/* Footer Actions (no 1px lines, bg shift) */}
         {!isLoading && (
-          <div className="px-8 py-5 bg-slate-50/50 flex items-center justify-between shrink-0">
+          <div className="px-6 sm:px-8 pt-5 pb-7 sm:py-5 bg-slate-50/50 flex items-center justify-between shrink-0">
             <div>
               {step > 1 && (
                 <button

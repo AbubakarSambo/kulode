@@ -22,6 +22,8 @@ interface WowCelebrationProps {
   shareToken?: string | null;
   onClose: () => void;
   clientPhone?: string;
+  dueDate?: string;
+  orgName?: string;
 }
 
 interface ConfettiParticle {
@@ -63,6 +65,8 @@ export function WowCelebration({
   shareToken,
   onClose,
   clientPhone,
+  dueDate,
+  orgName,
 }: WowCelebrationProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [showCard, setShowCard] = useState(false);
@@ -196,15 +200,43 @@ export function WowCelebration({
 
   const shareWhatsApp = () => {
     const publicUrl = getPublicInvoiceUrl();
-    const link = publicUrl;
-    const text = `Hello! Here is invoice ${invoiceNumber || ""} for ${formatCurrency(
-      total
-    )}.${link ? ` You can view details or pay online here: ${link}` : ""}`;
-    const cleanPhone = clientPhone ? clientPhone.replace(/\D/g, "") : "";
+    const clientFirstName = clientName ? clientName.split(' ')[0] : null;
+    const greeting = clientFirstName ? `Hi ${clientFirstName} 👋` : `Hi there 👋`;
+    const senderName = orgName || 'Us';
+    const dueStr = dueDate ? new Date(dueDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'soon';
+
+    const lines = [
+      greeting,
+      ``,
+      `Please find your invoice from *${senderName}* below:`,
+      ``,
+      `📄 *Invoice:* ${invoiceNumber || ''}`,
+      `💰 *Amount Due:* ${total !== undefined ? formatCurrency(total) : ''}`,
+      `📅 *Due Date:* ${dueStr}`,
+      ...(publicUrl ? [
+        ``,
+        `🔗 *View & Pay Online:*`,
+        publicUrl,
+        ``,
+        `Via the link above you can:`,
+        `✅ View the full invoice details`,
+        `🏦 Pay by *bank transfer* (recommended — no card needed)`,
+        `💳 Or pay by *card* via Paystack`,
+        `📥 Download your invoice or receipt`,
+        ``,
+        `If you have any questions, feel free to reach out. Thank you for your business! 🙏`,
+      ] : [
+        ``,
+        `Please reach out to process your payment.`,
+      ])
+    ];
+
+    const text = lines.join('\n');
+    const cleanPhone = clientPhone ? clientPhone.replace(/\D/g, '') : '';
     const url = cleanPhone
       ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`
       : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
-    window.open(url, "_blank");
+    window.open(url, '_blank');
   };
 
   const downloadPdf = async () => {

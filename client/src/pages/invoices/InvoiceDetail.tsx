@@ -383,9 +383,45 @@ export function InvoiceDetailPage() {
 
   const shareWhatsApp = () => {
     if (!invoice) return
-    const text = `Hello! Here is invoice ${invoice.invoiceNumber} for ${formatCurrency(invoice.total)}.${invoice.shareToken ? ` You can view and pay online here: ${window.location.origin}/i/${invoice.shareToken}` : ''}`
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank')
+    const publicUrl = invoice.shareToken ? `${window.location.origin}/i/${invoice.shareToken}` : null
+    const orgName = organization?.name || 'Us'
+    const dueStr = invoice.dueDate ? formatDate(invoice.dueDate) : 'soon'
+    const clientGreeting = invoice.client?.name ? `Hi ${invoice.client.name.split(' ')[0]}` : 'Hi there'
+
+    const lines = [
+      `${clientGreeting} 👋`,
+      ``,
+      `Please find your invoice from *${orgName}* below:`,
+      ``,
+      `📄 *Invoice:* ${invoice.invoiceNumber}`,
+      `💰 *Amount Due:* ${formatCurrency(invoice.total)}`,
+      `📅 *Due Date:* ${dueStr}`,
+      ...(publicUrl ? [
+        ``,
+        `🔗 *View & Pay Online:*`,
+        publicUrl,
+        ``,
+        `Via the link above you can:`,
+        `✅ View the full invoice details`,
+        `🏦 Pay by *bank transfer* (recommended — no card needed)`,
+        `💳 Or pay by *card* via Paystack`,
+        `📥 Download your invoice or receipt`,
+        ``,
+        `If you have any questions, feel free to reach out. Thank you for your business! 🙏`,
+      ] : [
+        ``,
+        `Please reach out to process your payment.`,
+      ])
+    ]
+
+    const text = lines.join('\n')
+    const cleanPhone = invoice.client?.phone ? invoice.client.phone.replace(/\D/g, '') : ''
+    const url = cleanPhone
+      ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`
+    window.open(url, '_blank')
   }
+
 
   const downloadReceipt = async (paymentId: string) => {
     setDownloadingReceiptId(paymentId)
