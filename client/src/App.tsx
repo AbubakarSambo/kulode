@@ -42,6 +42,7 @@ import {
   OrganizationPage,
   PaymentCallbackPage,
   PublicInvoicePage,
+  ShortLinkRedirectPage,
   AdminDashboardPage,
   BillingPage,
 } from '@/pages'
@@ -98,6 +99,7 @@ function App() {
           <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
           <Route path="/payment/callback" element={<PaymentCallbackPage />} />
           <Route path="/i/:token" element={<PublicInvoicePage />} />
+          <Route path="/p/:slug" element={<ShortLinkRedirectPage />} />
 
           {/* Protected routes */}
           <Route element={<ProtectedRoute />}>

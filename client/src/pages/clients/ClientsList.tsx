@@ -12,9 +12,9 @@ import {
   PencilEdit02Icon,
   Delete02Icon,
   ArrowDown01Icon,
-  Download04Icon,
   UserGroupIcon,
-  FilterHorizontalIcon
+  FilterHorizontalIcon,
+  Download04Icon
 } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Button, Input, Card, CardContent, ConfirmDialog, EmptyState, DropdownPanel } from '@/components/ui'
@@ -282,9 +282,16 @@ export function ClientsListPage() {
                               <div className="w-9 h-9 rounded-xl bg-[#0037b0]/5 text-[#0037b0] border border-[#0037b0]/8 shadow-[0_2px_6px_rgba(0,55,176,0.01)] flex items-center justify-center text-[11px] font-medium shrink-0 select-none">
                                 {getInitials(client.name)}
                               </div>
-                              <Link to={`/clients/${client.id}`} className="font-semibold text-slate-900 hover:text-[#0037b0] transition-colors truncate max-w-[200px] block text-sm">
-                                {client.name}
-                              </Link>
+                              <div className="flex flex-col min-w-0">
+                                <Link to={`/clients/${client.id}`} className="font-semibold text-slate-900 hover:text-[#0037b0] transition-colors truncate max-w-[200px] block text-sm leading-tight">
+                                  {client.name}
+                                </Link>
+                                {client.clientType && (
+                                  <span className="text-[10px] text-slate-405 capitalize font-semibold tracking-wide mt-0.5 select-none">
+                                    {client.clientType}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </td>
                           <td className="px-6 py-4 text-xs font-medium text-slate-500">
@@ -393,9 +400,14 @@ export function ClientsListPage() {
                         {getInitials(client.name)}
                       </div>
                       <div className="min-w-0">
-                        <span className="font-semibold text-slate-900 text-sm truncate block">
+                        <span className="font-semibold text-slate-900 text-sm truncate block leading-tight">
                           {client.name}
                         </span>
+                        {client.clientType && (
+                          <span className="text-[10px] text-slate-405 capitalize font-semibold tracking-wide block mt-1 select-none">
+                            {client.clientType}
+                          </span>
+                        )}
                       </div>
                     </div>
 

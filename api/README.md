@@ -1,4 +1,4 @@
-# Kulode API
+# Tari1 API
 
 Multi-tenant invoicing and financial management API built with NestJS.
 

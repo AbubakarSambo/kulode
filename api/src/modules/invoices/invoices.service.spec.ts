@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 import { InventoryService } from '../inventory/inventory.service';
 import { PaystackService } from '../paystack/paystack.service';
+import { EmailService } from '../email/email.service';
 
 // ─── Mock helpers ────────────────────────────────────────────────────────────
 
@@ -123,6 +124,19 @@ describe('InvoicesService — invoice limit enforcement', () => {
             initializeTransaction: jest.fn(),
             initializeInstallmentTransaction: jest.fn(),
             verifyTransaction: jest.fn(),
+          },
+        },
+        {
+          provide: EmailService,
+          useValue: {
+            sendVerificationEmail: jest.fn(),
+            sendPasswordSetupEmail: jest.fn(),
+            sendMagicLinkEmail: jest.fn(),
+            sendAddPasswordEmail: jest.fn(),
+            sendClientReminderEmail: jest.fn(),
+            sendInvoiceReminderEmail: jest.fn(),
+            sendRenewalFailedEmail: jest.fn(),
+            sendPasswordResetEmail: jest.fn(),
           },
         },
       ],

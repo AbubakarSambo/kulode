@@ -27,3 +27,6 @@ Thumbs.db
 npm-debug.log*
 
 # Lock files are kept per-project (not root)
+
+# PostgreSQL runtime data (local dev only — never commit DB binaries)
+postgres_data/

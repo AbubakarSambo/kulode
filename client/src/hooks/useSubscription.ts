@@ -3,7 +3,7 @@ import { subscriptionApi } from '@/api/subscription'
 import { useAuthStore } from '@/stores/auth'
 import type { PlanTier } from '@/types'
 
-const PLAN_HIERARCHY: Record<string, number> = { FREE: 0, PRO: 1, BUSINESS: 2 }
+const PLAN_HIERARCHY: Record<string, number> = { FREE: 0, STARTER: 1, PRO: 2, BUSINESS: 3 }
 
 export function useSubscription() {
   const user = useAuthStore((state) => state.user)
@@ -39,6 +39,7 @@ export function useSubscription() {
     isLoading,
     effectivePlan,
     isGrandfathered,
+    autoRenew: subscription?.autoRenew ?? false,
     isTrial: subscription?.subscriptionStatus === 'TRIALING',
     isActive: subscription?.subscriptionStatus === 'ACTIVE',
     isExpired: subscription?.subscriptionStatus === 'EXPIRED' ||

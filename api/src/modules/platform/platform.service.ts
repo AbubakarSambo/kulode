@@ -164,9 +164,11 @@ export class PlatformService {
     }));
 
     // Process subscription breakdowns
-    const byPlan = { FREE: 0, PRO: 0, BUSINESS: 0 };
+    const byPlan = { FREE: 0, STARTER: 0, PRO: 0, BUSINESS: 0 };
     for (const item of orgsByPlan) {
-      byPlan[item.planTier] = item._count.id;
+      if (item.planTier in byPlan) {
+        byPlan[item.planTier as keyof typeof byPlan] = item._count.id;
+      }
     }
 
     const byStatus = { TRIALING: 0, ACTIVE: 0, CANCELLED: 0, EXPIRED: 0 };

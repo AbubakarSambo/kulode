@@ -12,8 +12,8 @@
 import sharp from 'sharp';
 import { writeFileSync } from 'fs';
 
-const INPUT  = 'c:/dev_projects/Kulode/marketing/public/lady_cutout.png';
-const OUTPUT = 'c:/dev_projects/Kulode/marketing/public/lady_cutout_clean.png';
+const INPUT  = 'c:/dev_projects/Tari1/marketing/public/lady_cutout.png';
+const OUTPUT = 'c:/dev_projects/Tari1/marketing/public/lady_cutout_clean.png';
 const TOLERANCE = 28; // colour distance threshold (0-441)
 
 // The two checkerboard tile colours

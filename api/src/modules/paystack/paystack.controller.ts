@@ -14,9 +14,10 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
-import { PaystackService } from './paystack.service';
+import { PaystackService, PaystackTransaction } from './paystack.service';
 import { SubscriptionService } from '../subscription/subscription.service';
 import { CreateSubaccountDto, VerifyBankAccountDto } from './dto';
+import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUser, Public, Roles, Role } from '../../common';
 
 @ApiTags('Paystack')
@@ -27,6 +28,7 @@ export class PaystackController {
   constructor(
     private readonly paystackService: PaystackService,
     private readonly subscriptionService: SubscriptionService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Get('paystack/banks')
@@ -123,6 +125,60 @@ export class PaystackController {
   @ApiResponse({ status: 200, description: 'Payment verification result' })
   async verifyTransaction(@Param('reference') reference: string) {
     return this.paystackService.verifyTransaction(reference);
+  }
+
+  @Post('paystack/simulate-success')
+  @Public()
+  @ApiOperation({ summary: 'Simulate successful payment for local development' })
+  async simulateSuccess(@Body() body: { reference: string }) {
+    if (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') {
+      throw new BadRequestException('Simulation only available in development environment');
+    }
+
+    const { reference } = body;
+    if (!reference) {
+      throw new BadRequestException('Reference is required');
+    }
+
+    // Try finding installment first
+    const installment = await this.prisma.paymentInstallment.findFirst({
+      where: { paystackReference: reference },
+      include: { invoice: true },
+    });
+
+    let amount = 0;
+    let metadata: PaystackTransaction['metadata'] = {};
+
+    if (installment) {
+      amount = Number(installment.amount) * 100; // in kobo
+      metadata = {
+        invoice_id: installment.invoiceId,
+      };
+    } else {
+      const invoice = await this.prisma.invoice.findFirst({
+        where: { paystackReference: reference },
+      });
+      if (!invoice) {
+        throw new BadRequestException('Invoice or installment not found for reference ' + reference);
+      }
+      const balanceDue = Number(invoice.total) - Number(invoice.amountPaid);
+      amount = balanceDue * 100; // in kobo
+      metadata = {
+        invoice_id: invoice.id,
+      };
+    }
+
+    const mockPayload: PaystackTransaction = {
+      reference,
+      amount,
+      currency: 'NGN',
+      channel: 'bank_transfer',
+      paid_at: new Date().toISOString(),
+      fees: 0,
+      metadata,
+    };
+
+    return this.paystackService.handleWebhookEvent('charge.success', mockPayload);
   }
 
   @Delete('organizations/disconnect-paystack')

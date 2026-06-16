@@ -1,4 +1,4 @@
-# Automated Local Development environment startup script for Kulode
+# Automated Local Development environment startup script for Tari1
 
 # Resolve the project root directory regardless of where the script is called from
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -43,20 +43,41 @@ foreach ($port in $appPorts) {
     }
 }
 
-# 3. Start application servers in labelled windows
+# 3. Start application servers
 Write-Host "Starting NestJS API, React Client, and Astro Marketing..." -ForegroundColor Green
 
-Start-Process cmd.exe -ArgumentList '/k "title Kulode-API & npm run start:dev"' `
-    -WorkingDirectory "$ProjectRoot\api"
+$UseJobs = $false
+if ($env:ANTIGRAVITY_AGENT -eq "1" -or $args -contains "-Headless") {
+    $UseJobs = $true
+}
 
-Start-Process cmd.exe -ArgumentList '/k "title Kulode-Client & npm run dev"' `
-    -WorkingDirectory "$ProjectRoot\client"
+if ($UseJobs) {
+    Write-Host "Agent/Headless mode detected. Launching servers as background jobs..." -ForegroundColor Cyan
+    Start-Job -Name "api" -ScriptBlock { Set-Location "$using:ProjectRoot\api"; npm.cmd run start:dev }
+    Start-Job -Name "client" -ScriptBlock { Set-Location "$using:ProjectRoot\client"; npm.cmd run dev }
+    Start-Job -Name "marketing" -ScriptBlock { Set-Location "$using:ProjectRoot\marketing"; npm.cmd run dev }
+} else {
+    Start-Process npm.cmd -ArgumentList "run", "start:dev" `
+        -WorkingDirectory "$ProjectRoot\api"
 
-Start-Process cmd.exe -ArgumentList '/k "title Kulode-Marketing & npm run dev"' `
-    -WorkingDirectory "$ProjectRoot\marketing"
+    Start-Process npm.cmd -ArgumentList "run", "dev" `
+        -WorkingDirectory "$ProjectRoot\client"
+
+    Start-Process npm.cmd -ArgumentList "run", "dev" `
+        -WorkingDirectory "$ProjectRoot\marketing"
+}
 
 Write-Host ""
 Write-Host "All servers launched!" -ForegroundColor Green
 Write-Host "  API      -> http://localhost:3003" -ForegroundColor White
 Write-Host "  Client   -> http://localhost:5173" -ForegroundColor White
 Write-Host "  Marketing-> http://localhost:4321" -ForegroundColor White
+
+if ($UseJobs) {
+    Write-Host ""
+    Write-Host "Keeping script active to prevent background process termination. Press Ctrl+C in terminal or stop the task to exit." -ForegroundColor Yellow
+    while ($true) {
+        Start-Sleep -Seconds 10
+    }
+}
+

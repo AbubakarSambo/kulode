@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { toast } from 'sonner'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   PlusSignIcon,
@@ -9,7 +8,9 @@ import {
   ArrowDown01Icon,
   Invoice03Icon,
   FilterHorizontalIcon,
+  Calendar03Icon,
 } from '@hugeicons/core-free-icons'
+import { toast } from 'sonner'
 import { Header } from '@/components/layout'
 import { Button, Input, Card, CardContent, EmptyState, DropdownPanel } from '@/components/ui'
 import { BottomSheet } from '@/components/shared'
@@ -77,17 +78,17 @@ const getInitials = (name: string) => {
 export function InvoicesListPage() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<InvoiceStatus | ''>('')
-  const [startDate, _setStartDate] = useState('')
-  const [endDate, _setEndDate] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
   const [limitOpen, setLimitOpen] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const queryClient = useQueryClient()
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false)
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false)
   const [tempStatus, setTempStatus] = useState<InvoiceStatus | ''>('')
   const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const queryClient = useQueryClient()
 
   const openMobileFilters = () => {
     setTempStatus(status)
@@ -173,6 +174,32 @@ export function InvoicesListPage() {
                   onChange={(e) => { setSearch(e.target.value); setPage(1) }}
                   className="pl-11 rounded-xl h-10 bg-white border border-border"
                 />
+              </div>
+
+              {/* Date range filter */}
+              <div className="flex items-center gap-2">
+                <HugeiconsIcon icon={Calendar03Icon} className="h-4 w-4 text-slate-400 shrink-0" strokeWidth={1.5} />
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => { setStartDate(e.target.value); setPage(1) }}
+                  className="h-10 rounded-xl text-xs w-36 bg-white border border-border"
+                />
+                <span className="text-xs text-slate-400">–</span>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => { setEndDate(e.target.value); setPage(1) }}
+                  className="h-10 rounded-xl text-xs w-36 bg-white border border-border"
+                />
+                {(startDate || endDate) && (
+                  <button
+                    onClick={() => { setStartDate(''); setEndDate(''); setPage(1) }}
+                    className="text-xs text-slate-400 hover:text-slate-650 px-2 cursor-pointer font-bold border-0 bg-transparent"
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
 
               {/* Status Dropdown */}
@@ -326,7 +353,7 @@ export function InvoicesListPage() {
                           key={invoice.id}
                           className={cn(
                             "transition-all duration-150 hover:bg-[#eef4ff]/20",
-                            selectedIds.has(invoice.id) ? "bg-[#0037b0]/[0.03]" : index % 2 === 0 ? "bg-transparent" : "bg-[#f8f9ff]/40"
+                            selectedIds.has(invoice.id) ? "bg-[#0037b0]/[0.03]" : index % 2 === 0 ? "bg-transparent" : "bg-background/40"
                           )}
                         >
                           <td className="px-4 py-4">

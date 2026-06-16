@@ -11,7 +11,7 @@ interface HeaderProps {
 
 export function Header({ title, description, action, icon: Icon, badgeText, category }: HeaderProps) {
   return (
-    <div className="hidden sm:flex flex-col gap-3 border-b border-[#eef4ff]/50 bg-white/70 backdrop-blur-md px-4 py-3.5 sm:px-6 sm:py-5 sm:flex-row sm:items-center sm:justify-between shrink-0">
+    <div className="hidden sm:flex flex-col gap-3 border-b border-[#eef4ff]/50 bg-white/70 backdrop-blur-md px-4 py-3.5 sm:px-6 sm:py-5 sm:flex-row sm:items-center sm:justify-between shrink-0 relative z-30">
       <div className="flex items-center gap-3">
         {Icon && (
           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-[16px] bg-[#0037b0]/5 text-[#0037b0] flex items-center justify-center shadow-[0_4px_12px_rgba(0,55,176,0.02)] border border-[#0037b0]/5 shrink-0">

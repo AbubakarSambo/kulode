@@ -256,7 +256,7 @@ export function DashboardPage() {
             </div>
           )}
         </div>
-        <OnboardingChecklist onStartInvoiceWizard={() => openOnboarding(3)} />
+        <OnboardingChecklist onStartInvoiceWizard={() => openOnboarding(2)} />
 
         {/* Stats Grid */}
         <div className="mb-8 grid gap-4 grid-cols-2 lg:grid-cols-4">

@@ -1,4 +1,4 @@
-# Kulode — Session Handoff Template
+# Tari1 — Session Handoff Template
 
 > Copy this template at the START of every new AI conversation.
 > Fill in only what's relevant. Delete sections that don't apply.

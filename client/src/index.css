@@ -37,6 +37,7 @@
   --color-accent-foreground: #121c28;
 
   --font-family-sans: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  --font-inter: 'Inter', system-ui, sans-serif;
   --radius-lg: 0.75rem;
   --radius-md: calc(0.75rem - 2px);
   --radius-sm: calc(0.75rem - 4px);

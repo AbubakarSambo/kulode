@@ -43,6 +43,7 @@ export class SubscriptionService {
         subscriptionStartDate: true,
         subscriptionEndDate: true,
         isGrandfathered: true,
+        autoRenew: true,
       },
     });
 
@@ -97,6 +98,7 @@ export class SubscriptionService {
       subscriptionStartDate: org.subscriptionStartDate,
       subscriptionEndDate: org.subscriptionEndDate,
       isGrandfathered: org.isGrandfathered,
+      autoRenew: org.autoRenew,
       limits: {
         maxUsers: limits.maxUsers,
         maxInvoicesPerMonth: limits.maxInvoicesPerMonth,
@@ -109,7 +111,7 @@ export class SubscriptionService {
     };
   }
 
-  async subscribe(organizationId: string, planTier: 'PRO' | 'BUSINESS', billingPeriod: 'MONTHLY' | 'ANNUAL', email: string) {
+  async subscribe(organizationId: string, planTier: 'STARTER' | 'PRO' | 'BUSINESS', billingPeriod: 'MONTHLY' | 'ANNUAL', email: string) {
     const prices = PLAN_PRICES[planTier];
     if (!prices) {
       throw new BadRequestException('Invalid plan tier');
@@ -208,6 +210,7 @@ export class SubscriptionService {
             billingPeriod: billingPeriod as any,
             subscriptionStartDate: now,
             subscriptionEndDate: periodEnd,
+            autoRenew: !!authorizationCode,
             ...(authorizationCode && { paystackAuthorizationCode: authorizationCode }),
             ...(billingEmail && { paystackBillingEmail: billingEmail }),
             ...(cardType && { paystackCardType: cardType }),
@@ -230,6 +233,21 @@ export class SubscriptionService {
       });
 
       this.logger.log(`Subscription activated for org ${organizationId}: ${planTier} ${billingPeriod}`);
+
+      // Dispatch subscription success email
+      const admin = await this.getOrgAdmin(organizationId);
+      if (admin) {
+        await this.emailService
+          .sendSubscriptionSuccessEmail(
+            admin.email,
+            admin.firstName,
+            planTier,
+            billingPeriod,
+            amount,
+            periodEnd.toLocaleDateString(),
+          )
+          .catch((err) => this.logger.error(`Failed to send subscription success email: ${err.message}`));
+      }
     } catch (error) {
       // Unique constraint on paystackReference — another process already activated this
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -384,20 +402,69 @@ export class SubscriptionService {
 
   async checkAndExpireTrials() {
     const now = new Date();
-    const result = await this.prisma.organization.updateMany({
+    const expiringOrgs = await this.prisma.organization.findMany({
       where: {
         subscriptionStatus: 'TRIALING',
         trialEndDate: { lt: now },
         isGrandfathered: false,
       },
+      select: { id: true },
+    });
+
+    if (expiringOrgs.length === 0) return;
+
+    const orgIds = expiringOrgs.map((o) => o.id);
+
+    await this.prisma.organization.updateMany({
+      where: { id: { in: orgIds } },
       data: {
         planTier: 'FREE',
         subscriptionStatus: 'EXPIRED',
       },
     });
 
-    if (result.count > 0) {
-      this.logger.log(`Expired ${result.count} trial(s)`);
+    this.logger.log(`Expired ${orgIds.length} trial(s)`);
+
+    for (const orgId of orgIds) {
+      try {
+        const admin = await this.getOrgAdmin(orgId);
+        if (admin) {
+          await this.emailService.sendTrialExpiredEmail(admin.email, admin.firstName);
+        }
+      } catch (error) {
+        this.logger.error(`Failed to send trial expired email for org ${orgId}: ${error.message}`);
+      }
+    }
+  }
+
+  async sendTrialWarnings() {
+    const now = new Date();
+    const targetDateMin = new Date(now);
+    targetDateMin.setDate(targetDateMin.getDate() + 4);
+    const targetDateMax = new Date(now);
+    targetDateMax.setDate(targetDateMax.getDate() + 5);
+
+    const warningOrgs = await this.prisma.organization.findMany({
+      where: {
+        subscriptionStatus: 'TRIALING',
+        trialEndDate: {
+          gte: targetDateMin,
+          lt: targetDateMax,
+        },
+        isGrandfathered: false,
+      },
+      select: { id: true },
+    });
+
+    for (const org of warningOrgs) {
+      try {
+        const admin = await this.getOrgAdmin(org.id);
+        if (admin) {
+          await this.emailService.sendTrialEndingWarningEmail(admin.email, admin.firstName, 5);
+        }
+      } catch (error) {
+        this.logger.error(`Failed to send trial warning email for org ${org.id}: ${error.message}`);
+      }
     }
   }
 
@@ -438,6 +505,13 @@ export class SubscriptionService {
     if (result.count > 0) {
       this.logger.log(`Expired ${result.count} subscription(s)`);
     }
+  }
+
+  async toggleAutoRenew(organizationId: string, enabled: boolean) {
+    return this.prisma.organization.update({
+      where: { id: organizationId },
+      data: { autoRenew: enabled },
+    });
   }
 
   async getPaymentHistory(organizationId: string) {

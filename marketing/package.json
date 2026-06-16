@@ -1,9 +1,9 @@
 {
-  "name": "kulode-marketing",
+  "name": "tari1-marketing",
   "type": "module",
   "version": "0.0.1",
   "scripts": {
-    "dev": "astro dev",
+    "dev": "astro dev --host",
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro"

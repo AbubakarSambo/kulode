@@ -40,6 +40,8 @@ Font: **Inter** — used as a precision instrument, not a default.
 | `label-md` | 0.75rem | Data labels next to headline-sm |
 | `body-md` | base | General descriptions — color `#434655` |
 | Financial figures | any | Always use `on-surface` (#121c28) — keep them focal |
+| **Font Weights** | - | **Do not use** `font-black` (900) or `font-extrabold` (800). Use `font-bold` (700) max for headers, and `font-semibold` (600) for UI/label text. |
+
 
 ---
 

@@ -1,4 +1,4 @@
-# Kulode — Developer Workflows & Reference
+# Tari1 — Developer Workflows & Reference
 
 > This file is the **verbose reference vault**. Read it when performing environment setup,
 > Git operations, or making architectural decisions. It is NOT loaded on every message.

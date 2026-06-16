@@ -10,3 +10,5 @@ export * from './EmptyState'
 export * from './date-picker'
 export * from './dropdown-panel'
 export * from './searchable-select'
+export * from './phone-input'
+

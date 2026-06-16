@@ -1,50 +1,32 @@
 ---
-import Layout from '../layouts/Layout.astro'
-
-const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
+import Layout from '../layouts/Layout.astro';
+import Navbar from '../components/Navbar.astro';
+const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173';
 ---
 
-<Layout title="Pricing Plans — Tari1">
-  <!-- Nav -->
-  <nav class="w-full sticky top-0 z-50 bg-background/80 backdrop-blur-xl shadow-[0_12px_32px_rgba(0,55,176,0.08)]">
-    <div class="flex justify-between items-center px-container-padding max-w-7xl mx-auto h-[72px]">
-      <div class="flex items-center gap-12">
-        <a href="/" class="flex items-center"><img src="/logo.svg" alt="Tari1 Logo" class="h-10 w-auto" /></a>
-        <div class="hidden md:flex items-center gap-8">
-          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/#features">Features</a>
-          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/how-it-works">How It Works</a>
-          <a class="text-sm text-primary font-bold" href="/pricing">Pricing</a>
-          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/invoicing">Solutions</a>
-          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/tax-filing">Tax Filing</a>
-        </div>
-      </div>
-      <div class="flex items-center gap-4">
-        <a href={`${appUrl}/login`} class="text-sm font-medium text-text-secondary px-6 py-2 transition-all hover:text-primary active:scale-95">Login</a>
-        <a href={`${appUrl}/register`} class="bg-primary text-on-primary px-6 py-3 rounded-[12px] text-sm font-bold shadow-lg shadow-primary/20 hover:shadow-xl transition-all active:scale-95 btn-gradient">Get Started</a>
-      </div>
-    </div>
-  </nav>
+<Layout title="Simple, Transparent Pricing — Tari1">
+  <Navbar activePage="pricing" />
 
-  <main class="hero-gradient bg-surface pb-24">
-    <!-- Header Section -->
-    <section class="max-w-7xl mx-auto px-container-padding pt-20 pb-8 text-center stagger-in">
-      <span class="inline-block px-4 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-widest mb-6">Simple, Fair Pricing</span>
-      <h1 class="text-4xl md:text-6xl font-extrabold text-primary tracking-tight mb-6 max-w-2xl mx-auto leading-tight">
-        Plans that scale with your <span class="text-surface-tint">business growth</span>
+  <main class="w-full pt-20 pb-20 font-sans bg-[#f8f9ff]">
+    
+    <!-- Hero Section -->
+    <section class="max-w-4xl mx-auto text-center px-container-padding mb-16 stagger-in">
+      <h1 class="text-4xl md:text-5xl font-bold tracking-tight text-primary mb-6 leading-tight">
+        Simple, Transparent Pricing
       </h1>
-      <p class="text-lg text-text-secondary max-w-xl mx-auto mb-12">
-        Start for free. No credit card required. Upgrade as you add users and expand transaction volume.
+      <p class="text-lg md:text-xl text-text-secondary mb-10 max-w-2xl mx-auto font-medium">
+        Start with a 30-day free trial on any plan. No credit card required. Upgrade or downgrade anytime as your business grows.
       </p>
-
-      <!-- Toggle Switch -->
+      
+      <!-- Billing Period Selector -->
       <div class="flex items-center justify-center gap-4 mb-16">
-        <span class="text-sm font-bold text-text-secondary" id="label-monthly">Billed Monthly</span>
-        <button id="billing-toggle" class="w-14 h-8 bg-primary/20 rounded-full p-1 transition-colors duration-300 relative focus:outline-none" aria-label="Toggle billing period">
-          <div id="toggle-knob" class="w-6 h-6 bg-primary rounded-full transition-transform duration-300 transform translate-x-0"></div>
+        <span class="text-sm font-bold text-text-secondary transition-colors duration-300" id="label-monthly">Billed Monthly</span>
+        <button id="billing-toggle" class="w-14 h-8 bg-primary/10 rounded-full p-1 transition-all duration-300 relative focus:outline-none cursor-pointer" aria-label="Toggle billing period">
+          <div id="toggle-knob" class="w-6 h-6 bg-primary rounded-full transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] transform translate-x-0 shadow-md"></div>
         </button>
-        <span class="text-sm font-bold text-primary flex items-center gap-2" id="label-annual">
+        <span class="text-sm font-bold text-text-secondary transition-colors duration-300 flex items-center gap-2" id="label-annual">
           Billed Annually
-          <span class="bg-success text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider">Save 15%+</span>
+          <span class="bg-[#6ffbbe] text-[#006c49] text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider shadow-sm transition-transform duration-300 hover:scale-105">Save 15%+</span>
         </span>
       </div>
     </section>
@@ -53,131 +35,141 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
     <section class="max-w-7xl mx-auto px-container-padding mb-32">
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
         
-        <!-- FREE Plan -->
-        <div class="bg-surface-container-lowest p-8 md:p-10 rounded-[32px] border border-outline-variant shadow-[0_12px_32px_rgba(0,55,176,0.03)] hover:shadow-2xl hover:scale-[1.02] cursor-pointer transition-all duration-300 flex flex-col justify-between stagger-in">
+        <!-- STARTER Plan -->
+        <div class="bg-white p-8 md:p-10 rounded-[32px] border-0 shadow-[0_12px_32px_rgba(0,55,176,0.02)] hover:shadow-[0_20px_50px_rgba(0,55,176,0.08)] hover:-translate-y-2 cursor-pointer transition-all duration-300 ease-out flex flex-col justify-between stagger-in">
           <div>
-            <h3 class="text-lg font-bold text-text-primary mb-2">Free Plan</h3>
-            <p class="text-xs text-text-secondary mb-8">For freelancers and new side-hustles starting out.</p>
+            <h3 class="text-lg font-bold text-text-primary mb-2">Starter Plan</h3>
+            <p class="text-xs text-text-secondary mb-8 font-medium">Perfect for freelancers and side-hustles starting out.</p>
             <div class="mb-8">
-              <span class="text-4xl md:text-5xl font-extrabold text-primary tracking-tight">₦0</span>
-              <span class="text-xs text-text-secondary font-medium">/month</span>
+              <span class="text-4xl md:text-5xl font-bold text-primary tracking-tight price-val transition-all duration-300" data-monthly="₦4,500" data-annual="₦3,750">₦4,500</span>
+              <span class="text-xs text-text-secondary font-semibold">/mo</span>
+              <p class="text-[10px] text-[#006c49] font-bold mt-2 billing-desc hidden">Billed annually (₦45,000/yr)</p>
             </div>
             
-            <ul class="space-y-4 mb-10 text-sm text-text-secondary">
-              <li class="flex items-center gap-3">
-                <i class="hgi-stroke hgi-checkmark-circle-01 text-success text-lg"></i>
-                <span>Max 1 active user</span>
+            <ul class="space-y-4 mb-10 text-sm text-text-secondary font-medium">
+              <li class="flex items-center gap-3 hover:translate-x-1 transition-transform duration-200">
+                <i class="hgi-stroke hgi-checkmark-circle-02 text-[#006c49] text-xl"></i>
+                <span>Up to 30 invoices / month</span>
               </li>
-              <li class="flex items-center gap-3">
-                <i class="hgi-stroke hgi-checkmark-circle-01 text-success text-lg"></i>
-                <span class="font-bold text-text-primary">5 invoices per month</span>
+              <li class="flex items-center gap-3 hover:translate-x-1 transition-transform duration-200">
+                <i class="hgi-stroke hgi-checkmark-circle-02 text-[#006c49] text-xl"></i>
+                <span>1 active user seat</span>
               </li>
-              <li class="flex items-center gap-3">
-                <i class="hgi-stroke hgi-checkmark-circle-01 text-success text-lg"></i>
-                <span>Instant payouts: Just add your bank account</span>
+              <li class="flex items-center gap-3 hover:translate-x-1 transition-transform duration-200">
+                <i class="hgi-stroke hgi-checkmark-circle-02 text-[#006c49] text-xl"></i>
+                <span>Clients & Invoices management</span>
               </li>
-              <li class="flex items-center gap-3 text-text-secondary/50">
-                <i class="hgi-stroke hgi-cancel-circle text-lg"></i>
-                <span class="line-through">Expenses & Vendor tracking</span>
+              <li class="flex items-center gap-3 hover:translate-x-1 transition-transform duration-200">
+                <i class="hgi-stroke hgi-checkmark-circle-02 text-[#006c49] text-xl"></i>
+                <span>Secure client payment link</span>
               </li>
-              <li class="flex items-center gap-3 text-text-secondary/50">
-                <i class="hgi-stroke hgi-cancel-circle text-lg"></i>
-                <span class="line-through">FIRS VAT/WHT filing logs</span>
+              <li class="flex items-center gap-3 hover:translate-x-1 transition-transform duration-200">
+                <i class="hgi-stroke hgi-checkmark-circle-02 text-[#006c49] text-xl"></i>
+                <span>Instant payouts: Add bank details</span>
               </li>
             </ul>
           </div>
-          <a href={`${appUrl}/register`} class="w-full text-center py-4 rounded-[12px] border border-primary/20 hover:border-primary/85 text-primary text-sm font-bold active:scale-95 transition-all">
-            Get Started Free
+          <a href={`${appUrl}/register`} class="w-full text-center py-4 rounded-[12px] border border-primary/20 hover:border-primary text-primary text-sm font-bold active:scale-95 hover:bg-primary/5 transition-all duration-200 shadow-sm">
+            Start Free Trial
           </a>
         </div>
 
         <!-- PRO Plan -->
-        <div class="bg-surface-container-lowest p-8 md:p-10 rounded-[32px] border-2 border-primary shadow-[0_20px_50px_rgba(0,55,176,0.15)] hover:shadow-2xl hover:scale-[1.03] cursor-pointer transition-all duration-300 flex flex-col justify-between relative stagger-in">
-          <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-primary text-white text-[10px] font-extrabold uppercase px-4 py-1.5 rounded-full tracking-widest shadow-md">
+        <div class="bg-white p-8 md:p-10 rounded-[32px] border-2 border-primary shadow-[0_20px_50px_rgba(0,55,176,0.1)] hover:shadow-[0_24px_55px_rgba(0,55,176,0.15)] hover:-translate-y-2 cursor-pointer transition-all duration-300 ease-out flex flex-col justify-between relative stagger-in scale-[1.02]">
+          <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-primary text-white text-[10px] font-bold uppercase px-4 py-1.5 rounded-full tracking-widest shadow-md">
             Most Popular
           </div>
           <div>
             <h3 class="text-lg font-bold text-text-primary mb-2">Pro Plan</h3>
-            <p class="text-xs text-text-secondary mb-8">For growing businesses needing expense & tax compliance.</p>
+            <p class="text-xs text-text-secondary mb-8 font-medium">For growing businesses needing expense tracking and tax tools.</p>
             <div class="mb-8">
-              <span class="text-4xl md:text-5xl font-extrabold text-primary tracking-tight price-val" data-monthly="₦9,900" data-annual="₦8,250">₦9,900</span>
-              <span class="text-xs text-text-secondary font-medium">/month</span>
-              <p class="text-[10px] text-success font-bold mt-2 billing-desc hidden">Billed annually (₦99,000/yr)</p>
+              <span class="text-4xl md:text-5xl font-bold text-primary tracking-tight price-val transition-all duration-300" data-monthly="₦12,500" data-annual="₦10,416">₦12,500</span>
+              <span class="text-xs text-text-secondary font-semibold">/mo</span>
+              <p class="text-[10px] text-[#006c49] font-bold mt-2 billing-desc hidden">Billed annually (₦125,000/yr)</p>
             </div>
             
-            <ul class="space-y-4 mb-10 text-sm text-text-secondary">
-              <li class="flex items-center gap-3">
-                <i class="hgi-stroke hgi-checkmark-circle-01 text-success text-lg"></i>
-                <span>Max 3 active users</span>
+            <ul class="space-y-4 mb-10 text-sm text-text-secondary font-medium">
+              <li class="flex items-center gap-3 hover:translate-x-1 transition-transform duration-200">
+                <i class="hgi-stroke hgi-checkmark-circle-02 text-primary text-xl"></i>
+                <span>Up to 100 invoices / month</span>
               </li>
-              <li class="flex items-center gap-3">
-                <i class="hgi-stroke hgi-checkmark-circle-01 text-success text-lg"></i>
-                <span>100 invoices per month</span>
+              <li class="flex items-center gap-3 hover:translate-x-1 transition-transform duration-200">
+                <i class="hgi-stroke hgi-checkmark-circle-02 text-primary text-xl"></i>
+                <span>Up to 3 active users</span>
               </li>
-              <li class="flex items-center gap-3">
-                <i class="hgi-stroke hgi-checkmark-circle-01 text-success text-lg"></i>
-                <span>Instant payouts: Just add your bank account</span>
+              <li class="flex items-center gap-3 hover:translate-x-1 transition-transform duration-200">
+                <i class="hgi-stroke hgi-checkmark-circle-02 text-primary text-xl"></i>
+                <span>Everything in Starter</span>
               </li>
-              <li class="flex items-center gap-3">
-                <i class="hgi-stroke hgi-checkmark-circle-01 text-success text-lg"></i>
-                <span>Full Expense tracking & categories</span>
+              <li class="flex items-center gap-3 hover:translate-x-1 transition-transform duration-200">
+                <i class="hgi-stroke hgi-checkmark-circle-02 text-primary text-xl"></i>
+                <span>Dashboard analytics & Reports</span>
               </li>
-              <li class="flex items-center gap-3 text-primary font-bold bg-primary/5 p-3 rounded-2xl">
-                <i class="hgi-stroke hgi-checkmark-badge-01 text-primary text-xl"></i>
+              <li class="flex items-center gap-3 hover:translate-x-1 transition-transform duration-200">
+                <i class="hgi-stroke hgi-checkmark-circle-02 text-primary text-xl"></i>
+                <span>Vendors & Expense tracking</span>
+              </li>
+              <li class="flex items-center gap-3 hover:translate-x-1 transition-transform duration-200">
+                <i class="hgi-stroke hgi-checkmark-circle-02 text-primary text-xl"></i>
+                <span>Product Inventory management</span>
+              </li>
+              <li class="flex items-center gap-3 hover:translate-x-1 transition-transform duration-200">
+                <i class="hgi-stroke hgi-checkmark-circle-02 text-primary text-xl"></i>
+                <span>Custom Expense Categories</span>
+              </li>
+              <li class="flex items-start gap-3 text-primary font-bold bg-[#eef4ff] p-4 rounded-2xl transition-all duration-300 hover:shadow-inner">
+                <i class="hgi-stroke hgi-checkmark-badge-01 text-primary text-2xl shrink-0 mt-0.5 animate-pulse"></i>
                 <div>
-                  <p class="text-xs font-extrabold uppercase tracking-wide text-primary">FIRS-Ready Tax Pack</p>
-                  <p class="text-xs text-text-secondary font-medium">Generate annual summaries, Net VAT liability & CIT 0% small business checks.</p>
-                </div>
-              </li>
-              <li class="flex items-center gap-3 text-primary font-bold bg-primary/5 p-3 rounded-2xl">
-                <i class="hgi-stroke hgi-checkmark-badge-01 text-primary text-xl"></i>
-                <div>
-                  <p class="text-xs font-extrabold uppercase tracking-wide text-primary">NFIU SCUML Compliance Pack</p>
-                  <p class="text-xs text-text-secondary font-medium">Auto-aggregate currency thresholds and logs to export compliance reports.</p>
+                  <p class="text-xs font-bold uppercase tracking-wide text-primary">Taxable Item split exports</p>
+                  <p class="text-xs text-text-secondary font-medium leading-relaxed mt-1">Identify taxable items automatically, organize WHT/VAT splits, and prepare manual filing exports.</p>
                 </div>
               </li>
             </ul>
           </div>
-          <a href={`${appUrl}/register`} class="w-full text-center py-4 rounded-[12px] bg-primary text-white text-sm font-bold shadow-lg shadow-primary/20 active:scale-95 transition-all btn-gradient pulse-primary">
+          <a href={`${appUrl}/register`} class="w-full text-center py-4 rounded-[12px] bg-primary text-white text-sm font-bold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 active:scale-95 transition-all duration-200 btn-gradient">
             Start Free Trial
           </a>
         </div>
 
         <!-- BUSINESS Plan -->
-        <div class="bg-surface-container-lowest p-8 md:p-10 rounded-[32px] border border-outline-variant shadow-[0_12px_32px_rgba(0,55,176,0.03)] hover:shadow-2xl hover:scale-[1.02] cursor-pointer transition-all duration-300 flex flex-col justify-between stagger-in">
+        <div class="bg-white p-8 md:p-10 rounded-[32px] border-0 shadow-[0_12px_32px_rgba(0,55,176,0.02)] hover:shadow-[0_20px_50px_rgba(0,55,176,0.08)] hover:-translate-y-2 cursor-pointer transition-all duration-300 ease-out flex flex-col justify-between stagger-in">
           <div>
             <h3 class="text-lg font-bold text-text-primary mb-2">Business Plan</h3>
-            <p class="text-xs text-text-secondary mb-8">For organizations managing heavy volume & multi-user teams.</p>
+            <p class="text-xs text-text-secondary mb-8 font-medium">For large organizations managing heavy volume and teams.</p>
             <div class="mb-8">
-              <span class="text-4xl md:text-5xl font-extrabold text-primary tracking-tight price-val" data-monthly="₦24,999" data-annual="₦20,832">₦24,999</span>
-              <span class="text-xs text-text-secondary font-medium">/month</span>
-              <p class="text-[10px] text-success font-bold mt-2 billing-desc hidden">Billed annually (₦249,990/yr)</p>
+              <span class="text-4xl md:text-5xl font-bold text-primary tracking-tight price-val transition-all duration-300" data-monthly="₦29,500" data-annual="₦24,583">₦29,500</span>
+              <span class="text-xs text-text-secondary font-semibold">/mo</span>
+              <p class="text-[10px] text-[#006c49] font-bold mt-2 billing-desc hidden">Billed annually (₦295,000/yr)</p>
             </div>
             
-            <ul class="space-y-4 mb-10 text-sm text-text-secondary">
-              <li class="flex items-center gap-3">
-                <i class="hgi-stroke hgi-checkmark-circle-01 text-success text-lg"></i>
-                <span class="font-bold text-text-primary">Unlimited active users</span>
+            <ul class="space-y-4 mb-10 text-sm text-text-secondary font-medium">
+              <li class="flex items-center gap-3 hover:translate-x-1 transition-transform duration-200">
+                <i class="hgi-stroke hgi-checkmark-circle-02 text-[#006c49] text-xl"></i>
+                <span>Unlimited invoices / month</span>
               </li>
-              <li class="flex items-center gap-3">
-                <i class="hgi-stroke hgi-checkmark-circle-01 text-success text-lg"></i>
-                <span class="font-bold text-text-primary">Unlimited invoices per month</span>
+              <li class="flex items-center gap-3 hover:translate-x-1 transition-transform duration-200">
+                <i class="hgi-stroke hgi-checkmark-circle-02 text-[#006c49] text-xl"></i>
+                <span>Unlimited active users</span>
               </li>
-              <li class="flex items-center gap-3">
-                <i class="hgi-stroke hgi-checkmark-circle-01 text-success text-lg"></i>
-                <span>Instant payouts (No platform fees)</span>
+              <li class="flex items-center gap-3 hover:translate-x-1 transition-transform duration-200">
+                <i class="hgi-stroke hgi-checkmark-circle-02 text-[#006c49] text-xl"></i>
+                <span>Everything in Pro</span>
               </li>
-              <li class="flex items-center gap-3">
-                <i class="hgi-stroke hgi-checkmark-circle-01 text-success text-lg"></i>
-                <span>Full Expense & Vendor management</span>
+              <li class="flex items-center gap-3 hover:translate-x-1 transition-transform duration-200">
+                <i class="hgi-stroke hgi-checkmark-circle-02 text-[#006c49] text-xl"></i>
+                <span>Priority customer support</span>
               </li>
-              <li class="flex items-center gap-3">
-                <i class="hgi-stroke hgi-checkmark-circle-01 text-success text-lg"></i>
-                <span>Priority FIRS/NFIU audit support</span>
+              <li class="flex items-center gap-3 hover:translate-x-1 transition-transform duration-200">
+                <i class="hgi-stroke hgi-checkmark-circle-02 text-[#006c49] text-xl"></i>
+                <span>Compliance checklist audits</span>
+              </li>
+              <li class="flex items-center gap-3 hover:translate-x-1 transition-transform duration-200">
+                <i class="hgi-stroke hgi-checkmark-circle-02 text-[#006c49] text-xl"></i>
+                <span>Zero platform transaction fees</span>
               </li>
             </ul>
           </div>
-          <a href={`${appUrl}/register`} class="w-full text-center py-4 rounded-[12px] border border-primary/20 hover:border-primary/85 text-primary text-sm font-bold active:scale-95 transition-all">
+          <a href={`${appUrl}/register`} class="w-full text-center py-4 rounded-[12px] border border-primary/20 hover:border-primary hover:bg-slate-50 text-slate-800 text-sm font-bold active:scale-95 transition-all duration-200 shadow-sm">
             Start Free Trial
           </a>
         </div>
@@ -188,91 +180,93 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
     <!-- Comparison Grid Section -->
     <section class="max-w-4xl mx-auto px-container-padding mb-32 stagger-in">
       <h2 class="text-2xl font-bold text-primary mb-8 text-center">Feature Matrix Details</h2>
-      <div class="bg-white rounded-2xl border border-outline-variant overflow-hidden shadow-md">
+      <div class="bg-white rounded-3xl border border-transparent overflow-hidden shadow-[0_12px_32px_rgba(0,55,176,0.02)]">
         <table class="w-full text-left border-collapse">
           <thead>
-            <tr class="bg-surface border-b border-outline-variant">
-              <th class="p-4 text-xs font-bold uppercase text-text-secondary">Core Feature</th>
-              <th class="p-4 text-xs font-bold uppercase text-text-secondary">Free</th>
+            <tr class="bg-[#eef4ff] border-b border-transparent">
+              <th class="p-4 pl-6 text-xs font-bold uppercase text-text-secondary">Core Feature</th>
+              <th class="p-4 text-xs font-bold uppercase text-text-secondary">Starter</th>
               <th class="p-4 text-xs font-bold uppercase text-text-secondary">Pro</th>
               <th class="p-4 text-xs font-bold uppercase text-text-secondary">Business</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-outline-variant/60 text-sm">
-            <tr>
-              <td class="p-4 font-semibold text-text-primary">Monthly Invoices</td>
-              <td class="p-4 text-text-secondary">5</td>
-              <td class="p-4 text-text-secondary">100</td>
+          <tbody class="text-sm font-medium">
+            <tr class="hover:bg-[#eef4ff]/30 transition-colors">
+              <td class="p-4 pl-6 font-semibold text-text-primary">Monthly Invoices</td>
+              <td class="p-4 text-text-secondary">Up to 30</td>
+              <td class="p-4 text-text-secondary">Up to 100</td>
               <td class="p-4 text-primary font-bold">Unlimited</td>
             </tr>
-            <tr>
-              <td class="p-4 font-semibold text-text-primary">Users / Team Seats</td>
+            <tr class="bg-[#f8f9ff] hover:bg-[#eef4ff]/30 transition-colors">
+              <td class="p-4 pl-6 font-semibold text-text-primary">Users / Team Seats</td>
               <td class="p-4 text-text-secondary">1 seat</td>
-              <td class="p-4 text-text-secondary">3 seats</td>
+              <td class="p-4 text-text-secondary">Up to 3 seats</td>
               <td class="p-4 text-primary font-bold">Unlimited</td>
             </tr>
-            <tr>
-              <td class="p-4 font-semibold text-text-primary">Instant Payouts (Bank Linking)</td>
+            <tr class="hover:bg-[#eef4ff]/30 transition-colors">
+              <td class="p-4 pl-6 font-semibold text-text-primary">Instant Payouts (Bank Linking)</td>
               <td class="p-4 text-text-secondary">Yes</td>
               <td class="p-4 text-text-secondary">Yes</td>
               <td class="p-4 text-text-secondary">Yes</td>
             </tr>
-            <tr>
-              <td class="p-4 font-semibold text-text-primary">Expense Categorization</td>
+            <tr class="bg-[#f8f9ff] hover:bg-[#eef4ff]/30 transition-colors">
+              <td class="p-4 pl-6 font-semibold text-text-primary">Expense Categorization</td>
               <td class="p-4 text-text-secondary/40">Gated</td>
               <td class="p-4 text-text-secondary">Yes</td>
               <td class="p-4 text-text-secondary">Yes</td>
             </tr>
-            <tr>
-              <td class="p-4 font-semibold text-primary">FIRS Tax Summary Exports (PDF/CSV)</td>
+            <tr class="hover:bg-[#eef4ff]/30 transition-colors">
+              <td class="p-4 pl-6 font-semibold text-primary">Taxable Item Splits Exports</td>
               <td class="p-4 text-text-secondary/40">Gated</td>
-              <td class="p-4 text-primary font-bold">Included (PRO Upgrade)</td>
+              <td class="p-4 text-primary font-bold">Included (PRO)</td>
               <td class="p-4 text-text-secondary">Yes</td>
             </tr>
-            <tr>
-              <td class="p-4 font-semibold text-primary">NFIU SCUML Compliance reporting</td>
+            <tr class="bg-[#f8f9ff] hover:bg-[#eef4ff]/30 transition-colors">
+              <td class="p-4 pl-6 font-semibold text-primary">Compliance checklists</td>
               <td class="p-4 text-text-secondary/40">Gated</td>
-              <td class="p-4 text-primary font-bold">Included (PRO Upgrade)</td>
+              <td class="p-4 text-primary font-bold">Included (PRO)</td>
               <td class="p-4 text-text-secondary">Yes</td>
             </tr>
           </tbody>
         </table>
       </div>
+    </section>
+
     <!-- FAQ Section -->
     <section class="max-w-3xl mx-auto px-container-padding stagger-in">
-      <h2 class="text-3xl font-extrabold text-primary mb-10 text-center">Frequently Asked Questions</h2>
+      <h2 class="text-3xl font-bold text-primary mb-10 text-center">Frequently Asked Questions</h2>
       
       <div class="space-y-4">
         <!-- FAQ 1 -->
-        <div class="bg-white rounded-2xl border border-outline-variant p-6 hover:shadow-md transition-all cursor-pointer faq-item">
+        <div class="bg-white rounded-2xl border-0 p-6 hover:shadow-md transition-all duration-200 cursor-pointer faq-item shadow-[0_12px_32px_rgba(0,55,176,0.015)]">
           <div class="flex justify-between items-center">
             <h4 class="font-bold text-text-primary text-base">Can I change plans at any time?</h4>
-            <i class="hgi-stroke hgi-plus-sign text-primary toggle-icon"></i>
+            <i class="hgi-stroke hgi-plus-sign text-primary toggle-icon transition-transform duration-300"></i>
           </div>
-          <p class="text-sm text-text-secondary mt-4 hidden">
+          <p class="text-sm text-text-secondary mt-4 hidden leading-relaxed transition-all duration-300">
             Absolutely. You can upgrade, downgrade, or cancel your plan directly from the Billing panel in your Settings tab. Downgrades or cancellations will take effect at the end of your current paid billing period.
           </p>
         </div>
 
         <!-- FAQ 2 -->
-        <div class="bg-white rounded-2xl border border-outline-variant p-6 hover:shadow-md transition-all cursor-pointer faq-item">
+        <div class="bg-white rounded-2xl border-0 p-6 hover:shadow-md transition-all duration-200 cursor-pointer faq-item shadow-[0_12px_32px_rgba(0,55,176,0.015)]">
           <div class="flex justify-between items-center">
             <h4 class="font-bold text-text-primary text-base">How does the 30-day trial work?</h4>
-            <i class="hgi-stroke hgi-plus-sign text-primary toggle-icon"></i>
+            <i class="hgi-stroke hgi-plus-sign text-primary toggle-icon transition-transform duration-300"></i>
           </div>
-          <p class="text-sm text-text-secondary mt-4 hidden">
-            When you register, you automatically start on a 30-day free trial of our Pro features. No credit card is required to join. If you choose not to subscribe after the trial, your organization is gracefully shifted down to our Free plan limits.
+          <p class="text-sm text-text-secondary mt-4 hidden leading-relaxed transition-all duration-300">
+            When you register, you automatically start on a 30-day free trial. No credit card is required to join. If you choose not to subscribe after 30 days, your account will be temporarily locked until you select a paid plan to continue.
           </p>
         </div>
 
         <!-- FAQ 3 -->
-        <div class="bg-white rounded-2xl border border-outline-variant p-6 hover:shadow-md transition-all cursor-pointer faq-item">
+        <div class="bg-white rounded-2xl border-0 p-6 hover:shadow-md transition-all duration-200 cursor-pointer faq-item shadow-[0_12px_32px_rgba(0,55,176,0.015)]">
           <div class="flex justify-between items-center">
             <h4 class="font-bold text-text-primary text-base">Are payments through Paystack secure?</h4>
-            <i class="hgi-stroke hgi-plus-sign text-primary toggle-icon"></i>
+            <i class="hgi-stroke hgi-plus-sign text-primary toggle-icon transition-transform duration-300"></i>
           </div>
-          <p class="text-sm text-text-secondary mt-4 hidden">
-            Yes. All online card, bank transfer, and USSD payments are initialized and processed directly on Paystack's PCI-DSS compliant gateways. Tari1 never stores your clients' card numbers or credentials.
+          <p class="text-sm text-text-secondary mt-4 hidden leading-relaxed transition-all duration-300">
+            Yes. All online card, bank transfer, and USSD payments are initialized and processed directly on Paystack's PCI-DSS compliant gateways. TariOne never stores your clients' card numbers or credentials.
           </p>
         </div>
       </div>
@@ -280,18 +274,18 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
   </main>
 
   <!-- Footer -->
-  <footer class="w-full py-12 bg-surface border-t border-outline-variant">
+  <footer class="w-full py-12 bg-white border-t border-outline-variant/10">
     <div class="flex flex-col md:flex-row justify-between items-center gap-element-gap px-container-padding max-w-7xl mx-auto">
       <div class="flex flex-col gap-4 items-center md:items-start">
-        <span class="text-2xl font-bold tracking-tight text-primary">Tari1</span>
-        <p class="text-sm text-text-secondary text-center md:text-left max-w-xs">
-          © {new Date().getFullYear()} Tari1. All rights reserved. Built for the modern freelancer.
+        <span class="text-2xl font-bold tracking-tight text-primary font-sans">Tari1</span>
+        <p class="text-sm text-text-secondary text-center md:text-left max-w-xs font-sans">
+          © {new Date().getFullYear()} Tari1. All rights reserved. Built for the modern small business.
         </p>
       </div>
-      <div class="flex flex-wrap justify-center gap-8">
-        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/privacy">Privacy Policy</a>
-        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/terms">Terms of Service</a>
-        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="mailto:abubakar.sambo@tari1.app">Contact Support</a>
+      <div class="flex flex-wrap justify-center gap-8 font-medium">
+        <a class="text-sm text-text-secondary hover:text-primary transition-all font-sans" href="/privacy">Privacy Policy</a>
+        <a class="text-sm text-text-secondary hover:text-primary transition-all font-sans" href="/terms">Terms of Service</a>
+        <a class="text-sm text-text-secondary hover:text-primary transition-all font-sans" href="mailto:support@tarione.com">Contact Support</a>
       </div>
     </div>
   </footer>
@@ -321,6 +315,9 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
     const billingDescs = document.querySelectorAll('.billing-desc');
     let isAnnual = false;
 
+    // Set initial text state color
+    monthlyLabel?.classList.add('text-primary');
+
     toggleBtn?.addEventListener('click', () => {
       isAnnual = !isAnnual;
       
@@ -334,7 +331,10 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
           if (annualVal) el.textContent = annualVal;
         });
 
-        billingDescs.forEach(el => el.classList.remove('hidden'));
+        billingDescs.forEach(el => {
+          el.classList.remove('hidden');
+          el.classList.add('animate-fade-in');
+        });
       } else {
         knob?.classList.replace('translate-x-6', 'translate-x-0');
         monthlyLabel?.classList.replace('text-text-secondary', 'text-primary');
@@ -358,15 +358,18 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
         if (desc) {
           if (desc.classList.contains('hidden')) {
             desc.classList.remove('hidden');
+            desc.classList.add('animate-slide-down');
             if (icon) {
-              icon.classList.remove('hgi-plus-sign');
-              icon.classList.add('hgi-minus-sign');
+              icon.classList.remove('hgi-stroke', 'hgi-plus-sign');
+              icon.classList.add('hgi-stroke', 'hgi-minus-sign');
+              icon.classList.add('rotate-180');
             }
           } else {
             desc.classList.add('hidden');
+            desc.classList.remove('animate-slide-down');
             if (icon) {
-              icon.classList.remove('hgi-minus-sign');
-              icon.classList.add('hgi-plus-sign');
+              icon.classList.remove('hgi-stroke', 'hgi-minus-sign', 'rotate-180');
+              icon.classList.add('hgi-stroke', 'hgi-plus-sign');
             }
           }
         }

@@ -1,0 +1,90 @@
+---
+interface Props {
+  activePage?: 'features' | 'how-it-works' | 'pricing' | 'solutions' | 'tax-filing' | 'privacy' | 'terms';
+}
+
+const { activePage } = Astro.props;
+const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173';
+---
+
+<nav class="w-full sticky top-0 z-50 bg-white/90 backdrop-blur-xl shadow-[0_12px_32px_rgba(0,55,176,0.05)] border-b border-outline-variant/10">
+  <div class="flex justify-between items-center px-container-padding max-w-7xl mx-auto h-[72px]">
+    <div class="flex items-center gap-12">
+      <a href="/" class="flex items-center">
+        <img src="/logo.png" alt="Tari1 Logo" class="h-10 w-auto" />
+      </a>
+      
+      <!-- Desktop Links -->
+      <div class="hidden md:flex items-center gap-8">
+        <a class={`text-sm transition-colors duration-200 ${activePage === 'features' ? 'text-primary font-bold' : 'text-text-secondary hover:text-primary'}`} href="/#features">Features</a>
+        <a class={`text-sm transition-colors duration-200 ${activePage === 'how-it-works' ? 'text-primary font-bold' : 'text-text-secondary hover:text-primary'}`} href="/how-it-works">How It Works</a>
+        <a class={`text-sm transition-colors duration-200 ${activePage === 'pricing' ? 'text-primary font-bold' : 'text-text-secondary hover:text-primary'}`} href="/pricing">Pricing</a>
+        <a class={`text-sm transition-colors duration-200 ${activePage === 'solutions' ? 'text-primary font-bold' : 'text-text-secondary hover:text-primary'}`} href="/invoicing">Solutions</a>
+        <a class={`text-sm transition-colors duration-200 ${activePage === 'tax-filing' ? 'text-primary font-bold' : 'text-text-secondary hover:text-primary'}`} href="/tax-filing">Tax Filing</a>
+      </div>
+    </div>
+    
+    <!-- Desktop Auth Actions -->
+    <div class="hidden md:flex items-center gap-4">
+      <a href={`${appUrl}/login`} class="text-sm font-medium text-text-secondary px-6 py-2 transition-all hover:text-primary active:scale-95">Login</a>
+      <a href={`${appUrl}/register`} class="bg-primary text-on-primary px-6 py-3 rounded-[12px] text-sm font-bold shadow-lg shadow-primary/20 hover:shadow-xl transition-all active:scale-95 btn-gradient">Get Started</a>
+    </div>
+
+    <!-- Mobile Menu Toggle Button -->
+    <button id="mobile-menu-toggle" class="md:hidden flex items-center justify-center p-2 rounded-xl text-text-secondary hover:text-primary hover:bg-slate-50 focus:outline-none transition-colors min-w-[44px] min-h-[44px] cursor-pointer" aria-label="Toggle Menu">
+      <!-- Hamburger Icon -->
+      <svg id="menu-icon-hamburger" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+      <!-- Close Icon -->
+      <svg id="menu-icon-close" class="h-6 w-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    </button>
+  </div>
+
+  <!-- Mobile Menu Drawer Overlay -->
+  <div id="mobile-menu-drawer" class="hidden md:hidden absolute top-[72px] left-0 w-full bg-white border-b border-outline-variant/10 shadow-xl transition-all duration-300 transform -translate-y-4 opacity-0 z-40">
+    <div class="flex flex-col p-6 space-y-4 font-medium">
+      <a class={`text-base py-2 border-b border-slate-50 transition-colors ${activePage === 'features' ? 'text-primary font-bold' : 'text-text-secondary'}`} href="/#features">Features</a>
+      <a class={`text-base py-2 border-b border-slate-50 transition-colors ${activePage === 'how-it-works' ? 'text-primary font-bold' : 'text-text-secondary'}`} href="/how-it-works">How It Works</a>
+      <a class={`text-base py-2 border-b border-slate-50 transition-colors ${activePage === 'pricing' ? 'text-primary font-bold' : 'text-text-secondary'}`} href="/pricing">Pricing</a>
+      <a class={`text-base py-2 border-b border-slate-50 transition-colors ${activePage === 'solutions' ? 'text-primary font-bold' : 'text-text-secondary'}`} href="/invoicing">Solutions</a>
+      <a class={`text-base py-2 border-b border-slate-50 transition-colors ${activePage === 'tax-filing' ? 'text-primary font-bold' : 'text-text-secondary'}`} href="/tax-filing">Tax Filing</a>
+      
+      <div class="flex flex-col gap-3 pt-4 border-t border-outline-variant/10">
+        <a href={`${appUrl}/login`} class="w-full text-center py-3 text-sm font-semibold text-text-secondary hover:text-primary transition-colors">Login</a>
+        <a href={`${appUrl}/register`} class="w-full text-center py-3 rounded-[12px] bg-primary text-white text-sm font-bold shadow-md shadow-primary/10 btn-gradient">Get Started</a>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<script>
+  const toggleBtn = document.getElementById('mobile-menu-toggle');
+  const drawer = document.getElementById('mobile-menu-drawer');
+  const hamburgerIcon = document.getElementById('menu-icon-hamburger');
+  const closeIcon = document.getElementById('menu-icon-close');
+
+  toggleBtn?.addEventListener('click', () => {
+    if (drawer?.classList.contains('hidden')) {
+      // Open menu
+      drawer.classList.remove('hidden');
+      setTimeout(() => {
+        drawer.classList.remove('-translate-y-4', 'opacity-0');
+        drawer.classList.add('translate-y-0', 'opacity-100');
+      }, 10);
+      hamburgerIcon?.classList.add('hidden');
+      closeIcon?.classList.remove('hidden');
+    } else {
+      // Close menu
+      drawer?.classList.add('-translate-y-4', 'opacity-0');
+      drawer?.classList.remove('translate-y-0', 'opacity-100');
+      hamburgerIcon?.classList.remove('hidden');
+      closeIcon?.classList.add('hidden');
+      setTimeout(() => {
+        drawer?.classList.add('hidden');
+      }, 300);
+    }
+  });
+</script>

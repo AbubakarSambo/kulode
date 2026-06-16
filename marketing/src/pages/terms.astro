@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro'
+import Navbar from '../components/Navbar.astro'
 
 const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
 const contactEmail = 'legal@tari1.app'
@@ -10,32 +11,14 @@ const effectiveDate = '16 April 2026'
   title="Terms of Service — Tari1"
   description="The terms and conditions governing your use of the Tari1 platform."
 >
-  <!-- Nav -->
-  <nav class="w-full sticky top-0 z-50 bg-background/80 backdrop-blur-xl shadow-[0_12px_32px_rgba(0,55,176,0.08)]">
-    <div class="flex justify-between items-center px-container-padding max-w-7xl mx-auto h-[72px]">
-      <div class="flex items-center gap-12">
-        <a href="/" class="flex items-center"><img src="/logo.svg" alt="Tari1 Logo" class="h-10 w-auto" /></a>
-        <div class="hidden md:flex items-center gap-8">
-          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/#features">Features</a>
-          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/how-it-works">How It Works</a>
-          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/pricing">Pricing</a>
-          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/invoicing">Solutions</a>
-          <a class="text-sm text-text-secondary hover:text-primary transition-colors duration-200" href="/tax-filing">Tax Filing</a>
-        </div>
-      </div>
-      <div class="flex items-center gap-4">
-        <a href={`${appUrl}/login`} class="text-sm font-medium text-text-secondary px-6 py-2 transition-all hover:text-primary active:scale-95">Login</a>
-        <a href={`${appUrl}/register`} class="bg-primary text-on-primary px-6 py-3 rounded-[12px] text-sm font-bold shadow-lg shadow-primary/20 hover:shadow-xl transition-all active:scale-95 btn-gradient">Get Started</a>
-      </div>
-    </div>
-  </nav>
+  <Navbar activePage="terms" />
 
   <main class="hero-gradient pt-20 pb-24 px-6">
     <div class="max-w-3xl mx-auto">
       <div class="inline-flex items-center gap-2 bg-[#ffddb8] text-[#121c28] text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full mb-6">
         Legal
       </div>
-      <h1 class="text-4xl md:text-5xl font-extrabold text-primary tracking-tight mb-2">Terms of Service</h1>
+      <h1 class="text-4xl md:text-5xl font-bold text-primary tracking-tight mb-2">Terms of Service</h1>
       <p class="text-sm text-text-secondary mb-12">Effective date: {effectiveDate}</p>
 
       <div class="space-y-10 text-text-secondary leading-relaxed text-sm md:text-base">
