@@ -3,7 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../../modules/prisma/prisma.service';
 import { REQUIRES_PLAN_KEY } from '../decorators/plan.decorator';
 
-const PLAN_HIERARCHY: Record<string, number> = { FREE: 0, PRO: 1, BUSINESS: 2 };
+const PLAN_HIERARCHY: Record<string, number> = { FREE: 0, STARTER: 1, PRO: 2, BUSINESS: 3 };
 
 @Injectable()
 export class PlanGuard implements CanActivate {

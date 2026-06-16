@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { FileDown } from 'lucide-react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   Download02Icon,
@@ -12,6 +11,7 @@ import {
   Search01Icon,
   CreditCardIcon,
   FilterHorizontalIcon,
+  Calendar03Icon,
 } from '@hugeicons/core-free-icons'
 import { toast } from 'sonner'
 import { Header } from '@/components/layout'
@@ -65,11 +65,11 @@ export function PaymentsListPage() {
   const [limit, setLimit] = useState(10)
   const [limitOpen, setLimitOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('')
-  const [startDate, _setStartDate] = useState('')
-  const [endDate, _setEndDate] = useState('')
   const [methodDropdownOpen, setMethodDropdownOpen] = useState(false)
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false)
   const [tempMethod, setTempMethod] = useState<PaymentMethod | ''>('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
 
   const openMobileFilters = () => {
     setTempMethod(paymentMethod)
@@ -172,7 +172,7 @@ export function PaymentsListPage() {
         action={
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={handleExportCSV} className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">
-              <FileDown className="mr-2 h-4 w-4" strokeWidth={1.5} />
+              <HugeiconsIcon icon={Download02Icon} className="mr-2 h-4 w-4" strokeWidth={1.5} />
               Export CSV
             </Button>
             <Link to="/invoices">
@@ -199,6 +199,32 @@ export function PaymentsListPage() {
                   onChange={(e) => { setSearch(e.target.value); setPage(1) }}
                   className="pl-11 rounded-xl h-10 bg-white border border-border"
                 />
+              </div>
+
+              {/* Date range filter */}
+              <div className="flex items-center gap-2">
+                <HugeiconsIcon icon={Calendar03Icon} className="h-4 w-4 text-slate-400 shrink-0" strokeWidth={1.5} />
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => { setStartDate(e.target.value); setPage(1) }}
+                  className="h-10 rounded-xl text-xs w-36 bg-white border border-border"
+                />
+                <span className="text-xs text-slate-400">–</span>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => { setEndDate(e.target.value); setPage(1) }}
+                  className="h-10 rounded-xl text-xs w-36 bg-white border border-border"
+                />
+                {(startDate || endDate) && (
+                  <button
+                    onClick={() => { setStartDate(''); setEndDate(''); setPage(1) }}
+                    className="text-xs text-slate-400 hover:text-slate-650 px-2 cursor-pointer font-bold border-0 bg-transparent"
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
 
               {/* Method Dropdown */}

@@ -40,6 +40,7 @@ export class ClientsService {
           phone: true,
           address: true,
           isActive: true,
+          clientType: true,
           createdAt: true,
           _count: {
             select: { invoices: { where: { deletedAt: null } } },

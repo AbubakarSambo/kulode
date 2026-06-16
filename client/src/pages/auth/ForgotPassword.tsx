@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link } from 'react-router-dom'
 import { Button, Input, Label, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui'
+import { Logo } from '@/components/shared'
 import { useForgotPassword } from '@/hooks'
 
 const schema = z.object({
@@ -31,7 +32,7 @@ export function ForgotPasswordPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mb-4 flex justify-center">
-            <img src="/logo.svg" alt="Tari1" className="h-10 w-auto" />
+            <Logo className="h-10 w-auto" />
           </div>
           <CardTitle>Forgot your password?</CardTitle>
           <CardDescription>

@@ -61,3 +61,5 @@ export { PaymentCallbackPage } from './payment/PaymentCallback'
 
 // Public invoice
 export { PublicInvoicePage } from './invoice/PublicInvoice'
+export { ShortLinkRedirectPage } from './invoice/ShortLinkRedirect'
+

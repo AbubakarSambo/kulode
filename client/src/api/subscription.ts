@@ -24,4 +24,9 @@ export const subscriptionApi = {
     const response = await apiClient.get<ApiResponse<SubscriptionPaymentRecord[]>>('/subscription/payment-history')
     return response.data.data
   },
+  
+  toggleAutoRenew: async (enabled: boolean): Promise<{ message: string }> => {
+    const response = await apiClient.patch<ApiResponse<{ message: string }>>('/subscription/auto-renew', { enabled })
+    return response.data.data
+  },
 }

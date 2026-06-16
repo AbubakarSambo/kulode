@@ -2,7 +2,12 @@ export const PLAN_LIMITS = {
   FREE: {
     maxUsers: 1,
     maxInvoicesPerMonth: 5,
-    restrictedPages: ['dashboard', 'vendors', 'expenses', 'reports', 'expense-categories', 'tax'],
+    restrictedPages: ['dashboard', 'vendors', 'expenses', 'reports', 'expense-categories', 'tax', 'inventory', 'clients', 'invoices', 'payments'],
+  },
+  STARTER: {
+    maxUsers: 1,
+    maxInvoicesPerMonth: 30,
+    restrictedPages: ['vendors', 'expenses', 'reports', 'inventory', 'expense-categories', 'tax'],
   },
   PRO: {
     maxUsers: 3,
@@ -17,6 +22,7 @@ export const PLAN_LIMITS = {
 } as const;
 
 export const PLAN_PRICES = {
-  PRO: { monthly: 9900, annual: 99000 },
-  BUSINESS: { monthly: 24999, annual: 249990 },
+  STARTER: { monthly: 4500, annual: 45000 },
+  PRO: { monthly: 12500, annual: 125000 },
+  BUSINESS: { monthly: 29500, annual: 295000 },
 } as const;

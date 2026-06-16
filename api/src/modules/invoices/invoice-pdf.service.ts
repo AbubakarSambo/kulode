@@ -3,6 +3,10 @@ import * as PDFDocument from 'pdfkit';
 import * as https from 'https';
 import * as http from 'http';
 import * as QRCode from 'qrcode';
+import * as fs from 'fs';
+import * as path from 'path';
+import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../prisma/prisma.service';
 
 interface Installment {
   id: string;
@@ -57,25 +61,34 @@ interface InvoiceData {
 
 @Injectable()
 export class InvoicePdfService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {}
+
   async generatePdf(invoice: InvoiceData): Promise<Buffer> {
-    // Paying PRO/BUSINESS orgs don't show "Powered by Tari1"; FREE and trialing orgs do
+    // Paying PRO/BUSINESS orgs don't show "Powered by Tari1" footer text; FREE/trialing do.
+    // However, the Tari1 Logo is drawn at the center of the footer for branding consistency.
     const isPayingPro = (invoice.organization.planTier === 'PRO' || invoice.organization.planTier === 'BUSINESS')
       && invoice.organization.subscriptionStatus !== 'TRIALING';
     const isPro = isPayingPro;
 
     let logoBuffer: Buffer | null = null;
-    if (isPro && invoice.organization.logo) {
+    if (invoice.organization.logo) {
       try {
         logoBuffer = await this.fetchImageBuffer(invoice.organization.logo);
       } catch {
-        // Skip if logo can't be loaded
+        // Skip if organization logo can't be loaded
       }
     }
 
+    // Determine target URL for the QR code
+    const qrTargetUrl = invoice.paymentUrl || (invoice.installments && invoice.installments.find(i => !i.isPaid)?.paymentUrl);
     let qrBuffer: Buffer | null = null;
-    if (invoice.organization.showQrCode && invoice.organization.address) {
+    if (invoice.organization.showQrCode && qrTargetUrl) {
       try {
-        qrBuffer = await QRCode.toBuffer(invoice.organization.address, { width: 80, margin: 1 });
+        const shortenedQrUrl = await this.tryShortenUrl(qrTargetUrl);
+        qrBuffer = await QRCode.toBuffer(shortenedQrUrl, { width: 80, margin: 1 });
       } catch {
         // Skip if QR generation fails
       }
@@ -96,10 +109,12 @@ export class InvoicePdfService {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      // Colors
-      const primaryColor = '#0f172a';
-      const textColor = '#1e293b';
-      const mutedColor = '#64748b';
+      // Colors from DESIGN.md
+      const primaryColor = '#0037b0';
+      const textColor = '#121c28';
+      const mutedColor = '#434655';
+      const successColor = '#006c49';
+      const errorColor = '#ba1a1a';
 
       // Header - Logo + Organization name (left side)
       let orgY = 50;
@@ -109,63 +124,73 @@ export class InvoicePdfService {
       }
 
       doc
-        .fillColor(primaryColor)
-        .fontSize(logoBuffer ? 14 : 24)
+        .fillColor(textColor)
+        .fontSize(logoBuffer ? 13 : 20)
         .font('Helvetica-Bold')
         .text(invoice.organization.name, 50, orgY);
-      orgY += logoBuffer ? 18 : 28;
+      orgY += logoBuffer ? 18 : 25;
 
-      doc.fillColor(mutedColor).fontSize(10).font('Helvetica');
+      doc.fillColor(mutedColor).fontSize(9).font('Helvetica');
 
       if (invoice.organization.email) {
         doc.text(invoice.organization.email, 50, orgY);
-        orgY += 14;
+        orgY += 13;
       }
       if (invoice.organization.phone) {
         doc.text(invoice.organization.phone, 50, orgY);
-        orgY += 14;
+        orgY += 13;
       }
       if (invoice.organization.address) {
-        const addrHeight = doc.heightOfString(invoice.organization.address, { width: 200 });
-        doc.text(invoice.organization.address, 50, orgY, { width: 200 });
+        const addrHeight = doc.heightOfString(invoice.organization.address, { width: 220 });
+        doc.text(invoice.organization.address, 50, orgY, { width: 220 });
         orgY += addrHeight;
       }
 
       // Invoice title and number (right side — always anchored to top)
       doc
         .fillColor(textColor)
-        .fontSize(28)
+        .fontSize(22)
         .font('Helvetica-Bold')
         .text('INVOICE', 400, 50, { align: 'right' });
 
       doc
         .fillColor(mutedColor)
-        .fontSize(12)
+        .fontSize(11)
         .font('Helvetica')
-        .text(invoice.invoiceNumber, 400, 85, { align: 'right' });
+        .text(invoice.invoiceNumber, 400, 78, { align: 'right' });
 
-      const statusColors: Record<string, string> = {
-        DRAFT: '#64748b',
-        SENT: '#3b82f6',
-        PAID: '#10b981',
-        PARTIALLY_PAID: '#f59e0b',
-        OVERDUE: '#ef4444',
-        CANCELLED: '#64748b',
+      // Align status terminology with web public link views
+      const statusTexts: Record<string, string> = {
+        DRAFT: 'NOT YET ISSUED',
+        SENT: 'AWAITING PAYMENT',
+        PAID: 'PAID IN FULL',
+        PARTIALLY_PAID: 'PART PAID',
+        OVERDUE: 'PAYMENT OVERDUE',
+        CANCELLED: 'CANCELLED',
       };
-      const statusColor = statusColors[invoice.status] || '#64748b';
-      const statusText = invoice.status.replace('_', ' ');
+      const statusColors: Record<string, string> = {
+        DRAFT: mutedColor,
+        SENT: primaryColor,
+        PAID: successColor,
+        PARTIALLY_PAID: primaryColor,
+        OVERDUE: errorColor,
+        CANCELLED: mutedColor,
+      };
+
+      const statusColor = statusColors[invoice.status] || mutedColor;
+      const statusText = statusTexts[invoice.status] || invoice.status.replace('_', ' ').toUpperCase();
 
       doc
         .fillColor(statusColor)
-        .fontSize(10)
+        .fontSize(9)
         .font('Helvetica-Bold')
-        .text(statusText, 400, 105, { align: 'right' });
+        .text(statusText, 400, 95, { align: 'right' });
 
-      // Divider — always below the tallest side of the header
+      // Divider — thin, light, elegant, printer-friendly line
       const dividerY = Math.max(orgY + 15, 130);
       doc
         .strokeColor('#e2e8f0')
-        .lineWidth(1)
+        .lineWidth(0.75)
         .moveTo(50, dividerY)
         .lineTo(545, dividerY)
         .stroke();
@@ -174,90 +199,92 @@ export class InvoicePdfService {
       const billToY = dividerY + 20;
       doc
         .fillColor(mutedColor)
-        .fontSize(10)
+        .fontSize(9)
         .font('Helvetica-Bold')
         .text('BILL TO', 50, billToY);
 
       doc
         .fillColor(textColor)
-        .fontSize(12)
+        .fontSize(11)
         .font('Helvetica-Bold')
-        .text(invoice.client.name, 50, billToY + 18);
+        .text(invoice.client.name, 50, billToY + 15);
 
-      doc.fillColor(mutedColor).fontSize(10).font('Helvetica');
+      doc.fillColor(mutedColor).fontSize(9).font('Helvetica');
 
-      let clientY = billToY + 35;
+      let clientY = billToY + 30;
       if (invoice.client.email) {
         doc.text(invoice.client.email, 50, clientY);
-        clientY += 14;
+        clientY += 13;
       }
       if (invoice.client.phone) {
         doc.text(invoice.client.phone, 50, clientY);
-        clientY += 14;
+        clientY += 13;
       }
       if (invoice.client.address) {
-        doc.text(invoice.client.address, 50, clientY, { width: 200 });
+        doc.text(invoice.client.address, 50, clientY, { width: 220 });
       }
 
       // Dates
       doc
         .fillColor(mutedColor)
-        .fontSize(10)
+        .fontSize(9)
         .font('Helvetica-Bold')
         .text('ISSUE DATE', 350, billToY)
         .text('DUE DATE', 450, billToY);
 
       doc
         .fillColor(textColor)
-        .fontSize(10)
+        .fontSize(9)
         .font('Helvetica')
-        .text(this.formatDate(invoice.issueDate), 350, billToY + 18)
-        .text(this.formatDate(invoice.dueDate), 450, billToY + 18);
+        .text(this.formatDate(invoice.issueDate), 350, billToY + 15)
+        .text(this.formatDate(invoice.dueDate), 450, billToY + 15);
 
-      // Items table — starts 130px below the divider (enough room for client info)
+      // Items table — redesigned with wider spacing to prevent numeric wrapping
       const tableTop = dividerY + 130;
       const tableHeaders = ['Description', 'Qty', 'Unit Price', 'Amount'];
-      const columnWidths = [250, 60, 100, 85];
-      const columnPositions = [50, 300, 360, 460];
+      
+      // Column configurations to prevent wrapping of large amounts (e.g. NGN 12,000,000.00)
+      const columnWidths = [205, 35, 125, 130];
+      const columnPositions = [50, 255, 290, 415];
 
-      // Table header
+      // Table header background (very soft tint, ink-friendly)
       doc
-        .fillColor('#f1f5f9')
-        .rect(50, tableTop, 495, 25)
+        .fillColor('#f8f9ff')
+        .rect(50, tableTop, 495, 22)
         .fill();
 
       doc
         .fillColor(textColor)
-        .fontSize(10)
+        .fontSize(9)
         .font('Helvetica-Bold');
 
       tableHeaders.forEach((header, i) => {
         const align = i === 0 ? 'left' : 'right';
-        const x = i === 0 ? columnPositions[i] + 10 : columnPositions[i];
-        const width = columnWidths[i] - (i === 0 ? 10 : 0);
-        doc.text(header, x, tableTop + 8, { width, align });
+        const x = i === 0 ? columnPositions[i] + 8 : columnPositions[i];
+        const width = columnWidths[i] - (i === 0 ? 8 : 0);
+        doc.text(header, x, tableTop + 6, { width, align });
       });
 
       // Table rows
-      let rowY = tableTop + 35;
-      doc.font('Helvetica').fontSize(10);
+      let rowY = tableTop + 28;
+      doc.font('Helvetica').fontSize(9);
 
       invoice.items.forEach((item, index) => {
-        const rowHeight = 25;
+        const rowHeight = 22;
 
-        // Alternating row background
+        // Alternating row background for scanning readability
         if (index % 2 === 1) {
           doc
             .fillColor('#f8fafc')
-            .rect(50, rowY - 5, 495, rowHeight)
+            .rect(50, rowY - 4, 495, rowHeight)
             .fill();
         }
 
         doc.fillColor(textColor);
 
         // Description
-        doc.text(item.description, columnPositions[0] + 10, rowY, {
-          width: columnWidths[0] - 10
+        doc.text(item.description, columnPositions[0] + 8, rowY, {
+          width: columnWidths[0] - 8
         });
 
         // Quantity
@@ -282,45 +309,46 @@ export class InvoicePdfService {
       });
 
       // Totals section
-      const totalsY = rowY + 20;
-      const totalsX = 360;
-      const totalsWidth = 185;
+      const totalsY = rowY + 15;
+      const totalsX = 350;
+      const totalsWidth = 195;
 
       // Subtotal
       doc
         .fillColor(mutedColor)
+        .fontSize(9)
         .text('Subtotal', totalsX, totalsY, { width: 100 });
       doc
         .fillColor(textColor)
         .text(this.formatCurrency(invoice.subtotal), totalsX + 100, totalsY, {
-          width: 85,
+          width: 95,
           align: 'right'
         });
 
-      let currentY = totalsY + 20;
+      let currentY = totalsY + 16;
 
-      // Discount (if applicable)
+      // Discount
       const discountAmt = Number(invoice.discountAmount || 0);
       const discountPct = Number(invoice.discountPercent || 0);
       if (discountAmt > 0) {
         doc
-          .fillColor('#10b981') // Green for discount
+          .fillColor(successColor)
           .text(
             invoice.discountType === 'FIXED'
-              ? `Discount (${this.formatCurrency(discountPct)})`
+              ? `Discount`
               : `Discount (${discountPct}%)`,
             totalsX, currentY, { width: 100 },
           );
         doc
-          .fillColor('#10b981')
+          .fillColor(successColor)
           .text(`-${this.formatCurrency(discountAmt)}`, totalsX + 100, currentY, {
-            width: 85,
+            width: 95,
             align: 'right'
           });
-        currentY += 20;
+        currentY += 16;
       }
 
-      // VAT (7.5%)
+      // VAT
       if (Number(invoice.taxAmount) > 0) {
         doc
           .fillColor(mutedColor)
@@ -328,225 +356,291 @@ export class InvoicePdfService {
         doc
           .fillColor(textColor)
           .text(this.formatCurrency(invoice.taxAmount), totalsX + 100, currentY, {
-            width: 85,
+            width: 95,
             align: 'right'
           });
-        currentY += 20;
+        currentY += 16;
       }
 
-      // Total
+      // Total Line
       doc
         .strokeColor('#e2e8f0')
-        .lineWidth(1)
+        .lineWidth(0.5)
         .moveTo(totalsX, currentY)
         .lineTo(totalsX + totalsWidth, currentY)
         .stroke();
 
-      currentY += 10;
+      currentY += 8;
       doc
         .fillColor(textColor)
-        .fontSize(12)
+        .fontSize(10)
         .font('Helvetica-Bold')
         .text('Total', totalsX, currentY, { width: 100 });
       doc.text(this.formatCurrency(invoice.total), totalsX + 100, currentY, {
-        width: 85,
+        width: 95,
         align: 'right'
       });
 
       // Amount paid and balance due
       if (Number(invoice.amountPaid) > 0) {
-        currentY += 25;
+        currentY += 20;
         doc
-          .fillColor('#10b981')
-          .fontSize(10)
+          .fillColor(successColor)
+          .fontSize(9)
           .font('Helvetica')
           .text('Amount Paid', totalsX, currentY, { width: 100 });
         doc.text(`-${this.formatCurrency(invoice.amountPaid)}`, totalsX + 100, currentY, {
-          width: 85,
+          width: 95,
           align: 'right'
         });
 
-        currentY += 20;
+        currentY += 16;
         const balanceDue = Number(invoice.total) - Number(invoice.amountPaid);
         doc
           .fillColor(textColor)
           .font('Helvetica-Bold')
           .text('Balance Due', totalsX, currentY, { width: 100 });
         doc.text(this.formatCurrency(balanceDue), totalsX + 100, currentY, {
-          width: 85,
+          width: 95,
           align: 'right'
         });
       }
 
-      // Payment Link section (if available and not fully paid)
+      // Render payment links asynchronously using helper
+      const self = this;
       const balanceDue = Number(invoice.total) - Number(invoice.amountPaid);
-
-      // Check for installment-based payments first
       const unpaidInstallments = invoice.installments?.filter(inst => !inst.isPaid && inst.paymentUrl) || [];
 
-      if (unpaidInstallments.length > 0 && balanceDue > 0) {
-        // Render multiple installment payment boxes
-        let paymentBoxY = currentY + 40;
-        const boxHeight = 55;
-        const boxWidth = 250;
-
-        for (const inst of unpaidInstallments) {
-          // Draw payment box background
+      const renderPaymentLinks = async () => {
+        if (unpaidInstallments.length > 0 && balanceDue > 0) {
+          // World-class table style installment schedule
+          let scheduleY = currentY + 30;
           doc
-            .fillColor('#f1f5f9') // Light grey background
-            .roundedRect(50, paymentBoxY, boxWidth, boxHeight, 8)
-            .fill();
-
-          // Payment box border
-          doc
-            .strokeColor(primaryColor)
-            .lineWidth(1)
-            .roundedRect(50, paymentBoxY, boxWidth, boxHeight, 8)
-            .stroke();
-
-          // Payment label with installment name
-          doc
-            .fillColor(primaryColor)
+            .fillColor(textColor)
             .fontSize(10)
             .font('Helvetica-Bold')
-            .text(`${inst.label} (${inst.percentage}%)`, 65, paymentBoxY + 10);
+            .text('PAYMENT SCHEDULE', 50, scheduleY);
 
-          // Amount
+          scheduleY += 15;
+
+          for (const inst of unpaidInstallments) {
+            const shortenedUrl = await self.tryShortenUrl(inst.paymentUrl!);
+
+            // Soft gray line backplates for readability
+            doc
+              .fillColor('#f8f9ff')
+              .rect(50, scheduleY - 4, 495, 22)
+              .fill();
+
+            doc
+              .fillColor(textColor)
+              .fontSize(8.5)
+              .font('Helvetica-Bold')
+              .text(`${inst.label} (${inst.percentage}%)`, 58, scheduleY);
+
+            doc
+              .fillColor(textColor)
+              .font('Helvetica')
+              .text(self.formatCurrency(inst.amount), 190, scheduleY, { width: 90, align: 'right' });
+
+            doc
+              .fillColor(primaryColor)
+              .text('Pay Link: ', 295, scheduleY);
+
+            doc
+              .fillColor(primaryColor)
+              .font('Helvetica-Bold')
+              .text(shortenedUrl.replace(/^https?:\/\//, ''), 340, scheduleY, {
+                link: inst.paymentUrl!,
+                underline: true,
+                width: 195
+              });
+
+            scheduleY += 24;
+          }
+          currentY = scheduleY;
+        } else if (invoice.paymentUrl && balanceDue > 0) {
+          // Elegant single payment callout strip
+          const paymentY = currentY + 30;
+          const shortenedUrl = await self.tryShortenUrl(invoice.paymentUrl);
+
+          doc
+            .fillColor('#f8f9ff')
+            .rect(50, paymentY, 495, 32)
+            .fill();
+
+          doc
+            .strokeColor(primaryColor)
+            .lineWidth(0.5)
+            .rect(50, paymentY, 495, 32)
+            .stroke();
+
+          doc
+            .fillColor(textColor)
+            .fontSize(9)
+            .font('Helvetica-Bold')
+            .text('SECURE ONLINE PAYMENT', 65, paymentY + 11);
+
+          doc
+            .fillColor(primaryColor)
+            .fontSize(8.5)
+            .font('Helvetica')
+            .text('Link: ', 220, paymentY + 11);
+
+          doc
+            .fillColor(primaryColor)
+            .font('Helvetica-Bold')
+            .text(shortenedUrl.replace(/^https?:\/\//, ''), 248, paymentY + 11, {
+              link: invoice.paymentUrl,
+              underline: true,
+              width: 280
+            });
+
+          currentY = paymentY + 40;
+        }
+
+        // Notes section
+        if (invoice.notes) {
+          const notesY = Math.max(currentY + 25, 540);
+          doc
+            .fillColor(mutedColor)
+            .fontSize(9)
+            .font('Helvetica-Bold')
+            .text('NOTES', 50, notesY);
+
           doc
             .fillColor(textColor)
             .fontSize(9)
             .font('Helvetica')
-            .text(`Amount: ${this.formatCurrency(inst.amount)}`, 65, paymentBoxY + 24);
-
-          // Clickable link
-          doc
-            .fillColor(primaryColor)
-            .fontSize(9)
-            .font('Helvetica')
-            .text('Click to pay via Paystack', 65, paymentBoxY + 38, {
-              link: inst.paymentUrl!,
-              underline: true,
-            });
-
-          paymentBoxY += boxHeight + 10;
+            .text(invoice.notes, 50, notesY + 13, { width: 240 });
         }
 
-        currentY = paymentBoxY;
-      } else if (invoice.paymentUrl && balanceDue > 0) {
-        // Single payment link (no installments)
-        const paymentBoxY = currentY + 40;
-        const boxHeight = 60;
-        const boxWidth = 250;
+        // Terms section
+        if (invoice.terms) {
+          const termsY = Math.max(currentY + 25, 540);
+          doc
+            .fillColor(mutedColor)
+            .fontSize(9)
+            .font('Helvetica-Bold')
+            .text('TERMS & CONDITIONS', 310, termsY);
 
-        // Draw payment box background
-        doc
-          .fillColor('#f1f5f9') // Light grey background
-          .roundedRect(50, paymentBoxY, boxWidth, boxHeight, 8)
-          .fill();
+          doc
+            .fillColor(textColor)
+            .fontSize(9)
+            .font('Helvetica')
+            .text(invoice.terms, 310, termsY + 13, { width: 235 });
+        }
 
-        // Payment box border
+        // Footer — Tari1 Logo + Branding
+        const footerY = doc.page.height - doc.page.margins.bottom - 45;
+
+        if (qrBuffer) {
+          // Scan QR bottom right
+          doc.image(qrBuffer, 465, footerY - 90, { width: 80, height: 80 });
+        }
+
         doc
-          .strokeColor(primaryColor)
-          .lineWidth(1)
-          .roundedRect(50, paymentBoxY, boxWidth, boxHeight, 8)
+          .strokeColor('#e2e8f0')
+          .lineWidth(0.5)
+          .moveTo(50, footerY)
+          .lineTo(545, footerY)
           .stroke();
 
-        // Payment icon/label
-        doc
-          .fillColor(primaryColor)
-          .fontSize(11)
-          .font('Helvetica-Bold')
-          .text('PAY ONLINE', 65, paymentBoxY + 12);
+        // Load Tari1 Logo safely from client package asset directory
+        let tari1LogoBuffer: Buffer | null = null;
+        try {
+          const logoPath = path.resolve(process.cwd(), '../client/public/logo.png');
+          if (fs.existsSync(logoPath)) {
+            tari1LogoBuffer = fs.readFileSync(logoPath);
+          }
+        } catch {
+          // Skip if local logo can't be fetched
+        }
 
-        // Amount
-        doc
-          .fillColor(textColor)
-          .fontSize(10)
-          .font('Helvetica')
-          .text(`Amount Due: ${this.formatCurrency(balanceDue)}`, 65, paymentBoxY + 28);
+        if (tari1LogoBuffer) {
+          // Center-align Tari1 logo in the footer
+          doc.image(tari1LogoBuffer, 255, footerY + 10, { height: 16 });
+          
+          if (!isPro) {
+            doc
+              .fillColor('#94a3b8')
+              .fontSize(7.5)
+              .font('Helvetica')
+              .text('Powered by Tari1', 50, footerY + 28, {
+                width: 495,
+                align: 'center',
+              });
+          }
+        } else {
+          // Fallback to text logo if image loading fails
+          doc
+            .fillColor(primaryColor)
+            .fontSize(10)
+            .font('Helvetica-Bold')
+            .text('Tari1', 50, footerY + 10, {
+              width: 495,
+              align: 'center',
+            });
+          
+          if (!isPro) {
+            doc
+              .fillColor('#94a3b8')
+              .fontSize(7.5)
+              .font('Helvetica')
+              .text('Powered by Tari1', 50, footerY + 22, {
+                width: 495,
+                align: 'center',
+              });
+          }
+        }
 
-        // Clickable link
-        doc
-          .fillColor(primaryColor)
-          .fontSize(9)
-          .font('Helvetica')
-          .text('Click here to pay securely via Paystack', 65, paymentBoxY + 43, {
-            link: invoice.paymentUrl,
-            underline: true,
-          });
+        doc.end();
+      };
 
-        currentY = paymentBoxY + boxHeight;
-      }
-
-      // Notes section
-      if (invoice.notes) {
-        const notesY = Math.max(currentY + 30, 550);
-        doc
-          .fillColor(mutedColor)
-          .fontSize(10)
-          .font('Helvetica-Bold')
-          .text('NOTES', 50, notesY);
-
-        doc
-          .fillColor(textColor)
-          .fontSize(10)
-          .font('Helvetica')
-          .text(invoice.notes, 50, notesY + 15, { width: 250 });
-      }
-
-      // Terms section
-      if (invoice.terms) {
-        const termsY = Math.max(currentY + 30, 550);
-        doc
-          .fillColor(mutedColor)
-          .fontSize(10)
-          .font('Helvetica-Bold')
-          .text('TERMS & CONDITIONS', 320, termsY);
-
-        doc
-          .fillColor(textColor)
-          .fontSize(10)
-          .font('Helvetica')
-          .text(invoice.terms, 320, termsY + 15, { width: 225 });
-      }
-
-      // Footer — positioned safely above the bottom margin to avoid triggering a new page
-      const footerY = doc.page.height - doc.page.margins.bottom - 40;
-
-      if (qrBuffer) {
-        // QR code bottom-right, sitting just above the footer line
-        doc.image(qrBuffer, 465, footerY - 90, { width: 80, height: 80 });
-      }
-
-      doc
-        .strokeColor('#e2e8f0')
-        .lineWidth(1)
-        .moveTo(50, footerY)
-        .lineTo(545, footerY)
-        .stroke();
-
-      doc
-        .fillColor(mutedColor)
-        .fontSize(9)
-        .font('Helvetica')
-        .text('Thank you for your business!', 50, footerY + 10, {
-          width: 495,
-          align: 'center'
-        });
-
-      if (!isPro) {
-        doc
-          .fillColor('#94a3b8')
-          .fontSize(8)
-          .font('Helvetica')
-          .text('Powered by Tari1', 50, footerY + 24, {
-            width: 495,
-            align: 'center',
-          });
-      }
-
-      doc.end();
+      // Execute PDF builders after finalizing URLs
+      renderPaymentLinks().catch(reject);
     });
+  }
+
+  private async tryShortenUrl(targetUrl: string): Promise<string> {
+    if (!targetUrl) return '';
+    try {
+      // Check if short link already exists for this URL
+      let shortLink = await this.prisma.shortLink.findFirst({
+        where: { targetUrl },
+      });
+
+      if (!shortLink) {
+        // Generate a unique slug
+        let slug = '';
+        let isUnique = false;
+        while (!isUnique) {
+          slug = Math.random().toString(36).substring(2, 7); // 5-character alphanumeric slug
+          const existing = await this.prisma.shortLink.findUnique({
+            where: { slug },
+          });
+          if (!existing) {
+            isUnique = true;
+          }
+        }
+
+        shortLink = await this.prisma.shortLink.create({
+          data: {
+            slug,
+            targetUrl,
+          },
+        });
+      }
+
+      // Read frontendUrl from configService
+      const frontendUrl = this.configService.get<string>('resend.frontendUrl') || 'http://localhost:5173';
+      // Clean trailing slash if present
+      const baseUrl = frontendUrl.replace(/\/$/, '');
+      return `${baseUrl}/p/${shortLink.slug}`;
+    } catch (err) {
+      console.error('Error generating short link in PDF service, falling back to original:', err);
+      return targetUrl;
+    }
   }
 
   private fetchImageBuffer(url: string): Promise<Buffer> {

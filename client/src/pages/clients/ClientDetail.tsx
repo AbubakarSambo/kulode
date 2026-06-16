@@ -217,18 +217,23 @@ export function ClientDetailPage() {
             {/* Premium Editorial Header for Card */}
             <div className="p-6 pb-4 bg-gradient-to-b from-[#eef4ff]/40 to-transparent flex flex-col items-center text-center sm:text-left sm:items-start sm:flex-row gap-4 relative">
               {/* Soft initials container */}
-              <div className="w-16 h-16 rounded-[20px] bg-[#0037b0]/5 text-[#0037b0] border border-[#0037b0]/8 flex items-center justify-center font-extrabold text-xl shrink-0 select-none">
+              <div className="w-16 h-16 rounded-[20px] bg-[#0037b0]/5 text-[#0037b0] border border-[#0037b0]/8 flex items-center justify-center font-bold text-xl shrink-0 select-none">
                 {getInitials(client.name)}
               </div>
               <div className="min-w-0 flex-1">
-                <h2 className="text-lg font-extrabold tracking-tight text-slate-800 leading-tight truncate pr-16 sm:pr-0">
+                <h2 className="text-lg font-bold tracking-tight text-slate-800 leading-tight truncate pr-16 sm:pr-0">
                   {client.name}
                 </h2>
-                <div className="flex items-center gap-1.5 mt-1 justify-center sm:justify-start">
+                <div className="flex items-center gap-1.5 mt-1 justify-center sm:justify-start flex-wrap">
                   <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", client.isActive ? 'bg-emerald-500' : 'bg-slate-400')} />
-                  <span className={cn("text-xs font-semibold tracking-wide", client.isActive ? 'text-emerald-700' : 'text-slate-500')}>
+                  <span className={cn("text-xs font-semibold tracking-wide mr-2", client.isActive ? 'text-emerald-700' : 'text-slate-500')}>
                     {client.isActive ? 'Active' : 'Inactive'}
                   </span>
+                  {client.clientType && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#0037b0]/5 text-[#0037b0] border border-[#0037b0]/10 shrink-0 select-none">
+                      {client.clientType === 'business' ? 'Business' : 'Individual'}
+                    </span>
+                  )}
                 </div>
               </div>
 

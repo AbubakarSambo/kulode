@@ -254,4 +254,104 @@ export class EmailService {
       `,
     });
   }
+
+  async sendTrialEndingWarningEmail(email: string, firstName: string, daysRemaining: number): Promise<void> {
+    const billingUrl = `${this.frontendUrl}/settings/billing`;
+
+    await this.sendEmail({
+      to: email,
+      subject: `Your TariOne free trial ends in ${daysRemaining} days`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; line-height: 1.6;">
+          <h2 style="color: #0f172a;">Your trial is ending soon</h2>
+          <p>Hi ${firstName},</p>
+          <p>This is a quick friendly reminder that your 30-day free trial of <strong>TariOne</strong> is ending in <strong>${daysRemaining} days</strong>.</p>
+          <p>To ensure uninterrupted access to your invoicing, reports, client list, and expense tracking tools, please select a plan and add a payment method before your trial expires.</p>
+          <div style="margin: 32px 0;">
+            <a href="${billingUrl}" style="background-color: #0f172a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
+              Select a Pricing Plan
+            </a>
+          </div>
+          <p style="color: #64748b; font-size: 14px;">If you choose not to subscribe, your account features will be temporarily locked on day 31, but your data will remain completely safe.</p>
+          <p style="color: #64748b; font-size: 14px;">If you have any questions, simply reply to this email.</p>
+        </div>
+      `,
+    });
+  }
+
+  async sendTrialExpiredEmail(email: string, firstName: string): Promise<void> {
+    const billingUrl = `${this.frontendUrl}/settings/billing`;
+
+    await this.sendEmail({
+      to: email,
+      subject: 'Your TariOne free trial has ended',
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; line-height: 1.6;">
+          <h2 style="color: #dc2626;">Your trial has expired</h2>
+          <p>Hi ${firstName},</p>
+          <p>Your 30-day trial of <strong>TariOne</strong> has officially expired, and your account features have been temporarily locked.</p>
+          <p>Your invoice data, clients, and expenses are completely safe, but you'll need to subscribe to a paid plan to resume creating and managing invoices.</p>
+          <div style="margin: 32px 0;">
+            <a href="${billingUrl}" style="background-color: #0f172a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
+              Choose Plan & Upgrade
+            </a>
+          </div>
+          <p style="color: #64748b; font-size: 14px;">Select the entry-level Starter plan at just ₦4,500/month to get started instantly.</p>
+          <p style="color: #64748b; font-size: 14px;">Thank you for testing TariOne!</p>
+        </div>
+      `,
+    });
+  }
+
+  async sendSubscriptionSuccessEmail(
+    email: string,
+    firstName: string,
+    planTier: string,
+    billingPeriod: string,
+    amount: number,
+    nextBillingDate: string,
+  ): Promise<void> {
+    const billingUrl = `${this.frontendUrl}/settings/billing`;
+    const formattedAmount = new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: 'NGN',
+      minimumFractionDigits: 0,
+    }).format(amount);
+
+    await this.sendEmail({
+      to: email,
+      subject: 'Subscription Activated - TariOne',
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; line-height: 1.6;">
+          <h2 style="color: #16a34a;">Welcome to TariOne!</h2>
+          <p>Hi ${firstName},</p>
+          <p>Thank you! Your subscription to the <strong>TariOne ${planTier}</strong> plan is now active.</p>
+          <div style="background-color: #f8fafc; padding: 16px; border-radius: 6px; margin: 24px 0; border: 1px solid #e2e8f0;">
+            <h4 style="margin: 0 0 12px 0; color: #0f172a;">Receipt Summary</h4>
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+              <tr>
+                <td style="padding: 4px 0; color: #64748b;">Plan:</td>
+                <td style="padding: 4px 0; font-weight: 600; text-align: right; color: #0f172a;">${planTier} (${billingPeriod.toLowerCase()})</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #64748b;">Amount Paid:</td>
+                <td style="padding: 4px 0; font-weight: 600; text-align: right; color: #0f172a;">${formattedAmount}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #64748b;">Next Billing Date:</td>
+                <td style="padding: 4px 0; font-weight: 600; text-align: right; color: #0f172a;">${nextBillingDate}</td>
+              </tr>
+            </table>
+          </div>
+          <p>If you enabled automatic renewals, your card will be charged on each renewal date automatically. You can toggle auto-renewal optionally anytime in your billing settings.</p>
+          <div style="margin: 32px 0;">
+            <a href="${billingUrl}" style="background-color: #0f172a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
+              Go to Billing Settings
+            </a>
+          </div>
+          <p style="color: #64748b; font-size: 14px;">We're excited to have you on board! If you have any feedback or questions, please reach out to us.</p>
+        </div>
+      `,
+    });
+  }
 }

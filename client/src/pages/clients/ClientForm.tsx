@@ -10,6 +10,7 @@ import { clientsApi } from '@/api'
 import { posthog } from '@/lib/posthog'
 import { useOverscrollBounce } from '@/hooks'
 import { HugeiconsIcon } from '@hugeicons/react'
+import { cn } from '@/lib/utils'
 import {
   UserIcon,
   Mail01Icon,
@@ -25,6 +26,7 @@ const clientSchema = z.object({
   phone: z.string().optional(),
   address: z.string().optional(),
   notes: z.string().optional(),
+  clientType: z.enum(['business', 'individual']),
 })
 
 type ClientForm = z.infer<typeof clientSchema>
@@ -43,6 +45,8 @@ export function ClientFormPage({ mode = 'create', initialData }: ClientFormPageP
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<ClientForm>({
     resolver: zodResolver(clientSchema),
@@ -52,8 +56,11 @@ export function ClientFormPage({ mode = 'create', initialData }: ClientFormPageP
       phone: '',
       address: '',
       notes: '',
+      clientType: 'business',
     },
   })
+
+  const clientType = watch('clientType') || 'business'
 
   const createMutation = useMutation({
     mutationFn: (data: ClientForm) => clientsApi.create({
@@ -62,6 +69,7 @@ export function ClientFormPage({ mode = 'create', initialData }: ClientFormPageP
     }),
     onSuccess: (client) => {
       queryClient.invalidateQueries({ queryKey: ['clients'] })
+      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       posthog.capture('client_created', { client_id: client.id })
       toast.success('Client created', { description: `${client.name} has been added` })
       navigate(`/clients/${client.id}`)
@@ -81,6 +89,7 @@ export function ClientFormPage({ mode = 'create', initialData }: ClientFormPageP
     onSuccess: (client) => {
       queryClient.invalidateQueries({ queryKey: ['clients'] })
       queryClient.invalidateQueries({ queryKey: ['clients', initialData!.id] })
+      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       posthog.capture('client_updated', { client_id: client.id })
       toast.success('Client updated', { description: 'Changes have been saved' })
       navigate(`/clients/${client.id}`)
@@ -117,7 +126,37 @@ export function ClientFormPage({ mode = 'create', initialData }: ClientFormPageP
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name" required>Client Name</Label>
+                <Label>Client Type</Label>
+                <div className="flex gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200/40 h-11 items-center w-full">
+                  <button
+                    type="button"
+                    onClick={() => setValue('clientType', 'business')}
+                    className={cn(
+                      "flex-1 h-9 rounded-lg text-xs font-bold transition-all border-0 cursor-pointer",
+                      clientType === 'business'
+                        ? "bg-white text-[#0037b0] shadow-sm"
+                        : "text-slate-400 hover:text-slate-600 bg-transparent"
+                    )}
+                  >
+                    Business / Organization
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setValue('clientType', 'individual')}
+                    className={cn(
+                      "flex-1 h-9 rounded-lg text-xs font-bold transition-all border-0 cursor-pointer",
+                      clientType === 'individual'
+                        ? "bg-white text-[#0037b0] shadow-sm"
+                        : "text-slate-400 hover:text-slate-600 bg-transparent"
+                    )}
+                  >
+                    Individual Client
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="name" required>{clientType === 'business' ? 'Company Name' : 'Client Name'}</Label>
                 <div className="relative flex items-center">
                   <HugeiconsIcon icon={UserIcon} size={16} strokeWidth={1.5} className="absolute left-3.5 text-slate-400 z-10 shrink-0 pointer-events-none" />
                   <Input
@@ -243,6 +282,7 @@ export function EditClientPage() {
         phone: client.phone || '',
         address: client.address || '',
         notes: client.notes || '',
+        clientType: (client.clientType === 'individual' || client.clientType === 'business') ? client.clientType : 'business',
       }}
     />
   )

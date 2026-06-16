@@ -26,6 +26,8 @@
 - **Section headers**: `headline-sm` (1.5rem) paired with `label-md` (0.75rem)
 - **Body copy**: `body-md` in `#434655`
 - **Financial figures**: always `on-surface` (`#121c28`)
+- **Font weights**: Never use `font-black` (900) or `font-extrabold` (800). The maximum allowed weight is `font-bold` (700) for display/headers, and `font-semibold` (600) for subheaders/ui elements.
+
 
 ## Key Rules (Non-Negotiable)
 1. **No 1px solid borders for sectioning** — use background color shifts instead

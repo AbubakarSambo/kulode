@@ -1,5 +1,5 @@
 // Plan types
-export type PlanTier = 'FREE' | 'PRO' | 'BUSINESS'
+export type PlanTier = 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS'
 export type SubscriptionStatus = 'TRIALING' | 'ACTIVE' | 'PAST_DUE' | 'CANCELLED' | 'EXPIRED'
 export type BillingPeriod = 'MONTHLY' | 'ANNUAL'
 
@@ -20,6 +20,7 @@ export interface SubscriptionDetails {
   subscriptionStartDate?: string
   subscriptionEndDate?: string
   isGrandfathered: boolean
+  autoRenew: boolean
   limits: {
     maxUsers: number
     maxInvoicesPerMonth: number
@@ -69,6 +70,8 @@ export interface User {
     taxRate?: number
     logo?: string
     address?: string
+    paymentTerms?: string
+    defaultNotes?: string
   }
 }
 
@@ -151,6 +154,7 @@ export interface Client {
   address?: string
   notes?: string
   isActive: boolean
+  clientType?: 'individual' | 'business' | string
   createdAt: string
   _count?: {
     invoices: number

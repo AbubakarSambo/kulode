@@ -151,6 +151,7 @@ export function InventoryPage() {
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] })
+      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Inventory item created successfully')
       setCreateOpen(false)
       createForm.reset()
@@ -177,6 +178,7 @@ export function InventoryPage() {
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] })
+      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Inventory item updated successfully')
       setEditingItem(null)
     },
@@ -203,6 +205,7 @@ export function InventoryPage() {
     mutationFn: (id: string) => inventoryApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] })
+      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Inventory item deleted successfully')
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -231,6 +234,7 @@ export function InventoryPage() {
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] })
+      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Stock adjusted successfully')
       setAdjustingItem(null)
       adjustForm.reset({ type: 'RESTOCK', quantity: 1, notes: '' })
@@ -265,7 +269,7 @@ export function InventoryPage() {
   return (
     <div className="flex flex-1 flex-col overflow-hidden relative min-h-0">
       <Header
-        title="Inventory"
+        title="Product Inventory"
         description="Track physical goods and stock levels"
         icon={InventoryIcon}
         category="Business Ops"
@@ -732,7 +736,7 @@ export function InventoryPage() {
         ) : (
           <EmptyState
             icon={PackageIcon}
-            title={search ? "No inventory items found" : "No inventory items"}
+            title={search ? "No product inventory items found" : "No product inventory items"}
             description={search ? "Try adjusting your search terms." : "Add physical goods to track stock levels, issue alerts, and manage invoice reservations."}
             actionLabel="Add your first item"
             onAction={() => setCreateOpen(true)}

@@ -17,6 +17,7 @@ import {
   LogOut,
   X,
   Lock,
+  Crown,
   LucideIcon
 } from 'lucide-react'
 import { Sidebar } from './Sidebar'
@@ -35,7 +36,46 @@ export function AppLayout() {
   const location = useLocation()
   const user = useAuthStore((state) => state.user)
   const logout = useLogout()
-  const { hasRequiredPlan } = useSubscription()
+  const { hasRequiredPlan, isExpired } = useSubscription()
+
+  const isBillingPage = location.pathname.startsWith('/settings/billing')
+  const showExpiredGate = isExpired && !isBillingPage
+
+  if (showExpiredGate) {
+    return (
+      <div className="flex h-screen w-screen flex-col items-center justify-center bg-[#090d16] text-white p-6">
+        <div className="relative w-full max-w-md bg-slate-900/60 border border-slate-800/80 rounded-3xl p-8 shadow-[0_24px_50px_rgba(0,0,0,0.4)] backdrop-blur-xl text-center">
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive">
+            <Lock className="h-10 w-10" />
+          </div>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-100 font-sans">Subscription Expired</h2>
+          <p className="mt-3 text-sm text-slate-400 leading-relaxed font-sans">
+            Your TariOne trial or subscription has expired. Don't worry—your invoicing data, client records, and transaction histories are completely safe.
+          </p>
+          <p className="mt-2 text-sm text-slate-400 leading-relaxed font-sans">
+            Please choose a subscription plan to unlock access to your account and continue managing your business.
+          </p>
+          
+          <div className="mt-8 space-y-3">
+            <Link
+              to="/settings/billing"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-[#2563eb] px-6 py-3.5 text-sm font-semibold text-white hover:from-primary/90 hover:to-[#2563eb]/90 active:scale-[0.98] transition-all duration-150 shadow-[0_4px_12px_rgba(0,55,176,0.3)] cursor-pointer font-sans"
+            >
+              <Crown className="h-5 w-5" />
+              Subscribe & Unlock Account
+            </Link>
+            <button
+              onClick={() => logout()}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-950/40 px-6 py-3 text-sm font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-900/60 hover:border-slate-700 transition-colors cursor-pointer font-sans"
+            >
+              <LogOut className="h-4 w-4" />
+              Log Out
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const getPageTitle = () => {
     const path = location.pathname
@@ -45,7 +85,7 @@ export function AppLayout() {
     if (path.startsWith('/payments')) return 'Payments'
     if (path.startsWith('/vendors')) return 'Vendors'
     if (path.startsWith('/expenses')) return 'Expenses'
-    if (path.startsWith('/inventory')) return 'Inventory'
+    if (path.startsWith('/inventory')) return 'Product Inventory'
     if (path.startsWith('/reports')) return 'Reports'
     if (path.startsWith('/tax')) return 'Tax'
     if (path.startsWith('/settings')) return 'Settings'
@@ -65,11 +105,12 @@ export function AppLayout() {
   const moreItems = [
     { name: 'Vendors', href: '/vendors', icon: Store, requiresPlan: 'PRO' as PlanTier, visible: user?.role !== 'STAFF' },
     { name: 'Expenses', href: '/expenses', icon: Receipt, requiresPlan: 'PRO' as PlanTier, visible: user?.role !== 'STAFF' },
-    { name: 'Inventory', href: '/inventory', icon: Package, requiresPlan: 'PRO' as PlanTier },
+    { name: 'Product Inventory', href: '/inventory', icon: Package, requiresPlan: 'PRO' as PlanTier },
     { name: 'Services', href: '/settings/services', icon: Wrench },
     { name: 'Reports', href: '/reports', icon: BarChart3, requiresPlan: 'PRO' as PlanTier, visible: canViewReports },
     { name: 'Tax', href: '/tax', icon: BookOpen, requiresPlan: 'PRO' as PlanTier, visible: user?.role !== 'STAFF' },
     { name: 'Settings', href: '/settings', icon: Settings, visible: isAdmin },
+    { name: 'Billing & Plans', href: '/settings/billing', icon: CreditCard, visible: isAdmin },
   ].filter((item) => item.visible !== false) as Array<{ name: string; href: string; icon: LucideIcon; requiresPlan?: PlanTier; visible?: boolean }>
 
   const isHideMobileNav = location.pathname.includes('/new') || 

@@ -25,6 +25,7 @@ function createMockPrisma() {
     },
     user: {
       count: jest.fn(),
+      findFirst: jest.fn(),
     },
     subscriptionPayment: {
       findUnique: jest.fn(),
@@ -76,6 +77,9 @@ describe('SubscriptionService', () => {
           provide: EmailService,
           useValue: {
             sendRenewalFailedEmail: jest.fn().mockResolvedValue({}),
+            sendTrialEndingWarningEmail: jest.fn().mockResolvedValue({}),
+            sendTrialExpiredEmail: jest.fn().mockResolvedValue({}),
+            sendSubscriptionSuccessEmail: jest.fn().mockResolvedValue({}),
           },
         },
       ],
@@ -282,10 +286,10 @@ describe('SubscriptionService', () => {
       expect(result.reference).toBe('SUB-org-1234-12345');
       expect(result.accessCode).toBe('access123');
 
-      // Verify the correct amount was sent (9900 * 100 = 990000 kobo)
+      // Verify the correct amount was sent (12500 * 100 = 1250000 kobo)
       const fetchCall = mockFetch.mock.calls[0];
       const body = JSON.parse(fetchCall[1].body);
-      expect(body.amount).toBe(990000);
+      expect(body.amount).toBe(1250000);
       expect(body.email).toBe('user@test.com');
       expect(body.metadata.type).toBe('subscription');
       expect(body.metadata.plan_tier).toBe('PRO');
@@ -310,7 +314,7 @@ describe('SubscriptionService', () => {
       expect(result.paymentUrl).toBe('https://paystack.com/pay/xyz');
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body.amount).toBe(24999000); // 249990 * 100 kobo
+      expect(body.amount).toBe(29500000); // 295000 * 100 kobo
     });
 
     it('should throw if Paystack initialization fails', async () => {
@@ -562,16 +566,13 @@ describe('SubscriptionService', () => {
 
   describe('checkAndExpireTrials', () => {
     it('should expire trialing orgs past their trial end date', async () => {
-      prisma.organization.updateMany.mockResolvedValue({ count: 3 });
+      prisma.organization.findMany.mockResolvedValue([{ id: 'org-1' }, { id: 'org-2' }]);
+      prisma.organization.updateMany.mockResolvedValue({ count: 2 });
 
       await service.checkAndExpireTrials();
 
       expect(prisma.organization.updateMany).toHaveBeenCalledWith({
-        where: {
-          subscriptionStatus: 'TRIALING',
-          trialEndDate: { lt: expect.any(Date) },
-          isGrandfathered: false,
-        },
+        where: { id: { in: ['org-1', 'org-2'] } },
         data: {
           planTier: 'FREE',
           subscriptionStatus: 'EXPIRED',
@@ -580,11 +581,12 @@ describe('SubscriptionService', () => {
     });
 
     it('should not affect grandfathered orgs', async () => {
-      prisma.organization.updateMany.mockResolvedValue({ count: 0 });
+      prisma.organization.findMany.mockResolvedValue([{ id: 'org-1' }]);
+      prisma.organization.updateMany.mockResolvedValue({ count: 1 });
 
       await service.checkAndExpireTrials();
 
-      const call = prisma.organization.updateMany.mock.calls[0][0];
+      const call = prisma.organization.findMany.mock.calls[0][0];
       expect(call.where.isGrandfathered).toBe(false);
     });
   });

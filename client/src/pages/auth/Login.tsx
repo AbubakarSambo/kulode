@@ -14,6 +14,7 @@ import {
   CardContent,
   CardFooter,
 } from "@/components/ui";
+import { Logo } from "@/components/shared";
 import { useLogin, useResendVerification } from "@/hooks";
 import { posthog } from "@/lib/posthog";
 import { Mail, MessageCircle, Pointer, ArrowLeft, Eye, EyeOff } from "lucide-react";
@@ -96,7 +97,7 @@ export function LoginPage() {
         
         {/* Logo */}
         <div className="relative z-10 flex items-center gap-3">
-          <img src="/logo-white.png" alt="Tari1 Logo" className="h-11 w-auto" />
+          <Logo variant="inverted" className="h-11 w-auto" />
         </div>
         
         {/* Center Content & Animated Mockups */}
@@ -189,7 +190,7 @@ export function LoginPage() {
         <Card className={`w-full max-w-md border border-slate-200/60 shadow-[0_20px_50px_rgba(0,55,176,0.06)] bg-white rounded-[32px] p-2 transition-transform duration-300 ${overscrollActive ? "animate-rubber-bottom" : ""}`}>
           <CardHeader className="text-center pb-4 pt-6">
             <div className="mb-4 lg:hidden flex justify-center">
-              <img src="/logo.svg" alt="Tari1 Logo" className="h-10 w-auto" />
+              <Logo className="h-10 w-auto" />
             </div>
             <CardTitle className="text-2xl font-black text-slate-900 tracking-tight">Welcome back</CardTitle>
             <CardDescription className="text-xs text-slate-500 mt-1">Sign in to your account to continue</CardDescription>

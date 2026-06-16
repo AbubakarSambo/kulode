@@ -48,6 +48,7 @@ enum StockMovementType {
 
 enum PlanTier {
   FREE
+  STARTER
   PRO
   BUSINESS
 }
@@ -203,6 +204,7 @@ model Client {
   address        String?
   notes          String?
   isActive       Boolean @default(true) @map("is_active")
+  clientType     String? @default("business") @map("client_type")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -240,11 +242,12 @@ model Invoice {
   terms           String?
   
   // Paystack payment link
-  paystackReference  String?   @unique @map("paystack_reference")
-  paystackAccessCode String?   @map("paystack_access_code")
-  paymentUrl         String?   @map("payment_url")
-  paystackPaidAt     DateTime? @map("paystack_paid_at")
-  paystackChannel    String?   @map("paystack_channel")
+  paystackReference        String?   @unique @map("paystack_reference")
+  paystackAccessCode       String?   @map("paystack_access_code")
+  paymentUrl               String?   @map("payment_url")
+  paystackTokenGeneratedAt DateTime? @map("paystack_token_generated_at")
+  paystackPaidAt           DateTime? @map("paystack_paid_at")
+  paystackChannel          String?   @map("paystack_channel")
   
   // Attached image (e.g. signed document, proof of work)
   imageUrl           String?   @map("image_url")
@@ -286,9 +289,10 @@ model PaymentInstallment {
   paidAt      DateTime? @map("paid_at")
   
   // Paystack payment link for this installment
-  paystackReference  String?  @unique @map("paystack_reference")
-  paystackAccessCode String?  @map("paystack_access_code")
-  paymentUrl         String?  @map("payment_url")
+  paystackReference        String?   @unique @map("paystack_reference")
+  paystackAccessCode       String?   @map("paystack_access_code")
+  paymentUrl               String?   @map("payment_url")
+  paystackTokenGeneratedAt DateTime? @map("paystack_token_generated_at")
   
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -547,3 +551,15 @@ model TaxReportLog {
   @@index([organizationId])
   @@map("tax_report_logs")
 }
+
+// Shortened links mapping table
+model ShortLink {
+  id        String    @id @default(uuid())
+  slug      String    @unique
+  targetUrl String    @map("target_url")
+  createdAt DateTime  @default(now()) @map("created_at")
+  expiresAt DateTime? @map("expires_at")
+
+  @@map("short_links")
+}
+

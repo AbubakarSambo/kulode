@@ -11,6 +11,7 @@ export class SubscriptionCron {
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async handleExpiry() {
     this.logger.log('Running daily subscription expiry check...');
+    await this.subscriptionService.sendTrialWarnings();
     await this.subscriptionService.checkAndExpireTrials();
     await this.subscriptionService.checkAndExpireSubscriptions();
     this.logger.log('Subscription expiry check complete.');

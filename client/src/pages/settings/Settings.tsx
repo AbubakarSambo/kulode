@@ -1,7 +1,7 @@
 import { Header } from '@/components/layout'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui'
 import { Link } from 'react-router-dom'
-import { Building, Users, CreditCard, Tags, Crown } from 'lucide-react'
+import { Building, Users, CreditCard, Tags } from 'lucide-react'
 import { useSubscription } from '@/hooks/useSubscription'
 import { useOverscrollBounce } from '@/hooks'
 
@@ -21,12 +21,6 @@ export function SettingsPage() {
       description: 'Manage team members and roles',
       icon: Users,
       href: '/settings/users',
-    },
-    {
-      title: 'Billing & Plans',
-      description: 'Manage your subscription and billing',
-      icon: Crown,
-      href: '/settings/billing',
     },
     {
       title: 'Paystack',

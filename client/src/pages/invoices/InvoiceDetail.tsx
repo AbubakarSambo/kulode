@@ -17,11 +17,13 @@ import {
   Share02Icon,
   Download02Icon,
   AlertDiamondIcon,
+
   Notification03Icon,
   Copy01Icon,
   ArrowDown01Icon,
   Invoice03Icon,
   ArrowLeft02Icon,
+  MoreVerticalIcon,
 } from '@hugeicons/core-free-icons'
 
 function MailIcon({ className }: { className?: string }) {
@@ -41,8 +43,18 @@ function WhatsAppIcon({ className }: { className?: string }) {
   )
 }
 
+function MenuIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="4" y1="18" x2="16" y2="18" />
+    </svg>
+  )
+}
+
 import { Header } from '@/components/layout'
-import { Button, Input, Label, Select, Textarea, Card, CardContent, CardHeader, CardTitle, ConfirmDialog } from '@/components/ui'
+import { Button, Input, Label, Select, Textarea, Card, CardContent, CardHeader, CardTitle, ConfirmDialog, DropdownPanel } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { invoicesApi, paymentsApi, organizationsApi } from '@/api'
 import apiClient from '@/api/client'
@@ -51,7 +63,6 @@ import { formatCurrency, formatDate, cn, formatAmountInput, parseAmountInput } f
 import { posthog } from '@/lib/posthog'
 import type { InvoiceStatus, PaymentMethod } from '@/types'
 import { useAuthStore } from '@/stores/auth'
-import { useOverscrollBounce } from '@/hooks'
 
 
 const renderStatusPill = (status: InvoiceStatus) => {
@@ -119,12 +130,11 @@ export function InvoiceDetailPage() {
   const [linkAmountStr, setLinkAmountStr] = useState('')
   const [recordAmountStr, setRecordAmountStr] = useState('')
   const [downloadingReceiptId, setDownloadingReceiptId] = useState<string | null>(null)
-  const [isSharing, setIsSharing] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(true)
   const [lifecycleOpen, setLifecycleOpen] = useState(false)
   const [isFabMenuOpen, setIsFabMenuOpen] = useState(false)
-  const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
+  const [isMoreDropdownOpen, setIsMoreDropdownOpen] = useState(false)
 
   const { data: invoice, isLoading } = useQuery({
     queryKey: ['invoices', id],
@@ -133,7 +143,7 @@ export function InvoiceDetailPage() {
     staleTime: 30_000,
   })
 
-  const outstanding = invoice ? Number(invoice.total) - Number(invoice.amountPaid) : 0
+  const outstanding = invoice ? Math.max(0, Number(invoice.total) - Number(invoice.amountPaid)) : 0
 
   const { data: organization } = useQuery({
     queryKey: ['organization'],
@@ -321,11 +331,13 @@ export function InvoiceDetailPage() {
   const hasPaymentLink = !!invoice.paymentUrl
 
   const copyPaymentLink = () => {
-    const url = invoice.paymentUrl
-    if (url) {
-      navigator.clipboard.writeText(url)
+    if (invoice?.shareToken) {
+      const publicUrl = `${window.location.origin}/i/${invoice.shareToken}`
+      navigator.clipboard.writeText(publicUrl)
       posthog.capture('payment_link_copied', { invoice_id: id })
-      toast.success('Payment link copied to clipboard')
+      toast.success('Invoice link copied to clipboard')
+    } else {
+      toast.error('Invoice is in DRAFT. Please mark as sent first.')
     }
   }
 
@@ -349,40 +361,62 @@ export function InvoiceDetailPage() {
     }
   }
 
-  const shareInvoice = async () => {
-    setIsSharing(true)
-    try {
-      const response = await apiClient.get(`/invoices/${id}/pdf`, { responseType: 'blob' })
-      const blob = new Blob([response.data], { type: 'application/pdf' })
-      const file = new File([blob], `${invoice.invoiceNumber}.pdf`, { type: 'application/pdf' })
-
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: `Invoice ${invoice.invoiceNumber}` })
-      } else {
-        const url = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = `${invoice.invoiceNumber}.pdf`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        window.URL.revokeObjectURL(url)
-      }
-
-      posthog.capture('invoice_shared', { invoice_id: id })
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') return
-      toast.error('Failed to share invoice')
-    } finally {
-      setIsSharing(false)
-    }
-  }
-
-  const shareWhatsApp = () => {
+  const shareWhatsApp = async () => {
     if (!invoice) return
-    const text = `Hello! Here is invoice ${invoice.invoiceNumber} for ${formatCurrency(invoice.total)}.${invoice.paymentUrl ? ` You can pay online here: ${invoice.paymentUrl}` : ''}`
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank')
+    const baseOrigin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+      ? 'https://pay.tarione.com'
+      : window.location.origin
+    const publicUrl = invoice.shareToken ? `${baseOrigin}/i/${invoice.shareToken}` : null
+    let displayUrl = publicUrl
+    if (publicUrl) {
+      try {
+        const res = await apiClient.get<{ url: string }>('/invoices/public/shorten', { params: { url: publicUrl } })
+        if (res.data && res.data.url) {
+          displayUrl = res.data.url
+        }
+      } catch {
+        // fallback
+      }
+    }
+
+    const orgName = organization?.name || 'Us'
+    const dueStr = invoice.dueDate ? formatDate(invoice.dueDate) : 'soon'
+    const clientGreeting = invoice.client?.name ? `Hi ${invoice.client.name.split(' ')[0]}` : 'Hi there'
+
+    const lines = [
+      `${clientGreeting} 👋`,
+      ``,
+      `Please find your invoice from *${orgName}* below:`,
+      ``,
+      `📄 *Invoice:* ${invoice.invoiceNumber}`,
+      `💰 *Amount Due:* ${formatCurrency(invoice.total)}`,
+      `📅 *Due Date:* ${dueStr}`,
+      ...(displayUrl ? [
+        ``,
+        `🔗 *View & Pay Online:*`,
+        displayUrl,
+        ``,
+        `Via the link above you can:`,
+        `✅ View the full invoice details`,
+        `🏦 Pay by *bank transfer* (recommended — no card needed)`,
+        `💳 Or pay by *card* via Paystack`,
+        `📥 Download your invoice or receipt`,
+        ``,
+        `If you have any questions, feel free to reach out. Thank you for your business! 🙏`,
+      ] : [
+        ``,
+        `Please reach out to process your payment.`,
+      ])
+    ]
+
+    const text = lines.join('\n')
+    const cleanPhone = invoice.client?.phone ? invoice.client.phone.replace(/\D/g, '') : ''
+    const url = cleanPhone
+      ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`
+    window.open(url, '_blank')
   }
+
 
   const downloadReceipt = async (paymentId: string) => {
     setDownloadingReceiptId(paymentId)
@@ -463,7 +497,7 @@ export function InvoiceDetailPage() {
       {/* Document Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-8 mt-2 pb-6 border-b border-[#eef4ff]/40">
         <div>
-          <h2 className="text-sm font-extrabold tracking-tight text-slate-800 uppercase">
+          <h2 className="text-sm font-bold tracking-tight text-slate-800 uppercase">
             {organization?.name || 'Acme Corporation'}
           </h2>
           <p className="text-[11px] text-slate-400 mt-1">Corporate Invoice</p>
@@ -586,7 +620,7 @@ export function InvoiceDetailPage() {
                   <td className="py-2 text-left sm:text-right text-xs font-bold uppercase tracking-wider sm:pr-32">Paid</td>
                   <td className="py-2 text-right text-sm font-bold tabular-nums w-32">-{formatCurrency(invoice.amountPaid)}</td>
                 </tr>
-                <tr className="font-extrabold border-t border-dashed border-slate-200">
+                <tr className="font-bold border-t border-dashed border-slate-200">
                   <td className="py-3 text-left sm:text-right text-xs font-bold uppercase tracking-wider text-slate-700 sm:pr-32">Balance Due</td>
                   <td className="py-3 text-right text-base font-bold text-slate-900 tabular-nums w-32">{formatCurrency(outstanding)}</td>
                 </tr>
@@ -612,90 +646,293 @@ export function InvoiceDetailPage() {
         title={invoice.invoiceNumber}
         description={`Invoice for ${invoice.client.name}`}
         category={
-          <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
+          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
             <Link to="/invoices" className="hover:text-[#0037b0] transition-colors">Invoices</Link>
             <span className="text-slate-300">/</span>
             <span className="text-[#0037b0]">Detail</span>
           </div>
         }
         action={
-          <div className="flex flex-wrap gap-2">
-            {invoice.status !== 'DRAFT' && (
-              <Button variant="outline" onClick={shareInvoice} isLoading={isSharing} className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">
-                {!isSharing && <WhatsAppIcon className="mr-2 h-4 w-4" />}
-                Share
-              </Button>
-            )}
-            <Button variant="outline" onClick={downloadPdf} className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">
-              <HugeiconsIcon icon={Download02Icon} size={16} className="mr-2" strokeWidth={1.5} />
-              PDF
-            </Button>
-            {canGenerateLink && !hasPaymentLink && (
-              <Button onClick={() => setIsPaymentLinkModalOpen(true)} className="h-10 px-4 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white shadow-[0px_4px_12px_rgba(0,55,176,0.15)] hover:opacity-95">
-                <HugeiconsIcon icon={Link02Icon} size={16} className="mr-2" strokeWidth={1.5} />
-                Generate Payment Link
-              </Button>
-            )}
-            {hasPaymentLink && (
-              <>
-                <Button variant="outline" onClick={copyPaymentLink} className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">
-                  <HugeiconsIcon icon={CopyIcon} size={16} className="mr-2" strokeWidth={1.5} />
-                  Copy Link
-                </Button>
-                <a href={invoice.paymentUrl} target="_blank" rel="noopener noreferrer">
-                  <Button variant="outline" className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">
-                    <HugeiconsIcon icon={Share02Icon} size={16} className="mr-2" strokeWidth={1.5} />
-                    Open Link
-                  </Button>
-                </a>
-              </>
-            )}
-            {canRecordPayment && (
-              <Button onClick={openPaymentModal} className="h-10 px-4 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white shadow-[0px_4px_12px_rgba(0,55,176,0.15)] hover:opacity-95">
-                <HugeiconsIcon icon={PlusSignIcon} size={16} className="mr-2" strokeWidth={1.5} />
-                Record Payment
-              </Button>
-            )}
+          <div className="flex items-center gap-2">
             {canSend && (
-              <Button variant="outline" onClick={() => sendMutation.mutate()} className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">
+              <Button 
+                onClick={() => sendMutation.mutate()} 
+                className="h-10 px-4 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white shadow-[0px_4px_12px_rgba(0,55,176,0.15)] hover:opacity-95 text-xs font-semibold select-none"
+              >
                 <HugeiconsIcon icon={SentIcon} size={16} className="mr-2" strokeWidth={1.5} />
                 Mark as Sent
               </Button>
             )}
-            {(invoice.status === 'SENT' || invoice.status === 'OVERDUE') && (
-              <Button variant="outline" onClick={() => reminderMutation.mutate()} isLoading={reminderMutation.isPending} className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">
-                {!reminderMutation.isPending && <HugeiconsIcon icon={Notification03Icon} size={16} className="mr-2" strokeWidth={1.5} />}
-                Send Reminder
+            {canRecordPayment && (
+              <Button 
+                onClick={openPaymentModal} 
+                className="h-10 px-4 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white shadow-[0px_4px_12px_rgba(0,55,176,0.15)] hover:opacity-95 text-xs font-semibold select-none"
+              >
+                <HugeiconsIcon icon={PlusSignIcon} size={16} className="mr-2" strokeWidth={1.5} />
+                Record Payment
               </Button>
             )}
-            <Button variant="outline" onClick={() => duplicateMutation.mutate()} isLoading={duplicateMutation.isPending} className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors">
-              {!duplicateMutation.isPending && <HugeiconsIcon icon={Copy01Icon} size={16} className="mr-2" strokeWidth={1.5} />}
-              Duplicate
+            <Button 
+              variant="outline" 
+              onClick={downloadPdf} 
+              className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors text-xs font-semibold"
+            >
+              <HugeiconsIcon icon={Download02Icon} size={16} className="mr-2" strokeWidth={1.5} />
+              PDF
             </Button>
-            {canCancel && (
-              <Button variant="outline" onClick={() => cancelMutation.mutate()} className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-rose-600 hover:text-rose-700 transition-colors">
-                <HugeiconsIcon icon={Cancel01Icon} size={16} className="mr-2" strokeWidth={1.5} />
-                Cancel
+            {invoice.status !== 'DRAFT' && (
+              <Button 
+                variant="outline" 
+                onClick={shareWhatsApp} 
+                className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors text-xs font-semibold"
+              >
+                <WhatsAppIcon className="mr-2 h-4 w-4" />
+                Share
               </Button>
             )}
-            {canDelete && (
-              <Button variant="outline" onClick={handleDelete} className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-rose-600 hover:text-rose-700 transition-colors">
-                <HugeiconsIcon icon={Delete02Icon} size={16} className="mr-2" strokeWidth={1.5} />
-                Delete
+
+            <div className="relative inline-block text-left">
+              <Button
+                variant="outline"
+                onClick={() => setIsMoreDropdownOpen(!isMoreDropdownOpen)}
+                className="h-10 w-10 p-0 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors flex items-center justify-center cursor-pointer"
+                aria-label="More actions"
+              >
+                <HugeiconsIcon icon={MoreVerticalIcon} size={16} strokeWidth={1.5} />
               </Button>
-            )}
+
+              <DropdownPanel
+                isOpen={isMoreDropdownOpen}
+                onClose={() => setIsMoreDropdownOpen(false)}
+                align="right"
+                widthClass="w-56"
+                zIndexClass="z-50"
+              >
+                {canGenerateLink && !hasPaymentLink && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMoreDropdownOpen(false)
+                      setIsPaymentLinkModalOpen(true)
+                    }}
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <HugeiconsIcon icon={Link02Icon} size={14} strokeWidth={1.5} />
+                    Generate Payment Link
+                  </button>
+                )}
+
+                {invoice.status !== 'DRAFT' && invoice.shareToken && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMoreDropdownOpen(false)
+                        copyPaymentLink()
+                      }}
+                      className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
+                    >
+                      <HugeiconsIcon icon={CopyIcon} size={14} strokeWidth={1.5} />
+                      Copy Link
+                    </button>
+                    <a
+                      href={`/i/${invoice.shareToken}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
+                      onClick={() => setIsMoreDropdownOpen(false)}
+                    >
+                      <HugeiconsIcon icon={Share02Icon} size={14} strokeWidth={1.5} />
+                      Open Link
+                    </a>
+                  </>
+                )}
+
+                {(invoice.status === 'SENT' || invoice.status === 'OVERDUE') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMoreDropdownOpen(false)
+                      reminderMutation.mutate()
+                    }}
+                    disabled={reminderMutation.isPending}
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <HugeiconsIcon icon={Notification03Icon} size={14} strokeWidth={1.5} />
+                    Send Reminder
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMoreDropdownOpen(false)
+                    duplicateMutation.mutate()
+                  }}
+                  disabled={duplicateMutation.isPending}
+                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
+                >
+                  <HugeiconsIcon icon={Copy01Icon} size={14} strokeWidth={1.5} />
+                  Duplicate
+                </button>
+
+                {canCancel && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMoreDropdownOpen(false)
+                      cancelMutation.mutate()
+                    }}
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-rose-600 hover:bg-rose-50 transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={1.5} />
+                    Cancel Invoice
+                  </button>
+                )}
+
+                {canDelete && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMoreDropdownOpen(false)
+                      handleDelete()
+                    }}
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-rose-600 hover:bg-rose-50 transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <HugeiconsIcon icon={Delete02Icon} size={14} strokeWidth={1.5} />
+                    Delete Invoice
+                  </button>
+                )}
+              </DropdownPanel>
+            </div>
           </div>
         }
       />
 
-      <div ref={scrollContainerRef} className="flex-1 overflow-auto p-4 sm:p-6">
+      <div className="flex-1 overflow-auto p-4 sm:p-6">
         <div className="mx-auto max-w-7xl">
-          {/* Mobile Back Navigation */}
-          <div className="flex items-center justify-between mb-4 sm:hidden">
-            <Link to="/invoices" className="inline-flex items-center text-xs font-bold text-[#0037b0] hover:underline gap-1 min-h-[44px]">
+          {/* Mobile Back Navigation & Actions Header */}
+          <div className="flex items-center justify-between mb-4 sm:hidden relative z-30">
+            <Link to="/invoices" className="inline-flex items-center text-xs font-semibold text-[#0037b0] hover:underline gap-1 min-h-[44px]">
               <HugeiconsIcon icon={ArrowLeft02Icon} size={16} />
               Back to Invoices
             </Link>
+
+            <div className="relative inline-block text-left">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsMoreDropdownOpen(!isMoreDropdownOpen)}
+                className="h-9 w-9 p-0 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors flex items-center justify-center cursor-pointer"
+                aria-label="More actions"
+              >
+                <HugeiconsIcon icon={MoreVerticalIcon} size={15} strokeWidth={1.5} />
+              </Button>
+
+              <DropdownPanel
+                isOpen={isMoreDropdownOpen}
+                onClose={() => setIsMoreDropdownOpen(false)}
+                align="right"
+                widthClass="w-52"
+                zIndexClass="z-50"
+              >
+                {canGenerateLink && !hasPaymentLink && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMoreDropdownOpen(false)
+                      setIsPaymentLinkModalOpen(true)
+                    }}
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <HugeiconsIcon icon={Link02Icon} size={14} strokeWidth={1.5} />
+                    Generate Payment Link
+                  </button>
+                )}
+
+                {invoice.status !== 'DRAFT' && invoice.shareToken && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMoreDropdownOpen(false)
+                        copyPaymentLink()
+                      }}
+                      className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
+                    >
+                      <HugeiconsIcon icon={CopyIcon} size={14} strokeWidth={1.5} />
+                      Copy Link
+                    </button>
+                    <a
+                      href={`/i/${invoice.shareToken}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
+                      onClick={() => setIsMoreDropdownOpen(false)}
+                    >
+                      <HugeiconsIcon icon={Share02Icon} size={14} strokeWidth={1.5} />
+                      Open Link
+                    </a>
+                  </>
+                )}
+
+                {(invoice.status === 'SENT' || invoice.status === 'OVERDUE') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMoreDropdownOpen(false)
+                      reminderMutation.mutate()
+                    }}
+                    disabled={reminderMutation.isPending}
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <HugeiconsIcon icon={Notification03Icon} size={14} strokeWidth={1.5} />
+                    Send Reminder
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMoreDropdownOpen(false)
+                    duplicateMutation.mutate()
+                  }}
+                  disabled={duplicateMutation.isPending}
+                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
+                >
+                  <HugeiconsIcon icon={Copy01Icon} size={14} strokeWidth={1.5} />
+                  Duplicate
+                </button>
+
+                {canCancel && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMoreDropdownOpen(false)
+                      cancelMutation.mutate()
+                    }}
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-rose-600 hover:bg-rose-50 transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={1.5} />
+                    Cancel Invoice
+                  </button>
+                )}
+
+                {canDelete && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMoreDropdownOpen(false)
+                      handleDelete()
+                    }}
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-rose-600 hover:bg-rose-50 transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <HugeiconsIcon icon={Delete02Icon} size={14} strokeWidth={1.5} />
+                    Delete Invoice
+                  </button>
+                )}
+              </DropdownPanel>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -717,7 +954,7 @@ export function InvoiceDetailPage() {
                   <span className="tracking-wider text-[10px] font-bold text-slate-400">INVOICE SHEET DETAILS</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="font-extrabold text-slate-700 text-xs">{formatCurrency(invoice.total)}</span>
+                  <span className="font-bold text-slate-700 text-xs">{formatCurrency(invoice.total)}</span>
                   <HugeiconsIcon
                     icon={ArrowDown01Icon}
                     size={16}
@@ -737,52 +974,14 @@ export function InvoiceDetailPage() {
             {/* RIGHT COLUMN: WORKSPACE SIDEBAR PANEL - Sits 1st on mobile */}
             <div className="lg:col-span-4 order-1 lg:order-2 space-y-6">
               {/* Ledger Summary Stats (Permanently visible at the top) */}
-              <div className="bg-white rounded-3xl p-6 shadow-[0px_12px_32px_rgba(0,55,176,0.08)] border border-[#eef4ff]/50 space-y-4 relative">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2 pr-44 sm:pr-0">
+              <div className="bg-gradient-to-br from-white to-[#f8f9ff]/50 rounded-3xl p-6 shadow-[0px_12px_32px_rgba(0,55,176,0.06)] border border-[#0037b0]/8 space-y-4 relative overflow-hidden">
+                {/* Background radial glow */}
+                <div className="absolute -top-16 -right-16 w-32 h-32 rounded-full bg-[#0037b0]/5 blur-2xl pointer-events-none" />
+
+                <h3 className="text-xs font-bold uppercase tracking-widest text-[#0037b0]/80 flex items-center gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-[#0037b0]" />
                   Ledger Overview
                 </h3>
-
-                {/* Mobile Actions Group (Visible only on mobile, placed inside Ledger Overview for instant reach) */}
-                <div className="absolute right-4 top-4 flex items-center gap-1.5 sm:hidden">
-                  {hasPaymentLink ? (
-                    <button
-                      onClick={copyPaymentLink}
-                      className="w-8 h-8 rounded-full bg-background border border-[#eef4ff] text-[#0037b0] flex items-center justify-center shadow-sm cursor-pointer"
-                      title="Copy Link"
-                    >
-                      <HugeiconsIcon icon={CopyIcon} size={14} strokeWidth={1.5} />
-                    </button>
-                  ) : (
-                    canGenerateLink && (
-                      <button
-                        onClick={() => setIsPaymentLinkModalOpen(true)}
-                        className="w-8 h-8 rounded-full bg-background border border-[#eef4ff] text-[#0037b0] flex items-center justify-center shadow-sm cursor-pointer"
-                        title="Generate Link"
-                      >
-                        <HugeiconsIcon icon={Link02Icon} size={14} strokeWidth={1.5} />
-                      </button>
-                    )
-                  )}
-                  {canCancel && (
-                    <button
-                      onClick={() => cancelMutation.mutate()}
-                      className="w-8 h-8 rounded-full bg-background border border-amber-100 text-amber-600 flex items-center justify-center shadow-sm cursor-pointer"
-                      title="Cancel"
-                    >
-                      <HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={1.5} />
-                    </button>
-                  )}
-                  {canDelete && (
-                    <button
-                      onClick={handleDelete}
-                      className="w-8 h-8 rounded-full bg-background border border-rose-100 text-rose-600 flex items-center justify-center shadow-sm cursor-pointer"
-                      title="Delete"
-                    >
-                      <HugeiconsIcon icon={Delete02Icon} size={14} strokeWidth={1.5} />
-                    </button>
-                  )}
-                </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-background/50 p-4 rounded-2xl border border-[#eef4ff]/30">
@@ -846,7 +1045,7 @@ export function InvoiceDetailPage() {
               {/* Payments Ledger Card */}
               <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.08)] bg-white rounded-[24px]">
                 <CardHeader className="p-6 border-b border-[#eef4ff]/30">
-                  <CardTitle className="flex items-center gap-2 text-base font-extrabold text-slate-900">
+                  <CardTitle className="flex items-center gap-2 text-base font-bold text-slate-900">
                     <HugeiconsIcon icon={CreditCardIcon} size={18} strokeWidth={1.5} className="text-[#0037b0]" />
                     Payments
                   </CardTitle>
@@ -976,22 +1175,6 @@ export function InvoiceDetailPage() {
             </button>
           </div>
 
-          {/* Action: Share PDF File */}
-          <div className="flex items-center gap-2.5">
-            <span className="bg-slate-900/80 text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-sm">
-              Share PDF
-            </span>
-            <button 
-              onClick={() => {
-                setIsFabMenuOpen(false)
-                shareInvoice()
-              }} 
-              className="w-11 h-11 rounded-full bg-indigo-500 text-white flex items-center justify-center shadow-md active:scale-95 transition-transform cursor-pointer"
-              aria-label="Share PDF"
-            >
-              <HugeiconsIcon icon={Share02Icon} size={18} strokeWidth={1.5} />
-            </button>
-          </div>
         </div>
 
         {/* Main Trigger Button */}
@@ -1000,12 +1183,16 @@ export function InvoiceDetailPage() {
           className="w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all z-40 cursor-pointer"
           aria-label="Toggle Actions Menu"
         >
-          <HugeiconsIcon 
-            icon={isFabMenuOpen ? Cancel01Icon : PlusSignIcon} 
-            size={24} 
-            strokeWidth={1.5} 
-            className={cn("transition-transform duration-200", isFabMenuOpen && "rotate-90")}
-          />
+          {isFabMenuOpen ? (
+            <HugeiconsIcon 
+              icon={Cancel01Icon} 
+              size={24} 
+              strokeWidth={1.5} 
+              className="transition-transform duration-200 rotate-90"
+            />
+          ) : (
+            <MenuIcon className="h-6 w-6" />
+          )}
         </button>
       </div>
 

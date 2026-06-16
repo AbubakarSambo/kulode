@@ -41,6 +41,7 @@ export function OrganizationPage() {
     mutationFn: (file: File) => organizationsApi.uploadLogo(file),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organization'] })
+      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Logo uploaded')
     },
     onError: () => toast.error('Failed to upload logo'),
@@ -50,6 +51,7 @@ export function OrganizationPage() {
     mutationFn: () => organizationsApi.removeLogo(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organization'] })
+      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Logo removed')
     },
     onError: () => toast.error('Failed to remove logo'),
@@ -108,6 +110,7 @@ export function OrganizationPage() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organization'] })
+      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Organization settings saved')
     },
     onError: (error: any) => {

@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Body,
+  Patch,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { SubscriptionService } from './subscription.service';
@@ -37,6 +38,17 @@ export class SubscriptionController {
       dto.billingPeriod,
       email,
     );
+  }
+
+  @Patch('auto-renew')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'Toggle subscription auto-renewal' })
+  @ApiResponse({ status: 200, description: 'Auto-renew status updated' })
+  async toggleAutoRenew(
+    @Body('enabled') enabled: boolean,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.subscriptionService.toggleAutoRenew(organizationId, enabled);
   }
 
   @Post('cancel')

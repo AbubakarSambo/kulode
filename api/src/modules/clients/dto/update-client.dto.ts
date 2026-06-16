@@ -33,4 +33,10 @@ export class UpdateClientDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({ example: 'business' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  clientType?: string;
 }

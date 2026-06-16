@@ -53,6 +53,7 @@ function CreateClientModal({
       clientsApi.create({ name: name.trim(), email: email.trim() || undefined, phone: phone.trim() || undefined }),
     onSuccess: (client) => {
       queryClient.invalidateQueries({ queryKey: ['clients'] })
+      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       posthog.capture('client_created', { client_id: client.id, source: 'invoice_form_modal' })
       toast.success('Client created', { description: `${client.name} has been added` })
       onSuccess(client.id)
@@ -203,6 +204,7 @@ function CreateItemModal({
       invoicesApi.createServiceItem({ name: name.trim(), unitPrice: parseFloat(price) }),
     onSuccess: (item) => {
       queryClient.invalidateQueries({ queryKey: ['service-items'] })
+      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Service created', { description: item.name })
       onSuccess({ kind: 'service', id: item.id, item })
       onClose()
@@ -221,6 +223,7 @@ function CreateItemModal({
     },
     onSuccess: (item) => {
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] })
+      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Product created', { description: item.name })
       onSuccess({ kind: 'inventory', id: item.id, item })
       onClose()
@@ -1104,6 +1107,23 @@ export function NewInvoicePage() {
     name: 'installments',
   })
 
+  // Automatically check and rename split items consistently (Payment 1, Payment 2, etc.) when added or removed
+  const watchedInstallments = watch('installments') || []
+  useEffect(() => {
+    let changed = false
+    const updated = watchedInstallments.map((inst, i) => {
+      const expectedLabel = `Payment ${i + 1}`
+      if (inst?.label !== expectedLabel) {
+        changed = true
+        return { ...inst, label: expectedLabel }
+      }
+      return inst
+    })
+    if (changed && watchedInstallments.length > 0) {
+      setValue('installments', updated, { shouldValidate: true })
+    }
+  }, [watchedInstallments.length, setValue])
+
   useEffect(() => {
     if (organization?.paymentTerms && !getValues('terms')) {
       setValue('terms', organization.paymentTerms)
@@ -1201,6 +1221,7 @@ export function NewInvoicePage() {
     },
     onSuccess: (invoice) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       posthog.capture('invoice_created', {
         invoice_id: invoice.id,
         invoice_number: invoice.invoiceNumber,
@@ -1668,8 +1689,8 @@ export function NewInvoicePage() {
                       onChange={(e) => {
                         setEnableInstallments(e.target.checked)
                         if (e.target.checked && installmentFields.length === 0) {
-                          appendInstallment({ label: 'First Payment', percentage: 75 })
-                          appendInstallment({ label: 'Final Payment', percentage: 25 })
+                          appendInstallment({ label: 'Payment 1', percentage: 75 })
+                          appendInstallment({ label: 'Payment 2', percentage: 25 })
                         }
                       }}
                       className="h-4 w-4 rounded border-gray-300 text-[#0037b0] focus:ring-[#0037b0]"
@@ -1980,8 +2001,8 @@ export function NewInvoicePage() {
                         onChange={(e) => {
                           setEnableInstallments(e.target.checked)
                           if (e.target.checked && installmentFields.length === 0) {
-                            appendInstallment({ label: 'First Payment', percentage: 75 })
-                            appendInstallment({ label: 'Final Payment', percentage: 25 })
+                            appendInstallment({ label: 'Payment 1', percentage: 75 })
+                            appendInstallment({ label: 'Payment 2', percentage: 25 })
                           }
                         }}
                         className="h-4 w-4 rounded border-gray-300 text-[#0037b0]"

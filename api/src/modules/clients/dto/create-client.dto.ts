@@ -28,4 +28,10 @@ export class CreateClientDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({ example: 'business' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  clientType?: string;
 }

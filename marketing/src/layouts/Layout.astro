@@ -15,6 +15,8 @@ const {
 } = Astro.props
 
 const canonicalUrl = new URL(Astro.url.pathname, Astro.site).href
+const posthogKey = import.meta.env.PUBLIC_POSTHOG_KEY ?? ''
+const posthogHost = import.meta.env.PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com'
 ---
 
 <!doctype html>
@@ -43,8 +45,16 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site).href
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdn.hugeicons.com/font/hgi-stroke-rounded.css" />
     <title>{title}</title>
+
+    <!-- PostHog Analytics Initialization -->
+    {posthogKey && (
+      <script is:inline define:vars={{ posthogKey, posthogHost }}>
+        !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e.init=function(i,s,a){e._i||(e._i=[]),e._i.push([i,s,a]),e.init.arguments[0]=i},e.config=function(i){e._c||(e._c=[]),e._c.push(i)},o=t.createElement("script"),o.type="text/javascript",o.async=!0,o.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",n=t.getElementsByTagName("script")[0],n.parentNode.insertBefore(o,n))} (document,window.posthog||[]);
+        posthog.init(posthogKey, { api_host: posthogHost, person_profiles: 'identified_only' });
+      </script>
+    )}
   </head>
-  <body class="bg-white text-gray-900 antialiased">
+  <body class="bg-white text-gray-900 antialiased overflow-x-hidden w-full relative">
     <RebrandBanner />
     <slot />
   </body>
