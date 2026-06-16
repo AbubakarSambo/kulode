@@ -6,7 +6,7 @@
 DROP TABLE IF EXISTS "stock_movements";
 DROP TYPE IF EXISTS "StockMovementType";
 
--- Step 2: Rename products -> service_items only if products table exists (dev only)
+-- Step 2: Rename products → service_items only if products table exists (dev only)
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'products') THEN
@@ -14,7 +14,7 @@ BEGIN
   END IF;
 END $$;
 
--- Step 3: Rename product_id -> service_item_id in invoice_items if the column exists (dev only)
+-- Step 3: Rename product_id → service_item_id in invoice_items if the column exists (dev only)
 DO $$
 BEGIN
   IF EXISTS (
