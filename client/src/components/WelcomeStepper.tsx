@@ -830,7 +830,10 @@ export function WelcomeStepper() {
       queryClient.invalidateQueries({ queryKey: ["service-items"] });
       queryClient.invalidateQueries({ queryKey: ["inventory-items"] });
 
-      posthog.capture('onboarding_completed');
+      posthog.capture('onboarding_completed', {
+        bank_connected: isBankConnected || !!user?.organization?.isPaystackVerified,
+        invoice_sent: shouldSend,
+      });
       clearOnboardingLocalStorage();
       setShowCelebration(true);
     } catch (err) {
