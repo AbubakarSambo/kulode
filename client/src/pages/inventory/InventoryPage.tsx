@@ -27,6 +27,7 @@ import { formatCurrency, cn } from '@/lib/utils'
 import type { InventoryItem, StockMovement, StockMovementType } from '@/types'
 import { InventoryIcon } from '@/components/ui/CustomIcons'
 import { useOverscrollBounce } from '@/hooks'
+import { posthog } from '@/lib/posthog'
 
 // ─── Schemas ────────────────────────────────────────────────────────────────
 
@@ -150,6 +151,7 @@ export function InventoryPage() {
       sku: data.sku || undefined,
     }),
     onSuccess: () => {
+      posthog.capture('inventory_item_created')
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] })
       queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Inventory item created successfully')
@@ -177,6 +179,7 @@ export function InventoryPage() {
       sku: data.sku || undefined,
     }),
     onSuccess: () => {
+      posthog.capture('inventory_item_updated')
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] })
       queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Inventory item updated successfully')
@@ -204,6 +207,7 @@ export function InventoryPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => inventoryApi.delete(id),
     onSuccess: () => {
+      posthog.capture('inventory_item_deleted')
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] })
       queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Inventory item deleted successfully')
@@ -232,7 +236,8 @@ export function InventoryPage() {
       quantity: data.quantity,
       notes: data.notes || undefined,
     }),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
+      posthog.capture('inventory_stock_adjusted', { type: variables.type })
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] })
       queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Stock adjusted successfully')

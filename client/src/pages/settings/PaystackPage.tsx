@@ -96,6 +96,7 @@ export function PaystackPage() {
   const verifyMutation = useMutation({
     mutationFn: () => paystackApi.verifyAccount({ accountNumber, bankCode }),
     onSuccess: (data) => {
+      posthog.capture('paystack_bank_verified')
       setVerifiedName(data.account_name)
       toast.success('Account verified', { description: data.account_name })
     },
@@ -132,6 +133,7 @@ export function PaystackPage() {
       return response.data
     },
     onSuccess: () => {
+      posthog.capture('paystack_disconnected')
       queryClient.invalidateQueries({ queryKey: ['paystack-status'] })
       queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       setIsEditing(false)

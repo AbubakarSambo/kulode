@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
+import { posthog } from '@/lib/posthog'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   PlusSignIcon,
@@ -132,6 +133,7 @@ export function ExpensesListPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => expensesApi.delete(id),
     onSuccess: () => {
+      posthog.capture('expense_deleted')
       queryClient.invalidateQueries({ queryKey: ['expenses'] })
       toast.success('Expense deleted successfully')
     },

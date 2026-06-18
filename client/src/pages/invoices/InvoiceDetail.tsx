@@ -363,6 +363,7 @@ export function InvoiceDetailPage() {
 
   const shareWhatsApp = async () => {
     if (!invoice) return
+    posthog.capture('invoice_shared_whatsapp', { invoice_id: invoice.id })
     const baseOrigin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
       ? 'https://pay.tarione.com'
       : window.location.origin

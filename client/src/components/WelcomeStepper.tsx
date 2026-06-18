@@ -27,6 +27,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { WowCelebration } from "./WowCelebration";
 import { formatCurrency, cn, formatAmountInput, parseAmountInput } from "@/lib/utils";
+import { posthog } from "@/lib/posthog";
 
 const IS_DEV = import.meta.env.DEV;
 
@@ -472,6 +473,7 @@ export function WelcomeStepper() {
         accountNumber,
       });
       setIsBankConnected(true);
+      posthog.capture('onboarding_bank_connected');
       toast.success("Payout bank connected successfully");
 
       queryClient.invalidateQueries({ queryKey: ["paystack-status"] });
@@ -535,6 +537,7 @@ export function WelcomeStepper() {
         if (logoFile) {
           await organizationsApi.uploadLogo(logoFile);
         }
+        posthog.capture('onboarding_org_profile_saved');
         queryClient.invalidateQueries({ queryKey: ["organization"] });
         queryClient.invalidateQueries({ queryKey: ["onboarding-status"] });
         setStep(2);
@@ -640,6 +643,7 @@ export function WelcomeStepper() {
       }
     }
 
+    posthog.capture('onboarding_dismissed', { step });
     setIsDismissed(true);
     closeOnboarding();
   };
@@ -723,6 +727,7 @@ export function WelcomeStepper() {
         address: clientAddress.trim() || undefined,
         notes: `Type: ${clientType === "business" ? "Business" : "Individual"}`,
       });
+      posthog.capture('onboarding_client_created');
 
       setLoadingText("Registering catalog and generating invoice…");
       const today = new Date().toISOString().split("T")[0];
@@ -791,10 +796,12 @@ export function WelcomeStepper() {
         terms: paymentTerms.trim() || undefined,
       });
 
+      posthog.capture('onboarding_invoice_created', { invoice_id: invoice.id });
       const shouldSend = sendEmail && !!clientEmail;
       if (shouldSend) {
         setLoadingText("Publishing invoice ledger & sending email…");
         await invoicesApi.send(invoice.id);
+        posthog.capture('onboarding_invoice_sent', { invoice_id: invoice.id });
       }
 
       let paymentUrl: string | null = null;
@@ -823,6 +830,7 @@ export function WelcomeStepper() {
       queryClient.invalidateQueries({ queryKey: ["service-items"] });
       queryClient.invalidateQueries({ queryKey: ["inventory-items"] });
 
+      posthog.capture('onboarding_completed');
       clearOnboardingLocalStorage();
       setShowCelebration(true);
     } catch (err) {

@@ -21,6 +21,7 @@ import { useSubscription } from '@/hooks/useSubscription'
 import { Modal } from '@/components/shared'
 import { cn } from '@/lib/utils'
 import type { PlanTier, BillingPeriod } from '@/types'
+import { posthog } from '@/lib/posthog'
 
 const PLAN_FEATURES: Record<string, { name: string; price: { monthly: number; annual: number }; description: string; features: string[] }> = {
   FREE: {
@@ -95,6 +96,7 @@ export function BillingPage() {
     mutationFn: ({ planTier, period }: { planTier: PlanTier; period: BillingPeriod }) =>
       subscriptionApi.subscribe(planTier, period),
     onSuccess: (data) => {
+      posthog.capture('subscription_plan_change_initiated', { plan: subscribingPlan })
       window.location.href = data.paymentUrl
     },
     onError: () => {
@@ -105,6 +107,7 @@ export function BillingPage() {
   const cancelMutation = useMutation({
     mutationFn: subscriptionApi.cancel,
     onSuccess: (data) => {
+      posthog.capture('subscription_cancelled')
       toast.success(data.message)
       setShowCancelModal(false)
       queryClient.invalidateQueries({ queryKey: ['subscription'] })
@@ -116,7 +119,8 @@ export function BillingPage() {
 
   const toggleAutoRenewMutation = useMutation({
     mutationFn: (enabled: boolean) => subscriptionApi.toggleAutoRenew(enabled),
-    onSuccess: () => {
+    onSuccess: (_, enabled) => {
+      posthog.capture('subscription_auto_renew_toggled', { enabled })
       toast.success('Auto-renewal settings updated successfully.')
       queryClient.invalidateQueries({ queryKey: ['subscription'] })
     },

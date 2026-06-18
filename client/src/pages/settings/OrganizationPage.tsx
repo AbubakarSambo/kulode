@@ -10,6 +10,7 @@ import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 import { organizationsApi } from '@/api'
 import { useSubscription } from '@/hooks/useSubscription'
+import { posthog } from '@/lib/posthog'
 
 const organizationSchema = z.object({
   name: z.string().min(1, 'Organization name is required'),
@@ -40,6 +41,7 @@ export function OrganizationPage() {
   const uploadLogoMutation = useMutation({
     mutationFn: (file: File) => organizationsApi.uploadLogo(file),
     onSuccess: () => {
+      posthog.capture('org_logo_uploaded')
       queryClient.invalidateQueries({ queryKey: ['organization'] })
       queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Logo uploaded')
@@ -50,6 +52,7 @@ export function OrganizationPage() {
   const removeLogoMutation = useMutation({
     mutationFn: () => organizationsApi.removeLogo(),
     onSuccess: () => {
+      posthog.capture('org_logo_removed')
       queryClient.invalidateQueries({ queryKey: ['organization'] })
       queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Logo removed')
@@ -109,6 +112,7 @@ export function OrganizationPage() {
         defaultNotes: data.defaultNotes || '',
       }),
     onSuccess: () => {
+      posthog.capture('org_profile_updated')
       queryClient.invalidateQueries({ queryKey: ['organization'] })
       queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Organization settings saved')

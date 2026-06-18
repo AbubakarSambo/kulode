@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { posthog } from '@/lib/posthog'
 import { CheckSquare, Square, Tags } from 'lucide-react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowDown01Icon, Search01Icon } from '@hugeicons/core-free-icons'
@@ -36,6 +37,7 @@ export function BulkRecategorizePage() {
   const mutation = useMutation({
     mutationFn: () => expensesApi.bulkRecategorize(Array.from(selectedIds), targetCategory),
     onSuccess: (result) => {
+      posthog.capture('expenses_bulk_recategorized', { count: result.updated })
       toast.success(`${result.updated} expense${result.updated !== 1 ? 's' : ''} recategorized`)
       queryClient.invalidateQueries({ queryKey: ['expenses'] })
       setSelectedIds(new Set())
