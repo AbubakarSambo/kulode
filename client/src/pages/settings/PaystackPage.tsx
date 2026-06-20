@@ -294,7 +294,11 @@ export function PaystackPage() {
                     <CheckCircle className="h-4 w-4 text-[#006c49] shrink-0 mt-0.5" />
                     <div>
                       <p className="font-semibold text-[#121c28]">Automatic Settlement Active</p>
-                      <p className="mt-0.5">Payments made to your invoices are processed securely via Paystack and automatically swept to this bank account within 24 hours.</p>
+                      <p className="mt-0.5">
+                        Payments made to your invoices are processed securely via Paystack. 
+                        <strong> Note:</strong> For security reasons, your very first payout will be verified and settled within 24–48 hours. 
+                        All subsequent settlements will be swept to this account automatically on standard T+1 business days.
+                      </p>
                     </div>
                   </div>
 
