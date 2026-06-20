@@ -248,7 +248,7 @@ export function AppLayout() {
                 </div>
 
                 <a
-                  href="mailto:abubakar.sambo@tari1.app"
+                  href="mailto:abubakar.sambo@tarione.com"
                   onClick={() => setMoreOpen(false)}
                   className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 transition-colors"
                 >

@@ -18,7 +18,7 @@ export class EmailService {
       apiKey = 're_mock_key';
     }
     this.resend = new Resend(apiKey);
-    this.fromEmail = this.configService.get<string>('resend.fromEmail') || 'Tari1 <noreply@tari1.app>';
+    this.fromEmail = this.configService.get<string>('resend.fromEmail') || 'Tarione <noreply@tarione.com>';
     this.frontendUrl = this.configService.get<string>('resend.frontendUrl') || 'http://localhost:5173';
   }
 

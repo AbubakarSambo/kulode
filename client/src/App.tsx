@@ -76,7 +76,7 @@ function HomeRedirect() {
     return null
   }
 
-  const landingUrl = 'https://www.tari1.app'
+  const landingUrl = 'https://tarione.com'
   window.location.replace(landingUrl)
   return null
 }

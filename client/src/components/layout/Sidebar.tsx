@@ -342,7 +342,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           
           <div className="space-y-0.5">
             <a
-              href="mailto:abubakar.sambo@tari1.app"
+              href="mailto:abubakar.sambo@tarione.com"
               className={cn(
                 "flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-xs font-medium text-slate-500 hover:bg-[#eef4ff]/60 hover:text-slate-950 transition-colors relative group",
                 isCollapsed && "lg:justify-center lg:px-0"

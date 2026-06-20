@@ -31,7 +31,7 @@ const GOOGLE_AUTH_URL = import.meta.env.VITE_API_URL
 
 const LANDING_URL = import.meta.env.DEV
   ? `http://${window.location.hostname}:4321`
-  : 'https://www.tari1.app'
+  : 'https://tarione.com'
 
 const registerSchema = z.object({
   organizationName: z.string().min(2, 'Organization name is required'),
@@ -102,7 +102,7 @@ function LeftPanel() {
               </div>
               <div>
                 <p className="text-[8px] text-[#128c7e] font-bold">Tari1 Notification</p>
-                <p className="text-[9px] text-slate-800 leading-snug mt-0.5">Pay instantly at <span className="text-blue-600 underline">pay.tari1.app/inv-001</span></p>
+                <p className="text-[9px] text-slate-800 leading-snug mt-0.5">Pay instantly at <span className="text-blue-600 underline">pay.tarione.com/inv-001</span></p>
               </div>
             </div>
 
