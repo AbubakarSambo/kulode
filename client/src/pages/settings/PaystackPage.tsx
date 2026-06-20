@@ -12,6 +12,7 @@ import apiClient from '@/api/client'
 import { posthog } from '@/lib/posthog'
 import { useAuthStore } from '@/stores/auth'
 import type { ApiResponse } from '@/types'
+import { AxiosError } from 'axios'
 
 interface PaystackStatus {
   isSetup: boolean
@@ -39,7 +40,7 @@ const paystackApi = {
     return response.data.data
   },
   setup: async (data: { bankCode: string; accountNumber: string }) => {
-    const response = await apiClient.post<ApiResponse<any>>('/organizations/setup-paystack', data)
+    const response = await apiClient.post<ApiResponse<unknown>>('/organizations/setup-paystack', data)
     return response.data.data
   },
 }
@@ -100,7 +101,8 @@ export function PaystackPage() {
       setVerifiedName(data.account_name)
       toast.success('Account verified', { description: data.account_name })
     },
-    onError: (error: any) => {
+    onError: (err) => {
+      const error = err as AxiosError<{ message?: string }>
       setVerifiedName(null)
       toast.error('Verification failed', {
         description: error.response?.data?.message || 'Could not verify account',
@@ -120,7 +122,8 @@ export function PaystackPage() {
         description: 'You can now receive payments via Paystack',
       })
     },
-    onError: (error: any) => {
+    onError: (err) => {
+      const error = err as AxiosError<{ message?: string }>
       toast.error('Setup failed', {
         description: error.response?.data?.message || 'Please try again',
       })
@@ -139,7 +142,8 @@ export function PaystackPage() {
       setIsEditing(false)
       toast.success('Paystack integration disconnected')
     },
-    onError: (error: any) => {
+    onError: (err) => {
+      const error = err as AxiosError<{ message?: string }>
       toast.error('Disconnection failed', {
         description: error.response?.data?.message || 'Please try again',
       })
@@ -156,9 +160,10 @@ export function PaystackPage() {
       const response = await apiClient.post('/auth/verify-password', {})
       setIsSSO(response.data.isSSO)
       setSecurityModalOpen(true)
-    } catch (err: any) {
+    } catch (err) {
+      const error = err as AxiosError<{ message?: string }>
       toast.error('Security check failed', {
-        description: err.response?.data?.message || 'Could not initiate verification',
+        description: error.response?.data?.message || 'Could not initiate verification',
       })
     } finally {
       setSecurityLoading(false)
@@ -196,8 +201,9 @@ export function PaystackPage() {
       } else if (securityAction === 'change') {
         setIsEditing(true)
       }
-    } catch (err: any) {
-      setSecurityError(err.response?.data?.message || 'Verification failed. Please try again.')
+    } catch (err) {
+      const error = err as AxiosError<{ message?: string }>
+      setSecurityError(error.response?.data?.message || 'Verification failed. Please try again.')
     } finally {
       setSecurityLoading(false)
     }
