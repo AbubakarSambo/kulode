@@ -46,16 +46,58 @@ const posthogHost = import.meta.env.PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog
     <link rel="stylesheet" href="https://cdn.hugeicons.com/font/hgi-stroke-rounded.css" />
     <title>{title}</title>
 
-    <!-- PostHog Analytics Initialization -->
+    <!-- PostHog Analytics — loads only after cookie consent -->
     {posthogKey && (
       <script is:inline define:vars={{ posthogKey, posthogHost }}>
-        !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e.init=function(i,s,a){e._i||(e._i=[]),e._i.push([i,s,a]),e.init.arguments[0]=i},e.config=function(i){e._c||(e._c=[]),e._c.push(i)},o=t.createElement("script"),o.type="text/javascript",o.async=!0,o.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",n=t.getElementsByTagName("script")[0],n.parentNode.insertBefore(o,n))} (document,window.posthog||[]);
-        posthog.init(posthogKey, { api_host: posthogHost, person_profiles: 'identified_only' });
+        function initPostHog() {
+          if (window.__posthogLoaded) return;
+          window.__posthogLoaded = true;
+          !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e.init=function(i,s,a){e._i||(e._i=[]),e._i.push([i,s,a]),e.init.arguments[0]=i},e.config=function(i){e._c||(e._c=[]),e._c.push(i)},o=t.createElement("script"),o.type="text/javascript",o.async=!0,o.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",n=t.getElementsByTagName("script")[0],n.parentNode.insertBefore(o,n))} (document,window.posthog||[]);
+          posthog.init(posthogKey, { api_host: posthogHost, person_profiles: 'identified_only' });
+        }
+        if (localStorage.getItem('tari1_cookie_consent') === 'accepted') {
+          initPostHog();
+        }
+        window.__initPostHog = initPostHog;
       </script>
     )}
   </head>
   <body class="bg-white text-gray-900 antialiased overflow-x-hidden w-full relative">
     <RebrandBanner />
     <slot />
+
+    <!-- Cookie Consent Banner -->
+    <div id="cookie-banner" class="fixed bottom-0 left-0 right-0 z-[9999] bg-white border-t border-slate-200 shadow-2xl px-6 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4" style="display:none">
+      <p class="text-sm text-slate-700 max-w-2xl leading-relaxed">
+        We use cookies for analytics and advertising. By clicking <strong>Accept</strong>, you consent to our use of cookies as described in our <a href="/privacy" class="underline text-blue-700 hover:text-blue-900">Privacy Policy</a>, including cookies placed by Google for ad measurement.
+      </p>
+      <div class="flex gap-3 shrink-0">
+        <button id="cookie-decline" class="text-xs font-semibold px-4 py-2 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer bg-white">
+          Decline
+        </button>
+        <button id="cookie-accept" class="text-xs font-bold px-5 py-2 rounded-lg bg-blue-700 text-white hover:bg-blue-800 transition-colors cursor-pointer shadow-md">
+          Accept
+        </button>
+      </div>
+    </div>
+
+    <script is:inline>
+      (function() {
+        var consent = localStorage.getItem('tari1_cookie_consent');
+        if (!consent) {
+          var banner = document.getElementById('cookie-banner');
+          if (banner) banner.style.display = 'flex';
+        }
+        document.getElementById('cookie-accept')?.addEventListener('click', function() {
+          localStorage.setItem('tari1_cookie_consent', 'accepted');
+          document.getElementById('cookie-banner').style.display = 'none';
+          if (window.__initPostHog) window.__initPostHog();
+        });
+        document.getElementById('cookie-decline')?.addEventListener('click', function() {
+          localStorage.setItem('tari1_cookie_consent', 'declined');
+          document.getElementById('cookie-banner').style.display = 'none';
+        });
+      })();
+    </script>
   </body>
 </html>

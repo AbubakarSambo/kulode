@@ -46,11 +46,14 @@ const effectiveDate = '16 April 2026'
         </section>
 
         <section class="bg-card p-8 rounded-[24px] shadow-sm border border-outline-variant">
-          <h2 class="text-lg font-bold text-text-primary mb-3">4. Subscription plans and billing</h2>
+          <h2 class="text-lg font-bold text-text-primary mb-3">4. Subscription plans, billing, and cancellation</h2>
           <ul class="list-disc pl-6 space-y-2">
             <li>Paid plans are billed on a monthly or annual basis via <strong>Paystack</strong>.</li>
             <li>Prices are in NGN and are inclusive of VAT unless otherwise stated.</li>
-            <li>Subscriptions auto-renew unless cancelled through your dashboard settings.</li>
+            <li>Subscriptions auto-renew unless cancelled. You may cancel at any time through <strong>Settings &gt; Billing</strong> in your dashboard.</li>
+            <li>Cancellations take effect at the end of your current billing period. You retain access until then.</li>
+            <li><strong>Free trial:</strong> New accounts receive a 30-day free trial with no credit card required. If you do not upgrade before day 30, your account will be temporarily locked. You may unlock it at any time by selecting a paid plan — no data is deleted.</li>
+            <li><strong>Refunds:</strong> All payments are final and non-refundable except where required by Nigerian consumer protection law. If you believe you have been billed in error, contact us at <a href={`mailto:${contactEmail}`} class="text-primary hover:underline font-semibold">{contactEmail}</a> within 14 days of the charge.</li>
           </ul>
         </section>
 
@@ -65,6 +68,23 @@ const effectiveDate = '16 April 2026'
             Tari1 provides helpful data compilation tools. This does not constitute tax, accounting, or compliance advice. Consult a tax professional before filing. We are not liable for tax penalties.
           </p>
         </section>
+
+        <section class="bg-card p-8 rounded-[24px] shadow-sm border border-outline-variant">
+          <h2 class="text-lg font-bold text-text-primary mb-3">7. Limitation of liability</h2>
+          <p class="mb-3">
+            To the fullest extent permitted by applicable law, Tari1's total liability to you for any claim arising out of or relating to these Terms or the Service shall not exceed the greater of (a) the total fees paid by you in the three months immediately preceding the claim, or (b) ₦10,000.
+          </p>
+          <p>
+            In no event shall Tari1 be liable for any indirect, incidental, consequential, special, or punitive damages, including loss of profits, data, or goodwill, even if advised of the possibility of such damages.
+          </p>
+        </section>
+
+        <section class="bg-card p-8 rounded-[24px] shadow-sm border border-outline-variant">
+          <h2 class="text-lg font-bold text-text-primary mb-3">8. Governing law and disputes</h2>
+          <p>
+            These Terms are governed by and construed in accordance with the laws of the <strong>Federal Republic of Nigeria</strong>. Any dispute arising out of or in connection with these Terms shall be subject to the exclusive jurisdiction of the courts of Lagos State, Nigeria. You agree to attempt in good faith to resolve any dispute informally by contacting us at <a href={`mailto:${contactEmail}`} class="text-primary hover:underline font-semibold">{contactEmail}</a> before initiating legal proceedings.
+          </p>
+        </section>
       </div>
     </div>
   </main>
@@ -77,6 +97,7 @@ const effectiveDate = '16 April 2026'
         <p class="text-sm text-text-secondary text-center md:text-left max-w-xs">
           © {new Date().getFullYear()} Tari1. All rights reserved. Built for the modern freelancer.
         </p>
+        <p class="text-xs text-text-secondary text-center md:text-left">Lagos, Nigeria · <a href="mailto:legal@tarione.com" class="hover:text-primary transition-colors">legal@tarione.com</a></p>
       </div>
       <div class="flex flex-wrap justify-center gap-8">
         <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/privacy">Privacy Policy</a>

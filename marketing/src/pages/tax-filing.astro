@@ -11,6 +11,11 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
 >
   <Navbar activePage="tax-filing" />
 
+  <!-- Tax disclaimer banner -->
+  <div class="w-full bg-amber-50 border-b border-amber-200 py-3 px-container-padding text-center text-xs text-amber-800 font-medium">
+    Tari1 is invoicing and record-keeping software, not a licensed tax advisor. Consult a qualified tax professional for your filing obligations.
+  </div>
+
   <main class="hero-gradient">
     <!-- Hero Section -->
     <section class="max-w-7xl mx-auto px-container-padding py-16 md:py-32 grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 items-center">
@@ -80,7 +85,7 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
               <i class="hgi-stroke hgi-checkmark-circle-01 text-[32px]"></i>
             </div>
             <h3 class="text-lg font-bold text-text-primary mb-4">FIRS-ready tax summary</h3>
-            <p class="text-sm text-text-secondary">Tari1 generates an annual tax summary formatted for FIRS requirements. Hand it to your accountant or file directly — no reformatting needed.</p>
+            <p class="text-sm text-text-secondary">Tari1 generates an annual tax summary formatted for FIRS requirements. Hand it to your accountant or file with their guidance — no reformatting needed.</p>
           </div>
 
           <div class="bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] hover:shadow-[0_20px_40px_rgba(0,55,176,0.10)] hover:-translate-y-1 transition-all duration-300">
@@ -151,6 +156,7 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
         <p class="text-sm text-text-secondary text-center md:text-left max-w-xs">
           © {new Date().getFullYear()} Tari1. All rights reserved. Built for the modern freelancer.
         </p>
+        <p class="text-xs text-text-secondary text-center md:text-left">Lagos, Nigeria · <a href="mailto:abubakar.sambo@tarione.com" class="hover:text-primary transition-colors">abubakar.sambo@tarione.com</a></p>
       </div>
       <div class="flex flex-wrap justify-center gap-8">
         <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/privacy">Privacy Policy</a>

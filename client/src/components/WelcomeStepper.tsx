@@ -536,6 +536,7 @@ export function WelcomeStepper() {
         await organizationsApi.updateCurrent(payload);
         if (logoFile) {
           await organizationsApi.uploadLogo(logoFile);
+          setLogoFile(null);
         }
         posthog.capture('onboarding_org_profile_saved');
         queryClient.invalidateQueries({ queryKey: ["organization"] });
