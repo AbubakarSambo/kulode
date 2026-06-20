@@ -144,7 +144,7 @@ export function AppLayout() {
         {/* Floating Mobile Bottom Navigation Dock */}
         {!isHideMobileNav && (
           <div className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom,0px))] left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-md lg:hidden">
-            <div className="bg-white/95 backdrop-blur-lg border border-[#eef4ff] rounded-full px-2 py-1.5 shadow-[0_16px_40px_rgba(0,55,176,0.12)] flex justify-between items-center">
+            <div className="bg-card/95 backdrop-blur-lg border border-border rounded-full px-2 py-1.5 shadow-[0_16px_40px_rgba(0,55,176,0.12)] flex justify-between items-center">
               {navItems.map((item) => {
                 const isActive = location.pathname.startsWith(item.href)
                 return (
@@ -156,7 +156,7 @@ export function AppLayout() {
                     "flex flex-col items-center gap-1 flex-1 py-2 px-1.5 rounded-full transition-all duration-200 select-none",
                     isActive 
                       ? "bg-[#0037b0]/10 text-[#0037b0] font-extrabold shadow-[0px_4px_12px_rgba(0,55,176,0.02)]" 
-                      : "text-[#434655] hover:text-slate-900"
+                      : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   <item.icon className="h-4.5 w-4.5" strokeWidth={isActive ? 2 : 1.5} />
@@ -172,7 +172,7 @@ export function AppLayout() {
                 "flex flex-col items-center gap-1 flex-1 py-2 px-1.5 rounded-full transition-all duration-200 select-none cursor-pointer",
                 moreOpen 
                   ? "bg-[#0037b0]/10 text-[#0037b0] font-extrabold shadow-[0px_4px_12px_rgba(0,55,176,0.02)]" 
-                  : "text-[#434655] hover:text-slate-900"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
               <MoreHorizontal className="h-4.5 w-4.5" strokeWidth={moreOpen ? 2 : 1.5} />
@@ -189,12 +189,12 @@ export function AppLayout() {
               className="fixed inset-0 z-45 bg-slate-900/40 backdrop-blur-sm lg:hidden transition-opacity"
               onClick={() => setMoreOpen(false)}
             />
-            <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md rounded-t-[32px] shadow-[0_-12px_40px_rgba(0,55,176,0.06)] px-6 pt-6 pb-[calc(2rem+env(safe-area-inset-bottom,0px))] lg:hidden max-h-[85vh] overflow-y-auto border-t border-slate-100/50 animate-in slide-in-from-bottom duration-300">
+            <div className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-md rounded-t-[32px] shadow-[0_-12px_40px_rgba(0,55,176,0.06)] px-6 pt-6 pb-[calc(2rem+env(safe-area-inset-bottom,0px))] lg:hidden max-h-[85vh] overflow-y-auto border-t border-border animate-in slide-in-from-bottom duration-300">
               <div className="flex items-center justify-between mb-6">
                 <span className="text-sm font-bold uppercase tracking-wider text-slate-400">All Operations</span>
                 <button 
                   onClick={() => setMoreOpen(false)} 
-                  className="rounded-full bg-slate-100 p-2 text-slate-600 hover:bg-slate-200 transition-colors"
+                  className="rounded-full bg-muted p-2 text-muted-foreground hover:bg-accent transition-colors"
                 >
                   <X className="h-4 w-4" strokeWidth={1.5} />
                 </button>
@@ -211,10 +211,10 @@ export function AppLayout() {
                       to={item.href}
                       onClick={() => setMoreOpen(false)}
                       className={cn(
-                        "flex flex-col items-center justify-center p-3 rounded-2xl transition-all duration-200 gap-2 border border-slate-50",
+                        "flex flex-col items-center justify-center p-3 rounded-2xl transition-all duration-200 gap-2 border border-border/40",
                         isActive 
                           ? "bg-[#0037b0]/5 text-[#0037b0] font-bold border-[#0037b0]/10 shadow-[0_4px_12px_rgba(0,55,176,0.02)]" 
-                          : "bg-slate-50 hover:bg-slate-100 text-slate-700"
+                          : "bg-muted hover:bg-accent text-foreground"
                       )}
                     >
                       <div className="relative">
@@ -232,16 +232,16 @@ export function AppLayout() {
               </div>
 
               {/* Account, Support & Logout section */}
-              <div className="border-t border-slate-100 pt-6 pb-4 space-y-3">
+              <div className="border-t border-border pt-6 pb-4 space-y-3">
                 <div className="flex items-center gap-3 px-2 mb-4">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-xs font-bold text-white shadow-md shadow-[#0037b0]/25">
                     {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
                   </div>
                   <div className="flex-1 overflow-hidden">
-                    <p className="truncate text-sm font-bold text-slate-800">
+                    <p className="truncate text-sm font-bold text-foreground">
                       {user?.firstName} {user?.lastName}
                     </p>
-                    <p className="truncate text-xs text-slate-400">
+                    <p className="truncate text-xs text-muted-foreground">
                       {user?.organizationName}
                     </p>
                   </div>
@@ -250,7 +250,7 @@ export function AppLayout() {
                 <a
                   href="mailto:abubakar.sambo@tarione.com"
                   onClick={() => setMoreOpen(false)}
-                  className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 transition-colors"
+                  className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-foreground bg-muted hover:bg-accent transition-colors"
                 >
                   <LifeBuoy className="h-5 w-5" strokeWidth={1.5} />
                   Contact Support
@@ -260,7 +260,7 @@ export function AppLayout() {
                     setMoreOpen(false)
                     logout()
                   }}
-                  className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors"
+                  className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-rose-600 bg-rose-500/10 hover:bg-rose-500/20 transition-colors"
                 >
                   <LogOut className="h-5 w-5" strokeWidth={1.5} />
                   Logout

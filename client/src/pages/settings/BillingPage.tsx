@@ -186,7 +186,7 @@ export function BillingPage() {
     : 0
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden bg-[#f8f9ff] dark:bg-slate-950/45">
+    <div className="flex flex-1 flex-col overflow-hidden bg-background">
       <Header
         title="Billing & Plans"
         description="Manage your platform subscription, features, and auto-renewals."
@@ -203,7 +203,7 @@ export function BillingPage() {
         <div className="grid gap-8 lg:grid-cols-3">
           
           {/* Card 1: Subscription Info */}
-          <Card className="lg:col-span-2 rounded-[24px] border-0 shadow-[0_12px_32px_rgba(0,55,176,0.04)] overflow-hidden bg-white dark:bg-slate-900">
+          <Card className="lg:col-span-2 rounded-[24px] border-0 shadow-[0_12px_32px_rgba(0,55,176,0.04)] overflow-hidden">
             <CardContent className="p-8 flex flex-col justify-between h-full space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                 <div className="space-y-2">
@@ -267,7 +267,7 @@ export function BillingPage() {
           </Card>
 
           {/* Card 2: Current Usage Progress */}
-          <Card className="rounded-[24px] border-0 shadow-[0_12px_32px_rgba(0,55,176,0.04)] bg-white dark:bg-slate-900 overflow-hidden">
+          <Card className="rounded-[24px] border-0 shadow-[0_12px_32px_rgba(0,55,176,0.04)] overflow-hidden">
             <CardContent className="p-8 flex flex-col justify-between h-full space-y-6">
               <div className="space-y-1">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Monthly Account Usage</p>
@@ -324,7 +324,7 @@ export function BillingPage() {
 
         {/* Auto-renew Toggle */}
         {subscription && subscription.subscriptionStatus === 'ACTIVE' && !isGrandfathered && (
-          <Card className="rounded-[24px] border-0 shadow-[0_12px_32px_rgba(0,55,176,0.04)] bg-white dark:bg-slate-900 overflow-hidden">
+          <Card className="rounded-[24px] border-0 shadow-[0_12px_32px_rgba(0,55,176,0.04)] overflow-hidden">
             <CardContent className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="space-y-1 max-w-xl">
                 <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
@@ -412,8 +412,8 @@ export function BillingPage() {
                   // Premium card design tokens
                   const isPro = tier === 'PRO'
                   const cardStyles = isPro
-                    ? "relative border-2 border-[#0037b0] shadow-[0_12px_32px_rgba(0,55,176,0.08)] bg-white dark:bg-slate-900 scale-[1.02] z-10"
-                    : "relative border-0 bg-white dark:bg-slate-900 shadow-[0_12px_32px_rgba(0,55,176,0.02)]"
+                    ? "relative border-2 border-[#0037b0] shadow-[0_12px_32px_rgba(0,55,176,0.08)] bg-card scale-[1.02] z-10"
+                    : "relative border-0 bg-card shadow-[0_12px_32px_rgba(0,55,176,0.02)]"
 
                   const buttonStyles = isCurrent
                     ? "w-full rounded-xl bg-slate-50 dark:bg-slate-800/50 py-3.5 text-xs font-semibold text-slate-400 dark:text-slate-500 cursor-default text-center min-h-[44px] flex items-center justify-center"
@@ -520,7 +520,7 @@ export function BillingPage() {
               </p>
             </div>
             
-            <Card className="rounded-[24px] border-0 shadow-[0_12px_32px_rgba(0,55,176,0.02)] bg-white dark:bg-slate-900 overflow-hidden">
+            <Card className="rounded-[24px] border-0 shadow-[0_12px_32px_rgba(0,55,176,0.02)] overflow-hidden">
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">

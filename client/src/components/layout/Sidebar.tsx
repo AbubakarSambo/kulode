@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, X, CreditCard } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, CreditCard, Sun, Moon, Monitor } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { useLogout } from '@/hooks'
-import { Logo } from '@/components/shared'
+import { Logo, ThemeToggle } from '@/components/shared'
 import { useSubscription } from '@/hooks/useSubscription'
+import { useThemeStore } from '@/stores/theme'
 import type { PlanTier } from '@/types'
 import {
   DashboardIcon,
@@ -72,6 +73,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const user = useAuthStore((state) => state.user)
   const logout = useLogout()
   const { hasRequiredPlan } = useSubscription()
+  const { theme, setTheme } = useThemeStore()
 
   const [isCollapsed, setIsCollapsed] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -307,6 +309,32 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
         {/* User profile / support section at bottom */}
         <div className="p-4 mt-auto space-y-2 shrink-0 border-t border-slate-100/50 pt-4">
+
+          {/* Theme switcher */}
+          {isCollapsed ? (
+            <button
+              onClick={() => {
+                const nextTheme = theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light'
+                setTheme(nextTheme)
+              }}
+              className="flex w-full items-center justify-center rounded-xl p-2.5 text-slate-500 hover:bg-slate-100/80 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-100 transition-colors cursor-pointer group relative"
+            >
+              {theme === 'light' ? (
+                <Sun className="h-5 w-5" />
+              ) : theme === 'dark' ? (
+                <Moon className="h-5 w-5 text-[#3b82f6]" />
+              ) : (
+                <Monitor className="h-5 w-5" />
+              )}
+              <div className="hidden lg:group-hover:block absolute left-20 bg-slate-900/90 backdrop-blur-md text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-md whitespace-nowrap z-55 pointer-events-none">
+                Theme: {theme.charAt(0).toUpperCase() + theme.slice(1)}
+              </div>
+            </button>
+          ) : (
+            <div className="px-1 py-1">
+              <ThemeToggle />
+            </div>
+          )}
 
           <div className={cn(
             "rounded-2xl border border-[#0037b0]/8 bg-[#0037b0]/[0.02] p-3 transition-all duration-200 hover:bg-[#0037b0]/[0.05]",

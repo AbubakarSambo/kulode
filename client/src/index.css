@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   /* Primary - Blue palette */
   --color-primary-50: #eff6ff;
@@ -277,6 +279,48 @@ input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+/* Dark theme overrides */
+.dark {
+  --color-background: #090d16;
+  --color-foreground: #f8f9ff;
+  --color-card: #111520;
+  --color-card-foreground: #f8f9ff;
+  --color-muted: #1a2232;
+  --color-muted-foreground: #a0a6be;
+  --color-border: rgba(196, 197, 215, 0.12);
+  --color-input: rgba(196, 197, 215, 0.12);
+  --color-ring: #3b82f6;
+  --color-secondary: #1a2232;
+  --color-secondary-foreground: #a0a6be;
+  --color-accent: #1e2638;
+  --color-accent-foreground: #f8f9ff;
+}
+
+.dark .glass-card {
+  background: rgba(17, 21, 32, 0.7);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Contrast fallback for hardcoded dark/slate texts in dark mode */
+.dark .text-slate-900,
+.dark .text-slate-850,
+.dark .text-slate-800 {
+  color: var(--color-foreground) !important;
+}
+
+.dark .text-slate-700,
+.dark .text-slate-650,
+.dark .text-slate-600 {
+  color: var(--color-muted-foreground) !important;
+}
+
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-\[\#eef4ff\] {
+  border-color: var(--color-border) !important;
+}
+
 
 
 

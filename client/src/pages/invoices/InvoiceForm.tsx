@@ -463,16 +463,16 @@ function InvoicePreviewModal({
       />
 
       {/* Modal Dialog Card */}
-      <div className="relative w-full max-w-3xl transform overflow-hidden rounded-[28px] bg-[#f8f9ff] border border-slate-200/40 shadow-[0px_16px_48px_rgba(0,55,176,0.16)] transition-all animate-in fade-in zoom-in-95 duration-200 z-50 flex flex-col max-h-[90vh]">
+      <div className="relative w-full max-w-3xl transform overflow-hidden rounded-[28px] bg-background border border-border shadow-[0px_16px_48px_rgba(0,55,176,0.16)] transition-all animate-in fade-in zoom-in-95 duration-200 z-50 flex flex-col max-h-[90vh]">
         
         {/* Header */}
-        <div className="bg-white px-6 py-4 flex items-center justify-between border-b border-slate-200/40 shrink-0">
+        <div className="bg-card px-6 py-4 flex items-center justify-between border-b border-border shrink-0">
           <div>
-            <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+            <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
               <HugeiconsIcon icon={Invoice03Icon} size={18} strokeWidth={1.5} className="text-[#0037b0]" />
               Invoice Preview
             </h3>
-            <p className="text-[11px] font-semibold text-slate-400 mt-0.5">
+            <p className="text-[11px] font-semibold text-muted-foreground mt-0.5">
               Review how the final invoice sheet will look to your client.
             </p>
           </div>
@@ -1302,14 +1302,14 @@ export function NewInvoicePage() {
 
   return (
     <>
-    <div className="flex flex-1 flex-col overflow-hidden bg-[#f8f9ff]">
+    <div className="flex flex-1 flex-col overflow-hidden bg-background">
       <Header
         title="New Invoice"
         description="Create a new invoice for your client"
       />
 
       {/* Mobile Wizard Segmented Progress Bar */}
-      <div className="lg:hidden bg-white border-b border-slate-200/60 px-6 py-3 flex items-center justify-between shrink-0">
+      <div className="lg:hidden bg-card border-b border-border px-6 py-3 flex items-center justify-between shrink-0">
         <button
           type="button"
           onClick={() => setMobileStep(1)}
