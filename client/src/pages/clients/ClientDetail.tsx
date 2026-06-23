@@ -21,6 +21,8 @@ import { formatCurrency, formatDate, isActualMobileDevice, cn } from '@/lib/util
 import { posthog } from '@/lib/posthog'
 import type { Client, InvoiceStatus } from '@/types'
 import { useOverscrollBounce } from '@/hooks'
+import { useSubscription } from '@/hooks/useSubscription'
+
 
 
 interface ClientWithInvoices extends Client {
@@ -97,6 +99,8 @@ export function ClientDetailPage() {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<'ALL' | 'UNPAID' | 'OVERDUE' | 'PAID'>('ALL')
   const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
+  const { isReadOnlyMode: isExpired } = useSubscription()
+
 
   const { data: client, isLoading } = useQuery<ClientWithInvoices>({
     queryKey: ['clients', id],
@@ -181,24 +185,26 @@ export function ClientDetailPage() {
         title={client.name}
         description={client.isActive ? 'Active client' : 'Inactive client'}
         action={
-          <div className="flex gap-2">
-            <Link to={`/invoices/new?clientId=${client.id}`}>
-              <Button className="bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white shadow-[0px_4px_12px_rgba(0,55,176,0.15)] hover:opacity-95 rounded-xl h-10 px-4">
-                <HugeiconsIcon icon={PlusSignIcon} size={16} className="mr-2" strokeWidth={1.5} />
-                New Invoice
+          !isExpired && (
+            <div className="flex items-center gap-2">
+              <Link to={`/invoices/new?clientId=${client.id}`}>
+                <Button className="bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white shadow-[0px_4px_12px_rgba(0,55,176,0.15)] hover:opacity-95 rounded-xl h-10 px-4">
+                  <HugeiconsIcon icon={PlusSignIcon} size={16} className="mr-2" strokeWidth={1.5} />
+                  New Invoice
+                </Button>
+              </Link>
+              <Link to={`/clients/${client.id}/edit`}>
+                <Button variant="outline" className="rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 h-10 px-4">
+                  <HugeiconsIcon icon={PencilEdit02Icon} size={16} className="mr-2" strokeWidth={1.5} />
+                  Edit
+                </Button>
+              </Link>
+              <Button variant="outline" onClick={() => setDeleteConfirmOpen(true)} className="rounded-xl border border-slate-200 hover:bg-slate-50 text-rose-600 h-10 px-4">
+                <HugeiconsIcon icon={Delete02Icon} size={16} className="mr-2" strokeWidth={1.5} />
+                Delete
               </Button>
-            </Link>
-            <Link to={`/clients/${client.id}/edit`}>
-              <Button variant="outline" className="rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 h-10 px-4">
-                <HugeiconsIcon icon={PencilEdit02Icon} size={16} className="mr-2" strokeWidth={1.5} />
-                Edit
-              </Button>
-            </Link>
-            <Button variant="outline" onClick={() => setDeleteConfirmOpen(true)} className="rounded-xl border border-slate-200 hover:bg-slate-50 text-rose-600 h-10 px-4">
-              <HugeiconsIcon icon={Delete02Icon} size={16} className="mr-2" strokeWidth={1.5} />
-              Delete
-            </Button>
-          </div>
+            </div>
+          )
         }
       />
 
@@ -238,19 +244,21 @@ export function ClientDetailPage() {
               </div>
 
               {/* Mobile Actions: Edit & Delete Circular Buttons */}
-              <div className="absolute right-4 top-4 flex items-center gap-2 sm:hidden">
-                <Link to={`/clients/${client.id}/edit`}>
-                  <button className="w-9 h-9 rounded-full bg-white border border-[#eef4ff] text-[#0037b0] hover:bg-[#eef4ff]/10 flex items-center justify-center shadow-sm select-none cursor-pointer">
-                    <HugeiconsIcon icon={PencilEdit02Icon} size={15} strokeWidth={1.5} />
+              {!isExpired && (
+                <div className="absolute right-4 top-4 flex items-center gap-2 sm:hidden">
+                  <Link to={`/clients/${client.id}/edit`}>
+                    <button className="w-9 h-9 rounded-full bg-white border border-[#eef4ff] text-[#0037b0] hover:bg-[#eef4ff]/10 flex items-center justify-center shadow-sm select-none cursor-pointer">
+                      <HugeiconsIcon icon={PencilEdit02Icon} size={15} strokeWidth={1.5} />
+                    </button>
+                  </Link>
+                  <button
+                    onClick={() => setDeleteConfirmOpen(true)}
+                    className="w-9 h-9 rounded-full bg-white border border-rose-50 text-rose-600 hover:bg-rose-50 flex items-center justify-center shadow-sm select-none cursor-pointer"
+                  >
+                    <HugeiconsIcon icon={Delete02Icon} size={15} strokeWidth={1.5} />
                   </button>
-                </Link>
-                <button
-                  onClick={() => setDeleteConfirmOpen(true)}
-                  className="w-9 h-9 rounded-full bg-white border border-rose-50 text-rose-600 hover:bg-rose-50 flex items-center justify-center shadow-sm select-none cursor-pointer"
-                >
-                  <HugeiconsIcon icon={Delete02Icon} size={15} strokeWidth={1.5} />
-                </button>
-              </div>
+                </div>
+              )}
             </div>
 
             <CardContent className="space-y-4 pt-4">

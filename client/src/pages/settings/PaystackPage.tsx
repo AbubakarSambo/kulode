@@ -12,6 +12,7 @@ import apiClient from '@/api/client'
 import { posthog } from '@/lib/posthog'
 import { useAuthStore } from '@/stores/auth'
 import type { ApiResponse } from '@/types'
+import { AxiosError } from 'axios'
 
 interface PaystackStatus {
   isSetup: boolean
@@ -39,7 +40,7 @@ const paystackApi = {
     return response.data.data
   },
   setup: async (data: { bankCode: string; accountNumber: string }) => {
-    const response = await apiClient.post<ApiResponse<any>>('/organizations/setup-paystack', data)
+    const response = await apiClient.post<ApiResponse<unknown>>('/organizations/setup-paystack', data)
     return response.data.data
   },
 }
@@ -100,7 +101,8 @@ export function PaystackPage() {
       setVerifiedName(data.account_name)
       toast.success('Account verified', { description: data.account_name })
     },
-    onError: (error: any) => {
+    onError: (err) => {
+      const error = err as AxiosError<{ message?: string }>
       setVerifiedName(null)
       toast.error('Verification failed', {
         description: error.response?.data?.message || 'Could not verify account',
@@ -120,7 +122,8 @@ export function PaystackPage() {
         description: 'You can now receive payments via Paystack',
       })
     },
-    onError: (error: any) => {
+    onError: (err) => {
+      const error = err as AxiosError<{ message?: string }>
       toast.error('Setup failed', {
         description: error.response?.data?.message || 'Please try again',
       })
@@ -139,7 +142,8 @@ export function PaystackPage() {
       setIsEditing(false)
       toast.success('Paystack integration disconnected')
     },
-    onError: (error: any) => {
+    onError: (err) => {
+      const error = err as AxiosError<{ message?: string }>
       toast.error('Disconnection failed', {
         description: error.response?.data?.message || 'Please try again',
       })
@@ -156,9 +160,10 @@ export function PaystackPage() {
       const response = await apiClient.post('/auth/verify-password', {})
       setIsSSO(response.data.isSSO)
       setSecurityModalOpen(true)
-    } catch (err: any) {
+    } catch (err) {
+      const error = err as AxiosError<{ message?: string }>
       toast.error('Security check failed', {
-        description: err.response?.data?.message || 'Could not initiate verification',
+        description: error.response?.data?.message || 'Could not initiate verification',
       })
     } finally {
       setSecurityLoading(false)
@@ -196,8 +201,9 @@ export function PaystackPage() {
       } else if (securityAction === 'change') {
         setIsEditing(true)
       }
-    } catch (err: any) {
-      setSecurityError(err.response?.data?.message || 'Verification failed. Please try again.')
+    } catch (err) {
+      const error = err as AxiosError<{ message?: string }>
+      setSecurityError(error.response?.data?.message || 'Verification failed. Please try again.')
     } finally {
       setSecurityLoading(false)
     }
@@ -228,7 +234,7 @@ export function PaystackPage() {
   const showSetupForm = !status?.isSetup || isEditing
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden bg-[#f8f9ff]">
+    <div className="flex flex-1 flex-col overflow-hidden bg-background">
       <Header
         title="Paystack Integration"
         description="Configure automated payment processing and settlements for your invoices"
@@ -238,14 +244,14 @@ export function PaystackPage() {
         <div className="mx-auto max-w-2xl space-y-8">
           {/* Integration Overview Card */}
           {!isEditing && status?.isSetup && (
-            <Card className="border-0 overflow-hidden bg-white shadow-[0px_12px_32px_rgba(0,55,176,0.08)]">
+            <Card className="border-0 overflow-hidden">
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-xl font-bold text-[#121c28]">
+                    <CardTitle className="text-xl font-bold text-foreground">
                       Paystack Connection
                     </CardTitle>
-                    <CardDescription className="text-sm text-[#434655] mt-1">
+                    <CardDescription className="text-sm text-muted-foreground mt-1">
                       Manage how your customers pay invoices and where funds are settled
                     </CardDescription>
                   </div>
@@ -294,7 +300,11 @@ export function PaystackPage() {
                     <CheckCircle className="h-4 w-4 text-[#006c49] shrink-0 mt-0.5" />
                     <div>
                       <p className="font-semibold text-[#121c28]">Automatic Settlement Active</p>
-                      <p className="mt-0.5">Payments made to your invoices are processed securely via Paystack and automatically swept to this bank account within 24 hours.</p>
+                      <p className="mt-0.5">
+                        Payments made to your invoices are processed securely via Paystack. 
+                        <strong> Note:</strong> For security reasons, your very first payout will be verified and settled within 24–48 hours. 
+                        All subsequent settlements will be swept to this account automatically on standard T+1 business days.
+                      </p>
                     </div>
                   </div>
 
@@ -322,19 +332,19 @@ export function PaystackPage() {
 
           {/* Setup Form */}
           {showSetupForm && (
-            <Card className="border-0 bg-white shadow-[0px_12px_32px_rgba(0,55,176,0.08)]">
+            <Card className="border-0">
               <CardHeader>
-                <CardTitle className="text-xl font-bold text-[#121c28]">
+                <CardTitle className="text-xl font-bold text-foreground">
                   {status?.isSetup ? 'Update Bank Account' : 'Bank Account Setup'}
                 </CardTitle>
-                <CardDescription className="text-sm text-[#434655]">
+                <CardDescription className="text-sm text-muted-foreground">
                   Specify the bank account where your customer invoice payments should be settled
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                   <div className="space-y-2">
-                    <Label htmlFor="bankCode" required className="text-sm font-semibold text-[#121c28]">
+                    <Label htmlFor="bankCode" required className="text-sm font-semibold text-foreground">
                       Destination Bank
                     </Label>
                     <SearchableSelect
@@ -422,21 +432,21 @@ export function PaystackPage() {
             className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300"
             onClick={() => !securityLoading && setSecurityModalOpen(false)}
           />
-          <div className="relative w-full max-w-md transform overflow-hidden rounded-[28px] bg-white border border-slate-200/40 p-6 shadow-[0px_12px_32px_rgba(0,55,176,0.12)] transition-all animate-in fade-in zoom-in-95 duration-200 z-50">
+          <div className="relative w-full max-w-md transform overflow-hidden rounded-[28px] bg-card text-card-foreground border border-border p-6 shadow-[0px_12px_32px_rgba(0,55,176,0.12)] transition-all animate-in fade-in zoom-in-95 duration-200 z-50">
             <button
               onClick={() => setSecurityModalOpen(false)}
               disabled={securityLoading}
-              className="absolute right-5 top-5 rounded-full p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-all cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center border-0 bg-transparent"
+              className="absolute right-5 top-5 rounded-full p-1.5 text-slate-400 hover:bg-accent hover:text-foreground transition-all cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center border-0 bg-transparent"
               aria-label="Close"
             >
               <X size={16} strokeWidth={2} />
             </button>
 
             <div className="mt-2 text-left pr-8">
-              <h3 className="text-lg font-black text-slate-900 leading-tight">
+              <h3 className="text-lg font-bold text-foreground leading-tight">
                 {securityAction === 'disconnect' ? 'Confirm Disconnection' : 'Security Verification'}
               </h3>
-              <p className="mt-3 text-xs font-semibold text-slate-500 leading-relaxed">
+              <p className="mt-3 text-xs font-semibold text-muted-foreground leading-relaxed">
                 {securityAction === 'disconnect' 
                   ? 'Warning: Disconnecting Paystack will disable digital payment links on all active invoices. Payments will no longer be settled automatically.' 
                   : 'Please verify your identity before changing your settlement bank account.'}

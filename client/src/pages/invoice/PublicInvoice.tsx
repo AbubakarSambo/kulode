@@ -146,6 +146,20 @@ const loadPaystackScript = (): Promise<boolean> => {
   })
 }
 
+const calculateGrossAmount = (amount: number): number => {
+  let gross = amount;
+  if (amount < 2462.50) {
+    gross = amount / 0.985;
+  } else {
+    gross = (amount + 100) / 0.985;
+  }
+  const fee = gross - amount;
+  if (fee > 2000) {
+    gross = amount + 2000;
+  }
+  return Math.round(gross * 100) / 100;
+}
+
 export function PublicInvoicePage() {
   const { token } = useParams<{ token: string }>()
   const queryClient = useQueryClient()
@@ -576,6 +590,11 @@ export function PublicInvoicePage() {
                       <div>
                         <p className="text-xs font-bold text-[#121c28]">{inst.label}</p>
                         <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{inst.percentage}% of total</p>
+                        {!inst.isPaid && (
+                          <p className="text-[9px] text-[#0037b0] font-semibold mt-0.5">
+                            Incl. processing fee: {formatCurrency(calculateGrossAmount(Number(inst.amount)))}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -617,6 +636,49 @@ export function PublicInvoicePage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Online Payment ────────────────────────────────────────── */}
+          {!isPaid && !hasInstallments && invoice.paymentUrl && (
+            <div className="bg-white rounded-2xl border border-slate-200/60 overflow-hidden" style={{ boxShadow: '0px 8px 24px rgba(0,55,176,0.05)' }}>
+              <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100">
+                <HugeiconsIcon icon={CreditCardIcon} className="h-4 w-4 text-[#0037b0]" />
+                <span className="text-sm font-bold text-[#121c28]">Online Payment</span>
+              </div>
+              <div className="p-5 space-y-4">
+                <p className="text-xs text-[#434655] leading-relaxed">
+                  Pay instantly using your card, bank transfer, or USSD code. The invoice status will be updated immediately.
+                </p>
+                
+                <div className="rounded-xl bg-[#f8f9ff] border border-slate-100 p-4 space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-500">Invoice Amount</span>
+                    <span className="font-semibold text-slate-800 tabular-nums">{formatCurrency(outstanding)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-500">Online Processing Fee</span>
+                    <span className="font-semibold text-slate-800 tabular-nums">{formatCurrency(calculateGrossAmount(outstanding) - outstanding)}</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-2 border-t border-slate-100 mt-2">
+                    <span className="text-sm font-bold text-[#121c28]">Total to Pay</span>
+                    <span className="text-base font-bold text-[#0037b0] tabular-nums">
+                      {formatCurrency(calculateGrossAmount(outstanding))}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handlePayNow()}
+                  disabled={isPaying}
+                  className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-lg text-sm font-semibold text-white cursor-pointer transition-all disabled:opacity-60 hover:scale-[1.01] active:scale-[0.99]"
+                  style={{ background: 'linear-gradient(135deg, #0037b0 0%, #1d4ed8 100%)' }}
+                >
+                  <HugeiconsIcon icon={CreditCardIcon} className="h-4 w-4" />
+                  {isPaying ? 'Processing…' : `Pay ${formatCurrency(calculateGrossAmount(outstanding))}`}
+                </button>
               </div>
             </div>
           )}

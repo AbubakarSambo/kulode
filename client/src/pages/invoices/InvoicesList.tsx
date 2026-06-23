@@ -19,6 +19,8 @@ import { formatCurrency, formatDate, cn } from '@/lib/utils'
 import type { InvoiceStatus } from '@/types'
 import { InvoicesIcon } from '@/components/ui/CustomIcons'
 import { useOverscrollBounce } from '@/hooks'
+import { useSubscription } from '@/hooks/useSubscription'
+
 
 
 const renderStatusPill = (status: InvoiceStatus) => {
@@ -89,6 +91,7 @@ export function InvoicesListPage() {
   const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const queryClient = useQueryClient()
+  const { isReadOnlyMode } = useSubscription()
 
   const openMobileFilters = () => {
     setTempStatus(status)
@@ -150,12 +153,22 @@ export function InvoicesListPage() {
         category="Sales & Billing"
         badgeText={data?.meta.total}
         action={
-          <Link to="/invoices/new">
-            <Button className="bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white shadow-[0px_4px_12px_rgba(0,55,176,0.15)] hover:opacity-95 rounded-xl h-10 px-4">
+          isReadOnlyMode ? (
+            <Button
+              disabled
+              className="opacity-50 cursor-not-allowed bg-slate-400 text-white rounded-xl h-10 px-4 select-none"
+            >
               <HugeiconsIcon icon={PlusSignIcon} className="mr-2 h-4 w-4" strokeWidth={1.5} />
               New Invoice
             </Button>
-          </Link>
+          ) : (
+            <Link to="/invoices/new">
+              <Button className="bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white shadow-[0px_4px_12px_rgba(0,55,176,0.15)] hover:opacity-95 rounded-xl h-10 px-4">
+                <HugeiconsIcon icon={PlusSignIcon} className="mr-2 h-4 w-4" strokeWidth={1.5} />
+                New Invoice
+              </Button>
+            </Link>
+          )
         }
       />
 
@@ -297,8 +310,8 @@ export function InvoicesListPage() {
             icon={Invoice03Icon}
             title={search ? "No invoices found" : "No invoices recorded"}
             description={search ? "Try adjusting your search terms or status filters." : "Create and send professional invoices, track payments, and get paid faster."}
-            actionLabel="Create your first invoice"
-            actionHref="/invoices/new"
+            actionLabel={isReadOnlyMode ? undefined : "Create your first invoice"}
+            actionHref={isReadOnlyMode ? undefined : "/invoices/new"}
           />
         ) : (
           <>
@@ -525,13 +538,15 @@ export function InvoicesListPage() {
       </div>
 
       {/* Mobile Floating Action Button */}
-      <Link 
-        to="/invoices/new" 
-        className="absolute bottom-6 right-6 z-40 sm:hidden w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all"
-        aria-label="New Invoice"
-      >
-        <HugeiconsIcon icon={PlusSignIcon} size={24} strokeWidth={1.5} />
-      </Link>
+      {!isReadOnlyMode && (
+        <Link 
+          to="/invoices/new" 
+          className="absolute bottom-6 right-6 z-40 sm:hidden w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all"
+          aria-label="New Invoice"
+        >
+          <HugeiconsIcon icon={PlusSignIcon} size={24} strokeWidth={1.5} />
+        </Link>
+      )}
 
       {/* Mobile slide-up bottom sheet for filters */}
       <BottomSheet

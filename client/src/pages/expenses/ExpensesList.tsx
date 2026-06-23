@@ -23,6 +23,8 @@ import { type ReportPeriod } from '@/api/reports'
 import { formatCurrency, formatDate, cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { TAX_CATEGORY_LABELS, type TaxCategory } from '@/types'
+import { useSubscription } from '@/hooks/useSubscription'
+
 import { ExpensesIcon } from '@/components/ui/CustomIcons'
 import { useOverscrollBounce } from '@/hooks'
 
@@ -127,6 +129,8 @@ export function ExpensesListPage() {
   const user = useAuthStore((s) => s.user)
   const isSuperAdmin = user?.role === 'SUPER_ADMIN'
   const queryClient = useQueryClient()
+  const { isReadOnlyMode: isExpired } = useSubscription()
+  const showActions = isSuperAdmin && !isExpired
 
   const { startDate: filterStart, endDate: filterEnd } = getPeriodDates(period, startDate, endDate)
 
@@ -240,18 +244,22 @@ export function ExpensesListPage() {
                 />
               </>
             )}
-            <Link to="/expenses/bulk-recategorize">
-              <Button variant="outline" className="h-10">
-                <HugeiconsIcon icon={TagsIcon} className="mr-2 h-4 w-4" strokeWidth={1.5} />
-                Bulk Recategorize
-              </Button>
-            </Link>
-            <Link to="/expenses/new">
-              <Button className="h-10">
-                <HugeiconsIcon icon={PlusSignIcon} className="mr-2 h-4 w-4" strokeWidth={1.5} />
-                Add Expense
-              </Button>
-            </Link>
+            {!isExpired && (
+              <>
+                <Link to="/expenses/bulk-recategorize">
+                  <Button variant="outline" className="h-10">
+                    <HugeiconsIcon icon={TagsIcon} className="mr-2 h-4 w-4" strokeWidth={1.5} />
+                    Bulk Recategorize
+                  </Button>
+                </Link>
+                <Link to="/expenses/new">
+                  <Button className="h-10">
+                    <HugeiconsIcon icon={PlusSignIcon} className="mr-2 h-4 w-4" strokeWidth={1.5} />
+                    Add Expense
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
         }
       />
@@ -576,8 +584,8 @@ export function ExpensesListPage() {
             icon={WalletRemove01Icon}
             title={search ? "No expenses found" : "No expenses recorded"}
             description={search ? "Try adjusting your search terms or period filters." : "Track your outgoing business cash flows and tax-deductible items."}
-            actionLabel="Add your first expense"
-            actionHref="/expenses/new"
+            actionLabel={isExpired ? undefined : "Add your first expense"}
+            actionHref={isExpired ? undefined : "/expenses/new"}
           />
         ) : (
           <>
@@ -594,7 +602,7 @@ export function ExpensesListPage() {
                         <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 select-none">Date</th>
                         <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 select-none">Method</th>
                         <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-right text-[10px] font-bold uppercase tracking-widest text-slate-400 select-none">Amount</th>
-                        {isSuperAdmin && <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-right text-[10px] font-bold uppercase tracking-widest text-slate-400 select-none">Actions</th>}
+                        {showActions && <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-right text-[10px] font-bold uppercase tracking-widest text-slate-400 select-none">Actions</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y-0">
@@ -662,7 +670,7 @@ export function ExpensesListPage() {
                           <td className="px-6 py-4 text-right font-semibold text-slate-800 tabular-nums text-sm">
                             -{formatCurrency(expense.amount)}
                           </td>
-                          {isSuperAdmin && (
+                          {showActions && (
                             <td className="px-6 py-4 text-right relative">
                               <div className="inline-block text-left relative">
                                 <button
@@ -733,7 +741,7 @@ export function ExpensesListPage() {
                         )}
                       </div>
                     </div>
-                    {isSuperAdmin && (
+                    {showActions && (
                       <div className="flex items-center gap-2 shrink-0">
                         <Link 
                           to={`/expenses/${expense.id}/edit`}
@@ -885,13 +893,15 @@ export function ExpensesListPage() {
           </div>
         )}
       </div>      {/* Mobile Floating Action Button */}
-      <Link 
-        to="/expenses/new" 
-        className="absolute bottom-6 right-6 z-40 sm:hidden w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all"
-        aria-label="Add Expense"
-      >
-        <HugeiconsIcon icon={PlusSignIcon} size={24} strokeWidth={1.5} />
-      </Link>
+      {!isExpired && (
+        <Link 
+          to="/expenses/new" 
+          className="absolute bottom-6 right-6 z-40 sm:hidden w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all"
+          aria-label="Add Expense"
+        >
+          <HugeiconsIcon icon={PlusSignIcon} size={24} strokeWidth={1.5} />
+        </Link>
+      )}
 
       {/* Mobile slide-up bottom sheet for filters */}
       <BottomSheet

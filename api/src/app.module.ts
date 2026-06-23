@@ -20,7 +20,9 @@ import { SubscriptionModule } from './modules/subscription';
 import { InventoryModule } from './modules/inventory';
 import { TaxModule } from './modules/tax';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
-import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor } from './common';
+import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor, SubscriptionReadOnlyGuard } from './common';
+
+
 
 @Module({
   imports: [
@@ -59,6 +61,11 @@ import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor }
     {
       provide: APP_GUARD,
       useClass: RolesGuard,
+    },
+    // Global Subscription Read-Only Guard
+    {
+      provide: APP_GUARD,
+      useClass: SubscriptionReadOnlyGuard,
     },
     // Global Exception Filter
     {

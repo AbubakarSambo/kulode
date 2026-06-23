@@ -7,7 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSubaccountDto, VerifyBankAccountDto } from './dto';
-import { createHmac } from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { InventoryService } from '../inventory/inventory.service';
 
 export interface PaystackBank {
@@ -198,6 +198,11 @@ export class PaystackService {
       },
     });
 
+    this.logger.warn(
+      `[ACTION REQUIRED] New Paystack subaccount created (${subaccountCode}) for organization "${organization.name}". ` +
+      `You must manually log into the Paystack Dashboard and approve this subaccount to activate payouts.`
+    );
+
     return {
       subaccountCode,
       accountName: verification.account_name,
@@ -231,6 +236,27 @@ export class PaystackService {
     return { success: true };
   }
 
+  calculateGrossAmount(netAmount: number): number {
+    // Paystack local fee: 1.5% + NGN 100.
+    // NGN 100 flat fee is waived if the gross amount is under NGN 2,500.
+    // Max fee is NGN 2,000.
+    // Case 1: Gross < 2,500 (Net < 2462.50)
+    //   X - 0.015 * X = Net => 0.985 * X = Net => X = Net / 0.985
+    // Case 2: Gross >= 2,500 (Net >= 2462.50)
+    //   X - (0.015 * X + 100) = Net => 0.985 * X - 100 = Net => X = (Net + 100) / 0.985
+    let gross = netAmount;
+    if (netAmount < 2462.50) {
+      gross = netAmount / 0.985;
+    } else {
+      gross = (netAmount + 100) / 0.985;
+    }
+    const fee = gross - netAmount;
+    if (fee > 2000) {
+      gross = netAmount + 2000;
+    }
+    return Math.round(gross * 100) / 100;
+  }
+
   async initializeTransaction(
     organizationId: string,
     invoiceId: string,
@@ -258,6 +284,9 @@ export class PaystackService {
     // Generate unique reference
     const reference = `${invoice.invoiceNumber}-${Date.now()}`;
 
+    // Calculate gross amount to charge client's customer (convenience fee included)
+    const grossAmount = this.calculateGrossAmount(amount);
+
     let authorization_url = `http://localhost:5173/payment/callback?reference=${reference}`;
     let access_code = 'MOCK_ACCESS_CODE';
 
@@ -268,7 +297,7 @@ export class PaystackService {
         reference: string;
       }>('/transaction/initialize', 'POST', {
         email,
-        amount: Math.round(amount * 100), // Convert to kobo
+        amount: Math.round(grossAmount * 100), // Convert to kobo
         reference,
         callback_url: this.callbackUrl,
         subaccount: organization.paystackSubaccountCode,
@@ -340,6 +369,9 @@ export class PaystackService {
     // Generate unique reference
     const reference = `${invoice.invoiceNumber}-INST${installment.sequence}-${Date.now()}`;
 
+    // Calculate gross amount to charge client's customer (convenience fee included)
+    const grossAmount = this.calculateGrossAmount(amount);
+
     let authorization_url = `http://localhost:5173/payment/callback?reference=${reference}`;
     let access_code = 'MOCK_ACCESS_CODE';
 
@@ -350,7 +382,7 @@ export class PaystackService {
         reference: string;
       }>('/transaction/initialize', 'POST', {
         email,
-        amount: Math.round(amount * 100), // Convert to kobo
+        amount: Math.round(grossAmount * 100), // Convert to kobo
         reference,
         callback_url: this.callbackUrl,
         subaccount: organization.paystackSubaccountCode,
@@ -415,7 +447,18 @@ export class PaystackService {
     const hash = createHmac('sha512', this.secretKey)
       .update(payload)
       .digest('hex');
-    return hash === signature;
+    
+    try {
+      const hashBuffer = Buffer.from(hash, 'hex');
+      const sigBuffer = Buffer.from(signature, 'hex');
+      
+      if (hashBuffer.length !== sigBuffer.length) {
+        return false;
+      }
+      return timingSafeEqual(hashBuffer, sigBuffer);
+    } catch {
+      return false;
+    }
   }
 
   async verifyTransaction(reference: string) {
@@ -425,10 +468,23 @@ export class PaystackService {
         amount: number;
         currency: string;
         reference: string;
+        fees?: number;
+        channel?: string;
+        paid_at?: string;
         metadata?: {
           invoice_number?: string;
         };
       }>(`/transaction/verify/${reference}`);
+
+      if (data.status === 'success') {
+        await this.reconcilePayment(reference, {
+          amount: data.amount,
+          channel: data.channel || 'card',
+          paid_at: data.paid_at || new Date().toISOString(),
+          fees: data.fees || 0,
+          metadata: data.metadata,
+        });
+      }
 
       return {
         status: data.status,
@@ -443,31 +499,26 @@ export class PaystackService {
     }
   }
 
-  async handleWebhookEvent(event: string, data: PaystackTransaction) {
-    if (event !== 'charge.success') {
-      return { received: true };
+  async reconcilePayment(reference: string, data: {
+    amount: number;
+    channel: string;
+    paid_at: string;
+    fees: number;
+    metadata?: any;
+    authorization?: any;
+    customer?: { email: string };
+  }) {
+    // Idempotency Check: check if payment record already exists
+    const existingPayment = await this.prisma.payment.findFirst({
+      where: { paystackReference: reference },
+    });
+
+    if (existingPayment) {
+      this.logger.log(`Payment for reference ${reference} already reconciled, skipping.`);
+      return { success: true, alreadyProcessed: true };
     }
 
-    const { reference, amount, channel, paid_at, fees, metadata } = data;
-
-    // Route subscription payments to be handled externally
-    if (metadata?.type === 'subscription') {
-      this.logger.log(`Subscription payment received: ${reference}`);
-      return {
-        received: true,
-        type: 'subscription',
-        metadata,
-        amount,
-        reference,
-        authorization: data.authorization,
-        customerEmail: data.customer?.email,
-      };
-    }
-
-    if (!metadata?.invoice_id) {
-      this.logger.warn(`Webhook received without invoice_id: ${reference}`);
-      return { received: true };
-    }
+    const { amount, channel, paid_at, fees } = data;
 
     // Check if this is an installment payment
     const installment = await this.prisma.paymentInstallment.findFirst({
@@ -476,7 +527,6 @@ export class PaystackService {
     });
 
     if (installment) {
-      // Handle installment payment
       const invoice = installment.invoice;
       const amountInNaira = amount / 100;
       const paystackFees = fees / 100;
@@ -484,6 +534,12 @@ export class PaystackService {
       const netAmount = amountInNaira - paystackFees - platformFees;
 
       await this.prisma.$transaction(async (tx) => {
+        // Double check within transaction
+        const doubleCheck = await tx.payment.findFirst({
+          where: { paystackReference: reference },
+        });
+        if (doubleCheck) return;
+
         // Create payment record
         await tx.payment.create({
           data: {
@@ -530,7 +586,7 @@ export class PaystackService {
       });
 
       this.logger.log(`Installment payment recorded for invoice ${invoice.invoiceNumber}`);
-      return { received: true };
+      return { success: true };
     }
 
     // Fall back to regular invoice payment
@@ -541,7 +597,7 @@ export class PaystackService {
 
     if (!invoice) {
       this.logger.warn(`Invoice not found for reference: ${reference}`);
-      return { received: true };
+      return { success: false, reason: 'Invoice not found' };
     }
 
     // Calculate fees and net amount
@@ -552,6 +608,12 @@ export class PaystackService {
 
     // Record payment in transaction
     await this.prisma.$transaction(async (tx) => {
+      // Double check within transaction
+      const doubleCheck = await tx.payment.findFirst({
+        where: { paystackReference: reference },
+      });
+      if (doubleCheck) return;
+
       // Create payment record
       await tx.payment.create({
         data: {
@@ -593,6 +655,37 @@ export class PaystackService {
     });
 
     this.logger.log(`Payment recorded for invoice ${invoice.invoiceNumber}`);
+    return { success: true };
+  }
+
+  async handleWebhookEvent(event: string, data: PaystackTransaction) {
+    if (event !== 'charge.success') {
+      return { received: true };
+    }
+
+    const { reference, amount, paid_at, metadata } = data;
+
+    // Route subscription payments to be handled externally
+    if (metadata?.type === 'subscription') {
+      this.logger.log(`Subscription payment received: ${reference}`);
+      return {
+        received: true,
+        type: 'subscription',
+        metadata,
+        amount,
+        reference,
+        authorization: data.authorization,
+        customerEmail: data.customer?.email,
+      };
+    }
+
+    if (!metadata?.invoice_id) {
+      this.logger.warn(`Webhook received without invoice_id: ${reference}`);
+      return { received: true };
+    }
+
+    // Delegate to unified reconciliation method
+    await this.reconcilePayment(reference, data);
     return { received: true };
   }
 }

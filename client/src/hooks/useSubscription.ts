@@ -44,6 +44,8 @@ export function useSubscription() {
     isActive: subscription?.subscriptionStatus === 'ACTIVE',
     isExpired: subscription?.subscriptionStatus === 'EXPIRED' ||
       (subscription?.subscriptionStatus === 'TRIALING' && subscription?.trialDaysRemaining === 0),
+    isReadOnlyMode: (subscription?.subscriptionStatus === 'EXPIRED' ||
+      (subscription?.subscriptionStatus === 'TRIALING' && subscription?.trialDaysRemaining === 0)) && !user?.isPlatformAdmin,
     trialDaysRemaining: subscription?.trialDaysRemaining ?? null,
     canAccessPage,
     hasRequiredPlan,

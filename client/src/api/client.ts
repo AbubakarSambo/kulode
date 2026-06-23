@@ -45,9 +45,16 @@ apiClient.interceptors.response.use(
     }
 
     if (error.response?.status === 403) {
-      toast.error('Access denied', {
-        description: 'You do not have permission to perform this action',
-      })
+      const errorData = error.response.data as { code?: string; message?: string }
+      if (errorData?.code === 'SUBSCRIPTION_EXPIRED_READ_ONLY' || errorData?.message?.includes('subscription has expired')) {
+        toast.error('Subscription Expired', {
+          description: 'Your account is in read-only mode. Please renew your subscription to perform this action.',
+        })
+      } else {
+        toast.error('Access denied', {
+          description: 'You do not have permission to perform this action',
+        })
+      }
     } else if (error.response?.status === 404) {
       toast.error('Not found', {
         description: message,

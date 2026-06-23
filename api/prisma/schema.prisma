@@ -98,7 +98,7 @@ model Organization {
   isPaystackVerified     Boolean  @default(false) @map("is_paystack_verified")
   
   // Platform settings
-  platformFeePercent     Decimal  @default(5.00) @map("platform_fee_percent") @db.Decimal(5, 2)
+  platformFeePercent     Decimal  @default(0.00) @map("platform_fee_percent") @db.Decimal(5, 2)
   invoicePrefix          String   @default("INV") @map("invoice_prefix")
   currency               String   @default("NGN")
   taxRate                Decimal  @default(0) @map("tax_rate") @db.Decimal(5, 2)

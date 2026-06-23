@@ -30,3 +30,4 @@ npm-debug.log*
 
 # PostgreSQL runtime data (local dev only — never commit DB binaries)
 postgres_data/
+postgres_data_old/

@@ -22,6 +22,8 @@ import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class InvoicesService {
+  private readonly lastCheckedReferences = new Map<string, number>();
+
   constructor(
     private prisma: PrismaService,
     private inventoryService: InventoryService,
@@ -746,6 +748,33 @@ export class InvoicesService {
         let updated = false;
         const TOKEN_EXPIRY_MS = 20 * 60 * 1000; // 20 minutes
         const now = new Date();
+
+        // Fallback check: try to reconcile any pending transactions before proceeding
+        const referencesToCheck: string[] = [];
+        if (invoice.installments && invoice.installments.length > 0) {
+          for (const inst of invoice.installments) {
+            if (!inst.isPaid && inst.paystackReference) {
+              referencesToCheck.push(inst.paystackReference);
+            }
+          }
+        } else if (invoice.paystackReference) {
+          referencesToCheck.push(invoice.paystackReference);
+        }
+
+        for (const ref of referencesToCheck) {
+          const lastChecked = this.lastCheckedReferences.get(ref) || 0;
+          if (Date.now() - lastChecked > 30000) {
+            this.lastCheckedReferences.set(ref, Date.now());
+            try {
+              const verification = await this.paystackService.verifyTransaction(ref);
+              if (verification && verification.status === 'success') {
+                updated = true;
+              }
+            } catch (err) {
+              // Ignore verification errors for individual references
+            }
+          }
+        }
 
         if (invoice.installments && invoice.installments.length > 0) {
           for (const inst of invoice.installments) {
