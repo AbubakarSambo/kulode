@@ -17,13 +17,13 @@ import {
   LogOut,
   X,
   Lock,
-  Crown,
   LucideIcon
 } from 'lucide-react'
 import { Sidebar } from './Sidebar'
 import { WelcomeStepper } from '@/components/WelcomeStepper'
 import { TrialBanner } from '../shared/TrialBanner'
 import { RebrandBanner } from '../shared/RebrandBanner'
+import { SubscriptionExpiredBanner } from '../shared/SubscriptionExpiredBanner'
 import { useAuthStore } from '@/stores/auth'
 import { useLogout } from '@/hooks'
 import { useSubscription } from '@/hooks/useSubscription'
@@ -36,46 +36,9 @@ export function AppLayout() {
   const location = useLocation()
   const user = useAuthStore((state) => state.user)
   const logout = useLogout()
-  const { hasRequiredPlan, isExpired } = useSubscription()
+  const { hasRequiredPlan } = useSubscription()
 
-  const isBillingPage = location.pathname.startsWith('/settings/billing')
-  const showExpiredGate = isExpired && !isBillingPage
 
-  if (showExpiredGate) {
-    return (
-      <div className="flex h-screen w-screen flex-col items-center justify-center bg-[#090d16] text-white p-6">
-        <div className="relative w-full max-w-md bg-slate-900/60 border border-slate-800/80 rounded-3xl p-8 shadow-[0_24px_50px_rgba(0,0,0,0.4)] backdrop-blur-xl text-center">
-          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive">
-            <Lock className="h-10 w-10" />
-          </div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-100 font-sans">Subscription Expired</h2>
-          <p className="mt-3 text-sm text-slate-400 leading-relaxed font-sans">
-            Your TariOne trial or subscription has expired. Don't worry—your invoicing data, client records, and transaction histories are completely safe.
-          </p>
-          <p className="mt-2 text-sm text-slate-400 leading-relaxed font-sans">
-            Please choose a subscription plan to unlock access to your account and continue managing your business.
-          </p>
-          
-          <div className="mt-8 space-y-3">
-            <Link
-              to="/settings/billing"
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-[#2563eb] px-6 py-3.5 text-sm font-semibold text-white hover:from-primary/90 hover:to-[#2563eb]/90 active:scale-[0.98] transition-all duration-150 shadow-[0_4px_12px_rgba(0,55,176,0.3)] cursor-pointer font-sans"
-            >
-              <Crown className="h-5 w-5" />
-              Subscribe & Unlock Account
-            </Link>
-            <button
-              onClick={() => logout()}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-950/40 px-6 py-3 text-sm font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-900/60 hover:border-slate-700 transition-colors cursor-pointer font-sans"
-            >
-              <LogOut className="h-4 w-4" />
-              Log Out
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   const getPageTitle = () => {
     const path = location.pathname
@@ -124,6 +87,7 @@ export function AppLayout() {
       <WelcomeStepper />
 
       <main className="flex flex-1 flex-col overflow-hidden relative">
+        <SubscriptionExpiredBanner />
         <RebrandBanner />
         {/* Mobile header with brand mark (with top notch safe-area support) */}
         <div className="flex h-[calc(3.5rem+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] items-center justify-between bg-background/80 backdrop-blur-md px-6 lg:hidden border-b border-[#eef4ff]/50 z-30">

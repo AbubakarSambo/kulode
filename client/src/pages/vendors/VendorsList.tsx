@@ -23,6 +23,8 @@ import { VendorsIcon } from '@/components/ui/CustomIcons'
 import { useOverscrollBounce } from '@/hooks'
 import { cn, isActualMobileDevice } from '@/lib/utils'
 import { toast } from 'sonner'
+import { useSubscription } from '@/hooks/useSubscription'
+
 
 const getInitials = (name: string) => {
   const cleanName = name.replace(/^(Mrs\.|Mr\.|Dr\.|Prof\.)\s+/i, '').trim();
@@ -45,6 +47,8 @@ export function VendorsListPage() {
   const user = useAuthStore((state) => state.user)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { isReadOnlyMode: isExpired } = useSubscription()
+
 
   const canCreate = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
 
@@ -93,12 +97,22 @@ export function VendorsListPage() {
         badgeText={data?.meta.total}
         action={
           canCreate ? (
-            <Link to="/vendors/new">
-              <Button>
-                <HugeiconsIcon icon={PlusSignIcon} className="mr-2 h-4 w-4" strokeWidth={1.5} />
+            !isExpired ? (
+              <Link to="/vendors/new">
+                <Button>
+                  <HugeiconsIcon icon={PlusSignIcon} size={16} className="mr-2" strokeWidth={1.5} />
+                  Add Vendor
+                </Button>
+              </Link>
+            ) : (
+              <Button
+                disabled
+                className="opacity-50 cursor-not-allowed bg-slate-400 text-white rounded-xl h-10 px-4 select-none"
+              >
+                <HugeiconsIcon icon={PlusSignIcon} size={16} className="mr-2" strokeWidth={1.5} />
                 Add Vendor
               </Button>
-            </Link>
+            )
           ) : undefined
         }
       />
@@ -127,8 +141,8 @@ export function VendorsListPage() {
               icon={Store04Icon}
               title={search ? "No vendors found" : "No vendors recorded"}
               description={search ? "Try adjusting your search query." : "Keep a directory of your business vendors, contractors, and suppliers."}
-              actionLabel={canCreate ? "Add your first vendor" : undefined}
-              actionHref="/vendors/new"
+              actionLabel={canCreate && !isExpired ? "Add your first vendor" : undefined}
+              actionHref={canCreate && !isExpired ? "/vendors/new" : undefined}
             />
           ) : (
             <>
@@ -230,26 +244,30 @@ export function VendorsListPage() {
                                     <HugeiconsIcon icon={ViewIcon} size={14} className="text-slate-400" strokeWidth={1.5} />
                                     View Details
                                   </Link>
-                                  <Link
-                                    to={`/vendors/${vendor.id}/edit`}
-                                    onClick={() => setActiveDropdown(null)}
-                                    className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors rounded-lg"
-                                  >
-                                    <HugeiconsIcon icon={PencilEdit02Icon} size={14} className="text-slate-400" strokeWidth={1.5} />
-                                    Edit Vendor
-                                  </Link>
-                                  {canCreate && (
-                                    <button
-                                      onClick={() => {
-                                        setVendorToDelete({ id: vendor.id, name: vendor.name });
-                                        setDeleteConfirmOpen(true);
-                                        setActiveDropdown(null);
-                                      }}
-                                      className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer rounded-lg border-0"
-                                    >
-                                      <HugeiconsIcon icon={Delete02Icon} size={14} className="text-rose-500" strokeWidth={1.5} />
-                                      Delete Vendor
-                                    </button>
+                                  {!isExpired && (
+                                    <>
+                                      <Link
+                                        to={`/vendors/${vendor.id}/edit`}
+                                        onClick={() => setActiveDropdown(null)}
+                                        className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors rounded-lg"
+                                      >
+                                        <HugeiconsIcon icon={PencilEdit02Icon} size={14} className="text-slate-400" strokeWidth={1.5} />
+                                        Edit Vendor
+                                      </Link>
+                                      {canCreate && (
+                                        <button
+                                          onClick={() => {
+                                            setVendorToDelete({ id: vendor.id, name: vendor.name });
+                                            setDeleteConfirmOpen(true);
+                                            setActiveDropdown(null);
+                                          }}
+                                          className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer rounded-lg border-0"
+                                        >
+                                          <HugeiconsIcon icon={Delete02Icon} size={14} className="text-rose-500" strokeWidth={1.5} />
+                                          Delete Vendor
+                                        </button>
+                                      )}
+                                    </>
                                   )}
                                 </DropdownPanel>
                               </div>
@@ -287,31 +305,33 @@ export function VendorsListPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/vendors/${vendor.id}/edit`);
-                          }}
-                          className="w-11 h-11 rounded-full flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer border border-[#eef4ff]/60 shrink-0"
-                          aria-label="Edit Vendor"
-                        >
-                          <HugeiconsIcon icon={PencilEdit02Icon} size={16} strokeWidth={1.5} />
-                        </button>
-                        {canCreate && (
+                      {!isExpired && (
+                        <div className="flex items-center gap-2 shrink-0">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setVendorToDelete({ id: vendor.id, name: vendor.name });
-                              setDeleteConfirmOpen(true);
+                              navigate(`/vendors/${vendor.id}/edit`);
                             }}
-                            className="w-11 h-11 rounded-full flex items-center justify-center bg-rose-50/50 text-rose-600 hover:bg-rose-100/50 hover:text-rose-700 transition-colors cursor-pointer border border-rose-500/10 shrink-0"
-                            aria-label="Delete Vendor"
+                            className="w-11 h-11 rounded-full flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer border border-[#eef4ff]/60 shrink-0"
+                            aria-label="Edit Vendor"
                           >
-                            <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.5} />
+                            <HugeiconsIcon icon={PencilEdit02Icon} size={16} strokeWidth={1.5} />
                           </button>
-                        )}
-                      </div>
+                          {canCreate && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setVendorToDelete({ id: vendor.id, name: vendor.name });
+                                setDeleteConfirmOpen(true);
+                              }}
+                              className="w-11 h-11 rounded-full flex items-center justify-center bg-rose-50/50 text-rose-600 hover:bg-rose-100/50 hover:text-rose-700 transition-colors cursor-pointer border border-rose-500/10 shrink-0"
+                              aria-label="Delete Vendor"
+                            >
+                              <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.5} />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex flex-col gap-2">
@@ -474,10 +494,10 @@ export function VendorsListPage() {
       </div>
 
       {/* Mobile Floating Action Button */}
-      {canCreate && (
+      {canCreate && !isExpired && (
         <Link 
           to="/vendors/new" 
-          className="absolute bottom-6 right-6 z-40 sm:hidden w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all"
+          className="absolute bottom-6 right-6 z-40 sm:hidden w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all animate-rubber-bottom"
           aria-label="Add Vendor"
         >
           <HugeiconsIcon icon={PlusSignIcon} size={24} strokeWidth={1.5} />

@@ -24,6 +24,7 @@ import { useAuthStore } from '@/stores/auth'
 import { PaymentsIcon } from '@/components/ui/CustomIcons'
 import type { PaymentMethod } from '@/types'
 import { useOverscrollBounce } from '@/hooks'
+import { useSubscription } from '@/hooks/useSubscription'
 
 const methodDotColors: Record<string, string> = {
   BANK_TRANSFER: 'bg-blue-500',
@@ -59,6 +60,7 @@ const getInitials = (name: string) => {
 }
 
 export function PaymentsListPage() {
+  const { isReadOnlyMode: isExpired } = useSubscription()
   const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -176,11 +178,20 @@ export function PaymentsListPage() {
               <HugeiconsIcon icon={Download02Icon} className="mr-2 h-4 w-4" strokeWidth={1.5} />
               Export CSV
             </Button>
-            <Link to="/invoices">
-              <Button className="h-10 px-4 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white shadow-[0px_4px_12px_rgba(0,55,176,0.15)] hover:opacity-95">
+            {isExpired ? (
+              <Button
+                disabled
+                className="opacity-50 cursor-not-allowed bg-slate-400 text-white rounded-xl h-10 px-4 select-none"
+              >
                 Record Payment
               </Button>
-            </Link>
+            ) : (
+              <Link to="/invoices">
+                <Button className="h-10 px-4 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white shadow-[0px_4px_12px_rgba(0,55,176,0.15)] hover:opacity-95">
+                  Record Payment
+                </Button>
+              </Link>
+            )}
           </div>
         }
       />
@@ -425,7 +436,7 @@ export function PaymentsListPage() {
                                   <HugeiconsIcon icon={Download02Icon} size={14} className="text-slate-400" strokeWidth={1.5} />
                                   Download Receipt
                                 </button>
-                                {isSuperAdmin && (
+                                {isSuperAdmin && !isExpired && (
                                   <>
                                     <Link
                                       to={`/payments/${payment.id}/edit`}
@@ -508,7 +519,7 @@ export function PaymentsListPage() {
                       {formatDate(payment.paymentDate)}
                     </span>
                     <div className="flex items-center gap-2 -my-2.5">
-                      {isSuperAdmin && (
+                      {isSuperAdmin && !isExpired && (
                         <>
                           <Link 
                             to={`/payments/${payment.id}/edit`}

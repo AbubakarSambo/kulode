@@ -24,6 +24,8 @@ import { cn, isActualMobileDevice } from '@/lib/utils'
 import { toast } from 'sonner'
 import { ClientsIcon } from '@/components/ui/CustomIcons'
 import { useOverscrollBounce } from '@/hooks'
+import { useSubscription } from '@/hooks/useSubscription'
+
 
 
 const getInitials = (name: string) => {
@@ -47,6 +49,8 @@ export function ClientsListPage() {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false)
   const [tempStatus, setTempStatus] = useState<'active' | 'inactive' | ''>('')
   const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
+  const { isReadOnlyMode: isExpired } = useSubscription()
+
 
   const openMobileFilters = () => {
     setTempStatus(status)
@@ -128,12 +132,22 @@ export function ClientsListPage() {
               <HugeiconsIcon icon={Download04Icon} size={16} className="mr-2" strokeWidth={1.5} />
               Export
             </Button>
-            <Link to="/clients/new">
-              <Button>
+            {isExpired ? (
+              <Button
+                disabled
+                className="opacity-50 cursor-not-allowed bg-slate-400 text-white rounded-xl h-10 px-4 select-none"
+              >
                 <HugeiconsIcon icon={PlusSignIcon} size={16} className="mr-2" strokeWidth={1.5} />
                 Add Client
               </Button>
-            </Link>
+            ) : (
+              <Link to="/clients/new">
+                <Button>
+                  <HugeiconsIcon icon={PlusSignIcon} size={16} className="mr-2" strokeWidth={1.5} />
+                  Add Client
+                </Button>
+              </Link>
+            )}
           </div>
         }
       />
@@ -248,8 +262,8 @@ export function ClientsListPage() {
             icon={UserGroupIcon}
             title="No clients found"
             description="Build your customer list to start creating invoices and tracking payments."
-            actionLabel="Add your first client"
-            actionHref="/clients/new"
+            actionLabel={isExpired ? undefined : "Add your first client"}
+            actionHref={isExpired ? undefined : "/clients/new"}
           />
         ) : (
           <>
@@ -356,25 +370,29 @@ export function ClientsListPage() {
                                   <HugeiconsIcon icon={ViewIcon} size={14} className="text-slate-400" strokeWidth={1.5} />
                                   View Details
                                 </Link>
-                                <Link
-                                  to={`/clients/${client.id}/edit`}
-                                  onClick={() => setActiveDropdown(null)}
-                                  className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors rounded-lg"
-                                >
-                                  <HugeiconsIcon icon={PencilEdit02Icon} size={14} className="text-slate-400" strokeWidth={1.5} />
-                                  Edit Client
-                                </Link>
-                                <button
-                                  onClick={() => {
-                                    setClientToDelete({ id: client.id, name: client.name });
-                                    setDeleteConfirmOpen(true);
-                                    setActiveDropdown(null);
-                                  }}
-                                  className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer rounded-lg"
-                                >
-                                  <HugeiconsIcon icon={Delete02Icon} size={14} className="text-rose-500" strokeWidth={1.5} />
-                                  Delete Client
-                                </button>
+                                 {!isExpired && (
+                                  <>
+                                    <Link
+                                      to={`/clients/${client.id}/edit`}
+                                      onClick={() => setActiveDropdown(null)}
+                                      className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors rounded-lg"
+                                    >
+                                      <HugeiconsIcon icon={PencilEdit02Icon} size={14} className="text-slate-400" strokeWidth={1.5} />
+                                      Edit Client
+                                    </Link>
+                                    <button
+                                      onClick={() => {
+                                        setClientToDelete({ id: client.id, name: client.name });
+                                        setDeleteConfirmOpen(true);
+                                        setActiveDropdown(null);
+                                      }}
+                                      className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer rounded-lg"
+                                    >
+                                      <HugeiconsIcon icon={Delete02Icon} size={14} className="text-rose-500" strokeWidth={1.5} />
+                                      Delete Client
+                                    </button>
+                                  </>
+                                )}
                               </DropdownPanel>
                             </div>
                           </td>
@@ -412,29 +430,31 @@ export function ClientsListPage() {
                     </div>
 
                     {/* Inline direct actions with generous tap targets */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/clients/${client.id}/edit`);
-                        }}
-                        className="w-11 h-11 rounded-full flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer border border-[#eef4ff]/60 shrink-0"
-                        aria-label="Edit Client"
-                      >
-                        <HugeiconsIcon icon={PencilEdit02Icon} size={16} strokeWidth={1.5} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setClientToDelete({ id: client.id, name: client.name });
-                          setDeleteConfirmOpen(true);
-                        }}
-                        className="w-11 h-11 rounded-full flex items-center justify-center bg-rose-50/50 text-rose-600 hover:bg-rose-100/50 hover:text-rose-700 transition-colors cursor-pointer border border-rose-500/10 shrink-0"
-                        aria-label="Delete Client"
-                      >
-                        <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.5} />
-                      </button>
-                    </div>
+                    {!isExpired && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/clients/${client.id}/edit`);
+                          }}
+                          className="w-11 h-11 rounded-full flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer border border-[#eef4ff]/60 shrink-0"
+                          aria-label="Edit Client"
+                        >
+                          <HugeiconsIcon icon={PencilEdit02Icon} size={16} strokeWidth={1.5} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setClientToDelete({ id: client.id, name: client.name });
+                            setDeleteConfirmOpen(true);
+                          }}
+                          className="w-11 h-11 rounded-full flex items-center justify-center bg-rose-50/50 text-rose-600 hover:bg-rose-100/50 hover:text-rose-700 transition-colors cursor-pointer border border-rose-500/10 shrink-0"
+                          aria-label="Delete Client"
+                        >
+                          <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.5} />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-col gap-2">
@@ -590,13 +610,15 @@ export function ClientsListPage() {
       </div>
 
       {/* Mobile Floating Action Button */}
-      <Link 
-        to="/clients/new" 
-        className="absolute bottom-6 right-6 z-40 sm:hidden w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all"
-        aria-label="Add Client"
-      >
-        <HugeiconsIcon icon={PlusSignIcon} size={24} strokeWidth={1.5} />
-      </Link>
+      {!isExpired && (
+        <Link 
+          to="/clients/new" 
+          className="absolute bottom-6 right-6 z-40 sm:hidden w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all"
+          aria-label="Add Client"
+        >
+          <HugeiconsIcon icon={PlusSignIcon} size={24} strokeWidth={1.5} />
+        </Link>
+      )}
 
       {/* Mobile slide-up bottom sheet for filters */}
       <BottomSheet

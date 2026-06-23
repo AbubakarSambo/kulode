@@ -11,7 +11,6 @@ import {
   PencilEdit02Icon,
   Delete02Icon,
   PackageIcon,
-  Clock01Icon,
   TradeUpIcon,
   TradeDownIcon,
   ArrowDown01Icon,
@@ -23,6 +22,8 @@ import { Button, Input, Label, Textarea, Card, CardContent, Badge, ConfirmDialog
 import { Modal } from '@/components/shared/Modal'
 import { BottomSheet } from '@/components/shared'
 import { inventoryApi } from '@/api/inventory'
+import { useSubscription } from '@/hooks/useSubscription'
+
 import { formatCurrency, cn } from '@/lib/utils'
 import type { InventoryItem, StockMovement, StockMovementType } from '@/types'
 import { InventoryIcon } from '@/components/ui/CustomIcons'
@@ -103,6 +104,8 @@ export function InventoryPage() {
   const [limit, setLimit] = useState(10)
   const [limitOpen, setLimitOpen] = useState(false)
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
+  const { isReadOnlyMode: isExpired } = useSubscription()
+
 
   const openMobileFilters = () => {
     setTempStockFilter(stockFilter)
@@ -280,10 +283,20 @@ export function InventoryPage() {
         category="Business Ops"
         badgeText={items?.length}
         action={
-          <Button onClick={() => setCreateOpen(true)}>
-            <HugeiconsIcon icon={PlusSignIcon} className="mr-2 h-4 w-4" strokeWidth={1.5} />
-            Add Item
-          </Button>
+          isExpired ? (
+            <Button
+              disabled
+              className="opacity-50 cursor-not-allowed bg-slate-400 text-white rounded-xl h-10 px-4 select-none"
+            >
+              <HugeiconsIcon icon={PlusSignIcon} className="mr-2 h-4 w-4" strokeWidth={1.5} />
+              Add Item
+            </Button>
+          ) : (
+            <Button onClick={() => setCreateOpen(true)}>
+              <HugeiconsIcon icon={PlusSignIcon} className="mr-2 h-4 w-4" strokeWidth={1.5} />
+              Add Item
+            </Button>
+          )
         }
       />
 
@@ -487,46 +500,40 @@ export function InventoryPage() {
                                   widthClass="w-40"
                                   zIndexClass="z-20"
                                 >
-                                  <button
-                                    onClick={() => {
-                                      openAdjust(item);
-                                      setActiveDropdown(null);
-                                    }}
-                                    className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors rounded-lg border-0"
-                                  >
-                                    <HugeiconsIcon icon={PackageIcon} size={14} className="text-slate-400" strokeWidth={1.5} />
-                                    Adjust Stock
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setMovementsItem(item);
-                                      setActiveDropdown(null);
-                                    }}
-                                    className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors rounded-lg border-0"
-                                  >
-                                    <HugeiconsIcon icon={Clock01Icon} size={14} className="text-slate-400" strokeWidth={1.5} />
-                                    Stock History
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      openEdit(item);
-                                      setActiveDropdown(null);
-                                    }}
-                                    className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors rounded-lg border-0"
-                                  >
-                                    <HugeiconsIcon icon={PencilEdit02Icon} size={14} className="text-slate-400" strokeWidth={1.5} />
-                                    Edit Item
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      handleDeleteTrigger(item);
-                                      setActiveDropdown(null);
-                                    }}
-                                    className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer rounded-lg border-0"
-                                  >
-                                    <HugeiconsIcon icon={Delete02Icon} size={14} className="text-rose-500" strokeWidth={1.5} />
-                                    Delete Item
-                                  </button>
+                                  {!isExpired && (
+                                    <>
+                                      <button
+                                        onClick={() => {
+                                          openAdjust(item);
+                                          setActiveDropdown(null);
+                                        }}
+                                        className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors rounded-lg border-0 cursor-pointer"
+                                      >
+                                        <HugeiconsIcon icon={PackageIcon} size={14} className="text-slate-400" strokeWidth={1.5} />
+                                        Adjust Stock
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          openEdit(item);
+                                          setActiveDropdown(null);
+                                        }}
+                                        className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors rounded-lg border-0 cursor-pointer"
+                                      >
+                                        <HugeiconsIcon icon={PencilEdit02Icon} size={14} className="text-slate-400" strokeWidth={1.5} />
+                                        Edit Item
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          handleDeleteTrigger(item);
+                                          setActiveDropdown(null);
+                                        }}
+                                        className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer rounded-lg border-0"
+                                      >
+                                        <HugeiconsIcon icon={Delete02Icon} size={14} className="text-rose-500" strokeWidth={1.5} />
+                                        Delete Item
+                                      </button>
+                                    </>
+                                  )}
                                 </DropdownPanel>
                               </div>
                             </td>
@@ -564,28 +571,30 @@ export function InventoryPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openEdit(item);
-                          }}
-                          className="w-11 h-11 rounded-full flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer border border-[#eef4ff]/60 shrink-0"
-                          aria-label="Edit Item"
-                        >
-                          <HugeiconsIcon icon={PencilEdit02Icon} size={16} strokeWidth={1.5} />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteTrigger(item);
-                          }}
-                          className="w-11 h-11 rounded-full flex items-center justify-center bg-rose-50/50 text-rose-600 hover:bg-rose-100/50 hover:text-rose-700 transition-colors cursor-pointer border border-rose-500/10 shrink-0"
-                          aria-label="Delete Item"
-                        >
-                          <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.5} />
-                        </button>
-                      </div>
+                      {!isExpired && (
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEdit(item);
+                            }}
+                            className="w-11 h-11 rounded-full flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer border border-[#eef4ff]/60 shrink-0"
+                            aria-label="Edit Item"
+                          >
+                            <HugeiconsIcon icon={PencilEdit02Icon} size={16} strokeWidth={1.5} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteTrigger(item);
+                            }}
+                            className="w-11 h-11 rounded-full flex items-center justify-center bg-rose-50/50 text-rose-600 hover:bg-rose-100/50 hover:text-rose-700 transition-colors cursor-pointer border border-rose-500/10 shrink-0"
+                            aria-label="Delete Item"
+                          >
+                            <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.5} />
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     <div className="text-base font-extrabold text-[#0037b0] tabular-nums">
@@ -635,18 +644,20 @@ export function InventoryPage() {
                       </div>
                       
                       <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-9 rounded-xl text-xs font-semibold border-slate-200/80"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openAdjust(item);
-                          }}
-                        >
-                          <HugeiconsIcon icon={PackageIcon} className="mr-1 h-3.5 w-3.5 text-slate-400" strokeWidth={1.5} />
-                          Adjust
-                        </Button>
+                        {!isExpired && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-9 rounded-xl text-xs font-semibold border-slate-200/80"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openAdjust(item);
+                            }}
+                          >
+                            <HugeiconsIcon icon={PackageIcon} className="mr-1 h-3.5 w-3.5 text-slate-400" strokeWidth={1.5} />
+                            Adjust
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -743,20 +754,22 @@ export function InventoryPage() {
             icon={PackageIcon}
             title={search ? "No product inventory items found" : "No product inventory items"}
             description={search ? "Try adjusting your search terms." : "Add physical goods to track stock levels, issue alerts, and manage invoice reservations."}
-            actionLabel="Add your first item"
-            onAction={() => setCreateOpen(true)}
+            actionLabel={isExpired ? undefined : "Add your first item"}
+            onAction={isExpired ? undefined : () => setCreateOpen(true)}
           />
         )}
       </div>
 
       {/* Mobile Floating Action Button */}
-      <Button 
-        onClick={() => setCreateOpen(true)}
-        className="absolute bottom-6 right-6 z-40 sm:hidden w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all p-0"
-        aria-label="Add Item"
-      >
-        <HugeiconsIcon icon={PlusSignIcon} size={24} strokeWidth={1.5} />
-      </Button>
+      {!isExpired && (
+        <Button 
+          onClick={() => setCreateOpen(true)}
+          className="absolute bottom-6 right-6 z-40 sm:hidden w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all p-0"
+          aria-label="Add Item"
+        >
+          <HugeiconsIcon icon={PlusSignIcon} size={24} strokeWidth={1.5} />
+        </Button>
+      )}
 
       {/* Mobile slide-up bottom sheet for filters */}
       <BottomSheet

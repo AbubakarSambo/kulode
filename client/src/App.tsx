@@ -2,7 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { AppLayout } from '@/components/layout'
-import { ProtectedRoute, GuestRoute, PlanGatedRoute } from '@/components/shared'
+import { ProtectedRoute, GuestRoute, PlanGatedRoute, ReadOnlyGatedRoute } from '@/components/shared'
+
+
 import { useAuthStore } from '@/stores/auth'
 import {
   LoginPage,
@@ -110,44 +112,56 @@ function App() {
                 <Route path="/vendors" element={<VendorsListPage />} />
                 <Route path="/vendors/:id" element={<VendorDetailPage />} />
                 <Route path="/expenses" element={<ExpensesListPage />} />
-                <Route path="/expenses/new" element={<NewExpensePage />} />
-                <Route path="/expenses/bulk-recategorize" element={<BulkRecategorizePage />} />
+                <Route element={<ReadOnlyGatedRoute redirectTo="/expenses" />}>
+                  <Route path="/expenses/new" element={<NewExpensePage />} />
+                  <Route path="/expenses/bulk-recategorize" element={<BulkRecategorizePage />} />
+                </Route>
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/tax" element={<TaxFilingPackPage />} />
               </Route>
 
               {/* Clients (available to all plans) */}
               <Route path="/clients" element={<ClientsListPage />} />
-              <Route path="/clients/new" element={<NewClientPage />} />
+              <Route element={<ReadOnlyGatedRoute redirectTo="/clients" />}>
+                <Route path="/clients/new" element={<NewClientPage />} />
+                <Route path="/clients/:id/edit" element={<EditClientPage />} />
+              </Route>
               <Route path="/clients/:id" element={<ClientDetailPage />} />
-              <Route path="/clients/:id/edit" element={<EditClientPage />} />
 
               {/* Vendor create - SUPER_ADMIN and ADMIN + PRO plan */}
               <Route element={<PlanGatedRoute requiredPlan="PRO" />}>
-                <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']} />}>
-                  <Route path="/vendors/new" element={<NewVendorPage />} />
-                </Route>
-                <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']} />}>
-                  <Route path="/vendors/:id/edit" element={<EditVendorPage />} />
+                <Route element={<ReadOnlyGatedRoute redirectTo="/vendors" />}>
+                  <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']} />}>
+                    <Route path="/vendors/new" element={<NewVendorPage />} />
+                  </Route>
+                  <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']} />}>
+                    <Route path="/vendors/:id/edit" element={<EditVendorPage />} />
+                  </Route>
                 </Route>
               </Route>
 
               {/* Invoices (available to all plans) */}
               <Route path="/invoices" element={<InvoicesListPage />} />
-              <Route path="/invoices/new" element={<NewInvoicePage />} />
+              <Route element={<ReadOnlyGatedRoute redirectTo="/invoices" />}>
+                <Route path="/invoices/new" element={<NewInvoicePage />} />
+              </Route>
               <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
 
               {/* Payments (available to all plans) */}
               <Route path="/payments" element={<PaymentsListPage />} />
 
               {/* Super Admin only */}
-              <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']} />}>
-                <Route path="/payments/:id/edit" element={<EditPaymentPage />} />
+              <Route element={<ReadOnlyGatedRoute redirectTo="/payments" />}>
+                <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']} />}>
+                  <Route path="/payments/:id/edit" element={<EditPaymentPage />} />
+                </Route>
               </Route>
 
               <Route element={<PlanGatedRoute requiredPlan="PRO" />}>
-                <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']} />}>
-                  <Route path="/expenses/:id/edit" element={<EditExpensePage />} />
+                <Route element={<ReadOnlyGatedRoute redirectTo="/expenses" />}>
+                  <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']} />}>
+                    <Route path="/expenses/:id/edit" element={<EditExpensePage />} />
+                  </Route>
                 </Route>
               </Route>
 

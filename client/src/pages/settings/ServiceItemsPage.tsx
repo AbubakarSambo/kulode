@@ -23,6 +23,7 @@ import { posthog } from '@/lib/posthog'
 import type { ServiceItem } from '@/types'
 import { useOverscrollBounce } from '@/hooks'
 import { ServicesIcon } from '@/components/ui/CustomIcons'
+import { useSubscription } from '@/hooks/useSubscription'
 
 const serviceItemSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -42,6 +43,7 @@ const getInitials = (name: string) => {
 }
 
 export function ServiceItemsPage() {
+  const { isReadOnlyMode: isExpired } = useSubscription()
   const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
@@ -168,10 +170,20 @@ export function ServiceItemsPage() {
         category="Settings"
         badgeText={serviceItems?.length}
         action={
-          <Button onClick={openCreateModal}>
-            <HugeiconsIcon icon={PlusSignIcon} className="mr-2 h-4 w-4" strokeWidth={1.5} />
-            Add Service Item
-          </Button>
+          isExpired ? (
+            <Button
+              disabled
+              className="opacity-50 cursor-not-allowed bg-slate-400 text-white rounded-xl h-10 px-4 select-none"
+            >
+              <HugeiconsIcon icon={PlusSignIcon} className="mr-2 h-4 w-4" strokeWidth={1.5} />
+              Add Service Item
+            </Button>
+          ) : (
+            <Button onClick={openCreateModal}>
+              <HugeiconsIcon icon={PlusSignIcon} className="mr-2 h-4 w-4" strokeWidth={1.5} />
+              Add Service Item
+            </Button>
+          )
         }
       />
 
@@ -240,46 +252,48 @@ export function ServiceItemsPage() {
                             {formatCurrency(item.unitPrice)}
                           </td>
                           <td className="px-6 py-4 text-right relative">
-                            <div className="inline-block text-left relative">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveDropdown(activeDropdown === item.id ? null : item.id);
-                                }}
-                                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors cursor-pointer"
-                              >
-                                <HugeiconsIcon icon={MoreVerticalIcon} size={16} strokeWidth={1.5} />
-                              </button>
-  
-                              <DropdownPanel
-                                isOpen={activeDropdown === item.id}
-                                onClose={() => setActiveDropdown(null)}
-                                align="right"
-                                widthClass="w-36"
-                                zIndexClass="z-20"
-                              >
+                            {!isExpired && (
+                              <div className="inline-block text-left relative">
                                 <button
-                                  onClick={() => {
-                                    openEditModal(item);
-                                    setActiveDropdown(null);
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveDropdown(activeDropdown === item.id ? null : item.id);
                                   }}
-                                  className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors rounded-lg border-0"
+                                  className="p-1.5 rounded-full hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors cursor-pointer"
                                 >
-                                  <HugeiconsIcon icon={PencilEdit02Icon} size={14} className="text-slate-400" strokeWidth={1.5} />
-                                  Edit Item
+                                  <HugeiconsIcon icon={MoreVerticalIcon} size={16} strokeWidth={1.5} />
                                 </button>
-                                <button
-                                  onClick={() => {
-                                    handleDeleteTrigger(item);
-                                    setActiveDropdown(null);
-                                  }}
-                                  className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer rounded-lg border-0"
+    
+                                <DropdownPanel
+                                  isOpen={activeDropdown === item.id}
+                                  onClose={() => setActiveDropdown(null)}
+                                  align="right"
+                                  widthClass="w-36"
+                                  zIndexClass="z-20"
                                 >
-                                  <HugeiconsIcon icon={Delete02Icon} size={14} className="text-rose-500" strokeWidth={1.5} />
-                                  Delete Item
-                                </button>
-                              </DropdownPanel>
-                            </div>
+                                  <button
+                                    onClick={() => {
+                                      openEditModal(item);
+                                      setActiveDropdown(null);
+                                    }}
+                                    className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors rounded-lg border-0"
+                                  >
+                                    <HugeiconsIcon icon={PencilEdit02Icon} size={14} className="text-slate-400" strokeWidth={1.5} />
+                                    Edit Item
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      handleDeleteTrigger(item);
+                                      setActiveDropdown(null);
+                                    }}
+                                    className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer rounded-lg border-0"
+                                  >
+                                    <HugeiconsIcon icon={Delete02Icon} size={14} className="text-rose-500" strokeWidth={1.5} />
+                                    Delete Item
+                                  </button>
+                                </DropdownPanel>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -294,8 +308,11 @@ export function ServiceItemsPage() {
               {paginatedItems.map((item) => (
                 <div 
                   key={item.id}
-                  onClick={() => openEditModal(item)}
-                  className="bg-white rounded-[24px] p-5 shadow-[0px_8px_24px_rgba(0,55,176,0.08)] border border-[#eef4ff]/50 transition-all duration-300 hover:shadow-[0px_12px_32px_rgba(0,55,176,0.12)] active:scale-[0.99] cursor-pointer relative flex flex-col gap-4"
+                  onClick={isExpired ? undefined : () => openEditModal(item)}
+                  className={cn(
+                    "bg-white rounded-[24px] p-5 shadow-[0px_8px_24px_rgba(0,55,176,0.08)] border border-[#eef4ff]/50 transition-all duration-300 flex flex-col gap-4",
+                    !isExpired && "hover:shadow-[0px_12px_32px_rgba(0,55,176,0.12)] active:scale-[0.99] cursor-pointer"
+                  )}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
@@ -309,28 +326,30 @@ export function ServiceItemsPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEditModal(item);
-                        }}
-                        className="w-11 h-11 rounded-full flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer border border-[#eef4ff]/60 shrink-0"
-                        aria-label="Edit Item"
-                      >
-                        <HugeiconsIcon icon={PencilEdit02Icon} size={16} strokeWidth={1.5} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteTrigger(item);
-                        }}
-                        className="w-11 h-11 rounded-full flex items-center justify-center bg-rose-50/50 text-rose-600 hover:bg-rose-100/50 hover:text-rose-700 transition-colors cursor-pointer border border-rose-500/10 shrink-0"
-                        aria-label="Delete Item"
-                      >
-                        <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.5} />
-                      </button>
-                    </div>
+                    {!isExpired && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEditModal(item);
+                          }}
+                          className="w-11 h-11 rounded-full flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer border border-[#eef4ff]/60 shrink-0"
+                          aria-label="Edit Item"
+                        >
+                          <HugeiconsIcon icon={PencilEdit02Icon} size={16} strokeWidth={1.5} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteTrigger(item);
+                          }}
+                          className="w-11 h-11 rounded-full flex items-center justify-center bg-rose-50/50 text-rose-600 hover:bg-rose-100/50 hover:text-rose-700 transition-colors cursor-pointer border border-rose-500/10 shrink-0"
+                          aria-label="Delete Item"
+                        >
+                          <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.5} />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="text-base font-extrabold text-[#0037b0] tabular-nums">
@@ -435,20 +454,22 @@ export function ServiceItemsPage() {
             icon={Grid02Icon}
             title={search ? "No service items found" : "No services defined"}
             description={search ? "Try adjusting your search terms." : "Define predefined services or products to add them to invoices in a single click."}
-            actionLabel="Add your first service item"
-            onAction={openCreateModal}
+            actionLabel={isExpired ? undefined : "Add your first service item"}
+            onAction={isExpired ? undefined : openCreateModal}
           />
         )}
       </div>
 
       {/* Mobile Floating Action Button */}
-      <Button 
-        onClick={openCreateModal}
-        className="absolute bottom-6 right-6 z-40 sm:hidden w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all p-0"
-        aria-label="Add Service Item"
-      >
-        <HugeiconsIcon icon={PlusSignIcon} size={24} strokeWidth={1.5} />
-      </Button>
+      {!isExpired && (
+        <Button 
+          onClick={openCreateModal}
+          className="absolute bottom-6 right-6 z-40 sm:hidden w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all p-0"
+          aria-label="Add Service Item"
+        >
+          <HugeiconsIcon icon={PlusSignIcon} size={24} strokeWidth={1.5} />
+        </Button>
+      )}
 
       {/* Create/Edit Modal */}
       <Modal

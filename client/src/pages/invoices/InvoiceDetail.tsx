@@ -63,6 +63,7 @@ import { formatCurrency, formatDate, cn, formatAmountInput, parseAmountInput } f
 import { posthog } from '@/lib/posthog'
 import type { InvoiceStatus, PaymentMethod } from '@/types'
 import { useAuthStore } from '@/stores/auth'
+import { useSubscription } from '@/hooks/useSubscription'
 
 
 const renderStatusPill = (status: InvoiceStatus) => {
@@ -125,6 +126,7 @@ export function InvoiceDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const user = useAuthStore((state) => state.user)
+  const { isReadOnlyMode: isExpired } = useSubscription()
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
   const [isPaymentLinkModalOpen, setIsPaymentLinkModalOpen] = useState(false)
   const [linkAmountStr, setLinkAmountStr] = useState('')
@@ -655,7 +657,7 @@ export function InvoiceDetailPage() {
         }
         action={
           <div className="flex items-center gap-2">
-            {canSend && (
+            {!isExpired && canSend && (
               <Button 
                 onClick={() => sendMutation.mutate()} 
                 className="h-10 px-4 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white shadow-[0px_4px_12px_rgba(0,55,176,0.15)] hover:opacity-95 text-xs font-semibold select-none"
@@ -664,7 +666,7 @@ export function InvoiceDetailPage() {
                 Mark as Sent
               </Button>
             )}
-            {canRecordPayment && (
+            {!isExpired && canRecordPayment && (
               <Button 
                 onClick={openPaymentModal} 
                 className="h-10 px-4 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white shadow-[0px_4px_12px_rgba(0,55,176,0.15)] hover:opacity-95 text-xs font-semibold select-none"
@@ -709,7 +711,7 @@ export function InvoiceDetailPage() {
                 widthClass="w-56"
                 zIndexClass="z-50"
               >
-                {canGenerateLink && !hasPaymentLink && (
+                {!isExpired && canGenerateLink && !hasPaymentLink && (
                   <button
                     type="button"
                     onClick={() => {
@@ -749,7 +751,7 @@ export function InvoiceDetailPage() {
                   </>
                 )}
 
-                {(invoice.status === 'SENT' || invoice.status === 'OVERDUE') && (
+                {!isExpired && (invoice.status === 'SENT' || invoice.status === 'OVERDUE') && (
                   <button
                     type="button"
                     onClick={() => {
@@ -764,20 +766,22 @@ export function InvoiceDetailPage() {
                   </button>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMoreDropdownOpen(false)
-                    duplicateMutation.mutate()
-                  }}
-                  disabled={duplicateMutation.isPending}
-                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
-                >
-                  <HugeiconsIcon icon={Copy01Icon} size={14} strokeWidth={1.5} />
-                  Duplicate
-                </button>
+                {!isExpired && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMoreDropdownOpen(false)
+                      duplicateMutation.mutate()
+                    }}
+                    disabled={duplicateMutation.isPending}
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <HugeiconsIcon icon={Copy01Icon} size={14} strokeWidth={1.5} />
+                    Duplicate
+                  </button>
+                )}
 
-                {canCancel && (
+                {!isExpired && canCancel && (
                   <button
                     type="button"
                     onClick={() => {
@@ -791,7 +795,7 @@ export function InvoiceDetailPage() {
                   </button>
                 )}
 
-                {canDelete && (
+                {!isExpired && canDelete && (
                   <button
                     type="button"
                     onClick={() => {
@@ -837,7 +841,7 @@ export function InvoiceDetailPage() {
                 widthClass="w-52"
                 zIndexClass="z-50"
               >
-                {canGenerateLink && !hasPaymentLink && (
+                {!isExpired && canGenerateLink && !hasPaymentLink && (
                   <button
                     type="button"
                     onClick={() => {
@@ -877,7 +881,7 @@ export function InvoiceDetailPage() {
                   </>
                 )}
 
-                {(invoice.status === 'SENT' || invoice.status === 'OVERDUE') && (
+                {!isExpired && (invoice.status === 'SENT' || invoice.status === 'OVERDUE') && (
                   <button
                     type="button"
                     onClick={() => {
@@ -892,20 +896,22 @@ export function InvoiceDetailPage() {
                   </button>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMoreDropdownOpen(false)
-                    duplicateMutation.mutate()
-                  }}
-                  disabled={duplicateMutation.isPending}
-                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
-                >
-                  <HugeiconsIcon icon={Copy01Icon} size={14} strokeWidth={1.5} />
-                  Duplicate
-                </button>
+                {!isExpired && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMoreDropdownOpen(false)
+                      duplicateMutation.mutate()
+                    }}
+                    disabled={duplicateMutation.isPending}
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <HugeiconsIcon icon={Copy01Icon} size={14} strokeWidth={1.5} />
+                    Duplicate
+                  </button>
+                )}
 
-                {canCancel && (
+                {!isExpired && canCancel && (
                   <button
                     type="button"
                     onClick={() => {
@@ -919,7 +925,7 @@ export function InvoiceDetailPage() {
                   </button>
                 )}
 
-                {canDelete && (
+                {!isExpired && canDelete && (
                   <button
                     type="button"
                     onClick={() => {
@@ -1124,7 +1130,7 @@ export function InvoiceDetailPage() {
           isFabMenuOpen ? "scale-100 opacity-100 translate-y-0 pointer-events-auto" : "scale-75 opacity-0 translate-y-4 pointer-events-none"
         )}>
           {/* Action: Record Payment */}
-          {canRecordPayment && (
+          {!isExpired && canRecordPayment && (
             <div className="flex items-center gap-2.5">
               <span className="bg-slate-900/80 text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-sm">
                 Record Payment
@@ -1143,21 +1149,23 @@ export function InvoiceDetailPage() {
           )}
 
           {/* Action: Send via Email */}
-          <div className="flex items-center gap-2.5">
-            <span className="bg-slate-900/80 text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-sm">
-              Send Email
-            </span>
-            <button 
-              onClick={() => {
-                setIsFabMenuOpen(false)
-                sendMutation.mutate()
-              }} 
-              className="w-11 h-11 rounded-full bg-[#0037b0] text-white flex items-center justify-center shadow-md active:scale-95 transition-transform cursor-pointer"
-              aria-label="Send via Email"
-            >
-              <MailIcon className="h-4.5 w-4.5" />
-            </button>
-          </div>
+          {!isExpired && (
+            <div className="flex items-center gap-2.5">
+              <span className="bg-slate-900/80 text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-sm">
+                Send Email
+              </span>
+              <button 
+                onClick={() => {
+                  setIsFabMenuOpen(false)
+                  sendMutation.mutate()
+                }} 
+                className="w-11 h-11 rounded-full bg-[#0037b0] text-white flex items-center justify-center shadow-md active:scale-95 transition-transform cursor-pointer"
+                aria-label="Send via Email"
+              >
+                <MailIcon className="h-4.5 w-4.5" />
+              </button>
+            </div>
+          )}
 
           {/* Action: Share via WhatsApp */}
           <div className="flex items-center gap-2.5">
