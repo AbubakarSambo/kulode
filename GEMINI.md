@@ -15,6 +15,7 @@
 4. **Multi-tenancy** — every Prisma query on tenant data MUST include `where: { tenantId }`.
 5. **Build + lint must pass** before finalizing any code change. Run in the modified component's directory.
 6. **Run tests before build + lint** after any changes to a file that has a corresponding `.spec.ts` or `.test.ts`.
+7. **Self-host all assets** — Never reference external CDN URLs for fonts/icons or use external/hotlinked image URLs (e.g. googleusercontent) in frontend code. Always host them locally inside the `public/` directory or corresponding package configuration.
 
 ---
 
