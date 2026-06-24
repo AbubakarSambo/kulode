@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -217,10 +217,18 @@ export function PublicInvoicePage() {
       }).PaystackPop()
       paystack.resumeTransaction(code, {
         onSuccess: () => {
+          posthog.capture('public_invoice_payment_completed', {
+            invoice_number: invoice.invoiceNumber,
+            amount: invoice.total - invoice.amountPaid,
+            method: 'paystack_online',
+          })
           toast.success('Payment received! Updating invoice status...')
           queryClient.invalidateQueries({ queryKey: ['public-invoice', token] })
         },
         onCancel: () => {
+          posthog.capture('public_invoice_payment_cancelled', {
+            invoice_number: invoice.invoiceNumber,
+          })
           toast.info('Payment cancelled.')
         },
       })
@@ -266,6 +274,19 @@ export function PublicInvoicePage() {
       console.error('Failed to download PDF', error)
     }
   }
+
+  // Fire once when invoice data first loads
+  useEffect(() => {
+    if (!invoice) return
+    posthog.capture('public_invoice_viewed', {
+      invoice_number: invoice.invoiceNumber,
+      status: invoice.status,
+      total: invoice.total,
+      has_installments: (invoice.installments?.length ?? 0) > 0,
+      has_online_payment: !!invoice.paymentUrl,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoice?.invoiceNumber])
 
   // ─── Loading ──────────────────────────────────────────────────────────────
   if (isLoading) {
@@ -712,6 +733,9 @@ export function PublicInvoicePage() {
                         onClick={() => {
                           if (invoice.organization.bankAccountNumber) {
                             navigator.clipboard.writeText(invoice.organization.bankAccountNumber)
+                            posthog.capture('public_invoice_bank_details_copied', {
+                              invoice_number: invoice.invoiceNumber,
+                            })
                             toast.success('Account number copied!')
                           }
                         }}

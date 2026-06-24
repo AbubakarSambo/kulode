@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -96,7 +96,7 @@ export function BillingPage() {
     mutationFn: ({ planTier, period }: { planTier: PlanTier; period: BillingPeriod }) =>
       subscriptionApi.subscribe(planTier, period),
     onSuccess: (data) => {
-      posthog.capture('subscription_plan_change_initiated', { plan: subscribingPlan })
+      posthog.capture('subscription_plan_change_initiated', { plan: subscribingPlan, period: billingPeriod })
       window.location.href = data.paymentUrl
     },
     onError: () => {
@@ -107,7 +107,10 @@ export function BillingPage() {
   const cancelMutation = useMutation({
     mutationFn: subscriptionApi.cancel,
     onSuccess: (data) => {
-      posthog.capture('subscription_cancelled')
+      posthog.capture('subscription_cancelled', {
+        plan: effectivePlan,
+        period: subscription?.billingPeriod,
+      })
       toast.success(data.message)
       setShowCancelModal(false)
       queryClient.invalidateQueries({ queryKey: ['subscription'] })
@@ -133,6 +136,12 @@ export function BillingPage() {
     setSubscribingPlan(planTier)
     subscribeMutation.mutate({ planTier, period: billingPeriod })
   }
+
+  // Track page view once on mount
+  useEffect(() => {
+    posthog.capture('billing_page_viewed', { current_plan: effectivePlan })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const renderStatusBadge = () => {
     if (isGrandfathered) {

@@ -1,9 +1,20 @@
 import { Link } from 'react-router-dom'
 import { Lock, ArrowRight } from 'lucide-react'
+import { useEffect } from 'react'
 import { useSubscription } from '@/hooks/useSubscription'
+import { posthog } from '@/lib/posthog'
 
 export function SubscriptionExpiredBanner() {
-  const { isExpired } = useSubscription()
+  const { isExpired, subscription } = useSubscription()
+
+  useEffect(() => {
+    if (isExpired) {
+      posthog.capture('subscription_expired_banner_shown', {
+        plan: subscription?.planTier,
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExpired])
 
   if (!isExpired) return null
 

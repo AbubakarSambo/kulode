@@ -136,8 +136,8 @@ export function ExpensesListPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => expensesApi.delete(id),
-    onSuccess: () => {
-      posthog.capture('expense_deleted')
+    onSuccess: (_, id) => {
+      posthog.capture('expense_deleted', { expense_id: id })
       queryClient.invalidateQueries({ queryKey: ['expenses'] })
       toast.success('Expense deleted successfully')
     },

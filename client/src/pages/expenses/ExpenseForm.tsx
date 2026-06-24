@@ -247,7 +247,7 @@ function ExpenseForm({ expenseId }: { expenseId?: string }) {
       taxCategory: data.taxCategory as TaxCategory | undefined,
     }),
     onSuccess: () => {
-      posthog.capture('expense_updated')
+      posthog.capture('expense_updated', { expense_id: expenseId })
       queryClient.invalidateQueries({ queryKey: ['expenses'] })
       toast.success('Expense updated')
       navigate('/expenses')

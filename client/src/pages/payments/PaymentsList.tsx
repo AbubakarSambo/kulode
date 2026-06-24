@@ -115,8 +115,8 @@ export function PaymentsListPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => paymentsApi.delete(id),
-    onSuccess: () => {
-      posthog.capture('payment_deleted')
+    onSuccess: (_, id) => {
+      posthog.capture('payment_deleted', { payment_id: id })
       queryClient.invalidateQueries({ queryKey: ['payments'] })
       toast.success('Payment deleted successfully')
     },
