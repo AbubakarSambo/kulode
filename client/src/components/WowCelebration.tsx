@@ -290,23 +290,23 @@ export function WowCelebration({
         </div>
 
         {/* Milestone Badge */}
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-100 text-[#006c49] text-[9px] font-bold uppercase tracking-wider mb-2.5">
+        <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-100 text-[#006c49] text-xs font-bold uppercase tracking-wider mb-3">
           <Sparkles className="w-3.5 h-3.5" />
           Milestone Unlocked
         </div>
 
-        <h3 className="text-xl font-semibold text-slate-900 tracking-tight leading-tight mb-1">
+        <h3 className="text-xl font-bold text-slate-900 tracking-tight leading-tight mb-1">
           {title}
         </h3>
-        <p className="text-xs text-slate-500 font-medium leading-relaxed mb-5 px-2">
+        <p className="text-sm text-slate-500 font-semibold leading-relaxed mb-6 px-2">
           {description}
         </p>
 
         {invoiceId && (
           <>
             {/* Invoice Info Panel (No 1px solid borders, bg shifts) */}
-            <div className="bg-[#f8f9ff] rounded-2xl p-4 text-left mb-5 flex flex-col gap-1.5">
-              <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+            <div className="bg-[#f8f9ff] rounded-2xl p-4.5 text-left mb-6 flex flex-col gap-2">
+              <div className="flex justify-between items-center text-xs text-slate-400 font-bold uppercase tracking-wider">
                 <span>Invoice Issued</span>
                 <span className="text-emerald-700 font-black">{invoiceNumber}</span>
               </div>
@@ -319,12 +319,12 @@ export function WowCelebration({
             </div>
 
             {/* Sharing & Reusable Invoice Actions */}
-            <div className="space-y-2.5 mb-6">
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block text-left">
+            <div className="space-y-3 mb-6">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block text-left">
                 Share Invoice & Get Paid
               </span>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 {/* WhatsApp is the primary visual CTA */}
                 <button
                   onClick={shareWhatsApp}
@@ -338,7 +338,7 @@ export function WowCelebration({
                 {shareToken && (
                   <button
                     onClick={copyPublicLink}
-                    className="py-2.5 px-3 rounded-xl bg-[#eef4ff] hover:bg-[#e0ecff] text-[#0037b0] text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 border-0"
+                    className="py-3 px-4 rounded-xl bg-[#eef4ff] hover:bg-[#e0ecff] text-[#0037b0] text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 border-0"
                   >
                     <HugeiconsIcon icon={Link02Icon} size={14} strokeWidth={1.5} />
                     Copy Payment Link
@@ -348,7 +348,7 @@ export function WowCelebration({
                 <button
                   onClick={downloadPdf}
                   disabled={isDownloading}
-                  className={`${shareToken ? "col-span-1" : "col-span-2"} py-2.5 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all active:scale-98 border-0`}
+                  className={`${shareToken ? "col-span-1" : "col-span-2"} py-3 px-4 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all active:scale-98 border-0`}
                 >
                   <HugeiconsIcon icon={Download02Icon} size={14} strokeWidth={1.5} />
                   {isDownloading ? "Downloading..." : "Download PDF"}
@@ -359,7 +359,7 @@ export function WowCelebration({
         )}
 
         {/* Footer Navigation CTA */}
-        <div className="flex flex-col gap-2 w-full mt-4">
+        <div className="flex flex-col gap-2.5 w-full mt-6">
           {invoiceId ? (
             <button
               onClick={() => {

@@ -53,9 +53,20 @@ const posthogHost = import.meta.env.PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog
           if (window.__posthogLoaded) return;
           window.__posthogLoaded = true;
           !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e.init=function(i,s,a){e._i||(e._i=[]),e._i.push([i,s,a]),e.init.arguments[0]=i},e.config=function(i){e._c||(e._c=[]),e._c.push(i)},o=t.createElement("script"),o.type="text/javascript",o.async=!0,o.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",n=t.getElementsByTagName("script")[0],n.parentNode.insertBefore(o,n))} (document,window.posthog||[]);
-          posthog.init(posthogKey, { api_host: posthogHost, person_profiles: 'identified_only' });
 
-          // Capture & persist UTM parameters for this session
+          posthog.init(posthogKey, {
+            api_host: posthogHost,
+            // 'always' = track ALL visitors including anonymous ones.
+            // 'identified_only' would silently drop every marketing visitor.
+            person_profiles: 'always',
+            // Let PostHog handle pageviews automatically
+            capture_pageview: true,
+            capture_pageleave: true,
+          });
+
+          // ── UTM persistence ──────────────────────────────────────────────
+          // Capture UTM params from URL and persist them as super properties
+          // so every subsequent event in this session carries campaign attribution.
           (function captureUtm() {
             var params = new URLSearchParams(window.location.search);
             var utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'ref'];
@@ -65,23 +76,54 @@ const posthogHost = import.meta.env.PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog
               if (val) utmProps[key] = val;
             });
             if (Object.keys(utmProps).length > 0) {
-              // Persist across all events in this session
               posthog.register(utmProps);
             }
-            // Enrich every pageview with referrer + UTMs
-            posthog.capture('$pageview', Object.assign({
-              referrer: document.referrer,
-              page_url: window.location.href,
-              page_path: window.location.pathname,
-            }, utmProps));
+            // Set referrer as a person property (persists across sessions)
+            if (document.referrer) {
+              posthog.people.set_once({ initial_referrer: document.referrer });
+            }
           })();
 
+          // ── Cross-domain session stitching ───────────────────────────────
+          // When a visitor clicks from tarione.com → app.tarione.com, PostHog
+          // loses the session because they are different domains (different cookies).
+          // Fix: append ?__phsid=<session_id> to every outbound app link so
+          // PostHog on the app side can resume the same session & person profile.
+          (function patchCrossDomainLinks() {
+            var appDomains = ['app.tarione.com', 'app.kulode.com'];
+
+            function enrichLink(anchor) {
+              try {
+                var href = anchor.href;
+                if (!href) return;
+                var url = new URL(href);
+                var isAppLink = appDomains.some(function(d) { return url.hostname === d; });
+                if (!isAppLink) return;
+                var sessionId = posthog.get_session_id();
+                if (sessionId) {
+                  url.searchParams.set('__phsid', sessionId);
+                  anchor.href = url.toString();
+                }
+              } catch(e) {}
+            }
+
+            // Patch all existing links
+            document.querySelectorAll('a[href]').forEach(enrichLink);
+
+            // Patch any links added dynamically (e.g. mobile menu)
+            document.addEventListener('click', function(e) {
+              var anchor = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+              if (anchor) enrichLink(anchor);
+            }, true);
+          })();
         }
+
         if (localStorage.getItem('tari1_cookie_consent') === 'accepted') {
           initPostHog();
         }
         window.__initPostHog = initPostHog;
       </script>
+
     )}
   </head>
   <body class="bg-white text-gray-900 antialiased overflow-x-hidden w-full relative">
