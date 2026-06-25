@@ -18,8 +18,9 @@ export const jwtConfig = registerAs("jwt", () => ({
 
 export const resendConfig = registerAs("resend", () => ({
   apiKey: process.env.RESEND_API_KEY,
-  fromEmail: process.env.RESEND_FROM_EMAIL || "Tarione <noreply@tarione.com>",
+  fromEmail: process.env.RESEND_FROM_EMAIL || "Tari1 <noreply@tarione.com>",
   frontendUrl: process.env.FRONTEND_URL || "http://localhost:5173",
+  brandWebsiteUrl: process.env.BRAND_WEBSITE_URL || "https://www.tarione.com",
 }));
 
 export const googleConfig = registerAs("google", () => ({

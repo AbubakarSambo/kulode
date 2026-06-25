@@ -124,6 +124,7 @@ export interface Organization {
   defaultNotes?: string
   isPaystackVerified: boolean
   bankAccountName?: string
+  bankAccountNumber?: string
   settlementBank?: string
   businessType?: string
   organizationSize?: string

@@ -382,12 +382,13 @@ export function InvoiceDetailPage() {
       }
     }
 
+    const clientFirstName = invoice.client?.name ? invoice.client.name.split(' ')[0] : null
+    const greeting = clientFirstName ? `Hi ${clientFirstName} 👋` : `Hi there 👋`
     const orgName = organization?.name || 'Us'
-    const dueStr = invoice.dueDate ? formatDate(invoice.dueDate) : 'soon'
-    const clientGreeting = invoice.client?.name ? `Hi ${invoice.client.name.split(' ')[0]}` : 'Hi there'
+    const dueStr = invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'soon'
 
     const lines = [
-      `${clientGreeting} 👋`,
+      greeting,
       ``,
       `Please find your invoice from *${orgName}* below:`,
       ``,
@@ -690,7 +691,7 @@ export function InvoiceDetailPage() {
                 className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors text-xs font-semibold"
               >
                 <WhatsAppIcon className="mr-2 h-4 w-4" />
-                Share
+                Send via WhatsApp
               </Button>
             )}
 
@@ -1159,7 +1160,7 @@ export function InvoiceDetailPage() {
                   setIsFabMenuOpen(false)
                   sendMutation.mutate()
                 }} 
-                className="w-11 h-11 rounded-full bg-[#0037b0] text-white flex items-center justify-center shadow-md active:scale-95 transition-transform cursor-pointer"
+                className="w-11 h-11 rounded-full bg-[#0037b0] text-white flex items-center justify-center shadow-md active:scale-95 transition-transform cursor-pointer border-0"
                 aria-label="Send via Email"
               >
                 <MailIcon className="h-4.5 w-4.5" />
@@ -1167,18 +1168,35 @@ export function InvoiceDetailPage() {
             </div>
           )}
 
+          {/* Action: Download PDF */}
+          <div className="flex items-center gap-2.5">
+            <span className="bg-slate-900/80 text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-sm">
+              Download PDF
+            </span>
+            <button 
+              onClick={() => {
+                setIsFabMenuOpen(false)
+                downloadPdf()
+              }} 
+              className="w-11 h-11 rounded-full bg-slate-800 text-white flex items-center justify-center shadow-md active:scale-95 transition-transform cursor-pointer border-0"
+              aria-label="Download PDF"
+            >
+              <HugeiconsIcon icon={Download02Icon} size={16} strokeWidth={1.5} />
+            </button>
+          </div>
+
           {/* Action: Share via WhatsApp */}
           <div className="flex items-center gap-2.5">
             <span className="bg-slate-900/80 text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-sm">
-              WhatsApp Link
+              Send via WhatsApp
             </span>
             <button 
               onClick={() => {
                 setIsFabMenuOpen(false)
                 shareWhatsApp()
               }} 
-              className="w-11 h-11 rounded-full bg-[#25D366] text-white flex items-center justify-center shadow-md active:scale-95 transition-transform cursor-pointer"
-              aria-label="WhatsApp Link"
+              className="w-11 h-11 rounded-full bg-[#25D366] text-white flex items-center justify-center shadow-md active:scale-95 transition-transform cursor-pointer border-0"
+              aria-label="Send via WhatsApp"
             >
               <WhatsAppIcon className="h-4.5 w-4.5" />
             </button>

@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateSubaccountDto, VerifyBankAccountDto } from './dto';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { InventoryService } from '../inventory/inventory.service';
+import { EmailService } from '../email/email.service';
 
 export interface PaystackBank {
   name: string;
@@ -65,6 +66,7 @@ export class PaystackService {
     private configService: ConfigService,
     private prisma: PrismaService,
     private inventoryService: InventoryService,
+    private emailService: EmailService,
   ) {
     this.baseUrl = this.configService.get<string>('paystack.baseUrl') || 'https://api.paystack.co';
     this.secretKey = this.configService.get<string>('paystack.secretKey') || '';
@@ -523,7 +525,20 @@ export class PaystackService {
     // Check if this is an installment payment
     const installment = await this.prisma.paymentInstallment.findFirst({
       where: { paystackReference: reference },
-      include: { invoice: { include: { organization: true } } },
+      include: {
+        invoice: {
+          include: {
+            organization: {
+              include: {
+                users: {
+                  where: { isActive: true },
+                },
+              },
+            },
+            client: true,
+          },
+        },
+      },
     });
 
     if (installment) {
@@ -532,6 +547,7 @@ export class PaystackService {
       const paystackFees = fees / 100;
       const platformFees = amountInNaira * (Number(invoice.organization.platformFeePercent) / 100);
       const netAmount = amountInNaira - paystackFees - platformFees;
+      let outstandingAmountString = '';
 
       await this.prisma.$transaction(async (tx) => {
         // Double check within transaction
@@ -568,6 +584,7 @@ export class PaystackService {
         // Update invoice
         const newAmountPaid = Number(invoice.amountPaid) + amountInNaira;
         const newStatus = newAmountPaid >= Number(invoice.total) ? 'PAID' : 'PARTIALLY_PAID';
+        outstandingAmountString = Math.max(0, Number(invoice.total) - newAmountPaid).toLocaleString('en-NG', { style: 'currency', currency: 'NGN' });
 
         await tx.invoice.update({
           where: { id: invoice.id },
@@ -586,13 +603,28 @@ export class PaystackService {
       });
 
       this.logger.log(`Installment payment recorded for invoice ${invoice.invoiceNumber}`);
+
+      // Send notifications asynchronously
+      this.sendPaymentNotifications(invoice, amountInNaira, outstandingAmountString, channel, paid_at).catch(err => {
+        this.logger.error(`Failed to send installment payment notifications: ${err.message}`);
+      });
+
       return { success: true };
     }
 
     // Fall back to regular invoice payment
     const invoice = await this.prisma.invoice.findFirst({
       where: { paystackReference: reference },
-      include: { organization: true },
+      include: {
+        organization: {
+          include: {
+            users: {
+              where: { isActive: true },
+            },
+          },
+        },
+        client: true,
+      },
     });
 
     if (!invoice) {
@@ -605,6 +637,7 @@ export class PaystackService {
     const paystackFees = fees / 100;
     const platformFees = amountInNaira * (Number(invoice.organization.platformFeePercent) / 100);
     const netAmount = amountInNaira - paystackFees - platformFees;
+    let outstandingAmountString = '';
 
     // Record payment in transaction
     await this.prisma.$transaction(async (tx) => {
@@ -633,6 +666,7 @@ export class PaystackService {
       // Update invoice
       const newAmountPaid = Number(invoice.amountPaid) + amountInNaira;
       const newStatus = newAmountPaid >= Number(invoice.total) ? 'PAID' : 'PARTIALLY_PAID';
+      outstandingAmountString = Math.max(0, Number(invoice.total) - newAmountPaid).toLocaleString('en-NG', { style: 'currency', currency: 'NGN' });
 
       await tx.invoice.update({
         where: { id: invoice.id },
@@ -655,7 +689,79 @@ export class PaystackService {
     });
 
     this.logger.log(`Payment recorded for invoice ${invoice.invoiceNumber}`);
+
+    // Send notifications asynchronously
+    this.sendPaymentNotifications(invoice, amountInNaira, outstandingAmountString, channel, paid_at).catch(err => {
+      this.logger.error(`Failed to send payment notifications: ${err.message}`);
+    });
+
     return { success: true };
+  }
+
+  private async sendPaymentNotifications(
+    invoice: any,
+    amountPaid: number,
+    outstandingAmount: string,
+    channel: string,
+    paidAt: string,
+  ) {
+    if (!invoice) return;
+
+    const formattedAmount = amountPaid.toLocaleString('en-NG', { style: 'currency', currency: 'NGN' });
+    const formattedPaymentDate = new Date(paidAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    // 1. Send receipt to Client
+    if (invoice.client?.email) {
+      try {
+        await this.emailService.sendPaymentReceiptEmail(
+          invoice.client.email,
+          invoice.client.name,
+          invoice.invoiceNumber,
+          invoice.organization.name,
+          formattedAmount,
+          outstandingAmount,
+          formattedPaymentDate,
+          channel,
+        );
+      } catch (err) {
+        this.logger.error(`Failed to send payment receipt email to client ${invoice.client.email}: ${err.message}`);
+      }
+    }
+
+    // 2. Send alert to Merchant (Org Admins/Users)
+    const merchantEmails: string[] = [];
+    if (invoice.organization.email) {
+      merchantEmails.push(invoice.organization.email);
+    }
+    if (invoice.organization.users && invoice.organization.users.length > 0) {
+      const admins = invoice.organization.users.filter((u: any) => u.role === 'SUPER_ADMIN' || u.role === 'ADMIN');
+      const targets = admins.length > 0 ? admins : invoice.organization.users;
+      targets.forEach((u: any) => {
+        if (u.email && !merchantEmails.includes(u.email)) {
+          merchantEmails.push(u.email);
+        }
+      });
+    }
+
+    const merchantName = invoice.organization.name;
+    const settlementStatus = invoice.organization.paystackSubaccountCode ? 'Pending Settlement' : 'Direct Deposit';
+
+    for (const email of merchantEmails) {
+      try {
+        await this.emailService.sendMerchantPaymentAlertEmail(
+          email,
+          merchantName,
+          invoice.client?.name || 'Client',
+          invoice.invoiceNumber,
+          formattedAmount,
+          channel,
+          settlementStatus,
+          formattedPaymentDate,
+        );
+      } catch (err) {
+        this.logger.error(`Failed to send merchant payment alert to ${email}: ${err.message}`);
+      }
+    }
   }
 
   async handleWebhookEvent(event: string, data: PaystackTransaction) {

@@ -26,6 +26,7 @@ import {
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, CardHeader, CardTitle, DatePicker } from '@/components/ui'
 import { clientsApi, invoicesApi, organizationsApi, inventoryApi } from '@/api'
+import { useOnboardingStore } from '@/stores/onboarding'
 import type { CreateInventoryItemData } from '@/api/inventory'
 import { cn, formatCurrency } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
@@ -441,9 +442,8 @@ function InvoicePreviewModal({
     : subtotal * ((Number(formData.discountPercent) || 0) / 100)
     
   const afterDiscount = subtotal - discountAmount
-  const vatEnabled = organization?.vatEnabled ?? false
-  const orgTaxRate = organization?.taxRate ?? 0
-  const vat = vatEnabled && orgTaxRate > 0 ? afterDiscount * (orgTaxRate / 100) : 0
+  const invoiceTaxRate = formData.taxRate ?? 0
+  const vat = invoiceTaxRate > 0 ? afterDiscount * (invoiceTaxRate / 100) : 0
   const total = afterDiscount + vat
 
   const displayDate = (dateStr: string) => {
@@ -616,9 +616,9 @@ function InvoicePreviewModal({
                       <td className="py-1.5 text-right text-sm font-bold tabular-nums w-32">-{formatCurrency(discountAmount)}</td>
                     </tr>
                   )}
-                  {vatEnabled && orgTaxRate > 0 && (
+                  {invoiceTaxRate > 0 && (
                     <tr className="text-slate-500">
-                      <td className="py-1.5 text-left sm:text-right text-xs font-bold uppercase tracking-wider text-slate-400 sm:pr-32">VAT ({orgTaxRate}%)</td>
+                      <td className="py-1.5 text-left sm:text-right text-xs font-bold uppercase tracking-wider text-slate-400 sm:pr-32">VAT ({invoiceTaxRate}%)</td>
                       <td className="py-1.5 text-right text-sm font-semibold text-slate-705 tabular-nums w-32">{formatCurrency(vat)}</td>
                     </tr>
                   )}
@@ -1022,12 +1022,14 @@ const invoiceSchema = z.object({
   installments: z.array(installmentSchema).optional(),
   notes: z.string().optional(),
   terms: z.string().optional(),
+  taxRate: z.number().min(0).optional(),
 })
 
 type InvoiceFormData = z.infer<typeof invoiceSchema>
 
 export function NewInvoicePage() {
   const navigate = useNavigate()
+  const openOnboarding = useOnboardingStore((state) => state.openOnboarding)
   const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const preselectedClientId = searchParams.get('clientId') || ''
@@ -1094,6 +1096,7 @@ export function NewInvoicePage() {
       installments: [],
       notes: '',
       terms: '',
+      taxRate: undefined,
     },
   })
 
@@ -1130,6 +1133,9 @@ export function NewInvoicePage() {
     }
     if (organization?.defaultNotes && !getValues('notes')) {
       setValue('notes', organization.defaultNotes)
+    }
+    if (organization && getValues('taxRate') === undefined) {
+      setValue('taxRate', organization.vatEnabled ? Number(organization.taxRate || 7.5) : 0)
     }
   }, [organization, setValue, getValues])
 
@@ -1186,9 +1192,8 @@ export function NewInvoicePage() {
     ? Math.min(watchDiscount, subtotal)
     : subtotal * (watchDiscount / 100)
   const afterDiscount = subtotal - discountAmount
-  const vatEnabled = organization?.vatEnabled ?? false
-  const orgTaxRate = organization?.taxRate ?? 0
-  const vat = vatEnabled && orgTaxRate > 0 ? afterDiscount * (orgTaxRate / 100) : 0
+  const watchTaxRate = watch('taxRate') ?? 0
+  const vat = watchTaxRate > 0 ? afterDiscount * (watchTaxRate / 100) : 0
   const total = afterDiscount + vat
 
   const createMutation = useMutation({
@@ -1387,6 +1392,29 @@ export function NewInvoicePage() {
       </div>
 
       <div className="flex-1 overflow-auto px-4 pt-4 pb-44 sm:px-6 sm:pt-6 sm:pb-48">
+        {!organization?.isPaystackVerified && !organization?.bankAccountNumber && (
+          <div className="mx-auto max-w-7xl mb-6 p-4 bg-[#ffddb8]/40 border border-[#ffddb8]/80 rounded-[20px] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-[0px_8px_24px_rgba(0,55,176,0.04)]">
+            <div className="flex items-start gap-3 text-left">
+              <HugeiconsIcon icon={AlertCircleIcon} size={20} className="text-[#a46000] shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-xs font-bold text-slate-800">
+                  Payout Bank Details Missing
+                </h4>
+                <p className="text-[11px] font-semibold text-slate-550 mt-0.5 leading-normal">
+                  You haven't linked a payout bank account. Link your bank details to enable online invoice payments (Cards, Bank Transfer, USSD).
+                </p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              onClick={() => openOnboarding(4)}
+              className="h-9 px-4 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white text-xs font-bold shrink-0 shadow-md cursor-pointer hover:opacity-95 active:scale-98 transition-all border-0"
+            >
+              Link Bank Account
+            </Button>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit(onSubmit, onFormError)} className="mx-auto max-w-7xl">
           
           {/* TWO-COLUMN SIDEBAR LAYOUT FOR DESKTOP */}
@@ -1566,9 +1594,9 @@ export function NewInvoicePage() {
                             </div>
                           )}
                           
-                          {vatEnabled && orgTaxRate > 0 && (
+                          {watchTaxRate > 0 && (
                             <div className="flex justify-between items-center text-sm font-medium text-slate-500">
-                              <span>VAT ({orgTaxRate}%)</span>
+                              <span>VAT ({watchTaxRate}%)</span>
                               <span className="font-semibold text-slate-800">{formatCurrency(vat)}</span>
                             </div>
                           )}
@@ -1765,6 +1793,59 @@ export function NewInvoicePage() {
                       )}>
                         {installmentsTotal}%
                       </div>
+                    </div>
+                  </CardContent>
+                )}
+              </Card>
+
+              {/* VAT & Tax Sidebar Card */}
+              <Card className="shadow-[0px_12px_32px_rgba(0,55,176,0.06)] rounded-[24px]">
+                <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-slate-100">
+                  <CardTitle className="text-md font-semibold text-slate-800 flex items-center gap-2">
+                    <HugeiconsIcon icon={PercentCircleIcon} size={18} strokeWidth={1.5} className="text-[#0037b0]" />
+                    VAT (Tax)
+                  </CardTitle>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-slate-650 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={watch('taxRate') !== undefined && watch('taxRate')! > 0}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setValue('taxRate', organization?.taxRate && Number(organization.taxRate) > 0 ? Number(organization.taxRate) : 7.5, { shouldValidate: true })
+                        } else {
+                          setValue('taxRate', 0, { shouldValidate: true })
+                        }
+                      }}
+                      className="h-4 w-4 rounded border-gray-300 text-[#0037b0] focus:ring-[#0037b0]"
+                    />
+                    Enable
+                  </label>
+                </CardHeader>
+                {(watch('taxRate') !== undefined && watch('taxRate')! > 0) && (
+                  <CardContent className="pt-4 space-y-3">
+                    <div className="space-y-1.5 text-left">
+                      <Label htmlFor="taxRateInput" className="text-slate-500 font-semibold">VAT Rate (%)</Label>
+                      <div className="relative">
+                        <Input
+                          id="taxRateInput"
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="100"
+                          className="rounded-xl border-input pr-8"
+                          placeholder="7.5"
+                          value={watch('taxRate') ?? 7.5}
+                          onChange={(e) => {
+                            setValue('taxRate', Number(e.target.value) || 0, { shouldValidate: true })
+                          }}
+                        />
+                        <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400 font-semibold text-sm">
+                          %
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-slate-450 font-semibold">
+                        Standard Nigerian VAT rate is 7.5%.
+                      </p>
                     </div>
                   </CardContent>
                 )}
@@ -1967,9 +2048,9 @@ export function NewInvoicePage() {
                       </div>
                     )}
                     
-                    {vatEnabled && orgTaxRate > 0 && (
+                    {watchTaxRate > 0 && (
                       <div className="flex justify-between items-center text-xs font-semibold text-slate-500">
-                        <span>VAT ({orgTaxRate}%)</span>
+                        <span>VAT ({watchTaxRate}%)</span>
                         <span className="text-slate-800 font-bold">{formatCurrency(vat)}</span>
                       </div>
                     )}
@@ -2074,6 +2155,56 @@ export function NewInvoicePage() {
                   )}
                 </Card>
 
+                {/* Mobile VAT Card */}
+                <Card className="shadow-[0px_12px_32px_rgba(0,55,176,0.06)] rounded-[24px]">
+                  <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-slate-100">
+                    <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
+                      <HugeiconsIcon icon={PercentCircleIcon} size={18} strokeWidth={1.5} className="text-[#0037b0]" />
+                      VAT (Tax)
+                    </CardTitle>
+                    <label className="flex items-center gap-2 text-xs font-bold text-slate-655 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={watch('taxRate') !== undefined && watch('taxRate')! > 0}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setValue('taxRate', organization?.taxRate && Number(organization.taxRate) > 0 ? Number(organization.taxRate) : 7.5, { shouldValidate: true })
+                          } else {
+                            setValue('taxRate', 0, { shouldValidate: true })
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-gray-300 text-[#0037b0]"
+                      />
+                      Enable
+                    </label>
+                  </CardHeader>
+                  {(watch('taxRate') !== undefined && watch('taxRate')! > 0) && (
+                    <CardContent className="pt-4 space-y-3">
+                      <div className="space-y-1.5 text-left">
+                        <Label htmlFor="taxRateInputMobile" className="text-slate-500 font-semibold">VAT Rate (%)</Label>
+                        <div className="relative">
+                          <Input
+                            id="taxRateInputMobile"
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            className="rounded-xl border-input pr-8"
+                            placeholder="7.5"
+                            value={watch('taxRate') ?? 7.5}
+                            onChange={(e) => {
+                              setValue('taxRate', Number(e.target.value) || 0, { shouldValidate: true })
+                            }}
+                          />
+                          <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400 font-semibold text-sm">
+                            %
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
+
                 {/* Mobile Notes & Terms */}
                 <Card className="shadow-[0px_12px_32px_rgba(0,55,176,0.06)] rounded-[24px]">
                   <CardHeader className="pb-3 border-b border-slate-100">
@@ -2122,9 +2253,9 @@ export function NewInvoicePage() {
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Subtotal</span>
                 <span className="text-sm font-bold text-slate-700 tabular-nums">{formatCurrency(subtotal)}</span>
               </div>
-              {vatEnabled && orgTaxRate > 0 && (
+              {watchTaxRate > 0 && (
                 <div className="flex flex-col border-l border-slate-200/80 pl-8">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">VAT ({orgTaxRate}%)</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">VAT ({watchTaxRate}%)</span>
                   <span className="text-sm font-bold text-slate-700 tabular-nums">{formatCurrency(vat)}</span>
                 </div>
               )}
