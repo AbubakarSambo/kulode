@@ -179,7 +179,7 @@ export function WelcomeStepper() {
   });
   const [vatEnabled, setVatEnabled] = useState(() => {
     const saved = localStorage.getItem("tari1-onboarding-vatEnabled");
-    return saved !== null ? saved === "true" : false;
+    return saved !== null ? saved === "true" : true;
   });
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [taxRate, setTaxRate] = useState(() => {
