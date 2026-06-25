@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Link02Icon,
-  Share02Icon,
   Download02Icon,
 } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
@@ -197,10 +196,6 @@ export function WowCelebration({
     toast.success("Public invoice link copied to clipboard");
   };
 
-  const openPublicLink = () => {
-    window.open(getPublicInvoiceUrl(), "_blank");
-  };
-
   const shareWhatsApp = async () => {
     const publicUrl = getPublicInvoiceUrl();
     let displayUrl = publicUrl;
@@ -330,36 +325,30 @@ export function WowCelebration({
               </span>
 
               <div className="grid grid-cols-2 gap-2">
+                {/* WhatsApp is the primary visual CTA */}
+                <button
+                  onClick={shareWhatsApp}
+                  className="col-span-2 py-3.5 px-4 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white text-xs font-bold shadow-md hover:opacity-95 active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer border-0"
+                >
+                  <WhatsAppIcon className="h-4 w-4" />
+                  Send via WhatsApp
+                </button>
+
+                {/* Secondary Actions: Borderless with soft backgrounds */}
                 {shareToken && (
                   <button
                     onClick={copyPublicLink}
-                    className="col-span-2 py-3 px-4 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white text-xs font-bold shadow-md hover:opacity-95 active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer border-0"
+                    className="py-2.5 px-3 rounded-xl bg-[#eef4ff] hover:bg-[#e0ecff] text-[#0037b0] text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 border-0"
                   >
-                    <HugeiconsIcon icon={Link02Icon} size={15} strokeWidth={1.5} />
-                    Copy Link to Pay
+                    <HugeiconsIcon icon={Link02Icon} size={14} strokeWidth={1.5} />
+                    Copy Payment Link
                   </button>
                 )}
-                
-                <button
-                  onClick={openPublicLink}
-                  className="py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer bg-white transition-all active:scale-98"
-                >
-                  <HugeiconsIcon icon={Share02Icon} size={14} strokeWidth={1.5} />
-                  Open Invoice
-                </button>
-
-                <button
-                  onClick={shareWhatsApp}
-                  className="py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer bg-white transition-all active:scale-98"
-                >
-                  <WhatsAppIcon className="h-4 w-4 text-emerald-600" />
-                  WhatsApp Link
-                </button>
 
                 <button
                   onClick={downloadPdf}
                   disabled={isDownloading}
-                  className="col-span-2 py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer bg-white disabled:opacity-50 transition-all active:scale-98"
+                  className={`${shareToken ? "col-span-1" : "col-span-2"} py-2.5 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all active:scale-98 border-0`}
                 >
                   <HugeiconsIcon icon={Download02Icon} size={14} strokeWidth={1.5} />
                   {isDownloading ? "Downloading..." : "Download PDF"}
@@ -372,32 +361,18 @@ export function WowCelebration({
         {/* Footer Navigation CTA */}
         <div className="flex flex-col gap-2 w-full mt-4">
           {invoiceId ? (
-            <>
-              <button
-                onClick={() => {
-                  setShowCard(false);
-                  setTimeout(() => {
-                    onClose();
-                    navigate(`/invoices/${invoiceId}`);
-                  }, 300);
-                }}
-                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white text-xs font-bold shadow-md hover:opacity-95 active:scale-98 transition-all cursor-pointer border-0"
-              >
-                Go to Invoice Details
-              </button>
-              <button
-                onClick={() => {
-                  setShowCard(false);
-                  setTimeout(() => {
-                    onClose();
-                    navigate("/dashboard");
-                  }, 300);
-                }}
-                className="w-full py-2.5 text-xs font-bold text-slate-400 hover:text-[#0037b0] transition-colors cursor-pointer bg-transparent border-0"
-              >
-                Go to Dashboard
-              </button>
-            </>
+            <button
+              onClick={() => {
+                setShowCard(false);
+                setTimeout(() => {
+                  onClose();
+                  navigate("/dashboard");
+                }, 300);
+              }}
+              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white text-xs font-bold shadow-md hover:opacity-95 active:scale-98 transition-all cursor-pointer border-0"
+            >
+              Go to Dashboard
+            </button>
           ) : (
             <button
               onClick={() => {
