@@ -16,7 +16,7 @@ export function useLogin() {
     mutationFn: (credentials: LoginCredentials) => authApi.login(credentials),
     onSuccess: (data) => {
       setAuth(data.user, data.accessToken)
-      posthog.capture('user_logged_in')
+      posthog.capture('user_logged_in', { method: 'password' })
       toast.success('Welcome back!', {
         description: `Logged in as ${data.user.firstName}`,
       })
@@ -54,6 +54,7 @@ export function useVerifyEmail() {
     mutationFn: (token: string) => authApi.verifyEmail(token),
     onSuccess: (data: any) => {
       setAuth(data.user, data.accessToken)
+      posthog.capture('email_verified')
       if (data.needsPasswordSetup && data.setupToken) {
         navigate(`/set-password?token=${data.setupToken}`)
       } else {
@@ -123,6 +124,7 @@ export function useForgotPassword() {
   return useMutation({
     mutationFn: (email: string) => authApi.forgotPassword(email),
     onSuccess: (_data, email) => {
+      posthog.capture('password_reset_requested')
       navigate('/check-email', { state: { variant: 'reset', email } })
     },
     onError: (error: any) => {
@@ -141,6 +143,7 @@ export function useResetPassword() {
       authApi.resetPassword(token, password),
     onSuccess: (data) => {
       setAuth(data.user, data.accessToken)
+      posthog.capture('password_reset_completed')
       toast.success('Password reset!', {
         description: 'You are now logged in',
       })
@@ -158,6 +161,7 @@ export function useLogout() {
   const logout = useAuthStore((state) => state.logout)
 
   return () => {
+    posthog.capture('user_logged_out')
     logout()
     toast.success('Logged out')
     navigate('/login')

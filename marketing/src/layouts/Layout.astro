@@ -54,6 +54,28 @@ const posthogHost = import.meta.env.PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog
           window.__posthogLoaded = true;
           !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e.init=function(i,s,a){e._i||(e._i=[]),e._i.push([i,s,a]),e.init.arguments[0]=i},e.config=function(i){e._c||(e._c=[]),e._c.push(i)},o=t.createElement("script"),o.type="text/javascript",o.async=!0,o.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",n=t.getElementsByTagName("script")[0],n.parentNode.insertBefore(o,n))} (document,window.posthog||[]);
           posthog.init(posthogKey, { api_host: posthogHost, person_profiles: 'identified_only' });
+
+          // Capture & persist UTM parameters for this session
+          (function captureUtm() {
+            var params = new URLSearchParams(window.location.search);
+            var utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'ref'];
+            var utmProps = {};
+            utmKeys.forEach(function(key) {
+              var val = params.get(key);
+              if (val) utmProps[key] = val;
+            });
+            if (Object.keys(utmProps).length > 0) {
+              // Persist across all events in this session
+              posthog.register(utmProps);
+            }
+            // Enrich every pageview with referrer + UTMs
+            posthog.capture('$pageview', Object.assign({
+              referrer: document.referrer,
+              page_url: window.location.href,
+              page_path: window.location.pathname,
+            }, utmProps));
+          })();
+
         }
         if (localStorage.getItem('tari1_cookie_consent') === 'accepted') {
           initPostHog();

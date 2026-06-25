@@ -695,7 +695,15 @@ const waitlistUrl = import.meta.env.PUBLIC_WAITLIST_URL ?? ''
             }
 
             if (window.posthog) {
-                window.posthog.capture('marketing_waitlist_modal_opened');
+                var _utmParams = Object.fromEntries(
+                    ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','ref']
+                    .map(function(k){ return [k, new URLSearchParams(window.location.search).get(k)]; })
+                    .filter(function(e){ return e[1]; })
+                );
+                window.posthog.capture('marketing_waitlist_modal_opened', Object.assign({
+                    referrer: document.referrer,
+                    page_url: window.location.href,
+                }, _utmParams));
             }
         }
     }
@@ -805,7 +813,16 @@ const waitlistUrl = import.meta.env.PUBLIC_WAITLIST_URL ?? ''
 
         // 3. Capture event in PostHog
         if (window.posthog) {
-            window.posthog.capture('marketing_waitlist_submitted', { category });
+            var utmKeys = ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','ref'];
+            var utmP = new URLSearchParams(window.location.search);
+            var utmAttrs = {};
+            utmKeys.forEach(function(k){ var v = utmP.get(k); if (v) utmAttrs[k] = v; });
+            window.posthog.capture('marketing_waitlist_submitted', Object.assign({
+                category: category,
+                name: name,
+                referrer: document.referrer,
+                page_url: window.location.href,
+            }, utmAttrs));
         }
         waitlistSubmitted = true;
 
