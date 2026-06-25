@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { PlanTier, SubscriptionStatus } from '@prisma/client';
 
 @Injectable()
 export class PlatformService {
@@ -225,6 +226,181 @@ export class PlatformService {
         isGrandfathered: org.isGrandfathered,
       })),
       topOrganizations: topOrgsByVolume,
+    };
+  }
+
+  async getOrganizations(query: {
+    search?: string;
+    planTier?: PlanTier;
+    subscriptionStatus?: SubscriptionStatus;
+    isGrandfathered?: boolean | string;
+    page?: number;
+    limit?: number;
+  }) {
+    const page = Number(query.page) || 1;
+    const limit = Number(query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+
+    if (query.search) {
+      where.OR = [
+        { name: { contains: query.search, mode: 'insensitive' } },
+        { slug: { contains: query.search, mode: 'insensitive' } },
+        { email: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
+
+    if (query.planTier) {
+      where.planTier = query.planTier;
+    }
+
+    if (query.subscriptionStatus) {
+      where.subscriptionStatus = query.subscriptionStatus;
+    }
+
+    if (query.isGrandfathered !== undefined) {
+      where.isGrandfathered = query.isGrandfathered === 'true' || query.isGrandfathered === true;
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.organization.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          email: true,
+          phone: true,
+          planTier: true,
+          subscriptionStatus: true,
+          isGrandfathered: true,
+          platformFeePercent: true,
+          createdAt: true,
+          _count: {
+            select: {
+              users: true,
+              invoices: true,
+            },
+          },
+        },
+      }),
+      this.prisma.organization.count({ where }),
+    ]);
+
+    const formattedItems = items.map((org) => ({
+      ...org,
+      userCount: org._count.users,
+      invoiceCount: org._count.invoices,
+      platformFeePercent: Number(org.platformFeePercent),
+    }));
+
+    return {
+      items: formattedItems,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async getOrganizationDetails(id: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            users: true,
+            invoices: true,
+            clients: true,
+            payments: true,
+          },
+        },
+        users: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+            isActive: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    if (!org) {
+      return null;
+    }
+
+    // Get aggregate financial info for this org
+    const invoiceAggregation = await this.prisma.invoice.aggregate({
+      _sum: { total: true },
+      where: {
+        organizationId: id,
+        status: { notIn: ['DRAFT', 'CANCELLED'] },
+        deletedAt: null,
+      },
+    });
+
+    const paymentAggregation = await this.prisma.payment.aggregate({
+      _sum: { amount: true },
+      where: {
+        organizationId: id,
+      },
+    });
+
+    return {
+      ...org,
+      platformFeePercent: Number(org.platformFeePercent),
+      userCount: org._count.users,
+      invoiceCount: org._count.invoices,
+      clientCount: org._count.clients,
+      paymentCount: org._count.payments,
+      totalGmv: Number(invoiceAggregation._sum.total) || 0,
+      totalPayments: Number(paymentAggregation._sum.amount) || 0,
+    };
+  }
+
+  async updateOrganization(id: string, data: {
+    planTier?: PlanTier;
+    subscriptionStatus?: SubscriptionStatus;
+    isGrandfathered?: boolean;
+    platformFeePercent?: number;
+  }) {
+    const updateData: any = {};
+
+    if (data.planTier !== undefined) {
+      updateData.planTier = data.planTier;
+    }
+
+    if (data.subscriptionStatus !== undefined) {
+      updateData.subscriptionStatus = data.subscriptionStatus;
+    }
+
+    if (data.isGrandfathered !== undefined) {
+      updateData.isGrandfathered = data.isGrandfathered;
+    }
+
+    if (data.platformFeePercent !== undefined) {
+      updateData.platformFeePercent = data.platformFeePercent;
+    }
+
+    const updated = await this.prisma.organization.update({
+      where: { id },
+      data: updateData,
+    });
+
+    return {
+      ...updated,
+      platformFeePercent: Number(updated.platformFeePercent),
     };
   }
 }

@@ -515,3 +515,45 @@ export interface PlatformDashboard {
     isGrandfathered: boolean
   }>
 }
+
+export interface PlatformOrganization {
+  id: string
+  name: string
+  slug: string
+  email: string | null
+  phone: string | null
+  planTier: PlanTier
+  subscriptionStatus: SubscriptionStatus
+  isGrandfathered: boolean
+  platformFeePercent: number
+  createdAt: string
+  userCount: number
+  invoiceCount: number
+}
+
+export interface PlatformOrganizationsResponse {
+  items: PlatformOrganization[]
+  meta: {
+    total: number
+    page: number
+    limit: number
+    totalPages: number
+  }
+}
+
+export interface PlatformOrganizationDetails extends PlatformOrganization {
+  clientCount: number
+  paymentCount: number
+  totalGmv: number
+  totalPayments: number
+  users: Array<{
+    id: string
+    email: string
+    firstName: string
+    lastName: string
+    role: string
+    isActive: boolean
+    createdAt: string
+  }>
+}
+
