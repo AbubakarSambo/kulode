@@ -31,6 +31,7 @@ export interface CreateInvoiceData {
   installments?: CreateInstallmentData[]
   notes?: string
   terms?: string
+  taxRate?: number
 }
 
 export const invoicesApi = {

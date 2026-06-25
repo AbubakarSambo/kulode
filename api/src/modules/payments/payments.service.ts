@@ -317,6 +317,7 @@ export class PaymentsService {
             email: true,
             phone: true,
             address: true,
+            logo: true,
           },
         },
       },
@@ -348,6 +349,7 @@ export class PaymentsService {
         email: payment.organization.email,
         phone: payment.organization.phone,
         address: payment.organization.address,
+        logo: payment.organization.logo,
       },
     };
   }

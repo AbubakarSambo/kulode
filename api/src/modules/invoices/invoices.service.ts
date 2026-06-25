@@ -273,7 +273,7 @@ export class InvoicesService {
       ? discountValue
       : subtotal * (discountValue / 100);
     const afterDiscount = subtotal - discountAmount;
-    const orgTaxRate = organization!.vatEnabled ? Number(organization!.taxRate) : 0;
+    const orgTaxRate = dto.taxRate !== undefined ? dto.taxRate : (organization!.vatEnabled ? Number(organization!.taxRate) : 0);
     const taxAmount = orgTaxRate > 0 ? afterDiscount * (orgTaxRate / 100) : 0;
     const total = afterDiscount + taxAmount;
 
@@ -362,7 +362,9 @@ export class InvoicesService {
       select: { vatEnabled: true, taxRate: true },
     });
 
-    const orgTaxRate = organization!.vatEnabled ? Number(organization!.taxRate) : 0;
+    const orgTaxRate = dto.taxRate !== undefined
+      ? dto.taxRate
+      : (organization!.vatEnabled ? Number(organization!.taxRate) : Number(invoice.taxRate));
 
     let updateData: Prisma.InvoiceUpdateInput = {
       ...(dto.issueDate && { issueDate: dto.issueDate }),
@@ -441,8 +443,8 @@ export class InvoicesService {
         where: { id },
         include: { client: true, items: true },
       });
-    } else if (discountChanged) {
-      // Only discount changed, recalculate
+    } else if (discountChanged || dto.taxRate !== undefined) {
+      // Only discount or tax rate changed, recalculate
       const subtotal = Number(invoice.subtotal);
       const discountType = dto.discountType ?? invoice.discountType;
       const discountValue = dto.discountPercent ?? Number(invoice.discountPercent);
