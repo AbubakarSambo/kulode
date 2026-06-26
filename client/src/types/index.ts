@@ -550,6 +550,13 @@ export interface PlatformDashboard {
     subscriptionStatus: SubscriptionStatus
     isGrandfathered: boolean
   }>
+  trends: Array<{
+    month: string
+    mrr: number
+    collectedGmv: number
+    payingTenants: number
+    trialingTenants: number
+  }>
 }
 
 export interface PlatformOrganization {

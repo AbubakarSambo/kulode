@@ -26,6 +26,49 @@ import { useAuthStore } from '@/stores/auth'
 import { formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { PlatformOrganizationDetails, PlatformOrganization } from '@/types'
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  Legend,
+  CartesianGrid,
+} from 'recharts'
+
+const InfoIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="w-3.5 h-3.5 text-slate-400 hover:text-[#0037b0] transition-colors cursor-pointer select-none"
+  >
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 16v-4" />
+    <path d="M12 8h.01" />
+  </svg>
+)
+
+function MetricTooltip({ content }: { content: string }) {
+  return (
+    <div className="group relative inline-block ml-1.5 align-middle select-none">
+      <InfoIcon />
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 scale-0 group-hover:scale-100 transition-all origin-bottom z-50 pointer-events-none">
+        <div className="bg-white/95 backdrop-blur-md border border-[rgba(196,197,215,0.25)] shadow-[0px_8px_24px_rgba(0,55,176,0.08)] rounded-xl p-2.5 text-[10px] text-slate-600 font-normal leading-normal whitespace-normal break-words normal-case">
+          {content}
+        </div>
+        <div className="w-2 h-2 bg-white/95 backdrop-blur-md border-r border-b border-[rgba(196,197,215,0.25)] rotate-45 absolute top-full left-1/2 -translate-x-1/2 -translate-y-1" />
+      </div>
+    </div>
+  )
+}
 
 function TrialStatusCell({ org }: { org: PlatformOrganization }) {
   if (org.subscriptionStatus === 'TRIALING') {
@@ -141,7 +184,36 @@ export function AdminDashboardPage() {
   const user = useAuthStore((state) => state.user)
 
   const [activeTab, setActiveTab] = useState<'overview' | 'organizations' | 'revenue'>('overview')
+  const [periodFilter, setPeriodFilter] = useState<'current_month' | 'last_30_days' | 'last_90_days' | 'ytd'>('current_month')
 
+  // Helper for period dates
+  const getPeriodDates = (filter: typeof periodFilter) => {
+    const now = new Date()
+    let startDate: Date
+    const endDate = now
+
+    switch (filter) {
+      case 'last_30_days':
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+        break;
+      case 'last_90_days':
+        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+        break;
+      case 'ytd':
+        startDate = new Date(now.getFullYear(), 0, 1)
+        break;
+      case 'current_month':
+      default:
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+        break;
+    }
+    return {
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0],
+    }
+  }
+
+  const { startDate, endDate } = getPeriodDates(periodFilter)
 
   // Organizations query state
   const [search, setSearch] = useState('')
@@ -171,8 +243,8 @@ export function AdminDashboardPage() {
 
   // Dashboard Overview Query
   const { data: dashboardData, isLoading: isLoadingDashboard } = useQuery({
-    queryKey: ['platform', 'dashboard'],
-    queryFn: () => platformApi.getDashboard(),
+    queryKey: ['platform', 'dashboard', { startDate, endDate }],
+    queryFn: () => platformApi.getDashboard(startDate, endDate),
     enabled: !!user?.isPlatformAdmin && activeTab !== 'organizations',
   })
 
@@ -226,6 +298,23 @@ export function AdminDashboardPage() {
       <Header
         title="Platform Admin"
         description="Overview of all organizations, revenue growth, and tenant control parameters."
+        action={
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-[#434655] uppercase tracking-wider">Period:</span>
+            <div className="w-44">
+              <FilterSelect
+                value={periodFilter}
+                onChange={(val) => setPeriodFilter(val as typeof periodFilter)}
+                options={[
+                  { value: 'current_month', label: 'Current Month' },
+                  { value: 'last_30_days', label: 'Last 30 Days' },
+                  { value: 'last_90_days', label: 'Last 90 Days' },
+                  { value: 'ytd', label: 'Year to Date' },
+                ]}
+              />
+            </div>
+          </div>
+        }
       />
 
       {/* Tabs Navigation */}
@@ -272,8 +361,9 @@ export function AdminDashboardPage() {
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-100">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-100 flex items-center gap-1">
                             MRR
+                            <MetricTooltip content="Monthly Recurring Revenue: Sum of all subscription payments collected in the selected period." />
                           </p>
                           <p className="mt-1.5 text-2xl font-bold tracking-tight text-white">
                             {formatCurrency(dashboardData.subscriptions.revenueCurrentMonth)}
@@ -295,8 +385,9 @@ export function AdminDashboardPage() {
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655]">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655] flex items-center gap-1">
                             Trial → Paid Conversion
+                            <MetricTooltip content="Conversion Rate: Percentage of all registered organizations that are on an active paid plan (Pro/Business)." />
                           </p>
                           <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28]">
                             {dashboardData.health.trialConversionRate}%
@@ -334,8 +425,9 @@ export function AdminDashboardPage() {
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655]">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655] flex items-center gap-1">
                             Monthly Active Tenants
+                            <MetricTooltip content="MAT: Number and percentage of organizations that have created at least one invoice or recorded one payment in the last 30 days." />
                           </p>
                           <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28]">
                             {dashboardData.health.monthlyActiveTenants}
@@ -371,8 +463,9 @@ export function AdminDashboardPage() {
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655]">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655] flex items-center gap-1">
                             Collected GMV
+                            <MetricTooltip content="Collected Gross Merchandise Volume: Sum total of all invoices in PAID status (excludes draft/sent/cancelled)." />
                           </p>
                           <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28] truncate">
                             {formatCurrency(dashboardData.health.collectedGmv)}
@@ -387,6 +480,95 @@ export function AdminDashboardPage() {
                         </div>
                       </div>
                     </CardContent>
+                  </Card>
+                </div>
+
+                {/* Visual Trends Section */}
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white p-6">
+                    <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2 mb-4">
+                      <HugeiconsIcon icon={AnalyticsIcon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />
+                      Revenue Growth Trend (Last 6 Months)
+                    </h3>
+                    {dashboardData.trends && dashboardData.trends.length > 0 ? (
+                      <div className="h-64 sm:h-72 w-full mt-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={dashboardData.trends}>
+                            <defs>
+                              <linearGradient id="colorMrr" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#0037b0" stopOpacity={0.2}/>
+                                <stop offset="95%" stopColor="#0037b0" stopOpacity={0}/>
+                              </linearGradient>
+                              <linearGradient id="colorGmv" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#006c49" stopOpacity={0.2}/>
+                                <stop offset="95%" stopColor="#006c49" stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#c4c5d7" opacity={0.15} />
+                            <XAxis dataKey="month" stroke="#434655" fontSize={10} tickLine={false} axisLine={false} />
+                            <YAxis stroke="#434655" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `₦${(v / 1e6).toFixed(0)}M`} />
+                            <RechartsTooltip
+                              contentStyle={{
+                                background: 'rgba(255, 255, 255, 0.9)',
+                                backdropFilter: 'blur(8px)',
+                                border: '1px solid rgba(196, 197, 215, 0.2)',
+                                borderRadius: '12px',
+                                boxShadow: '0px 8px 24px rgba(0, 55, 176, 0.04)',
+                                fontSize: '11px',
+                                color: '#121c28'
+                              }}
+                              formatter={(value: any, name: string | undefined) => [ // eslint-disable-line @typescript-eslint/no-explicit-any
+                                formatCurrency(Number(value || 0)),
+                                name === 'mrr' ? 'MRR' : 'Collected GMV'
+                              ]}
+                            />
+                            <Legend verticalAlign="top" height={36} iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', fontWeight: 600 }} />
+                            <Area type="monotone" dataKey="mrr" name="mrr" stroke="#0037b0" strokeWidth={2} fillOpacity={1} fill="url(#colorMrr)" />
+                            <Area type="monotone" dataKey="collectedGmv" name="collectedGmv" stroke="#006c49" strokeWidth={2} fillOpacity={1} fill="url(#colorGmv)" />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <p className="text-center text-xs text-slate-400 py-12">No trend data available</p>
+                    )}
+                  </Card>
+
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white p-6">
+                    <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2 mb-4">
+                      <HugeiconsIcon icon={UserGroupIcon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />
+                      Tenant Status Distribution Trend
+                    </h3>
+                    {dashboardData.trends && dashboardData.trends.length > 0 ? (
+                      <div className="h-64 sm:h-72 w-full mt-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={dashboardData.trends}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#c4c5d7" opacity={0.15} />
+                            <XAxis dataKey="month" stroke="#434655" fontSize={10} tickLine={false} axisLine={false} />
+                            <YAxis stroke="#434655" fontSize={10} tickLine={false} axisLine={false} />
+                            <RechartsTooltip
+                              contentStyle={{
+                                background: 'rgba(255, 255, 255, 0.9)',
+                                backdropFilter: 'blur(8px)',
+                                border: '1px solid rgba(196, 197, 215, 0.2)',
+                                borderRadius: '12px',
+                                boxShadow: '0px 8px 24px rgba(0, 55, 176, 0.04)',
+                                fontSize: '11px',
+                                color: '#121c28'
+                              }}
+                              formatter={(value: any, name: string | undefined) => [ // eslint-disable-line @typescript-eslint/no-explicit-any
+                                `${value ?? 0} tenants`,
+                                name === 'payingTenants' ? 'Paying' : 'Trialing'
+                              ]}
+                            />
+                            <Legend verticalAlign="top" height={36} iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', fontWeight: 600 }} />
+                            <Bar dataKey="payingTenants" name="payingTenants" fill="#006c49" stackId="a" radius={[0, 0, 4, 4]} />
+                            <Bar dataKey="trialingTenants" name="trialingTenants" fill="#b06000" stackId="a" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <p className="text-center text-xs text-slate-400 py-12">No trend data available</p>
+                    )}
                   </Card>
                 </div>
 
@@ -446,9 +628,9 @@ export function AdminDashboardPage() {
                                 <Button
                                   variant="outline"
                                   onClick={() => setEditingOrgId(org.id)}
-                                  className="px-2.5 py-1 rounded-lg border border-[rgba(196,197,215,0.4)] hover:bg-[#eef4ff] text-[10px] font-semibold flex items-center gap-1 cursor-pointer min-h-[30px] text-[#434655] hover:text-[#0037b0]"
+                                  className="px-3.5 py-2.5 rounded-xl border border-[rgba(196,197,215,0.4)] hover:bg-[#eef4ff] text-xs font-semibold flex items-center gap-1.5 cursor-pointer min-h-[44px] text-[#434655] hover:text-[#0037b0] transition-colors"
                                 >
-                                  <HugeiconsIcon icon={Settings02Icon} size={10} strokeWidth={2} />
+                                  <HugeiconsIcon icon={Settings02Icon} size={12} strokeWidth={2} />
                                   Configure
                                 </Button>
                               </div>
@@ -601,7 +783,7 @@ export function AdminDashboardPage() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                       <thead>
-                        <tr className="bg-[#f8f9ff]/80 text-[10px] font-semibold uppercase tracking-wider text-[#434655] border-b border-[rgba(196,197,215,0.2)]">
+                        <tr className="bg-[#f8f9ff]/80 text-[10px] font-semibold uppercase tracking-wider text-[#434655]">
                           <th className="px-6 py-4">Organization</th>
                           <th className="px-6 py-4">Plan &amp; Status</th>
                           <th className="px-6 py-4">Trial Status</th>
@@ -611,12 +793,12 @@ export function AdminDashboardPage() {
                           <th className="px-6 py-4 text-right">Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[rgba(196,197,215,0.1)]">
+                      <tbody>
                         {orgsData.items.map((org, index) => (
                           <tr
                             key={org.id}
-                            className={`hover:bg-[#f8f9ff]/50 transition-colors ${
-                              index % 2 === 1 ? 'bg-slate-50/20' : ''
+                            className={`hover:bg-[#f8f9ff]/80 transition-colors ${
+                              index % 2 === 1 ? 'bg-[#eef4ff]/40' : 'bg-white'
                             }`}
                           >
                             <td className="px-6 py-4">
@@ -684,7 +866,7 @@ export function AdminDashboardPage() {
                               <Button
                                 variant="outline"
                                 onClick={() => setEditingOrgId(org.id)}
-                                className="px-3 py-1.5 rounded-xl border border-[rgba(196,197,215,0.4)] hover:bg-[#eef4ff] hover:border-[#0037b0]/20 text-xs font-semibold flex items-center gap-1.5 ml-auto min-h-[36px] text-[#434655] hover:text-[#0037b0] transition-colors"
+                                className="px-4 py-2.5 rounded-xl border border-[rgba(196,197,215,0.4)] hover:bg-[#eef4ff] hover:border-[#0037b0]/20 text-xs font-semibold flex items-center gap-1.5 ml-auto min-h-[44px] text-[#434655] hover:text-[#0037b0] transition-colors"
                               >
                                 <HugeiconsIcon icon={Settings02Icon} size={14} strokeWidth={1.5} />
                                 Configure
@@ -723,7 +905,7 @@ export function AdminDashboardPage() {
                         variant="outline"
                         disabled={page === 1}
                         onClick={() => setPage((p) => Math.max(1, p - 1))}
-                        className="px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer min-h-[36px] border-[rgba(196,197,215,0.4)] text-[#434655] hover:bg-[#eef4ff] hover:text-[#0037b0] transition-colors disabled:opacity-40"
+                        className="px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer min-h-[44px] border-[rgba(196,197,215,0.4)] text-[#434655] hover:bg-[#eef4ff] hover:text-[#0037b0] transition-colors disabled:opacity-40"
                       >
                         <HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={2} />
                         Previous
@@ -732,7 +914,7 @@ export function AdminDashboardPage() {
                         variant="outline"
                         disabled={page === orgsData.meta.totalPages || orgsData.meta.totalPages === 0}
                         onClick={() => setPage((p) => Math.min(orgsData.meta.totalPages, p + 1))}
-                        className="px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer min-h-[36px] border-[rgba(196,197,215,0.4)] text-[#434655] hover:bg-[#eef4ff] hover:text-[#0037b0] transition-colors disabled:opacity-40"
+                        className="px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer min-h-[44px] border-[rgba(196,197,215,0.4)] text-[#434655] hover:bg-[#eef4ff] hover:text-[#0037b0] transition-colors disabled:opacity-40"
                       >
                         Next
                         <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={2} />
@@ -761,9 +943,10 @@ export function AdminDashboardPage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.12)] rounded-3xl bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white">
                     <CardContent className="p-6">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#bfdbfe]">
-                        MRR
-                      </p>
+                       <p className="text-[10px] font-semibold uppercase tracking-wider text-[#bfdbfe] flex items-center gap-1">
+                         MRR
+                         <MetricTooltip content="Monthly Recurring Revenue: Sum of all subscription payments collected in the selected period." />
+                       </p>
                       <p className="mt-2 text-3xl font-bold tracking-tight text-white">
                         {formatCurrency(dashboardData.subscriptions.revenueCurrentMonth)}
                       </p>
@@ -776,9 +959,10 @@ export function AdminDashboardPage() {
 
                   <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white">
                     <CardContent className="p-6">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655]">
-                        All-Time SaaS Revenue
-                      </p>
+                       <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655] flex items-center gap-1">
+                         All-Time SaaS Revenue
+                         <MetricTooltip content="All-Time SaaS Revenue: Total subscription payment revenue collected to date." />
+                       </p>
                       <p className="mt-2 text-2xl font-bold tracking-tight text-[#121c28]">
                         {formatCurrency(dashboardData.subscriptions.revenue)}
                       </p>
@@ -900,6 +1084,7 @@ export function AdminDashboardPage() {
                       <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2">
                         <span role="img" aria-label="warning" className="text-red-500">⚠️</span>
                         Revenue at Risk (Past Due Tenants)
+                        <MetricTooltip content="Revenue at Risk: Subscription MRR from active organizations currently in PAST_DUE status." />
                       </h3>
                       {pastDueOrgsData && (
                         <Badge variant="destructive" className="text-[9px] px-1.5 py-0 border-0 bg-red-50 text-[#ba1a1a]">
@@ -938,9 +1123,9 @@ export function AdminDashboardPage() {
                               <Button
                                 variant="outline"
                                 onClick={() => setEditingOrgId(org.id)}
-                                className="px-2.5 py-1 rounded-lg border border-[rgba(196,197,215,0.4)] hover:bg-[#eef4ff] text-[10px] font-semibold flex items-center gap-1 cursor-pointer min-h-[30px] text-[#434655] hover:text-[#ba1a1a]"
+                                className="px-3.5 py-2.5 rounded-xl border border-[rgba(196,197,215,0.4)] hover:bg-[#eef4ff] text-xs font-semibold flex items-center gap-1.5 cursor-pointer min-h-[44px] text-[#434655] hover:text-[#ba1a1a] transition-colors"
                               >
-                                <HugeiconsIcon icon={Settings02Icon} size={10} strokeWidth={2} />
+                                <HugeiconsIcon icon={Settings02Icon} size={12} strokeWidth={2} />
                                 Resolve
                               </Button>
                             </div>
@@ -1083,7 +1268,7 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
             <h3 className="text-sm font-bold text-[#121c28]">Configure Tenant</h3>
             <p className="text-[11px] text-[#434655]">{org.name} ({org.slug})</p>
           </div>
-          <button onClick={onClose} className="rounded-full p-2 text-[#434655] hover:bg-[#eef4ff] hover:text-[#0037b0] transition-colors cursor-pointer min-h-[40px] min-w-[40px] flex items-center justify-center">
+          <button onClick={onClose} className="rounded-full p-2 text-[#434655] hover:bg-[#eef4ff] hover:text-[#0037b0] transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center">
             <HugeiconsIcon icon={Cancel01Icon} size={18} strokeWidth={2} />
           </button>
         </div>

@@ -13,18 +13,31 @@ export class PlatformService {
     return Number((((current - previous) / previous) * 100).toFixed(1));
   }
 
-  async getDashboard() {
+  async getDashboard(startDateStr?: string, endDateStr?: string) {
     const now = new Date();
+
+    // Default current period: current calendar month
+    let currentPeriodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    let currentPeriodEnd = new Date(now);
+
+    // Default prior period: previous calendar month
+    let priorPeriodStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    let priorPeriodEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+
+    if (startDateStr && endDateStr) {
+      currentPeriodStart = new Date(startDateStr);
+      currentPeriodEnd = new Date(endDateStr);
+
+      const durationMs = currentPeriodEnd.getTime() - currentPeriodStart.getTime();
+      priorPeriodEnd = new Date(currentPeriodStart.getTime() - 1);
+      priorPeriodStart = new Date(currentPeriodStart.getTime() - durationMs);
+    }
+
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay());
     startOfWeek.setHours(0, 0, 0, 0);
 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    // MoM date boundaries
-    const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
 
     // Health metric boundaries
     const nextWeek = new Date(now);
@@ -76,7 +89,7 @@ export class PlatformService {
 
       // New orgs this month
       this.prisma.organization.count({
-        where: { createdAt: { gte: startOfMonth } },
+        where: { createdAt: { gte: currentPeriodStart, lte: currentPeriodEnd } },
       }),
 
       // Active orgs (have at least one invoice)
@@ -188,7 +201,7 @@ export class PlatformService {
 
       // Last month organizations
       this.prisma.organization.count({
-        where: { createdAt: { gte: startOfLastMonth, lte: endOfLastMonth } },
+        where: { createdAt: { gte: priorPeriodStart, lte: priorPeriodEnd } },
       }),
 
       // Current month GMV
@@ -197,7 +210,7 @@ export class PlatformService {
         where: {
           status: { notIn: ['DRAFT', 'CANCELLED'] },
           deletedAt: null,
-          createdAt: { gte: startOfCurrentMonth },
+          createdAt: { gte: currentPeriodStart, lte: currentPeriodEnd },
         },
       }),
 
@@ -207,32 +220,32 @@ export class PlatformService {
         where: {
           status: { notIn: ['DRAFT', 'CANCELLED'] },
           deletedAt: null,
-          createdAt: { gte: startOfLastMonth, lte: endOfLastMonth },
+          createdAt: { gte: priorPeriodStart, lte: priorPeriodEnd },
         },
       }),
 
       // Current month platform fees
       this.prisma.payment.aggregate({
         _sum: { platformFees: true },
-        where: { createdAt: { gte: startOfCurrentMonth } },
+        where: { createdAt: { gte: currentPeriodStart, lte: currentPeriodEnd } },
       }),
 
       // Last month platform fees
       this.prisma.payment.aggregate({
         _sum: { platformFees: true },
-        where: { createdAt: { gte: startOfLastMonth, lte: endOfLastMonth } },
+        where: { createdAt: { gte: priorPeriodStart, lte: priorPeriodEnd } },
       }),
 
       // Current month subscription payments (MRR proxy)
       this.prisma.subscriptionPayment.aggregate({
         _sum: { amount: true },
-        where: { createdAt: { gte: startOfCurrentMonth } },
+        where: { createdAt: { gte: currentPeriodStart, lte: currentPeriodEnd } },
       }),
 
       // Last month subscription payments
       this.prisma.subscriptionPayment.aggregate({
         _sum: { amount: true },
-        where: { createdAt: { gte: startOfLastMonth, lte: endOfLastMonth } },
+        where: { createdAt: { gte: priorPeriodStart, lte: priorPeriodEnd } },
       }),
 
       // ── Health metrics ──
@@ -287,7 +300,7 @@ export class PlatformService {
         where: {
           status: 'PAID',
           deletedAt: null,
-          createdAt: { gte: startOfCurrentMonth },
+          createdAt: { gte: currentPeriodStart, lte: currentPeriodEnd },
         },
       }),
 
@@ -297,7 +310,7 @@ export class PlatformService {
         where: {
           status: 'PAID',
           deletedAt: null,
-          createdAt: { gte: startOfLastMonth, lte: endOfLastMonth },
+          createdAt: { gte: priorPeriodStart, lte: priorPeriodEnd },
         },
       }),
 
@@ -401,6 +414,56 @@ export class PlatformService {
     const prevMonthCollectedGmv = Number(lastMonthPaidGmvResult._sum.total) || 0;
     const collectedGmvChangePct = this.calculateMoMChange(curMonthCollectedGmv, prevMonthCollectedGmv);
 
+    // Calculate last 6 months trends
+    const trendMonths: Array<{ start: Date; end: Date; label: string }> = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const start = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
+      const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
+      const label = d.toLocaleString('en-US', { month: 'short' });
+      trendMonths.push({ start, end, label });
+    }
+
+    const trendDataPromises = trendMonths.map(async (m) => {
+      const [mrrAgg, gmvAgg, payingCount, trialingCount] = await Promise.all([
+        this.prisma.subscriptionPayment.aggregate({
+          _sum: { amount: true },
+          where: { createdAt: { gte: m.start, lte: m.end } },
+        }),
+        this.prisma.invoice.aggregate({
+          _sum: { total: true },
+          where: {
+            status: 'PAID',
+            deletedAt: null,
+            createdAt: { gte: m.start, lte: m.end },
+          },
+        }),
+        this.prisma.organization.count({
+          where: {
+            createdAt: { lte: m.end },
+            planTier: { in: ['STARTER', 'PRO', 'BUSINESS'] },
+            subscriptionStatus: 'ACTIVE',
+          },
+        }),
+        this.prisma.organization.count({
+          where: {
+            createdAt: { lte: m.end },
+            subscriptionStatus: 'TRIALING',
+          },
+        }),
+      ]);
+
+      return {
+        month: m.label,
+        mrr: Number(mrrAgg._sum.amount) || 0,
+        collectedGmv: Number(gmvAgg._sum.total) || 0,
+        payingTenants: payingCount,
+        trialingTenants: trialingCount,
+      };
+    });
+
+    const trends = await Promise.all(trendDataPromises);
+
     return {
       organizations: {
         total: totalOrgs,
@@ -475,6 +538,7 @@ export class PlatformService {
         trialEndDate: org.trialEndDate,
       })),
       topOrganizations: topOrgsByVolume,
+      trends,
     };
   }
 

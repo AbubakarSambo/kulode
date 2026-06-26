@@ -16,8 +16,11 @@ export class PlatformController {
   @ApiOperation({ summary: 'Get platform admin dashboard data' })
   @ApiResponse({ status: 200, description: 'Platform dashboard data' })
   @ApiResponse({ status: 403, description: 'Not a platform admin' })
-  async getDashboard() {
-    return this.platformService.getDashboard();
+  async getDashboard(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.platformService.getDashboard(startDate, endDate);
   }
 
   @Get('organizations')

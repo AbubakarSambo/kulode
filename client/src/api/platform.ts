@@ -8,8 +8,10 @@ import type {
 } from '@/types'
 
 export const platformApi = {
-  getDashboard: async (): Promise<PlatformDashboard> => {
-    const response = await apiClient.get<ApiResponse<PlatformDashboard>>('/platform/dashboard')
+  getDashboard: async (startDate?: string, endDate?: string): Promise<PlatformDashboard> => {
+    const response = await apiClient.get<ApiResponse<PlatformDashboard>>('/platform/dashboard', {
+      params: { startDate, endDate }
+    })
     return response.data.data
   },
 
