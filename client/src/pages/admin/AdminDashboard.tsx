@@ -549,12 +549,12 @@ export function AdminDashboardPage() {
                               }}
                               formatter={(value: any, name: string | undefined) => [ // eslint-disable-line @typescript-eslint/no-explicit-any
                                 formatCurrency(Number(value || 0)),
-                                name === 'mrr' ? 'MRR' : 'Collected GMV'
+                                name ?? ''
                               ]}
                             />
                             <Legend verticalAlign="top" height={36} iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', fontWeight: 600 }} />
-                            <Area type="monotone" dataKey="mrr" name="mrr" stroke="#0037b0" strokeWidth={2} fillOpacity={1} fill="url(#colorMrr)" />
-                            <Area type="monotone" dataKey="collectedGmv" name="collectedGmv" stroke="#006c49" strokeWidth={2} fillOpacity={1} fill="url(#colorGmv)" />
+                            <Area type="monotone" dataKey="mrr" name="MRR" stroke="#0037b0" strokeWidth={2} fillOpacity={1} fill="url(#colorMrr)" />
+                            <Area type="monotone" dataKey="collectedGmv" name="Collected GMV" stroke="#006c49" strokeWidth={2} fillOpacity={1} fill="url(#colorGmv)" />
                           </AreaChart>
                         </ResponsiveContainer>
                       </div>
@@ -597,12 +597,12 @@ export function AdminDashboardPage() {
                               }}
                               formatter={(value: any, name: string | undefined) => [ // eslint-disable-line @typescript-eslint/no-explicit-any
                                 `${value ?? 0} tenants`,
-                                name === 'payingTenants' ? 'Paying' : 'Trialing'
+                                name ?? ''
                               ]}
                             />
                             <Legend verticalAlign="top" height={36} iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', fontWeight: 600 }} />
-                            <Bar dataKey="payingTenants" name="payingTenants" fill="#006c49" stackId="a" radius={[0, 0, 4, 4]} />
-                            <Bar dataKey="trialingTenants" name="trialingTenants" fill="#b06000" stackId="a" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="payingTenants" name="Paying" fill="#006c49" stackId="a" radius={[0, 0, 4, 4]} />
+                            <Bar dataKey="trialingTenants" name="Trialing" fill="#ffddb8" stackId="a" radius={[4, 4, 0, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
                       </div>
