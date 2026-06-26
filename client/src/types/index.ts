@@ -477,19 +477,30 @@ export interface PlatformDashboard {
     newThisMonth: number
     active: number
     inactive: number
+    lastMonth: number
+    changePct: number
   }
   users: {
     total: number
   }
   revenue: {
     gmv: number
+    gmvCurrentMonth: number
+    gmvPreviousMonth: number
+    gmvChangePct: number
     platformFees: number
+    platformFeesCurrentMonth: number
+    platformFeesPreviousMonth: number
+    platformFeesChangePct: number
   }
   subscriptions: {
-    byPlan: { FREE: number; PRO: number; BUSINESS: number }
+    byPlan: { FREE: number; STARTER: number; PRO: number; BUSINESS: number }
     byStatus: { TRIALING: number; ACTIVE: number; CANCELLED: number; EXPIRED: number }
     grandfathered: number
     revenue: number
+    revenueCurrentMonth: number
+    revenuePreviousMonth: number
+    revenueChangePct: number
   }
   invoices: Record<string, { count: number; total: number }>
   recentSignups: Array<{

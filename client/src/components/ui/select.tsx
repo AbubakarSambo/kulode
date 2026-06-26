@@ -1,4 +1,6 @@
 import * as React from 'react'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { ArrowDown01Icon } from '@hugeicons/core-free-icons'
 import { cn } from '@/lib/utils'
 
 export interface SelectProps
@@ -12,8 +14,15 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       <div className="w-full relative">
         <select
           className={cn(
-            'flex h-11 w-full appearance-none rounded-xl border border-input bg-card pl-4 pr-10 py-2 text-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0037b0]/10 focus-visible:border-[#0037b0] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer text-slate-700 font-medium',
-            error && 'border-destructive focus-visible:ring-destructive/20 focus-visible:border-destructive',
+            // Design system: h-11 touch target, xl radius (1.5rem), ghost border at 40% opacity
+            // surface-container-lowest bg (#ffffff), on-surface text (#121c28), medium weight
+            'flex h-11 w-full appearance-none rounded-xl border border-[rgba(196,197,215,0.4)] bg-white pl-4 pr-10 py-2 text-sm font-medium text-[#121c28] transition-all',
+            // Focus: primary ring, primary border — no box-shadow pollution
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0037b0]/10 focus-visible:border-[#0037b0]',
+            // Disabled state
+            'disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer',
+            // Error state
+            error && 'border-[#ba1a1a] focus-visible:ring-[#ba1a1a]/20 focus-visible:border-[#ba1a1a]',
             className
           )}
           ref={ref}
@@ -21,23 +30,16 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
         >
           {children}
         </select>
-        <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-slate-400">
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            strokeWidth="2"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M19 9l-7 7-7-7"
-            />
-          </svg>
+        {/* Hugeicons chevron — consistent with the rest of the icon system */}
+        <div className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-[#c4c5d7]">
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            size={16}
+            strokeWidth={2}
+            color="currentColor"
+          />
         </div>
-        {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
+        {error && <p className="mt-1 text-xs text-[#ba1a1a]">{error}</p>}
       </div>
     )
   }

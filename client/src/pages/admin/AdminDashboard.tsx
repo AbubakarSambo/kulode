@@ -1,23 +1,26 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { HugeiconsIcon } from '@hugeicons/react'
 import {
-  Building2,
-  Users,
-  DollarSign,
-  Coins,
-  FileText,
-  Crown,
-  Search,
-  Settings,
-  X,
-  ChevronLeft,
-  ChevronRight,
-  Percent,
-  TrendingUp,
-  Briefcase,
-  Layers,
-} from 'lucide-react'
+  Building03Icon,
+  UserGroupIcon,
+  MoneyReceive02Icon,
+  Coins01Icon,
+  Invoice03Icon,
+  Crown02Icon,
+  Search01Icon,
+  Settings02Icon,
+  Cancel01Icon,
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+  PercentCircleIcon,
+  TrendingUpDownIcon,
+  AnalyticsIcon,
+  DashboardBrowsingIcon,
+  ArrowUp01Icon,
+  ArrowDown01Icon,
+} from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Card, CardContent, Badge, Input, Select, Button, Label } from '@/components/ui'
 import { platformApi } from '@/api/platform'
@@ -98,6 +101,30 @@ export function AdminDashboardPage() {
     setActiveTab(tab)
   }
 
+  // MoM trend chip — inline, uses DESIGN.md token colors
+  // secondary_fixed (#6ffbbe) for positive, tertiary_fixed (#ffddb8) for negative
+  function MoMBadge({ value }: { value: number | undefined | null }) {
+    if (value === undefined || value === null) return null
+    const isPositive = value >= 0
+    return (
+      <span
+        className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-tight ${
+          isPositive
+            ? 'bg-[#6ffbbe] text-[#003822]'
+            : 'bg-[#ffddb8] text-[#4c2205]'
+        }`}
+      >
+        <HugeiconsIcon
+          icon={isPositive ? ArrowUp01Icon : ArrowDown01Icon}
+          size={9}
+          strokeWidth={2.5}
+          color="currentColor"
+        />
+        {Math.abs(value)}%
+      </span>
+    )
+  }
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden bg-[#f8f9ff]">
       <Header
@@ -144,96 +171,117 @@ export function AdminDashboardPage() {
               <div className="space-y-6">
                 {/* Stats Cards Row */}
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.02)] rounded-3xl bg-white hover:scale-[1.01] transition-transform">
+                  {/* Stat Card: Total Organizations */}
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all">
                     <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Organizations</p>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#434655]">
+                            Total Organizations
+                          </p>
                           <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28]">
                             {dashboardData.organizations.total}
                           </p>
-                          <p className="mt-1 text-[10px] font-semibold text-slate-500">
-                            {dashboardData.organizations.newThisMonth} new this month
-                          </p>
+                          <div className="mt-2 flex items-center gap-1.5">
+                            <MoMBadge value={dashboardData.organizations.changePct} />
+                            <span className="text-[10px] text-[#434655]">
+                              {dashboardData.organizations.newThisMonth} this month
+                            </span>
+                          </div>
                         </div>
-                        <div className="rounded-2xl bg-[#0037b0]/5 p-3 shrink-0">
-                          <Building2 className="h-5 w-5 text-[#0037b0]" />
+                        <div className="rounded-2xl bg-[#eef4ff] p-3 shrink-0 ml-2">
+                          <HugeiconsIcon icon={Building03Icon} size={18} strokeWidth={1.5} className="text-[#0037b0]" />
                         </div>
                       </div>
                     </CardContent>
                   </Card>
 
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.02)] rounded-3xl bg-white hover:scale-[1.01] transition-transform">
+                  {/* Stat Card: Total Users */}
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all">
                     <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Users</p>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#434655]">
+                            Total Users
+                          </p>
                           <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28]">
                             {dashboardData.users.total}
                           </p>
-                          <p className="mt-1 text-[10px] font-semibold text-slate-500">
-                            {dashboardData.organizations.active} active tenants
+                          <p className="mt-2 text-[10px] text-[#434655]">
+                            <span className="font-bold text-[#121c28]">{dashboardData.organizations.active}</span> active tenants
                           </p>
                         </div>
-                        <div className="rounded-2xl bg-purple-50 p-3 shrink-0">
-                          <Users className="h-5 w-5 text-purple-600" />
+                        <div className="rounded-2xl bg-[#eef4ff] p-3 shrink-0 ml-2">
+                          <HugeiconsIcon icon={UserGroupIcon} size={18} strokeWidth={1.5} className="text-[#0037b0]" />
                         </div>
                       </div>
                     </CardContent>
                   </Card>
 
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.02)] rounded-3xl bg-white hover:scale-[1.01] transition-transform">
+                  {/* Stat Card: GMV */}
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all">
                     <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Gross Merchandise Vol</p>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#434655]">
+                            Gross Merch. Vol
+                          </p>
                           <p className="mt-1.5 text-xl font-bold tracking-tight text-[#121c28] truncate">
                             {formatCurrency(dashboardData.revenue.gmv)}
                           </p>
-                          <p className="mt-1 text-[10px] font-semibold text-slate-500">
-                            Total invoice volume
-                          </p>
+                          <div className="mt-2 flex items-center gap-1.5">
+                            <MoMBadge value={dashboardData.revenue.gmvChangePct} />
+                            <span className="text-[10px] text-[#434655]">vs last month</span>
+                          </div>
                         </div>
-                        <div className="rounded-2xl bg-emerald-50 p-3 shrink-0">
-                          <DollarSign className="h-5 w-5 text-emerald-600" />
+                        <div className="rounded-2xl bg-[#eef4ff] p-3 shrink-0 ml-2">
+                          <HugeiconsIcon icon={MoneyReceive02Icon} size={18} strokeWidth={1.5} className="text-[#006c49]" />
                         </div>
                       </div>
                     </CardContent>
                   </Card>
 
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.02)] rounded-3xl bg-white hover:scale-[1.01] transition-transform">
+                  {/* Stat Card: Platform Fees */}
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all">
                     <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Platform Fees</p>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#434655]">
+                            Platform Fees
+                          </p>
                           <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28] truncate">
                             {formatCurrency(dashboardData.revenue.platformFees)}
                           </p>
-                          <p className="mt-1 text-[10px] font-semibold text-slate-500">
-                            From payment links
-                          </p>
+                          <div className="mt-2 flex items-center gap-1.5">
+                            <MoMBadge value={dashboardData.revenue.platformFeesChangePct} />
+                            <span className="text-[10px] text-[#434655]">vs last month</span>
+                          </div>
                         </div>
-                        <div className="rounded-2xl bg-amber-50 p-3 shrink-0">
-                          <Coins className="h-5 w-5 text-amber-600" />
+                        <div className="rounded-2xl bg-[#eef4ff] p-3 shrink-0 ml-2">
+                          <HugeiconsIcon icon={Coins01Icon} size={18} strokeWidth={1.5} className="text-[#0037b0]" />
                         </div>
                       </div>
                     </CardContent>
                   </Card>
 
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.02)] rounded-3xl bg-white hover:scale-[1.01] transition-transform">
+                  {/* Stat Card: SaaS Subscriptions */}
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all">
                     <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">SaaS Subscriptions</p>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#434655]">
+                            SaaS Revenue
+                          </p>
                           <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28] truncate">
                             {formatCurrency(dashboardData.subscriptions.revenue)}
                           </p>
-                          <p className="mt-1 text-[10px] font-semibold text-slate-500">
-                            From monthly/annual plans
-                          </p>
+                          <div className="mt-2 flex items-center gap-1.5">
+                            <MoMBadge value={dashboardData.subscriptions.revenueChangePct} />
+                            <span className="text-[10px] text-[#434655]">vs last month</span>
+                          </div>
                         </div>
-                        <div className="rounded-2xl bg-indigo-50 p-3 shrink-0">
-                          <Crown className="h-5 w-5 text-indigo-600" />
+                        <div className="rounded-2xl bg-[#eef4ff] p-3 shrink-0 ml-2">
+                          <HugeiconsIcon icon={Crown02Icon} size={18} strokeWidth={1.5} className="text-[#0037b0]" />
                         </div>
                       </div>
                     </CardContent>
@@ -243,10 +291,10 @@ export function AdminDashboardPage() {
                 {/* Lists Grid */}
                 <div className="grid gap-6 lg:grid-cols-2">
                   {/* Recent Signups */}
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.02)] rounded-3xl bg-white overflow-hidden">
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white overflow-hidden">
                     <div className="px-6 pt-6 pb-2 flex items-center justify-between">
-                      <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                        <Building2 className="h-4.5 w-4.5 text-[#0037b0]" />
+                      <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2">
+                        <HugeiconsIcon icon={Building03Icon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />
                         Recent Signups
                       </h3>
                       <button
@@ -305,10 +353,10 @@ export function AdminDashboardPage() {
                   </Card>
 
                   {/* Top Organizations */}
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.02)] rounded-3xl bg-white overflow-hidden">
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white overflow-hidden">
                     <div className="px-6 pt-6 pb-2">
-                      <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                        <TrendingUp className="h-4.5 w-4.5 text-emerald-600" />
+                      <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2">
+                        <HugeiconsIcon icon={TrendingUpDownIcon} size={16} strokeWidth={1.5} className="text-[#006c49]" />
                         Top Organizations by Volume
                       </h3>
                     </div>
@@ -377,7 +425,7 @@ export function AdminDashboardPage() {
                       onChange={(e) => setSearch(e.target.value)}
                       className="pl-10"
                     />
-                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <HugeiconsIcon icon={Search01Icon} size={16} strokeWidth={1.5} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#c4c5d7]" />
                   </div>
 
                   {/* Plan Tier Filter */}
@@ -522,9 +570,9 @@ export function AdminDashboardPage() {
                               <Button
                                 variant="outline"
                                 onClick={() => setEditingOrgId(org.id)}
-                                className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 hover:text-slate-900 text-xs font-semibold flex items-center gap-1.5 ml-auto min-h-[36px]"
+                                className="px-3 py-1.5 rounded-xl border border-[rgba(196,197,215,0.4)] hover:bg-[#eef4ff] hover:border-[#0037b0]/20 text-xs font-semibold flex items-center gap-1.5 ml-auto min-h-[36px] text-[#434655] hover:text-[#0037b0] transition-colors"
                               >
-                                <Settings className="h-3.5 w-3.5" />
+                                <HugeiconsIcon icon={Settings02Icon} size={14} strokeWidth={1.5} />
                                 Configure
                               </Button>
                             </td>
@@ -534,37 +582,37 @@ export function AdminDashboardPage() {
                     </table>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                    <Building2 className="h-10 w-10 text-slate-300 mb-2" />
-                    <p className="text-sm font-semibold">No organizations matched your criteria</p>
+                  <div className="flex flex-col items-center justify-center py-20 text-[#c4c5d7]">
+                    <HugeiconsIcon icon={Building03Icon} size={40} strokeWidth={1} className="mb-2 text-[#c4c5d7]" />
+                    <p className="text-sm font-semibold text-[#434655]">No organizations matched your criteria</p>
                   </div>
                 )}
 
                 {/* Pagination Controls */}
                 {orgsData && orgsData.meta.totalPages > 1 && (
-                  <div className="flex items-center justify-between border-t border-slate-100 px-6 py-4 bg-white">
-                    <span className="text-xs text-slate-500">
-                      Showing Page <span className="font-bold text-slate-800">{page}</span> of{' '}
-                      <span className="font-bold text-slate-800">{orgsData.meta.totalPages}</span>
+                  <div className="flex items-center justify-between border-t border-[rgba(196,197,215,0.15)] px-6 py-4 bg-white">
+                    <span className="text-xs text-[#434655]">
+                      Page <span className="font-bold text-[#121c28]">{page}</span> of{' '}
+                      <span className="font-bold text-[#121c28]">{orgsData.meta.totalPages}</span>
                     </span>
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
                         disabled={page === 1}
                         onClick={() => setPage((p) => Math.max(1, p - 1))}
-                        className="px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 cursor-pointer min-h-[36px]"
+                        className="px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer min-h-[36px] border-[rgba(196,197,215,0.4)] text-[#434655] hover:bg-[#eef4ff] hover:text-[#0037b0] transition-colors"
                       >
-                        <ChevronLeft className="h-4 w-4" />
+                        <HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={2} />
                         Previous
                       </Button>
                       <Button
                         variant="outline"
                         disabled={page === orgsData.meta.totalPages}
                         onClick={() => setPage((p) => Math.min(orgsData.meta.totalPages, p + 1))}
-                        className="px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 cursor-pointer min-h-[36px]"
+                        className="px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer min-h-[36px] border-[rgba(196,197,215,0.4)] text-[#434655] hover:bg-[#eef4ff] hover:text-[#0037b0] transition-colors"
                       >
                         Next
-                        <ChevronRight className="h-4 w-4" />
+                        <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={2} />
                       </Button>
                     </div>
                   </div>
@@ -588,7 +636,7 @@ export function AdminDashboardPage() {
               <div className="space-y-6">
                 {/* Revenue Summary row */}
                 <div className="grid gap-4 sm:grid-cols-3">
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.02)] rounded-3xl bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white">
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.12)] rounded-3xl bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white">
                     <CardContent className="p-6">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-[#93c5fd]">
                         Combined Platform Income
@@ -598,8 +646,8 @@ export function AdminDashboardPage() {
                           dashboardData.subscriptions.revenue + dashboardData.revenue.platformFees
                         )}
                       </p>
-                      <div className="mt-4 flex items-center gap-1 text-[10px] font-semibold text-[#bfdbfe]">
-                        <TrendingUp className="h-3.5 w-3.5" />
+                      <div className="mt-4 flex items-center gap-1.5 text-[10px] font-semibold text-[#bfdbfe]">
+                        <HugeiconsIcon icon={TrendingUpDownIcon} size={14} strokeWidth={2} />
                         Aggregated cash flow streams
                       </div>
                     </CardContent>
@@ -637,9 +685,9 @@ export function AdminDashboardPage() {
                 {/* Plan Tier and Subscription Status Distributions */}
                 <div className="grid gap-6 lg:grid-cols-2">
                   {/* Subscription Plans Distribution */}
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.02)] rounded-3xl bg-white overflow-hidden p-6">
-                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
-                      <Layers className="h-4.5 w-4.5 text-[#0037b0]" />
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white overflow-hidden p-6">
+                    <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2 mb-4">
+                      <HugeiconsIcon icon={DashboardBrowsingIcon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />
                       Subscription Plan Distribution
                     </h3>
                     <div className="space-y-4">
@@ -683,9 +731,9 @@ export function AdminDashboardPage() {
                   </Card>
 
                   {/* Subscription Statuses Distribution */}
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.02)] rounded-3xl bg-white overflow-hidden p-6">
-                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
-                      <Briefcase className="h-4.5 w-4.5 text-[#0037b0]" />
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white overflow-hidden p-6">
+                    <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2 mb-4">
+                      <HugeiconsIcon icon={AnalyticsIcon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />
                       Active vs. Trialing vs. Expired Statuses
                     </h3>
                     <div className="space-y-4">
@@ -730,10 +778,10 @@ export function AdminDashboardPage() {
                 </div>
 
                 {/* Invoices Volume by Status */}
-                <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.02)] rounded-3xl bg-white overflow-hidden">
+                <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white overflow-hidden">
                   <div className="px-6 pt-6 pb-2">
-                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                      <FileText className="h-4.5 w-4.5 text-[#0037b0]" />
+                    <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2">
+                      <HugeiconsIcon icon={Invoice03Icon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />
                       Invoice Billing Volume by Status
                     </h3>
                   </div>
@@ -853,11 +901,11 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
           <div>
-            <h3 className="text-sm font-bold text-slate-900">Configure Tenant</h3>
-            <p className="text-[11px] text-slate-400">{org.name} ({org.slug})</p>
+            <h3 className="text-sm font-bold text-[#121c28]">Configure Tenant</h3>
+            <p className="text-[11px] text-[#434655]">{org.name} ({org.slug})</p>
           </div>
-          <button onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors cursor-pointer min-h-[40px] min-w-[40px] flex items-center justify-center">
-            <X className="h-5 w-5" />
+          <button onClick={onClose} className="rounded-full p-2 text-[#434655] hover:bg-[#eef4ff] hover:text-[#0037b0] transition-colors cursor-pointer min-h-[40px] min-w-[40px] flex items-center justify-center">
+            <HugeiconsIcon icon={Cancel01Icon} size={18} strokeWidth={2} />
           </button>
         </div>
 
@@ -930,7 +978,7 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
                     onChange={(e) => setPlatformFeePercent(Number(e.target.value))}
                     className="pr-10"
                   />
-                  <Percent className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <HugeiconsIcon icon={PercentCircleIcon} size={16} strokeWidth={1.5} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#c4c5d7]" />
                 </div>
               </div>
 

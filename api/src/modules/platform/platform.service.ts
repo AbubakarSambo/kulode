@@ -6,6 +6,13 @@ import { PlanTier, SubscriptionStatus } from '@prisma/client';
 export class PlatformService {
   constructor(private prisma: PrismaService) {}
 
+  private calculateMoMChange(current: number, previous: number): number {
+    if (previous === 0) {
+      return current > 0 ? 100 : 0;
+    }
+    return Number((((current - previous) / previous) * 100).toFixed(1));
+  }
+
   async getDashboard() {
     const now = new Date();
     const startOfWeek = new Date(now);
@@ -13,6 +20,11 @@ export class PlatformService {
     startOfWeek.setHours(0, 0, 0, 0);
 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    // MoM date boundaries
+    const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
 
     const [
       totalOrgs,
@@ -29,6 +41,13 @@ export class PlatformService {
       orgsByStatus,
       grandfatheredCount,
       subscriptionRevenueResult,
+      lastMonthOrgs,
+      currentMonthGmvResult,
+      lastMonthGmvResult,
+      currentMonthFeesResult,
+      lastMonthFeesResult,
+      currentMonthSubRevenueResult,
+      lastMonthSubRevenueResult,
     ] = await Promise.all([
       // Total organizations
       this.prisma.organization.count(),
@@ -148,6 +167,55 @@ export class PlatformService {
       this.prisma.subscriptionPayment.aggregate({
         _sum: { amount: true },
       }),
+
+      // Last month organizations
+      this.prisma.organization.count({
+        where: { createdAt: { gte: startOfLastMonth, lte: endOfLastMonth } },
+      }),
+
+      // Current month GMV
+      this.prisma.invoice.aggregate({
+        _sum: { total: true },
+        where: {
+          status: { notIn: ['DRAFT', 'CANCELLED'] },
+          deletedAt: null,
+          createdAt: { gte: startOfCurrentMonth },
+        },
+      }),
+
+      // Last month GMV
+      this.prisma.invoice.aggregate({
+        _sum: { total: true },
+        where: {
+          status: { notIn: ['DRAFT', 'CANCELLED'] },
+          deletedAt: null,
+          createdAt: { gte: startOfLastMonth, lte: endOfLastMonth },
+        },
+      }),
+
+      // Current month platform fees
+      this.prisma.payment.aggregate({
+        _sum: { platformFees: true },
+        where: { createdAt: { gte: startOfCurrentMonth } },
+      }),
+
+      // Last month platform fees
+      this.prisma.payment.aggregate({
+        _sum: { platformFees: true },
+        where: { createdAt: { gte: startOfLastMonth, lte: endOfLastMonth } },
+      }),
+
+      // Current month subscription payments
+      this.prisma.subscriptionPayment.aggregate({
+        _sum: { amount: true },
+        where: { createdAt: { gte: startOfCurrentMonth } },
+      }),
+
+      // Last month subscription payments
+      this.prisma.subscriptionPayment.aggregate({
+        _sum: { amount: true },
+        where: { createdAt: { gte: startOfLastMonth, lte: endOfLastMonth } },
+      }),
     ]);
 
     // topOrganizations is already sorted by volume from the DB
@@ -192,6 +260,20 @@ export class PlatformService {
       {} as Record<string, { count: number; total: number }>,
     );
 
+    const orgsMoMChange = this.calculateMoMChange(newOrgsThisMonth, lastMonthOrgs);
+
+    const curMonthGmv = Number(currentMonthGmvResult._sum.total) || 0;
+    const prevMonthGmv = Number(lastMonthGmvResult._sum.total) || 0;
+    const gmvMoMChange = this.calculateMoMChange(curMonthGmv, prevMonthGmv);
+
+    const curMonthFees = Number(currentMonthFeesResult._sum.platformFees) || 0;
+    const prevMonthFees = Number(lastMonthFeesResult._sum.platformFees) || 0;
+    const feesMoMChange = this.calculateMoMChange(curMonthFees, prevMonthFees);
+
+    const curMonthSubs = Number(currentMonthSubRevenueResult._sum.amount) || 0;
+    const prevMonthSubs = Number(lastMonthSubRevenueResult._sum.amount) || 0;
+    const subsMoMChange = this.calculateMoMChange(curMonthSubs, prevMonthSubs);
+
     return {
       organizations: {
         total: totalOrgs,
@@ -199,13 +281,21 @@ export class PlatformService {
         newThisMonth: newOrgsThisMonth,
         active: activeOrgs,
         inactive: totalOrgs - activeOrgs,
+        lastMonth: lastMonthOrgs,
+        changePct: orgsMoMChange,
       },
       users: {
         total: totalUsers,
       },
       revenue: {
         gmv: Number(gmvResult._sum.total) || 0,
+        gmvCurrentMonth: curMonthGmv,
+        gmvPreviousMonth: prevMonthGmv,
+        gmvChangePct: gmvMoMChange,
         platformFees: Number(platformFeeResult._sum.platformFees) || 0,
+        platformFeesCurrentMonth: curMonthFees,
+        platformFeesPreviousMonth: prevMonthFees,
+        platformFeesChangePct: feesMoMChange,
       },
       invoices: invoiceStatusBreakdown,
       subscriptions: {
@@ -213,6 +303,9 @@ export class PlatformService {
         byStatus,
         grandfathered: grandfatheredCount,
         revenue: Number(subscriptionRevenueResult._sum.amount) || 0,
+        revenueCurrentMonth: curMonthSubs,
+        revenuePreviousMonth: prevMonthSubs,
+        revenueChangePct: subsMoMChange,
       },
       recentSignups: recentSignups.map((org) => ({
         id: org.id,
