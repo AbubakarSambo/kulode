@@ -18,6 +18,8 @@ import {
   DashboardBrowsingIcon,
   ArrowUp01Icon,
   ArrowDown01Icon,
+  AlertDiamondIcon,
+  CheckmarkCircle02Icon,
 } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Card, CardContent, Badge, Input, FilterSelect, Button, Label } from '@/components/ui'
@@ -57,14 +59,28 @@ const InfoIcon = () => (
 )
 
 function MetricTooltip({ content }: { content: string }) {
+  const [isOpen, setIsOpen] = useState(false)
+
   return (
-    <div className="group relative inline-block ml-1.5 align-middle select-none hover:z-50">
+    <div
+      className="relative inline-block ml-1.5 align-middle select-none cursor-pointer"
+      onMouseEnter={() => setIsOpen(true)}
+      onMouseLeave={() => setIsOpen(false)}
+      onClick={(e) => {
+        e.stopPropagation()
+        setIsOpen(!isOpen)
+      }}
+    >
       <InfoIcon />
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 w-48 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none">
-        <div className="bg-white border border-slate-200 shadow-[0px_8px_24px_rgba(0,55,176,0.08)] rounded-xl p-2.5 text-[10px] text-[#434655] font-normal leading-normal whitespace-normal break-words normal-case">
+      <div
+        className={`absolute top-full left-1/2 -translate-x-1/2 mt-2.5 w-48 transition-all duration-200 z-50 pointer-events-none ${
+          isOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-1'
+        }`}
+      >
+        <div className="bg-white border border-slate-200 shadow-[0px_8px_24px_rgba(0,55,176,0.08)] rounded-xl p-2.5 text-[10px] text-[#434655] font-normal leading-normal whitespace-normal break-words normal-case text-center">
           {content}
         </div>
-        <div className="w-2 h-2 bg-white border-r border-b border-slate-200 rotate-45 absolute top-full left-1/2 -translate-x-1/2 -translate-y-1" />
+        <div className="w-2 h-2 bg-white border-l border-t border-slate-200 rotate-45 absolute bottom-full left-1/2 -translate-x-1/2 translate-y-1" />
       </div>
     </div>
   )
@@ -185,6 +201,20 @@ export function AdminDashboardPage() {
 
   const [activeTab, setActiveTab] = useState<'overview' | 'organizations' | 'revenue'>('overview')
   const [periodFilter, setPeriodFilter] = useState<'current_month' | 'last_30_days' | 'last_90_days' | 'ytd'>('current_month')
+
+  const getComparisonLabel = (filter: typeof periodFilter) => {
+    switch (filter) {
+      case 'last_30_days':
+        return 'vs prior 30d'
+      case 'last_90_days':
+        return 'vs prior 90d'
+      case 'ytd':
+        return 'vs prior YTD'
+      case 'current_month':
+      default:
+        return 'vs last month'
+    }
+  }
 
   // Helper for period dates
   const getPeriodDates = (filter: typeof periodFilter) => {
@@ -357,7 +387,7 @@ export function AdminDashboardPage() {
                 {/* Stats Cards Row — 4 cols after removing platform fees */}
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   {/* Stat Card: MRR */}
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.12)] rounded-3xl bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.16)] transition-all">
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.12)] rounded-3xl bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.16)] transition-all relative hover:z-20">
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
@@ -370,7 +400,7 @@ export function AdminDashboardPage() {
                           </p>
                           <div className="mt-2 flex items-center gap-1.5">
                             <MoMBadge value={dashboardData.subscriptions.revenueChangePct} />
-                            <span className="text-[10px] text-blue-200">vs last month</span>
+                            <span className="text-[10px] text-blue-200">{getComparisonLabel(periodFilter)}</span>
                           </div>
                         </div>
                         <div className="rounded-2xl bg-white/10 p-3 shrink-0 ml-2">
@@ -381,7 +411,7 @@ export function AdminDashboardPage() {
                   </Card>
 
                   {/* Stat Card: Trial → Paid Conversion */}
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all">
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all relative hover:z-20">
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
@@ -421,7 +451,7 @@ export function AdminDashboardPage() {
                   </Card>
 
                   {/* Stat Card: Monthly Active Tenants */}
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all">
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all relative hover:z-20">
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
@@ -459,7 +489,7 @@ export function AdminDashboardPage() {
                   </Card>
 
                   {/* Stat Card: Collected GMV */}
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all">
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all relative hover:z-20">
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
@@ -472,7 +502,7 @@ export function AdminDashboardPage() {
                           </p>
                           <div className="mt-2 flex items-center gap-1.5">
                             <MoMBadge value={dashboardData.health.collectedGmvChangePct} />
-                            <span className="text-[10px] text-[#434655]">vs last month</span>
+                            <span className="text-[10px] text-[#434655]">{getComparisonLabel(periodFilter)}</span>
                           </div>
                         </div>
                         <div className="rounded-2xl bg-[#eef4ff] p-3 shrink-0 ml-2">
@@ -529,7 +559,17 @@ export function AdminDashboardPage() {
                         </ResponsiveContainer>
                       </div>
                     ) : (
-                      <p className="text-center text-xs text-slate-400 py-12">No trend data available</p>
+                      <div className="flex flex-col items-center justify-center py-12 text-center animate-in fade-in duration-300">
+                        <div className="relative mb-3 flex items-center justify-center">
+                          <div className="absolute h-16 w-16 rounded-full bg-[#0037b0]/5 blur-lg" />
+                          <div className="absolute h-12 w-12 rounded-full border border-dashed border-[#0037b0]/20 animate-spin [animation-duration:20s]" />
+                          <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#0037b0]/5 to-[#0037b0]/15 text-[#0037b0] border border-[#0037b0]/10">
+                            <HugeiconsIcon icon={AnalyticsIcon} size={18} strokeWidth={1.5} />
+                          </div>
+                        </div>
+                        <h4 className="text-xs font-bold text-[#121c28]">No Revenue Trend Data</h4>
+                        <p className="text-[10px] text-[#434655] mt-1 max-w-[200px]">There is no payment or invoice history available for this period.</p>
+                      </div>
                     )}
                   </Card>
 
@@ -567,7 +607,17 @@ export function AdminDashboardPage() {
                         </ResponsiveContainer>
                       </div>
                     ) : (
-                      <p className="text-center text-xs text-slate-400 py-12">No trend data available</p>
+                      <div className="flex flex-col items-center justify-center py-12 text-center animate-in fade-in duration-300">
+                        <div className="relative mb-3 flex items-center justify-center">
+                          <div className="absolute h-16 w-16 rounded-full bg-[#0037b0]/5 blur-lg" />
+                          <div className="absolute h-12 w-12 rounded-full border border-dashed border-[#0037b0]/20 animate-spin [animation-duration:20s]" />
+                          <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#0037b0]/5 to-[#0037b0]/15 text-[#0037b0] border border-[#0037b0]/10">
+                            <HugeiconsIcon icon={UserGroupIcon} size={18} strokeWidth={1.5} />
+                          </div>
+                        </div>
+                        <h4 className="text-xs font-bold text-[#121c28]">No Tenant Distribution Data</h4>
+                        <p className="text-[10px] text-[#434655] mt-1 max-w-[200px]">Active and trialing tenant history is not available for this period.</p>
+                      </div>
                     )}
                   </Card>
                 </div>
@@ -578,7 +628,7 @@ export function AdminDashboardPage() {
                   <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white overflow-hidden">
                     <div className="px-6 pt-6 pb-2 flex items-center justify-between">
                       <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2">
-                        <span role="img" aria-label="warning" className="text-amber-500">⚠️</span>
+                        <HugeiconsIcon icon={AlertDiamondIcon} size={16} className="text-amber-600 shrink-0" strokeWidth={1.5} />
                         Trials Expiring This Week
                       </h3>
                       <Badge variant="secondary" className="text-[9px] px-1.5 py-0 border-0 bg-amber-50 text-[#b06000]">
@@ -638,7 +688,17 @@ export function AdminDashboardPage() {
                           })}
                         </div>
                       ) : (
-                        <p className="text-center text-xs text-[#434655] py-8">No trials expiring this week</p>
+                        <div className="flex flex-col items-center justify-center py-8 text-center animate-in fade-in duration-300">
+                          <div className="relative mb-3 flex items-center justify-center">
+                            <div className="absolute h-16 w-16 rounded-full bg-[#0037b0]/5 blur-lg" />
+                            <div className="absolute h-12 w-12 rounded-full border border-dashed border-[#0037b0]/20 animate-spin [animation-duration:20s]" />
+                            <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#0037b0]/5 to-[#0037b0]/15 text-[#0037b0] border border-[#0037b0]/10">
+                              <HugeiconsIcon icon={UserGroupIcon} size={18} strokeWidth={1.5} />
+                            </div>
+                          </div>
+                          <h4 className="text-xs font-bold text-[#121c28]">No Trials Expiring</h4>
+                          <p className="text-[10px] text-[#434655] mt-1 max-w-[200px]">There are no trialing tenants scheduled to expire in the next 7 days.</p>
+                        </div>
                       )}
                     </CardContent>
                   </Card>
@@ -691,7 +751,17 @@ export function AdminDashboardPage() {
                           ))}
                         </div>
                       ) : (
-                        <p className="text-center text-xs text-[#434655] py-8">No billing records found</p>
+                        <div className="flex flex-col items-center justify-center py-8 text-center animate-in fade-in duration-300">
+                          <div className="relative mb-3 flex items-center justify-center">
+                            <div className="absolute h-16 w-16 rounded-full bg-[#006c49]/5 blur-lg" />
+                            <div className="absolute h-12 w-12 rounded-full border border-dashed border-[#006c49]/20 animate-spin [animation-duration:20s]" />
+                            <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#006c49]/5 to-[#006c49]/15 text-[#006c49] border border-[#006c49]/10">
+                              <HugeiconsIcon icon={MoneyReceive02Icon} size={18} strokeWidth={1.5} />
+                            </div>
+                          </div>
+                          <h4 className="text-xs font-bold text-[#121c28]">No Billing Records</h4>
+                          <p className="text-[10px] text-[#434655] mt-1 max-w-[200px]">No paying organizations have collected volume in this period.</p>
+                        </div>
                       )}
                     </CardContent>
                   </Card>
@@ -878,9 +948,16 @@ export function AdminDashboardPage() {
                     </table>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center py-20 text-[#c4c5d7]">
-                    <HugeiconsIcon icon={Building03Icon} size={40} strokeWidth={1} className="mb-2 text-[#c4c5d7]" />
-                    <p className="text-sm font-semibold text-[#434655]">No organizations matched your criteria</p>
+                  <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in duration-300">
+                    <div className="relative mb-4 flex items-center justify-center">
+                      <div className="absolute h-20 w-20 rounded-full bg-[#0037b0]/5 blur-lg" />
+                      <div className="absolute h-16 w-16 rounded-full border border-dashed border-[#0037b0]/20 animate-spin [animation-duration:20s]" />
+                      <div className="relative flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#0037b0]/5 to-[#0037b0]/15 text-[#0037b0] border border-[#0037b0]/10">
+                        <HugeiconsIcon icon={Building03Icon} size={22} strokeWidth={1.5} />
+                      </div>
+                    </div>
+                    <h4 className="text-sm font-bold text-[#121c28]">No Tenants Found</h4>
+                    <p className="text-xs text-[#434655] mt-1 max-w-[240px]">No organizations matched the search or filter criteria you selected.</p>
                   </div>
                 )}
 
@@ -941,7 +1018,7 @@ export function AdminDashboardPage() {
               <div className="space-y-6">
                 {/* Revenue Summary — SaaS subscription only */}
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.12)] rounded-3xl bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white">
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.12)] rounded-3xl bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white relative hover:z-20">
                     <CardContent className="p-6">
                        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#bfdbfe] flex items-center gap-1">
                          MRR
@@ -952,12 +1029,12 @@ export function AdminDashboardPage() {
                       </p>
                       <div className="mt-4 flex items-center gap-1.5 text-[10px] font-semibold text-[#bfdbfe]">
                         <MoMBadge value={dashboardData.subscriptions.revenueChangePct} />
-                        <span>vs prior month ({formatCurrency(dashboardData.subscriptions.revenuePreviousMonth)})</span>
+                        <span>{getComparisonLabel(periodFilter)} ({formatCurrency(dashboardData.subscriptions.revenuePreviousMonth)})</span>
                       </div>
                     </CardContent>
                   </Card>
 
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white">
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white relative hover:z-20">
                     <CardContent className="p-6">
                        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655] flex items-center gap-1">
                          All-Time SaaS Revenue
@@ -977,7 +1054,7 @@ export function AdminDashboardPage() {
                 {/* Plan Tier and Subscription Status Distributions */}
                 <div className="grid gap-6 lg:grid-cols-2">
                   {/* Subscription Plans Distribution */}
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white overflow-hidden p-6">
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white overflow-hidden p-6 relative hover:z-20">
                     <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2 mb-4">
                       <HugeiconsIcon icon={DashboardBrowsingIcon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />
                       Subscription Plan Distribution
@@ -1031,7 +1108,7 @@ export function AdminDashboardPage() {
                   </Card>
 
                   {/* Subscription Statuses Distribution */}
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white overflow-hidden p-6">
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white overflow-hidden p-6 relative hover:z-20">
                     <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2 mb-4">
                       <HugeiconsIcon icon={AnalyticsIcon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />
                       Active vs. Trialing vs. Expired Statuses
@@ -1079,10 +1156,10 @@ export function AdminDashboardPage() {
 
                 <div className="grid gap-6 lg:grid-cols-2">
                   {/* Revenue at Risk Panel */}
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white">
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white relative hover:z-20">
                     <div className="px-6 pt-6 pb-2 flex items-center justify-between">
                       <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2">
-                        <span role="img" aria-label="warning" className="text-red-500">⚠️</span>
+                        <HugeiconsIcon icon={AlertDiamondIcon} size={16} className="text-[#ba1a1a] shrink-0" strokeWidth={1.5} />
                         Revenue at Risk (Past Due Tenants)
                         <MetricTooltip content="Revenue at Risk: Subscription MRR from active organizations currently in PAST_DUE status." />
                       </h3>
@@ -1132,16 +1209,23 @@ export function AdminDashboardPage() {
                           ))}
                         </div>
                       ) : (
-                        <div className="flex flex-col items-center justify-center py-12 text-[#c4c5d7]">
-                          <span role="img" aria-label="success" className="text-2xl mb-1">✅</span>
-                          <p className="text-xs text-[#434655] font-semibold">Zero revenue currently at risk</p>
+                        <div className="flex flex-col items-center justify-center py-12 text-center animate-in fade-in duration-300">
+                          <div className="relative mb-3 flex items-center justify-center">
+                            <div className="absolute h-16 w-16 rounded-full bg-[#006c49]/5 blur-lg" />
+                            <div className="absolute h-12 w-12 rounded-full border border-dashed border-[#006c49]/20 animate-spin [animation-duration:20s]" />
+                            <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#006c49]/5 to-[#006c49]/15 text-[#006c49] border border-[#006c49]/10">
+                              <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} strokeWidth={1.5} />
+                            </div>
+                          </div>
+                          <h4 className="text-xs font-bold text-[#121c28]">Zero Revenue at Risk</h4>
+                          <p className="text-[10px] text-[#434655] mt-1 max-w-[200px]">All active organizations are current on their billing and have no past due invoices.</p>
                         </div>
                       )}
                     </CardContent>
                   </Card>
 
                   {/* Invoices Volume by Status */}
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white overflow-hidden">
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white overflow-hidden relative hover:z-20">
                     <div className="px-6 pt-6 pb-2">
                       <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2">
                         <HugeiconsIcon icon={Invoice03Icon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />

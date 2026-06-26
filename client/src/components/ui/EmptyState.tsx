@@ -3,6 +3,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { Button } from './button'
 
 interface EmptyStateProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   icon: any
   title: string
   description?: string
@@ -41,12 +42,12 @@ export function EmptyState({
       </div>
 
       {/* Headings */}
-      <h3 className="text-base font-extrabold text-slate-900 tracking-tight mb-2">
+      <h3 className="text-base font-bold text-[#121c28] tracking-tight mb-2">
         {title}
       </h3>
       
       {description && (
-        <p className="text-xs font-semibold text-slate-400 max-w-xs leading-relaxed mb-6">
+        <p className="text-xs font-semibold text-[#434655] max-w-xs leading-relaxed mb-6">
           {description}
         </p>
       )}
