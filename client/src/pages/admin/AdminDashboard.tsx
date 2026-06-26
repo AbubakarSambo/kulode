@@ -22,7 +22,7 @@ import {
   ArrowDown01Icon,
 } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
-import { Card, CardContent, Badge, Input, Select, Button, Label } from '@/components/ui'
+import { Card, CardContent, Badge, Input, FilterSelect, Button, Label } from '@/components/ui'
 import { platformApi } from '@/api/platform'
 import { useAuthStore } from '@/stores/auth'
 import { formatCurrency } from '@/lib/utils'
@@ -413,10 +413,10 @@ export function AdminDashboardPage() {
         {/* ORGANIZATIONS TAB */}
         {activeTab === 'organizations' && (
           <div className="space-y-6">
-            {/* Search & Filters */}
+                {/* Search & Filters */}
             <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.02)] rounded-3xl bg-white">
               <CardContent className="p-4 sm:p-6">
-                <div className="grid gap-4 sm:grid-cols-4">
+                <div className="grid gap-3 sm:grid-cols-4">
                   {/* Search Input */}
                   <div className="relative">
                     <Input
@@ -429,48 +429,51 @@ export function AdminDashboardPage() {
                   </div>
 
                   {/* Plan Tier Filter */}
-                  <Select
+                  <FilterSelect
                     value={planFilter}
-                    onChange={(e) => {
-                      setPlanFilter(e.target.value)
+                    onChange={(val) => {
+                      setPlanFilter(val)
                       setPage(1)
                     }}
-                  >
-                    <option value="">All Plan Tiers</option>
-                    <option value="FREE">FREE</option>
-                    <option value="STARTER">STARTER</option>
-                    <option value="PRO">PRO</option>
-                    <option value="BUSINESS">BUSINESS</option>
-                  </Select>
+                    options={[
+                      { value: '', label: 'All Plan Tiers' },
+                      { value: 'FREE', label: 'Free' },
+                      { value: 'STARTER', label: 'Starter' },
+                      { value: 'PRO', label: 'Pro' },
+                      { value: 'BUSINESS', label: 'Business' },
+                    ]}
+                  />
 
                   {/* Status Filter */}
-                  <Select
+                  <FilterSelect
                     value={statusFilter}
-                    onChange={(e) => {
-                      setStatusFilter(e.target.value)
+                    onChange={(val) => {
+                      setStatusFilter(val)
                       setPage(1)
                     }}
-                  >
-                    <option value="">All Statuses</option>
-                    <option value="TRIALING">TRIALING</option>
-                    <option value="ACTIVE">ACTIVE</option>
-                    <option value="PAST_DUE">PAST_DUE</option>
-                    <option value="CANCELLED">CANCELLED</option>
-                    <option value="EXPIRED">EXPIRED</option>
-                  </Select>
+                    options={[
+                      { value: '', label: 'All Statuses' },
+                      { value: 'TRIALING', label: 'Trialing' },
+                      { value: 'ACTIVE', label: 'Active' },
+                      { value: 'PAST_DUE', label: 'Past Due' },
+                      { value: 'CANCELLED', label: 'Cancelled' },
+                      { value: 'EXPIRED', label: 'Expired' },
+                    ]}
+                  />
 
                   {/* Grandfathered Filter */}
-                  <Select
+                  <FilterSelect
                     value={grandfatheredFilter}
-                    onChange={(e) => {
-                      setGrandfatheredFilter(e.target.value)
+                    onChange={(val) => {
+                      setGrandfatheredFilter(val)
                       setPage(1)
                     }}
-                  >
-                    <option value="all">All Billings</option>
-                    <option value="true">Grandfathered Only</option>
-                    <option value="false">Regular Billing</option>
-                  </Select>
+                    options={[
+                      { value: 'all', label: 'All Billings' },
+                      { value: 'true', label: 'Grandfathered Only' },
+                      { value: 'false', label: 'Regular Billing' },
+                    ]}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -935,32 +938,34 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
           <form onSubmit={handleSave} className="space-y-4">
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="planTier" className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Plan Tier</Label>
-                <Select
+                <Label htmlFor="planTier" className="text-[11px] font-bold text-[#434655] uppercase tracking-wider">Plan Tier</Label>
+                <FilterSelect
                   id="planTier"
                   value={planTier}
-                  onChange={(e) => setPlanTier(e.target.value)}
-                >
-                  <option value="FREE">FREE</option>
-                  <option value="STARTER">STARTER</option>
-                  <option value="PRO">PRO</option>
-                  <option value="BUSINESS">BUSINESS</option>
-                </Select>
+                  onChange={(val) => setPlanTier(val)}
+                  options={[
+                    { value: 'FREE', label: 'Free' },
+                    { value: 'STARTER', label: 'Starter' },
+                    { value: 'PRO', label: 'Pro' },
+                    { value: 'BUSINESS', label: 'Business' },
+                  ]}
+                />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="subscriptionStatus" className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Subscription Status</Label>
-                <Select
+                <Label htmlFor="subscriptionStatus" className="text-[11px] font-bold text-[#434655] uppercase tracking-wider">Subscription Status</Label>
+                <FilterSelect
                   id="subscriptionStatus"
                   value={subscriptionStatus}
-                  onChange={(e) => setSubscriptionStatus(e.target.value)}
-                >
-                  <option value="TRIALING">TRIALING</option>
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="PAST_DUE">PAST_DUE</option>
-                  <option value="CANCELLED">CANCELLED</option>
-                  <option value="EXPIRED">EXPIRED</option>
-                </Select>
+                  onChange={(val) => setSubscriptionStatus(val)}
+                  options={[
+                    { value: 'TRIALING', label: 'Trialing' },
+                    { value: 'ACTIVE', label: 'Active' },
+                    { value: 'PAST_DUE', label: 'Past Due' },
+                    { value: 'CANCELLED', label: 'Cancelled' },
+                    { value: 'EXPIRED', label: 'Expired' },
+                  ]}
+                />
               </div>
             </div>
 
