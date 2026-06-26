@@ -20,8 +20,11 @@
   --color-primary: #0037b0;
   --color-primary-foreground: #ffffff;
   --color-success: #006c49;
+  --color-success-foreground: #ffffff;
   --color-warning: #ffddb8;
+  --color-warning-foreground: #4c2205;
   --color-destructive: #ba1a1a;
+  --color-destructive-foreground: #ffffff;
 
   /* UI colors */
   --color-background: #f8f9ff;

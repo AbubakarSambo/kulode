@@ -1,16 +1,269 @@
-import { useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { Building2, Users, DollarSign, Coins, FileText, Crown } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { HugeiconsIcon } from '@hugeicons/react'
+import {
+  Building03Icon,
+  UserGroupIcon,
+  MoneyReceive02Icon,
+  Invoice03Icon,
+  Crown02Icon,
+  Search01Icon,
+  Settings02Icon,
+  Cancel01Icon,
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+  TrendingUpDownIcon,
+  AnalyticsIcon,
+  DashboardBrowsingIcon,
+  ArrowUp01Icon,
+  ArrowDown01Icon,
+  AlertDiamondIcon,
+  CheckmarkCircle02Icon,
+} from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
-import { Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui'
+import { Card, CardContent, Badge, Input, FilterSelect, Button, Label } from '@/components/ui'
 import { platformApi } from '@/api/platform'
 import { useAuthStore } from '@/stores/auth'
 import { formatCurrency } from '@/lib/utils'
+import { toast } from 'sonner'
+import type { PlatformOrganizationDetails, PlatformOrganization } from '@/types'
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  Legend,
+  CartesianGrid,
+} from 'recharts'
+
+const InfoIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="w-3.5 h-3.5 text-slate-400 hover:text-[#0037b0] transition-colors cursor-pointer select-none"
+  >
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 16v-4" />
+    <path d="M12 8h.01" />
+  </svg>
+)
+
+function MetricTooltip({ content }: { content: string }) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  return (
+    <div
+      className="relative inline-block ml-1.5 align-middle select-none cursor-pointer"
+      onMouseEnter={() => setIsOpen(true)}
+      onMouseLeave={() => setIsOpen(false)}
+      onClick={(e) => {
+        e.stopPropagation()
+        setIsOpen(!isOpen)
+      }}
+    >
+      <InfoIcon />
+      <div
+        className={`absolute top-full left-1/2 -translate-x-1/2 mt-2.5 w-48 transition-all duration-200 z-50 pointer-events-none ${
+          isOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-1'
+        }`}
+      >
+        <div className="bg-white border border-slate-200 shadow-[0px_8px_24px_rgba(0,55,176,0.08)] rounded-xl p-2.5 text-[10px] text-[#434655] font-normal leading-normal whitespace-normal break-words normal-case text-center">
+          {content}
+        </div>
+        <div className="w-2 h-2 bg-white border-l border-t border-slate-200 rotate-45 absolute bottom-full left-1/2 -translate-x-1/2 translate-y-1" />
+      </div>
+    </div>
+  )
+}
+
+function TrialStatusCell({ org }: { org: PlatformOrganization }) {
+  if (org.subscriptionStatus === 'TRIALING') {
+    const days = org.trialDaysRemaining
+    if (days === null) {
+      return (
+        <Badge variant="warning" className="text-[9px] px-1.5 py-0 border-0 bg-[#ffddb8] text-[#4c2205]">
+          Trialing
+        </Badge>
+      )
+    }
+    if (days < 0) {
+      return (
+        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold bg-[#fce8e6] text-[#ba1a1a]">
+          Overdue ({Math.abs(days)}d)
+        </span>
+      )
+    }
+    if (days <= 7) {
+      return (
+        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold bg-[#fef7e0] text-[#b06000]">
+          {days}d left
+        </span>
+      )
+    }
+    return (
+      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-medium bg-[#f8f9ff] text-slate-600">
+        {days} days left
+      </span>
+    )
+  }
+
+  if (org.subscriptionStatus === 'ACTIVE') {
+    return (
+      <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-[#006c49]">
+        Converted ✓
+      </span>
+    )
+  }
+
+  if (org.subscriptionStatus === 'CANCELLED' || org.subscriptionStatus === 'EXPIRED') {
+    return (
+      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold bg-slate-100 text-slate-400">
+        Churned
+      </span>
+    )
+  }
+
+  return (
+    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 uppercase">
+      {org.subscriptionStatus}
+    </Badge>
+  )
+}
+
+function LastActiveIndicator({ dateString }: { dateString: string | null }) {
+  if (!dateString) return <span className="text-slate-400 font-medium text-xs">Never</span>
+  
+  const lastActive = new Date(dateString)
+  const now = new Date()
+  const diffTime = now.getTime() - lastActive.getTime()
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+  
+  let colorClass = 'text-slate-600 font-medium'
+  let statusDotClass = 'bg-[#006c49]' // Green
+  
+  if (diffDays > 30) {
+    colorClass = 'text-[#ba1a1a] font-semibold' // Red
+    statusDotClass = 'bg-[#ba1a1a]'
+  } else if (diffDays > 14) {
+    colorClass = 'text-[#b06000] font-semibold' // Amber
+    statusDotClass = 'bg-[#b06000]'
+  }
+  
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className={`h-1.5 w-1.5 rounded-full ${statusDotClass}`} />
+      <span className={`text-xs ${colorClass}`}>
+        {lastActive.toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        })}
+      </span>
+    </div>
+  )
+}
+
+function MoMBadge({ value }: { value: number | undefined | null }) {
+  if (value === undefined || value === null) return null
+  const isPositive = value >= 0
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-tight ${
+        isPositive
+          ? 'bg-[#6ffbbe] text-[#003822]'
+          : 'bg-[#ffddb8] text-[#4c2205]'
+      }`}
+    >
+      <HugeiconsIcon
+        icon={isPositive ? ArrowUp01Icon : ArrowDown01Icon}
+        size={9}
+        strokeWidth={2.5}
+        color="currentColor"
+      />
+      {Math.abs(value)}%
+    </span>
+  )
+}
 
 export function AdminDashboardPage() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
+
+  const [activeTab, setActiveTab] = useState<'overview' | 'organizations' | 'revenue'>('overview')
+  const [periodFilter, setPeriodFilter] = useState<'current_month' | 'last_30_days' | 'last_90_days' | 'ytd'>('current_month')
+
+  const getComparisonLabel = (filter: typeof periodFilter) => {
+    switch (filter) {
+      case 'last_30_days':
+        return 'vs prior 30d'
+      case 'last_90_days':
+        return 'vs prior 90d'
+      case 'ytd':
+        return 'vs prior YTD'
+      case 'current_month':
+      default:
+        return 'vs last month'
+    }
+  }
+
+  // Helper for period dates
+  const getPeriodDates = (filter: typeof periodFilter) => {
+    const now = new Date()
+    let startDate: Date
+    const endDate = now
+
+    switch (filter) {
+      case 'last_30_days':
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+        break;
+      case 'last_90_days':
+        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+        break;
+      case 'ytd':
+        startDate = new Date(now.getFullYear(), 0, 1)
+        break;
+      case 'current_month':
+      default:
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+        break;
+    }
+    return {
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0],
+    }
+  }
+
+  const { startDate, endDate } = getPeriodDates(periodFilter)
+
+  // Organizations query state
+  const [search, setSearch] = useState('')
+  const [planFilter, setPlanFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [grandfatheredFilter, setGrandfatheredFilter] = useState<string>('all')
+  const [page, setPage] = useState(1)
+  const limit = 10
+
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search)
+      setPage(1)
+    }, 300)
+    return () => clearTimeout(handler)
+  }, [search])
+
+  // Manage Organization state
+  const [editingOrgId, setEditingOrgId] = useState<string | null>(null)
 
   useEffect(() => {
     if (user && !user.isPlatformAdmin) {
@@ -18,319 +271,1217 @@ export function AdminDashboardPage() {
     }
   }, [user, navigate])
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['platform', 'dashboard'],
-    queryFn: () => platformApi.getDashboard(),
-    enabled: !!user?.isPlatformAdmin,
+  // Dashboard Overview Query
+  const { data: dashboardData, isLoading: isLoadingDashboard } = useQuery({
+    queryKey: ['platform', 'dashboard', { startDate, endDate }],
+    queryFn: () => platformApi.getDashboard(startDate, endDate),
+    enabled: !!user?.isPlatformAdmin && activeTab !== 'organizations',
+  })
+
+  // Organizations List Query
+  const { data: orgsData, isLoading: isLoadingOrgs } = useQuery({
+    queryKey: [
+      'platform',
+      'organizations',
+      {
+        search: debouncedSearch,
+        planTier: planFilter,
+        subscriptionStatus: statusFilter,
+        isGrandfathered: grandfatheredFilter,
+        page,
+        limit,
+      },
+    ],
+    queryFn: () =>
+      platformApi.getOrganizations({
+        search: debouncedSearch || undefined,
+        planTier: planFilter || undefined,
+        subscriptionStatus: statusFilter || undefined,
+        isGrandfathered: grandfatheredFilter === 'all' ? undefined : grandfatheredFilter === 'true',
+        page,
+        limit,
+      }),
+    enabled: !!user?.isPlatformAdmin && activeTab === 'organizations',
+  })
+
+  // Past Due Organizations Query for Revenue at Risk
+  const { data: pastDueOrgsData } = useQuery({
+    queryKey: ['platform', 'organizations', 'past-due-risk'],
+    queryFn: () =>
+      platformApi.getOrganizations({
+        subscriptionStatus: 'PAST_DUE',
+        limit: 100,
+      }),
+    enabled: !!user?.isPlatformAdmin && activeTab === 'revenue',
   })
 
   if (!user?.isPlatformAdmin) return null
 
+  const handleTabChange = (tab: 'overview' | 'organizations' | 'revenue') => {
+    setActiveTab(tab)
+  }
+
+
+
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    <div className="flex flex-1 flex-col overflow-hidden bg-[#f8f9ff]">
       <Header
         title="Platform Admin"
-        description="Overview of all organizations and platform metrics"
+        description="Overview of all organizations, revenue growth, and tenant control parameters."
+        action={
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-[#434655] uppercase tracking-wider">Period:</span>
+            <div className="w-44">
+              <FilterSelect
+                value={periodFilter}
+                onChange={(val) => setPeriodFilter(val as typeof periodFilter)}
+                options={[
+                  { value: 'current_month', label: 'Current Month' },
+                  { value: 'last_30_days', label: 'Last 30 Days' },
+                  { value: 'last_90_days', label: 'Last 90 Days' },
+                  { value: 'ytd', label: 'Year to Date' },
+                ]}
+              />
+            </div>
+          </div>
+        }
       />
 
+      {/* Tabs Navigation */}
+      <div className="px-6 border-b border-slate-200/50 bg-white">
+        <div className="flex gap-6">
+          {(['overview', 'organizations', 'revenue'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => handleTabChange(tab)}
+              className={`py-4 text-xs font-bold uppercase tracking-wider transition-all relative cursor-pointer min-h-[44px] ${
+                activeTab === tab
+                  ? 'text-[#0037b0]'
+                  : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              {tab === 'overview' && 'Overview'}
+              {tab === 'organizations' && 'Organizations'}
+              {tab === 'revenue' && 'Revenue & Billing'}
+              {activeTab === tab && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0037b0] rounded-full" />
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="flex-1 overflow-auto p-4 sm:p-6">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-muted-foreground">Loading platform data...</div>
-          </div>
-        ) : data ? (
+        {/* OVERVIEW TAB */}
+        {activeTab === 'overview' && (
           <>
-            {/* Stat Cards */}
-            <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Total Organizations</p>
-                      <p className="mt-1 text-2xl font-bold">{data.organizations.total}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {data.organizations.newThisMonth} new this month
-                      </p>
-                    </div>
-                    <div className="rounded-full bg-blue-50 p-3">
-                      <Building2 className="h-5 w-5 text-blue-600" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Total Users</p>
-                      <p className="mt-1 text-2xl font-bold">{data.users.total}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {data.organizations.active} active orgs
-                      </p>
-                    </div>
-                    <div className="rounded-full bg-purple-50 p-3">
-                      <Users className="h-5 w-5 text-purple-600" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">GMV</p>
-                      <p className="mt-1 text-2xl font-bold">{formatCurrency(data.revenue.gmv)}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Total invoice volume
-                      </p>
-                    </div>
-                    <div className="rounded-full bg-green-50 p-3">
-                      <DollarSign className="h-5 w-5 text-green-600" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Platform Revenue</p>
-                      <p className="mt-1 text-2xl font-bold">{formatCurrency(data.revenue.platformFees)}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        From platform fees
-                      </p>
-                    </div>
-                    <div className="rounded-full bg-amber-50 p-3">
-                      <Coins className="h-5 w-5 text-amber-600" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Subscription Revenue</p>
-                      <p className="mt-1 text-2xl font-bold">{formatCurrency(data.subscriptions.revenue)}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        From subscriptions
-                      </p>
-                    </div>
-                    <div className="rounded-full bg-indigo-50 p-3">
-                      <Crown className="h-5 w-5 text-indigo-600" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* 4-column grid */}
-            <div className="grid gap-6 lg:grid-cols-4">
-              {/* Subscription Breakdown */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Crown className="h-5 w-5" />
-                    Subscription Breakdown
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div>
-                      <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">By Plan</p>
-                      <div className="space-y-2">
-                        {Object.entries(data.subscriptions.byPlan).map(([plan, count]) => (
-                          <div key={plan} className="flex items-center justify-between">
-                            <Badge
-                              variant={
-                                plan === 'BUSINESS' ? 'success' :
-                                plan === 'PRO' ? 'default' :
-                                'secondary'
-                              }
-                            >
-                              {plan}
-                            </Badge>
-                            <span className="font-medium">{count}</span>
+            {isLoadingDashboard ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#0037b0] border-t-transparent" />
+                  <p className="text-xs text-slate-500 font-semibold">Loading platform analytics...</p>
+                </div>
+              </div>
+            ) : dashboardData ? (
+              <div className="space-y-6">
+                {/* Stats Cards Row — 4 cols after removing platform fees */}
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  {/* Stat Card: MRR */}
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.12)] rounded-3xl bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.16)] transition-all relative hover:z-20">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-100 flex items-center gap-1">
+                            MRR
+                            <MetricTooltip content="Monthly Recurring Revenue: Sum of all subscription payments collected in the selected period." />
+                          </p>
+                          <p className="mt-1.5 text-2xl font-bold tracking-tight text-white">
+                            {formatCurrency(dashboardData.subscriptions.revenueCurrentMonth)}
+                          </p>
+                          <div className="mt-2 flex items-center gap-1.5">
+                            <MoMBadge value={dashboardData.subscriptions.revenueChangePct} />
+                            <span className="text-[10px] text-blue-200">{getComparisonLabel(periodFilter)}</span>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">By Status</p>
-                      <div className="space-y-2">
-                        {Object.entries(data.subscriptions.byStatus).map(([status, count]) => (
-                          <div key={status} className="flex items-center justify-between">
-                            <Badge
-                              variant={
-                                status === 'ACTIVE' ? 'success' :
-                                status === 'TRIALING' ? 'default' :
-                                status === 'CANCELLED' ? 'destructive' :
-                                'secondary'
-                              }
-                            >
-                              {status}
-                            </Badge>
-                            <span className="font-medium">{count}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    {data.subscriptions.grandfathered > 0 && (
-                      <div className="flex items-center justify-between border-t pt-3">
-                        <Badge variant="outline">Grandfathered</Badge>
-                        <span className="font-medium">{data.subscriptions.grandfathered}</span>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Invoice Status Breakdown */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    Invoice Status
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {Object.entries(data.invoices).map(([status, info]) => (
-                      <div key={status} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant={
-                              status === 'PAID' ? 'success' :
-                              status === 'OVERDUE' ? 'destructive' :
-                              status === 'DRAFT' ? 'secondary' :
-                              'default'
-                            }
-                          >
-                            {status.replace('_', ' ')}
-                          </Badge>
-                          <span className="text-sm text-muted-foreground">
-                            {info.count}
-                          </span>
                         </div>
-                        <span className="font-medium">
-                          {formatCurrency(info.total)}
-                        </span>
+                        <div className="rounded-2xl bg-white/10 p-3 shrink-0 ml-2">
+                          <HugeiconsIcon icon={Crown02Icon} size={18} strokeWidth={1.5} className="text-white" />
+                        </div>
                       </div>
-                    ))}
-                    {Object.keys(data.invoices).length === 0 && (
-                      <p className="text-center text-muted-foreground">No invoices yet</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
 
-              {/* Recent Signups */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Building2 className="h-5 w-5" />
-                    Recent Signups
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {data.recentSignups.length > 0 ? (
-                    <div className="space-y-3">
-                      {data.recentSignups.map((org) => (
-                        <div key={org.id} className="flex items-center justify-between">
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <p className="font-medium">{org.name}</p>
-                              <Badge
-                                variant={
-                                  org.planTier === 'BUSINESS' ? 'success' :
-                                  org.planTier === 'PRO' ? 'default' :
-                                  'secondary'
-                                }
-                                className="text-[10px] px-1.5 py-0"
-                              >
-                                {org.planTier}
-                              </Badge>
-                              {org.isGrandfathered && (
-                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                  Grandfathered
+                  {/* Stat Card: Trial → Paid Conversion */}
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all relative hover:z-20">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655] flex items-center gap-1">
+                            Trial → Paid Conversion
+                            <MetricTooltip content="Conversion Rate: Percentage of all registered organizations that are on an active paid plan (Pro/Business)." />
+                          </p>
+                          <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28]">
+                            {dashboardData.health.trialConversionRate}%
+                          </p>
+                          <div className="mt-2 flex items-center gap-1.5">
+                            {(() => {
+                              const rate = dashboardData.health.trialConversionRate
+                              let conversionColorClass = 'text-[#006c49] bg-green-50' // Green
+                              let conversionLabel = 'Healthy'
+                              if (rate < 30) {
+                                conversionColorClass = 'text-[#ba1a1a] bg-red-50' // Red
+                                conversionLabel = 'Critical'
+                              } else if (rate < 50) {
+                                conversionColorClass = 'text-[#b06000] bg-amber-50' // Amber
+                                conversionLabel = 'Warning'
+                              }
+                              return (
+                                <Badge className={`text-[9px] px-1.5 py-0 border-0 ${conversionColorClass}`}>
+                                  {conversionLabel}
                                 </Badge>
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {org.userCount} users &middot; {org.invoiceCount} invoices
-                            </p>
+                              )
+                            })()}
+                            <span className="text-[10px] text-[#434655]">active paying</span>
                           </div>
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(org.createdAt).toLocaleDateString()}
-                          </span>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-center text-muted-foreground">No organizations yet</p>
-                  )}
-                </CardContent>
-              </Card>
+                        <div className="rounded-2xl bg-[#eef4ff] p-3 shrink-0 ml-2">
+                          <HugeiconsIcon icon={UserGroupIcon} size={18} strokeWidth={1.5} className="text-[#0037b0]" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
 
-              {/* Top Organizations */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <DollarSign className="h-5 w-5" />
-                    Top Organizations
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {data.topOrganizations.length > 0 ? (
-                    <div className="space-y-3">
-                      {data.topOrganizations.map((org, index) => (
-                        <div key={org.id} className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-muted-foreground">
-                              #{index + 1}
+                  {/* Stat Card: Monthly Active Tenants */}
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all relative hover:z-20">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655] flex items-center gap-1">
+                            Monthly Active Tenants
+                            <MetricTooltip content="MAT: Number and percentage of organizations that have created at least one invoice or recorded one payment in the last 30 days." />
+                          </p>
+                          <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28]">
+                            {dashboardData.health.monthlyActiveTenants}
+                          </p>
+                          <div className="mt-2 flex items-center gap-1.5">
+                            {(() => {
+                              const matRate = dashboardData.health.monthlyActiveTenantsRate
+                              const isMatLow = matRate < 60
+                              return (
+                                <Badge
+                                  className={`text-[9px] px-1.5 py-0 border-0 ${
+                                    isMatLow ? 'bg-amber-50 text-[#b06000]' : 'bg-green-50 text-[#006c49]'
+                                  }`}
+                                >
+                                  {isMatLow ? 'Low Activity' : 'Active'}
+                                </Badge>
+                              )
+                            })()}
+                            <span className="text-[10px] text-[#434655] font-semibold">
+                              {dashboardData.health.monthlyActiveTenantsRate}%
                             </span>
-                            <div>
-                              <div className="flex items-center gap-1.5">
-                                <p className="font-medium">{org.name}</p>
+                          </div>
+                        </div>
+                        <div className="rounded-2xl bg-[#eef4ff] p-3 shrink-0 ml-2">
+                          <HugeiconsIcon icon={Building03Icon} size={18} strokeWidth={1.5} className="text-[#0037b0]" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Stat Card: Collected GMV */}
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all relative hover:z-20">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655] flex items-center gap-1">
+                            Collected GMV
+                            <MetricTooltip content="Collected Gross Merchandise Volume: Sum total of all invoices in PAID status (excludes draft/sent/cancelled)." />
+                          </p>
+                          <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28] truncate">
+                            {formatCurrency(dashboardData.health.collectedGmv)}
+                          </p>
+                          <div className="mt-2 flex items-center gap-1.5">
+                            <MoMBadge value={dashboardData.health.collectedGmvChangePct} />
+                            <span className="text-[10px] text-[#434655]">{getComparisonLabel(periodFilter)}</span>
+                          </div>
+                        </div>
+                        <div className="rounded-2xl bg-[#eef4ff] p-3 shrink-0 ml-2">
+                          <HugeiconsIcon icon={MoneyReceive02Icon} size={18} strokeWidth={1.5} className="text-[#006c49]" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Visual Trends Section */}
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white p-6">
+                    <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2 mb-4">
+                      <HugeiconsIcon icon={AnalyticsIcon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />
+                      Revenue Growth Trend (Last 6 Months)
+                    </h3>
+                    {dashboardData.trends && dashboardData.trends.length > 0 ? (
+                      <div className="h-64 sm:h-72 w-full mt-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={dashboardData.trends}>
+                            <defs>
+                              <linearGradient id="colorMrr" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#0037b0" stopOpacity={0.2}/>
+                                <stop offset="95%" stopColor="#0037b0" stopOpacity={0}/>
+                              </linearGradient>
+                              <linearGradient id="colorGmv" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#006c49" stopOpacity={0.2}/>
+                                <stop offset="95%" stopColor="#006c49" stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#c4c5d7" opacity={0.15} />
+                            <XAxis dataKey="month" stroke="#434655" fontSize={10} tickLine={false} axisLine={false} />
+                            <YAxis stroke="#434655" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `₦${(v / 1e6).toFixed(0)}M`} />
+                            <RechartsTooltip
+                              contentStyle={{
+                                background: 'rgba(255, 255, 255, 0.9)',
+                                backdropFilter: 'blur(8px)',
+                                border: '1px solid rgba(196, 197, 215, 0.2)',
+                                borderRadius: '12px',
+                                boxShadow: '0px 8px 24px rgba(0, 55, 176, 0.04)',
+                                fontSize: '11px',
+                                color: '#121c28'
+                              }}
+                              formatter={(value: any, name: string | undefined) => [ // eslint-disable-line @typescript-eslint/no-explicit-any
+                                formatCurrency(Number(value || 0)),
+                                name ?? ''
+                              ]}
+                            />
+                            <Legend verticalAlign="top" height={36} iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', fontWeight: 600 }} />
+                            <Area type="monotone" dataKey="mrr" name="MRR" stroke="#0037b0" strokeWidth={2} fillOpacity={1} fill="url(#colorMrr)" />
+                            <Area type="monotone" dataKey="collectedGmv" name="Collected GMV" stroke="#006c49" strokeWidth={2} fillOpacity={1} fill="url(#colorGmv)" />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-12 text-center animate-in fade-in duration-300">
+                        <div className="relative mb-3 flex items-center justify-center">
+                          <div className="absolute h-16 w-16 rounded-full bg-[#0037b0]/5 blur-lg" />
+                          <div className="absolute h-12 w-12 rounded-full border border-dashed border-[#0037b0]/20 animate-spin [animation-duration:20s]" />
+                          <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#0037b0]/5 to-[#0037b0]/15 text-[#0037b0] border border-[#0037b0]/10">
+                            <HugeiconsIcon icon={AnalyticsIcon} size={18} strokeWidth={1.5} />
+                          </div>
+                        </div>
+                        <h4 className="text-xs font-bold text-[#121c28]">No Revenue Trend Data</h4>
+                        <p className="text-[10px] text-[#434655] mt-1 max-w-[200px]">There is no payment or invoice history available for this period.</p>
+                      </div>
+                    )}
+                  </Card>
+
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white p-6">
+                    <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2 mb-4">
+                      <HugeiconsIcon icon={UserGroupIcon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />
+                      Tenant Status Distribution Trend
+                    </h3>
+                    {dashboardData.trends && dashboardData.trends.length > 0 ? (
+                      <div className="h-64 sm:h-72 w-full mt-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={dashboardData.trends}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#c4c5d7" opacity={0.15} />
+                            <XAxis dataKey="month" stroke="#434655" fontSize={10} tickLine={false} axisLine={false} />
+                            <YAxis stroke="#434655" fontSize={10} tickLine={false} axisLine={false} />
+                            <RechartsTooltip
+                              contentStyle={{
+                                background: 'rgba(255, 255, 255, 0.9)',
+                                backdropFilter: 'blur(8px)',
+                                border: '1px solid rgba(196, 197, 215, 0.2)',
+                                borderRadius: '12px',
+                                boxShadow: '0px 8px 24px rgba(0, 55, 176, 0.04)',
+                                fontSize: '11px',
+                                color: '#121c28'
+                              }}
+                              formatter={(value: any, name: string | undefined) => [ // eslint-disable-line @typescript-eslint/no-explicit-any
+                                `${value ?? 0} tenants`,
+                                name ?? ''
+                              ]}
+                            />
+                            <Legend verticalAlign="top" height={36} iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', fontWeight: 600 }} />
+                            <Bar dataKey="payingTenants" name="Paying" fill="#006c49" stackId="a" radius={[0, 0, 4, 4]} />
+                            <Bar dataKey="trialingTenants" name="Trialing" fill="#ffddb8" stackId="a" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-12 text-center animate-in fade-in duration-300">
+                        <div className="relative mb-3 flex items-center justify-center">
+                          <div className="absolute h-16 w-16 rounded-full bg-[#0037b0]/5 blur-lg" />
+                          <div className="absolute h-12 w-12 rounded-full border border-dashed border-[#0037b0]/20 animate-spin [animation-duration:20s]" />
+                          <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#0037b0]/5 to-[#0037b0]/15 text-[#0037b0] border border-[#0037b0]/10">
+                            <HugeiconsIcon icon={UserGroupIcon} size={18} strokeWidth={1.5} />
+                          </div>
+                        </div>
+                        <h4 className="text-xs font-bold text-[#121c28]">No Tenant Distribution Data</h4>
+                        <p className="text-[10px] text-[#434655] mt-1 max-w-[200px]">Active and trialing tenant history is not available for this period.</p>
+                      </div>
+                    )}
+                  </Card>
+                </div>
+
+                {/* Lists Grid */}
+                <div className="grid gap-6 lg:grid-cols-2">
+                  {/* Trials Expiring This Week */}
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white overflow-hidden">
+                    <div className="px-6 pt-6 pb-2 flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2">
+                        <HugeiconsIcon icon={AlertDiamondIcon} size={16} className="text-amber-600 shrink-0" strokeWidth={1.5} />
+                        Trials Expiring This Week
+                      </h3>
+                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0 border-0 bg-amber-50 text-[#b06000]">
+                        {dashboardData.health.trialsExpiringThisWeek} urgent
+                      </Badge>
+                    </div>
+                    <CardContent className="px-6 pb-6">
+                      {dashboardData.health.trialsExpiringSoon.length > 0 ? (
+                        <div className="space-y-1">
+                          {dashboardData.health.trialsExpiringSoon.map((org, idx) => {
+                            const days = org.daysRemaining
+                            const isUrgent = days !== null && days <= 3
+                            return (
+                              <div
+                                key={org.id}
+                                className={`flex items-center justify-between px-3 py-2.5 rounded-xl ${
+                                  idx % 2 === 0 ? 'bg-[#f8f9ff]/80' : 'bg-white'
+                                }`}
+                              >
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-sm font-medium text-[#121c28]">{org.name}</p>
+                                    <Badge
+                                      variant={
+                                        org.planTier === 'BUSINESS' ? 'success' :
+                                        org.planTier === 'PRO' ? 'default' :
+                                        'secondary'
+                                      }
+                                      className="text-[9px] px-1.5 py-0"
+                                    >
+                                      {org.planTier}
+                                    </Badge>
+                                    <span
+                                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                                        isUrgent
+                                          ? 'bg-red-50 text-[#ba1a1a]'
+                                          : 'bg-amber-50 text-[#b06000]'
+                                      }`}
+                                    >
+                                      {days !== null ? `${days}d left` : 'No date'}
+                                    </span>
+                                  </div>
+                                  <p className="text-[10px] text-[#434655] mt-0.5">
+                                    {org.userCount} users &middot; {org.invoiceCount} invoices
+                                  </p>
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  onClick={() => setEditingOrgId(org.id)}
+                                  className="px-3.5 py-2.5 rounded-xl border border-[rgba(196,197,215,0.4)] hover:bg-[#eef4ff] text-xs font-semibold flex items-center gap-1.5 cursor-pointer min-h-[44px] text-[#434655] hover:text-[#0037b0] transition-colors"
+                                >
+                                  <HugeiconsIcon icon={Settings02Icon} size={12} strokeWidth={2} />
+                                  Configure
+                                </Button>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-8 text-center animate-in fade-in duration-300">
+                          <div className="relative mb-3 flex items-center justify-center">
+                            <div className="absolute h-16 w-16 rounded-full bg-[#0037b0]/5 blur-lg" />
+                            <div className="absolute h-12 w-12 rounded-full border border-dashed border-[#0037b0]/20 animate-spin [animation-duration:20s]" />
+                            <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#0037b0]/5 to-[#0037b0]/15 text-[#0037b0] border border-[#0037b0]/10">
+                              <HugeiconsIcon icon={UserGroupIcon} size={18} strokeWidth={1.5} />
+                            </div>
+                          </div>
+                          <h4 className="text-xs font-bold text-[#121c28]">No Trials Expiring</h4>
+                          <p className="text-[10px] text-[#434655] mt-1 max-w-[200px]">There are no trialing tenants scheduled to expire in the next 7 days.</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Top Organizations */}
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white overflow-hidden">
+                    <div className="px-6 pt-6 pb-2">
+                      <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2">
+                        <HugeiconsIcon icon={TrendingUpDownIcon} size={16} strokeWidth={1.5} className="text-[#006c49]" />
+                        Top Organizations by Collected Volume
+                      </h3>
+                    </div>
+                    <CardContent className="px-6 pb-6">
+                      {dashboardData.topOrganizations.length > 0 ? (
+                        <div className="space-y-1">
+                          {dashboardData.topOrganizations.map((org, index) => (
+                            <div
+                              key={org.id}
+                              className={`flex items-center justify-between px-3 py-2.5 rounded-xl ${
+                                index % 2 === 0 ? 'bg-[#f8f9ff]/80' : 'bg-white'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="text-[10px] font-semibold text-[#c4c5d7] w-5 text-right tabular-nums">
+                                  #{String(index + 1).padStart(2, '0')}
+                                </span>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-sm font-medium text-[#121c28]">{org.name}</p>
+                                    <Badge
+                                      variant={
+                                        org.planTier === 'BUSINESS' ? 'success' :
+                                        org.planTier === 'PRO' ? 'default' :
+                                        'secondary'
+                                      }
+                                      className="text-[9px] px-1.5 py-0"
+                                    >
+                                      {org.planTier}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-[10px] text-[#434655] mt-0.5">
+                                    {org.invoiceCount} invoices
+                                  </p>
+                                </div>
+                              </div>
+                              <span className="text-sm font-semibold text-[#121c28] tabular-nums">
+                                {formatCurrency(org.volume)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-8 text-center animate-in fade-in duration-300">
+                          <div className="relative mb-3 flex items-center justify-center">
+                            <div className="absolute h-16 w-16 rounded-full bg-[#006c49]/5 blur-lg" />
+                            <div className="absolute h-12 w-12 rounded-full border border-dashed border-[#006c49]/20 animate-spin [animation-duration:20s]" />
+                            <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#006c49]/5 to-[#006c49]/15 text-[#006c49] border border-[#006c49]/10">
+                              <HugeiconsIcon icon={MoneyReceive02Icon} size={18} strokeWidth={1.5} />
+                            </div>
+                          </div>
+                          <h4 className="text-xs font-bold text-[#121c28]">No Billing Records</h4>
+                          <p className="text-[10px] text-[#434655] mt-1 max-w-[200px]">No paying organizations have collected volume in this period.</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            ) : null}
+          </>
+        )}
+
+        {/* ORGANIZATIONS TAB */}
+        {activeTab === 'organizations' && (
+          <div className="space-y-6">
+                {/* Search & Filters */}
+            <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.02)] rounded-3xl bg-white">
+              <CardContent className="p-4 sm:p-6">
+                <div className="grid gap-3 sm:grid-cols-4">
+                  {/* Search Input */}
+                  <div className="relative">
+                    <Input
+                      placeholder="Search tenant name or email..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="pl-10"
+                    />
+                    <HugeiconsIcon icon={Search01Icon} size={16} strokeWidth={1.5} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#c4c5d7]" />
+                  </div>
+
+                  {/* Plan Tier Filter */}
+                  <FilterSelect
+                    value={planFilter}
+                    onChange={(val) => {
+                      setPlanFilter(val)
+                      setPage(1)
+                    }}
+                    options={[
+                      { value: '', label: 'All Plan Tiers' },
+                      { value: 'FREE', label: 'Free' },
+                      { value: 'STARTER', label: 'Starter' },
+                      { value: 'PRO', label: 'Pro' },
+                      { value: 'BUSINESS', label: 'Business' },
+                    ]}
+                  />
+
+                  {/* Status Filter */}
+                  <FilterSelect
+                    value={statusFilter}
+                    onChange={(val) => {
+                      setStatusFilter(val)
+                      setPage(1)
+                    }}
+                    options={[
+                      { value: '', label: 'All Statuses' },
+                      { value: 'TRIALING', label: 'Trialing' },
+                      { value: 'ACTIVE', label: 'Active' },
+                      { value: 'PAST_DUE', label: 'Past Due' },
+                      { value: 'CANCELLED', label: 'Cancelled' },
+                      { value: 'EXPIRED', label: 'Expired' },
+                    ]}
+                  />
+
+                  {/* Grandfathered Filter */}
+                  <FilterSelect
+                    value={grandfatheredFilter}
+                    onChange={(val) => {
+                      setGrandfatheredFilter(val)
+                      setPage(1)
+                    }}
+                    options={[
+                      { value: 'all', label: 'All Billings' },
+                      { value: 'true', label: 'Grandfathered Only' },
+                      { value: 'false', label: 'Regular Billing' },
+                    ]}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Organizations Table */}
+            <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.02)] rounded-3xl bg-white overflow-hidden">
+              <CardContent className="p-0">
+                {isLoadingOrgs ? (
+                  <div className="flex items-center justify-center py-20">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#0037b0] border-t-transparent" />
+                      <p className="text-xs text-slate-500 font-semibold">Loading tenant directory...</p>
+                    </div>
+                  </div>
+                ) : orgsData && orgsData.items.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-[#f8f9ff]/80 text-[10px] font-semibold uppercase tracking-wider text-[#434655]">
+                          <th className="px-6 py-4">Organization</th>
+                          <th className="px-6 py-4">Plan &amp; Status</th>
+                          <th className="px-6 py-4">Trial Status</th>
+                          <th className="px-6 py-4">Usage</th>
+                          <th className="px-6 py-4">Last Active</th>
+                          <th className="px-6 py-4">Date Joined</th>
+                          <th className="px-6 py-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {orgsData.items.map((org, index) => (
+                          <tr
+                            key={org.id}
+                            className={`hover:bg-[#f8f9ff]/80 transition-colors ${
+                              index % 2 === 1 ? 'bg-[#eef4ff]/40' : 'bg-white'
+                            }`}
+                          >
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="h-9 w-9 bg-[#eef4ff] rounded-xl flex items-center justify-center font-semibold text-[#0037b0] select-none text-xs shrink-0">
+                                  {org.name.slice(0, 2).toUpperCase()}
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-[#121c28]">{org.name}</p>
+                                  <p className="text-[10px] text-[#434655]">{org.slug}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex flex-col gap-1 items-start">
                                 <Badge
                                   variant={
                                     org.planTier === 'BUSINESS' ? 'success' :
                                     org.planTier === 'PRO' ? 'default' :
                                     'secondary'
                                   }
-                                  className="text-[10px] px-1.5 py-0"
+                                  className="text-[9px] px-1.5 py-0"
                                 >
                                   {org.planTier}
                                 </Badge>
-                                {org.isGrandfathered && (
-                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                    Grandfathered
-                                  </Badge>
+                                <Badge
+                                  variant={
+                                    org.subscriptionStatus === 'ACTIVE' ? 'success' :
+                                    org.subscriptionStatus === 'TRIALING' ? 'warning' :
+                                    'destructive'
+                                  }
+                                  className="text-[8px] px-1 py-0 uppercase"
+                                >
+                                  {org.subscriptionStatus}
+                                </Badge>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <TrialStatusCell org={org} />
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="text-xs text-[#434655]">
+                                <span className="font-medium text-[#121c28]">{org.userCount}</span> users &middot;{' '}
+                                <span className="font-medium text-[#121c28]">{org.invoiceCount}</span> invoices
+                              </div>
+                              {org.isGrandfathered && (
+                                <Badge variant="outline" className="text-[8px] px-1 py-0 mt-1 border-amber-300 text-amber-600 bg-amber-50/20">
+                                  Grandfathered
+                                </Badge>
+                              )}
+                            </td>
+                            <td className="px-6 py-4">
+                              <LastActiveIndicator dateString={org.lastInvoiceAt} />
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="text-xs text-[#434655] tabular-nums">
+                                {new Date(org.createdAt).toLocaleDateString(undefined, {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <Button
+                                variant="outline"
+                                onClick={() => setEditingOrgId(org.id)}
+                                className="px-4 py-2.5 rounded-xl border border-[rgba(196,197,215,0.4)] hover:bg-[#eef4ff] hover:border-[#0037b0]/20 text-xs font-semibold flex items-center gap-1.5 ml-auto min-h-[44px] text-[#434655] hover:text-[#0037b0] transition-colors"
+                              >
+                                <HugeiconsIcon icon={Settings02Icon} size={14} strokeWidth={1.5} />
+                                Configure
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in duration-300">
+                    <div className="relative mb-4 flex items-center justify-center">
+                      <div className="absolute h-20 w-20 rounded-full bg-[#0037b0]/5 blur-lg" />
+                      <div className="absolute h-16 w-16 rounded-full border border-dashed border-[#0037b0]/20 animate-spin [animation-duration:20s]" />
+                      <div className="relative flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#0037b0]/5 to-[#0037b0]/15 text-[#0037b0] border border-[#0037b0]/10">
+                        <HugeiconsIcon icon={Building03Icon} size={22} strokeWidth={1.5} />
+                      </div>
+                    </div>
+                    <h4 className="text-sm font-bold text-[#121c28]">No Tenants Found</h4>
+                    <p className="text-xs text-[#434655] mt-1 max-w-[240px]">No organizations matched the search or filter criteria you selected.</p>
+                  </div>
+                )}
+
+                {/* Pagination — always visible when data loaded */}
+                {orgsData && (
+                  <div className="flex items-center justify-between border-t border-[rgba(196,197,215,0.15)] px-6 py-4 bg-white">
+                    <span className="text-xs text-[#434655]">
+                      {orgsData.meta.total > 0 ? (
+                        <>
+                          Showing{' '}
+                          <span className="font-semibold text-[#121c28]">
+                            {(page - 1) * limit + 1}–{Math.min(page * limit, orgsData.meta.total)}
+                          </span>{' '}
+                          of{' '}
+                          <span className="font-semibold text-[#121c28]">{orgsData.meta.total}</span>{' '}
+                          organizations
+                        </>
+                      ) : 'No results'}
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        disabled={page === 1}
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        className="px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer min-h-[44px] border-[rgba(196,197,215,0.4)] text-[#434655] hover:bg-[#eef4ff] hover:text-[#0037b0] transition-colors disabled:opacity-40"
+                      >
+                        <HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={2} />
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        disabled={page === orgsData.meta.totalPages || orgsData.meta.totalPages === 0}
+                        onClick={() => setPage((p) => Math.min(orgsData.meta.totalPages, p + 1))}
+                        className="px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer min-h-[44px] border-[rgba(196,197,215,0.4)] text-[#434655] hover:bg-[#eef4ff] hover:text-[#0037b0] transition-colors disabled:opacity-40"
+                      >
+                        Next
+                        <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={2} />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* REVENUE TAB */}
+        {activeTab === 'revenue' && (
+          <>
+            {isLoadingDashboard ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#0037b0] border-t-transparent" />
+                  <p className="text-xs text-slate-500 font-semibold">Loading platform billing data...</p>
+                </div>
+              </div>
+            ) : dashboardData ? (
+              <div className="space-y-6">
+                {/* Revenue Summary — SaaS subscription only */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.12)] rounded-3xl bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white relative hover:z-20">
+                    <CardContent className="p-6">
+                       <p className="text-[10px] font-semibold uppercase tracking-wider text-[#bfdbfe] flex items-center gap-1">
+                         MRR
+                         <MetricTooltip content="Monthly Recurring Revenue: Sum of all subscription payments collected in the selected period." />
+                       </p>
+                      <p className="mt-2 text-3xl font-bold tracking-tight text-white">
+                        {formatCurrency(dashboardData.subscriptions.revenueCurrentMonth)}
+                      </p>
+                      <div className="mt-4 flex items-center gap-1.5 text-[10px] font-semibold text-[#bfdbfe]">
+                        <MoMBadge value={dashboardData.subscriptions.revenueChangePct} />
+                        <span>{getComparisonLabel(periodFilter)} ({formatCurrency(dashboardData.subscriptions.revenuePreviousMonth)})</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white relative hover:z-20">
+                    <CardContent className="p-6">
+                       <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655] flex items-center gap-1">
+                         All-Time SaaS Revenue
+                         <MetricTooltip content="All-Time SaaS Revenue: Total subscription payment revenue collected to date." />
+                       </p>
+                      <p className="mt-2 text-2xl font-bold tracking-tight text-[#121c28]">
+                        {formatCurrency(dashboardData.subscriptions.revenue)}
+                      </p>
+                      <div className="mt-4 flex items-center gap-1.5 text-[10px] text-[#434655]">
+                        <HugeiconsIcon icon={TrendingUpDownIcon} size={14} strokeWidth={2} className="text-[#0037b0]" />
+                        Total subscription income collected
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Plan Tier and Subscription Status Distributions */}
+                <div className="grid gap-6 lg:grid-cols-2">
+                  {/* Subscription Plans Distribution */}
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white overflow-hidden p-6 relative hover:z-20">
+                    <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2 mb-4">
+                      <HugeiconsIcon icon={DashboardBrowsingIcon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />
+                      Subscription Plan Distribution
+                    </h3>
+                    <div className="space-y-4">
+                      {Object.entries(dashboardData.subscriptions.byPlan).map(([plan, count]) => {
+                        const total = Object.values(dashboardData.subscriptions.byPlan).reduce(
+                          (a, b) => a + b,
+                          0
+                        )
+                        const pct = total > 0 ? (count / total) * 100 : 0
+                        return (
+                          <div key={plan} className="space-y-1.5">
+                            <div className="flex items-center justify-between text-xs">
+                              <div className="flex items-center gap-2">
+                                <Badge
+                                  variant={
+                                    plan === 'BUSINESS' ? 'success' :
+                                    plan === 'PRO' ? 'default' :
+                                    'secondary'
+                                  }
+                                  className="text-[9px] px-1.5 py-0"
+                                >
+                                  {plan}
+                                </Badge>
+                                {plan !== 'FREE' && (
+                                  <span className="text-[10px] text-[#434655] font-semibold">
+                                    {dashboardData.subscriptions.byPlanStatus[plan]?.ACTIVE || 0} paying &middot;{' '}
+                                    {dashboardData.subscriptions.byPlanStatus[plan]?.TRIALING || 0} trialing
+                                  </span>
                                 )}
                               </div>
-                              <p className="text-xs text-muted-foreground">
-                                {org.invoiceCount} invoices
-                              </p>
+                              <span className="font-bold text-slate-700">
+                                {count} orgs ({pct.toFixed(1)}%)
+                              </span>
+                            </div>
+                            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${
+                                  plan === 'BUSINESS' ? 'bg-[#006c49]' :
+                                  plan === 'PRO' ? 'bg-[#0037b0]' :
+                                  'bg-[#c4c5d7]'
+                                }`}
+                                style={{ width: `${pct}%` }}
+                              />
                             </div>
                           </div>
-                          <span className="font-medium">
-                            {formatCurrency(org.volume)}
-                          </span>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
-                  ) : (
-                    <p className="text-center text-muted-foreground">No data yet</p>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+                  </Card>
+
+                  {/* Subscription Statuses Distribution */}
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white overflow-hidden p-6 relative hover:z-20">
+                    <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2 mb-4">
+                      <HugeiconsIcon icon={AnalyticsIcon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />
+                      Active vs. Trialing vs. Expired Statuses
+                    </h3>
+                    <div className="space-y-4">
+                      {Object.entries(dashboardData.subscriptions.byStatus).map(([status, count]) => {
+                        const total = Object.values(dashboardData.subscriptions.byStatus).reduce(
+                          (a, b) => a + b,
+                          0
+                        )
+                        const pct = total > 0 ? (count / total) * 100 : 0
+                        return (
+                          <div key={status} className="space-y-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <Badge
+                                variant={
+                                  status === 'ACTIVE' ? 'success' :
+                                  status === 'TRIALING' ? 'warning' :
+                                  'destructive'
+                                }
+                                className="text-[9px] px-1.5 py-0"
+                              >
+                                {status}
+                              </Badge>
+                              <span className="font-bold text-slate-700">
+                                {count} orgs ({pct.toFixed(1)}%)
+                              </span>
+                            </div>
+                            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${
+                                  status === 'ACTIVE' ? 'bg-[#006c49]' :
+                                  status === 'TRIALING' ? 'bg-[#ba1a1a]/40' :
+                                  'bg-[#ba1a1a]'
+                                }`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </Card>
+                </div>
+
+                <div className="grid gap-6 lg:grid-cols-2">
+                  {/* Revenue at Risk Panel */}
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white relative hover:z-20">
+                    <div className="px-6 pt-6 pb-2 flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2">
+                        <HugeiconsIcon icon={AlertDiamondIcon} size={16} className="text-[#ba1a1a] shrink-0" strokeWidth={1.5} />
+                        Revenue at Risk (Past Due Tenants)
+                        <MetricTooltip content="Revenue at Risk: Subscription MRR from active organizations currently in PAST_DUE status." />
+                      </h3>
+                      {pastDueOrgsData && (
+                        <Badge variant="destructive" className="text-[9px] px-1.5 py-0 border-0 bg-red-50 text-[#ba1a1a]">
+                          {pastDueOrgsData.items.length} past due
+                        </Badge>
+                      )}
+                    </div>
+                    <CardContent className="px-6 pb-6">
+                      {pastDueOrgsData && pastDueOrgsData.items.length > 0 ? (
+                        <div className="space-y-1.5 max-h-[300px] overflow-y-auto scrollbar-none">
+                          {pastDueOrgsData.items.map((org, idx) => (
+                            <div
+                              key={org.id}
+                              className={`flex items-center justify-between px-3 py-2.5 rounded-xl ${
+                                idx % 2 === 0 ? 'bg-[#f8f9ff]/80' : 'bg-white'
+                              }`}
+                            >
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-medium text-[#121c28]">{org.name}</p>
+                                  <Badge
+                                    variant={
+                                      org.planTier === 'BUSINESS' ? 'success' :
+                                      org.planTier === 'PRO' ? 'default' :
+                                      'secondary'
+                                    }
+                                    className="text-[9px] px-1.5 py-0"
+                                  >
+                                    {org.planTier}
+                                  </Badge>
+                                </div>
+                                <p className="text-[10px] text-[#434655] mt-0.5">
+                                  {org.userCount} users &middot; {org.invoiceCount} invoices
+                                </p>
+                              </div>
+                              <Button
+                                variant="outline"
+                                onClick={() => setEditingOrgId(org.id)}
+                                className="px-3.5 py-2.5 rounded-xl border border-[rgba(196,197,215,0.4)] hover:bg-[#eef4ff] text-xs font-semibold flex items-center gap-1.5 cursor-pointer min-h-[44px] text-[#434655] hover:text-[#ba1a1a] transition-colors"
+                              >
+                                <HugeiconsIcon icon={Settings02Icon} size={12} strokeWidth={2} />
+                                Resolve
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-12 text-center animate-in fade-in duration-300">
+                          <div className="relative mb-3 flex items-center justify-center">
+                            <div className="absolute h-16 w-16 rounded-full bg-[#006c49]/5 blur-lg" />
+                            <div className="absolute h-12 w-12 rounded-full border border-dashed border-[#006c49]/20 animate-spin [animation-duration:20s]" />
+                            <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#006c49]/5 to-[#006c49]/15 text-[#006c49] border border-[#006c49]/10">
+                              <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} strokeWidth={1.5} />
+                            </div>
+                          </div>
+                          <h4 className="text-xs font-bold text-[#121c28]">Zero Revenue at Risk</h4>
+                          <p className="text-[10px] text-[#434655] mt-1 max-w-[200px]">All active organizations are current on their billing and have no past due invoices.</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Invoices Volume by Status */}
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white overflow-hidden relative hover:z-20">
+                    <div className="px-6 pt-6 pb-2">
+                      <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2">
+                        <HugeiconsIcon icon={Invoice03Icon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />
+                        Invoice Billing Volume by Status
+                      </h3>
+                    </div>
+                    <CardContent className="px-6 pb-6">
+                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
+                        {Object.entries(dashboardData.invoices).map(([status, info]) => (
+                          <div
+                            key={status}
+                            className="p-4 bg-[#f8f9ff] rounded-2xl flex flex-col justify-between"
+                          >
+                            <div className="flex items-center justify-between">
+                              <Badge
+                                variant={
+                                  status === 'PAID' ? 'success' :
+                                  status === 'OVERDUE' ? 'destructive' :
+                                  status === 'DRAFT' ? 'secondary' :
+                                  'default'
+                                }
+                                className="text-[9px] px-1.5 py-0"
+                              >
+                                {status.replace('_', ' ')}
+                              </Badge>
+                              <span className="text-[10px] font-bold text-slate-400">
+                                {info.count} count
+                              </span>
+                            </div>
+                            <p className="text-lg font-bold text-[#121c28] mt-3">
+                              {formatCurrency(info.total)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            ) : null}
           </>
-        ) : null}
+        )}
+      </div>
+
+      {/* Edit Organization Modal */}
+      {editingOrgId && (
+        <EditOrgModal orgId={editingOrgId} onClose={() => setEditingOrgId(null)} />
+      )}
+    </div>
+  )
+}
+
+function EditOrgModal({ orgId, onClose }: { orgId: string; onClose: () => void }) {
+  const { data: org, isLoading } = useQuery({
+    queryKey: ['platform', 'organization', orgId],
+    queryFn: () => platformApi.getOrganizationDetails(orgId),
+  })
+
+  if (isLoading || !org) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={onClose} />
+        <div className="relative w-full max-w-lg bg-white rounded-3xl p-8 flex items-center justify-center min-h-[300px]">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#0037b0] border-t-transparent" />
+            <p className="text-xs text-slate-500 font-semibold">Loading organization details...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return <EditOrgModalForm org={org} onClose={onClose} />
+}
+
+interface EditOrgModalFormProps {
+  org: PlatformOrganizationDetails
+  onClose: () => void
+}
+
+function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
+  const queryClient = useQueryClient()
+  const [planTier, setPlanTier] = useState<string>(org.planTier)
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string>(org.subscriptionStatus)
+  const [isGrandfathered, setIsGrandfathered] = useState<boolean>(org.isGrandfathered)
+  const [platformFeePercent] = useState<number>(org.platformFeePercent)
+
+  const updateMutation = useMutation({
+    mutationFn: (data: {
+      planTier?: string
+      subscriptionStatus?: string
+      isGrandfathered?: boolean
+      platformFeePercent?: number
+    }) => platformApi.updateOrganization(org.id, data),
+    onSuccess: () => {
+      toast.success('Organization config updated successfully')
+      queryClient.invalidateQueries({ queryKey: ['platform', 'organizations'] })
+      queryClient.invalidateQueries({ queryKey: ['platform', 'dashboard'] })
+      onClose()
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Failed to update organization config')
+    },
+  })
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault()
+    updateMutation.mutate({
+      planTier,
+      subscriptionStatus,
+      isGrandfathered,
+      platformFeePercent: Number(platformFeePercent),
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+      <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-[0px_12px_32px_rgba(0,55,176,0.12)] p-6 z-50 my-8 overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
+          <div>
+            <h3 className="text-sm font-bold text-[#121c28]">Configure Tenant</h3>
+            <p className="text-[11px] text-[#434655]">{org.name} ({org.slug})</p>
+          </div>
+          <button onClick={onClose} className="rounded-full p-2 text-[#434655] hover:bg-[#eef4ff] hover:text-[#0037b0] transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center">
+            <HugeiconsIcon icon={Cancel01Icon} size={18} strokeWidth={2} />
+          </button>
+        </div>
+
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto pr-1 space-y-6 scrollbar-none">
+          {/* Stats Summary */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-[#f8f9ff] p-4 rounded-2xl">
+            <div>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Total GMV</p>
+              <p className="text-sm font-bold text-slate-800 mt-0.5">{formatCurrency(org.totalGmv)}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Received Payments</p>
+              <p className="text-sm font-bold text-slate-800 mt-0.5">{formatCurrency(org.totalPayments)}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Invoices</p>
+              <p className="text-sm font-bold text-slate-800 mt-0.5">{org.invoiceCount}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Users</p>
+              <p className="text-sm font-bold text-slate-800 mt-0.5">{org.userCount}</p>
+            </div>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleSave} className="space-y-4">
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="planTier" className="text-[11px] font-bold text-[#434655] uppercase tracking-wider">Plan Tier</Label>
+                <FilterSelect
+                  id="planTier"
+                  value={planTier}
+                  onChange={(val) => setPlanTier(val)}
+                  options={[
+                    { value: 'FREE', label: 'Free' },
+                    { value: 'STARTER', label: 'Starter' },
+                    { value: 'PRO', label: 'Pro' },
+                    { value: 'BUSINESS', label: 'Business' },
+                  ]}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="subscriptionStatus" className="text-[11px] font-bold text-[#434655] uppercase tracking-wider">Subscription Status</Label>
+                <FilterSelect
+                  id="subscriptionStatus"
+                  value={subscriptionStatus}
+                  onChange={(val) => setSubscriptionStatus(val)}
+                  options={[
+                    { value: 'TRIALING', label: 'Trialing' },
+                    { value: 'ACTIVE', label: 'Active' },
+                    { value: 'PAST_DUE', label: 'Past Due' },
+                    { value: 'CANCELLED', label: 'Cancelled' },
+                    { value: 'EXPIRED', label: 'Expired' },
+                  ]}
+                />
+              </div>
+            </div>
+
+              <div className="flex items-center justify-between py-2">
+                <div className="space-y-0.5">
+                  <Label htmlFor="isGrandfathered" className="text-xs font-semibold text-[#121c28]">Grandfathered Status</Label>
+                  <p className="text-[10px] text-[#434655]">Exempt from standard pricing logic</p>
+                </div>
+                <input
+                  id="isGrandfathered"
+                  type="checkbox"
+                  checked={isGrandfathered}
+                  onChange={(e) => setIsGrandfathered(e.target.checked)}
+                  className="h-5 w-5 rounded border-slate-300 text-primary focus:ring-primary/20 accent-[#0037b0] cursor-pointer"
+                />
+              </div>
+
+            <div className="flex justify-end gap-3 border-t border-slate-100 pt-4 mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                disabled={updateMutation.isPending}
+                className="px-5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-650 min-h-[44px]"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={updateMutation.isPending}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white text-xs font-bold shadow-md shadow-[#0037b0]/20 min-h-[44px]"
+              >
+                {updateMutation.isPending ? 'Saving...' : 'Save Configuration'}
+              </Button>
+            </div>
+          </form>
+
+          {/* User List */}
+          <div className="space-y-2 pt-2">
+            <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Associated Users</h4>
+            <div className="bg-[#f8f9ff] rounded-2xl overflow-hidden p-2">
+              {org.users.length > 0 ? (
+                <div className="space-y-2">
+                  {org.users.map((u) => (
+                    <div key={u.id} className="flex items-center justify-between bg-white p-3 rounded-xl shadow-[0px_4px_12px_rgba(0,55,176,0.01)]">
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">
+                          {u.firstName} {u.lastName}
+                        </p>
+                        <p className="text-[10px] text-slate-400">{u.email}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="text-[9px] px-2 py-0.5">
+                          {u.role}
+                        </Badge>
+                        <Badge
+                          variant={u.isActive ? 'success' : 'destructive'}
+                          className="text-[9px] px-2 py-0.5"
+                        >
+                          {u.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-xs text-slate-400 py-4">No users found</p>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )

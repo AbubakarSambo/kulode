@@ -477,19 +477,53 @@ export interface PlatformDashboard {
     newThisMonth: number
     active: number
     inactive: number
+    lastMonth: number
+    changePct: number
   }
   users: {
     total: number
   }
   revenue: {
     gmv: number
+    gmvCurrentMonth: number
+    gmvPreviousMonth: number
+    gmvChangePct: number
     platformFees: number
+    platformFeesCurrentMonth: number
+    platformFeesPreviousMonth: number
+    platformFeesChangePct: number
   }
   subscriptions: {
-    byPlan: { FREE: number; PRO: number; BUSINESS: number }
+    byPlan: { FREE: number; STARTER: number; PRO: number; BUSINESS: number }
     byStatus: { TRIALING: number; ACTIVE: number; CANCELLED: number; EXPIRED: number }
+    byPlanStatus: Record<string, { TRIALING: number; ACTIVE: number; CANCELLED: number; EXPIRED: number }>
     grandfathered: number
     revenue: number
+    revenueCurrentMonth: number
+    revenuePreviousMonth: number
+    revenueChangePct: number
+  }
+  health: {
+    trialConversionRate: number
+    monthlyActiveTenants: number
+    monthlyActiveTenantsRate: number
+    trialsExpiringThisWeek: number
+    trialsExpiringThisMonth: number
+    churnedOrgs: number
+    collectedGmv: number
+    collectedGmvCurrentMonth: number
+    collectedGmvPreviousMonth: number
+    collectedGmvChangePct: number
+    trialsExpiringSoon: Array<{
+      id: string
+      name: string
+      slug: string
+      planTier: PlanTier
+      trialEndDate: string | null
+      daysRemaining: number | null
+      userCount: number
+      invoiceCount: number
+    }>
   }
   invoices: Record<string, { count: number; total: number }>
   recentSignups: Array<{
@@ -502,6 +536,7 @@ export interface PlatformDashboard {
     planTier: PlanTier
     subscriptionStatus: SubscriptionStatus
     isGrandfathered: boolean
+    trialEndDate: string | null
   }>
   topOrganizations: Array<{
     id: string
@@ -515,4 +550,59 @@ export interface PlatformDashboard {
     subscriptionStatus: SubscriptionStatus
     isGrandfathered: boolean
   }>
+  trends: Array<{
+    month: string
+    mrr: number
+    collectedGmv: number
+    payingTenants: number
+    trialingTenants: number
+  }>
 }
+
+export interface PlatformOrganization {
+  id: string
+  name: string
+  slug: string
+  email: string | null
+  phone: string | null
+  planTier: PlanTier
+  subscriptionStatus: SubscriptionStatus
+  isGrandfathered: boolean
+  platformFeePercent: number
+  createdAt: string
+  userCount: number
+  invoiceCount: number
+  trialStartDate: string | null
+  trialEndDate: string | null
+  subscriptionStartDate: string | null
+  daysInTrial: number | null
+  trialDaysRemaining: number | null
+  lastInvoiceAt: string | null
+}
+
+export interface PlatformOrganizationsResponse {
+  items: PlatformOrganization[]
+  meta: {
+    total: number
+    page: number
+    limit: number
+    totalPages: number
+  }
+}
+
+export interface PlatformOrganizationDetails extends PlatformOrganization {
+  clientCount: number
+  paymentCount: number
+  totalGmv: number
+  totalPayments: number
+  users: Array<{
+    id: string
+    email: string
+    firstName: string
+    lastName: string
+    role: string
+    isActive: boolean
+    createdAt: string
+  }>
+}
+
