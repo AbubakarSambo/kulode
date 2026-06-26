@@ -25,7 +25,116 @@ import { platformApi } from '@/api/platform'
 import { useAuthStore } from '@/stores/auth'
 import { formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
-import type { PlatformOrganizationDetails } from '@/types'
+import type { PlatformOrganizationDetails, PlatformOrganization } from '@/types'
+
+function TrialStatusCell({ org }: { org: PlatformOrganization }) {
+  if (org.subscriptionStatus === 'TRIALING') {
+    const days = org.trialDaysRemaining
+    if (days === null) {
+      return (
+        <Badge variant="warning" className="text-[9px] px-1.5 py-0 border-0 bg-[#ffddb8] text-[#4c2205]">
+          Trialing
+        </Badge>
+      )
+    }
+    if (days < 0) {
+      return (
+        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold bg-[#fce8e6] text-[#ba1a1a]">
+          Overdue ({Math.abs(days)}d)
+        </span>
+      )
+    }
+    if (days <= 7) {
+      return (
+        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold bg-[#fef7e0] text-[#b06000]">
+          {days}d left
+        </span>
+      )
+    }
+    return (
+      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-medium bg-[#f8f9ff] text-slate-600">
+        {days} days left
+      </span>
+    )
+  }
+
+  if (org.subscriptionStatus === 'ACTIVE') {
+    return (
+      <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-[#006c49]">
+        Converted ✓
+      </span>
+    )
+  }
+
+  if (org.subscriptionStatus === 'CANCELLED' || org.subscriptionStatus === 'EXPIRED') {
+    return (
+      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold bg-slate-100 text-slate-400">
+        Churned
+      </span>
+    )
+  }
+
+  return (
+    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 uppercase">
+      {org.subscriptionStatus}
+    </Badge>
+  )
+}
+
+function LastActiveIndicator({ dateString }: { dateString: string | null }) {
+  if (!dateString) return <span className="text-slate-400 font-medium text-xs">Never</span>
+  
+  const lastActive = new Date(dateString)
+  const now = new Date()
+  const diffTime = now.getTime() - lastActive.getTime()
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+  
+  let colorClass = 'text-slate-600 font-medium'
+  let statusDotClass = 'bg-[#006c49]' // Green
+  
+  if (diffDays > 30) {
+    colorClass = 'text-[#ba1a1a] font-semibold' // Red
+    statusDotClass = 'bg-[#ba1a1a]'
+  } else if (diffDays > 14) {
+    colorClass = 'text-[#b06000] font-semibold' // Amber
+    statusDotClass = 'bg-[#b06000]'
+  }
+  
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className={`h-1.5 w-1.5 rounded-full ${statusDotClass}`} />
+      <span className={`text-xs ${colorClass}`}>
+        {lastActive.toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        })}
+      </span>
+    </div>
+  )
+}
+
+function MoMBadge({ value }: { value: number | undefined | null }) {
+  if (value === undefined || value === null) return null
+  const isPositive = value >= 0
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-tight ${
+        isPositive
+          ? 'bg-[#6ffbbe] text-[#003822]'
+          : 'bg-[#ffddb8] text-[#4c2205]'
+      }`}
+    >
+      <HugeiconsIcon
+        icon={isPositive ? ArrowUp01Icon : ArrowDown01Icon}
+        size={9}
+        strokeWidth={2.5}
+        color="currentColor"
+      />
+      {Math.abs(value)}%
+    </span>
+  )
+}
 
 export function AdminDashboardPage() {
   const navigate = useNavigate()
@@ -93,35 +202,24 @@ export function AdminDashboardPage() {
     enabled: !!user?.isPlatformAdmin && activeTab === 'organizations',
   })
 
+  // Past Due Organizations Query for Revenue at Risk
+  const { data: pastDueOrgsData } = useQuery({
+    queryKey: ['platform', 'organizations', 'past-due-risk'],
+    queryFn: () =>
+      platformApi.getOrganizations({
+        subscriptionStatus: 'PAST_DUE',
+        limit: 100,
+      }),
+    enabled: !!user?.isPlatformAdmin && activeTab === 'revenue',
+  })
+
   if (!user?.isPlatformAdmin) return null
 
   const handleTabChange = (tab: 'overview' | 'organizations' | 'revenue') => {
     setActiveTab(tab)
   }
 
-  // MoM trend chip — inline, uses DESIGN.md token colors
-  // secondary_fixed (#6ffbbe) for positive, tertiary_fixed (#ffddb8) for negative
-  function MoMBadge({ value }: { value: number | undefined | null }) {
-    if (value === undefined || value === null) return null
-    const isPositive = value >= 0
-    return (
-      <span
-        className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-tight ${
-          isPositive
-            ? 'bg-[#6ffbbe] text-[#003822]'
-            : 'bg-[#ffddb8] text-[#4c2205]'
-        }`}
-      >
-        <HugeiconsIcon
-          icon={isPositive ? ArrowUp01Icon : ArrowDown01Icon}
-          size={9}
-          strokeWidth={2.5}
-          color="currentColor"
-        />
-        {Math.abs(value)}%
-      </span>
-    )
-  }
+
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden bg-[#f8f9ff]">
@@ -169,21 +267,95 @@ export function AdminDashboardPage() {
               <div className="space-y-6">
                 {/* Stats Cards Row — 4 cols after removing platform fees */}
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  {/* Stat Card: Total Organizations */}
+                  {/* Stat Card: MRR */}
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.12)] rounded-3xl bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.16)] transition-all">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-100">
+                            MRR
+                          </p>
+                          <p className="mt-1.5 text-2xl font-bold tracking-tight text-white">
+                            {formatCurrency(dashboardData.subscriptions.revenueCurrentMonth)}
+                          </p>
+                          <div className="mt-2 flex items-center gap-1.5">
+                            <MoMBadge value={dashboardData.subscriptions.revenueChangePct} />
+                            <span className="text-[10px] text-blue-200">vs last month</span>
+                          </div>
+                        </div>
+                        <div className="rounded-2xl bg-white/10 p-3 shrink-0 ml-2">
+                          <HugeiconsIcon icon={Crown02Icon} size={18} strokeWidth={1.5} className="text-white" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Stat Card: Trial → Paid Conversion */}
                   <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all">
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
                           <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655]">
-                            Total Organizations
+                            Trial → Paid Conversion
                           </p>
                           <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28]">
-                            {dashboardData.organizations.total}
+                            {dashboardData.health.trialConversionRate}%
                           </p>
                           <div className="mt-2 flex items-center gap-1.5">
-                            <MoMBadge value={dashboardData.organizations.changePct} />
-                            <span className="text-[10px] text-[#434655]">
-                              {dashboardData.organizations.newThisMonth} this month
+                            {(() => {
+                              const rate = dashboardData.health.trialConversionRate
+                              let conversionColorClass = 'text-[#006c49] bg-green-50' // Green
+                              let conversionLabel = 'Healthy'
+                              if (rate < 30) {
+                                conversionColorClass = 'text-[#ba1a1a] bg-red-50' // Red
+                                conversionLabel = 'Critical'
+                              } else if (rate < 50) {
+                                conversionColorClass = 'text-[#b06000] bg-amber-50' // Amber
+                                conversionLabel = 'Warning'
+                              }
+                              return (
+                                <Badge className={`text-[9px] px-1.5 py-0 border-0 ${conversionColorClass}`}>
+                                  {conversionLabel}
+                                </Badge>
+                              )
+                            })()}
+                            <span className="text-[10px] text-[#434655]">active paying</span>
+                          </div>
+                        </div>
+                        <div className="rounded-2xl bg-[#eef4ff] p-3 shrink-0 ml-2">
+                          <HugeiconsIcon icon={UserGroupIcon} size={18} strokeWidth={1.5} className="text-[#0037b0]" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Stat Card: Monthly Active Tenants */}
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655]">
+                            Monthly Active Tenants
+                          </p>
+                          <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28]">
+                            {dashboardData.health.monthlyActiveTenants}
+                          </p>
+                          <div className="mt-2 flex items-center gap-1.5">
+                            {(() => {
+                              const matRate = dashboardData.health.monthlyActiveTenantsRate
+                              const isMatLow = matRate < 60
+                              return (
+                                <Badge
+                                  className={`text-[9px] px-1.5 py-0 border-0 ${
+                                    isMatLow ? 'bg-amber-50 text-[#b06000]' : 'bg-green-50 text-[#006c49]'
+                                  }`}
+                                >
+                                  {isMatLow ? 'Low Activity' : 'Active'}
+                                </Badge>
+                              )
+                            })()}
+                            <span className="text-[10px] text-[#434655] font-semibold">
+                              {dashboardData.health.monthlyActiveTenantsRate}%
                             </span>
                           </div>
                         </div>
@@ -194,41 +366,19 @@ export function AdminDashboardPage() {
                     </CardContent>
                   </Card>
 
-                  {/* Stat Card: Total Users */}
+                  {/* Stat Card: Collected GMV */}
                   <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all">
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
                           <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655]">
-                            Total Users
+                            Collected GMV
                           </p>
-                          <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28]">
-                            {dashboardData.users.total}
-                          </p>
-                          <p className="mt-2 text-[10px] text-[#434655]">
-                            <span className="font-semibold text-[#121c28]">{dashboardData.organizations.active}</span> active tenants
-                          </p>
-                        </div>
-                        <div className="rounded-2xl bg-[#eef4ff] p-3 shrink-0 ml-2">
-                          <HugeiconsIcon icon={UserGroupIcon} size={18} strokeWidth={1.5} className="text-[#0037b0]" />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Stat Card: GMV */}
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all">
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655]">
-                            Gross Merch. Vol
-                          </p>
-                          <p className="mt-1.5 text-xl font-bold tracking-tight text-[#121c28] truncate">
-                            {formatCurrency(dashboardData.revenue.gmv)}
+                          <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28] truncate">
+                            {formatCurrency(dashboardData.health.collectedGmv)}
                           </p>
                           <div className="mt-2 flex items-center gap-1.5">
-                            <MoMBadge value={dashboardData.revenue.gmvChangePct} />
+                            <MoMBadge value={dashboardData.health.collectedGmvChangePct} />
                             <span className="text-[10px] text-[#434655]">vs last month</span>
                           </div>
                         </div>
@@ -238,91 +388,75 @@ export function AdminDashboardPage() {
                       </div>
                     </CardContent>
                   </Card>
-
-                  {/* Stat Card: SaaS Revenue */}
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all">
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655]">
-                            SaaS Revenue
-                          </p>
-                          <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28] truncate">
-                            {formatCurrency(dashboardData.subscriptions.revenue)}
-                          </p>
-                          <div className="mt-2 flex items-center gap-1.5">
-                            <MoMBadge value={dashboardData.subscriptions.revenueChangePct} />
-                            <span className="text-[10px] text-[#434655]">vs last month</span>
-                          </div>
-                        </div>
-                        <div className="rounded-2xl bg-[#eef4ff] p-3 shrink-0 ml-2">
-                          <HugeiconsIcon icon={Crown02Icon} size={18} strokeWidth={1.5} className="text-[#0037b0]" />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
                 </div>
 
                 {/* Lists Grid */}
                 <div className="grid gap-6 lg:grid-cols-2">
-                  {/* Recent Signups */}
+                  {/* Trials Expiring This Week */}
                   <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white overflow-hidden">
                     <div className="px-6 pt-6 pb-2 flex items-center justify-between">
                       <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2">
-                        <HugeiconsIcon icon={Building03Icon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />
-                        Recent Signups
+                        <span role="img" aria-label="warning" className="text-amber-500">⚠️</span>
+                        Trials Expiring This Week
                       </h3>
-                      <button
-                        onClick={() => handleTabChange('organizations')}
-                        className="text-xs font-semibold text-[#0037b0] hover:underline"
-                      >
-                        View All
-                      </button>
+                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0 border-0 bg-amber-50 text-[#b06000]">
+                        {dashboardData.health.trialsExpiringThisWeek} urgent
+                      </Badge>
                     </div>
                     <CardContent className="px-6 pb-6">
-                      {dashboardData.recentSignups.length > 0 ? (
+                      {dashboardData.health.trialsExpiringSoon.length > 0 ? (
                         <div className="space-y-1">
-                          {dashboardData.recentSignups.map((org, idx) => (
-                            <div
-                              key={org.id}
-                              className={`flex items-center justify-between px-3 py-2.5 rounded-xl ${
-                                idx % 2 === 0 ? 'bg-[#f8f9ff]/80' : 'bg-white'
-                              }`}
-                            >
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <p className="text-sm font-medium text-[#121c28]">{org.name}</p>
-                                  <Badge
-                                    variant={
-                                      org.planTier === 'BUSINESS' ? 'success' :
-                                      org.planTier === 'PRO' ? 'default' :
-                                      'secondary'
-                                    }
-                                    className="text-[9px] px-1.5 py-0"
-                                  >
-                                    {org.planTier}
-                                  </Badge>
-                                  {org.isGrandfathered && (
-                                    <Badge variant="outline" className="text-[9px] px-1.5 py-0">
-                                      Grandfathered
+                          {dashboardData.health.trialsExpiringSoon.map((org, idx) => {
+                            const days = org.daysRemaining
+                            const isUrgent = days !== null && days <= 3
+                            return (
+                              <div
+                                key={org.id}
+                                className={`flex items-center justify-between px-3 py-2.5 rounded-xl ${
+                                  idx % 2 === 0 ? 'bg-[#f8f9ff]/80' : 'bg-white'
+                                }`}
+                              >
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-sm font-medium text-[#121c28]">{org.name}</p>
+                                    <Badge
+                                      variant={
+                                        org.planTier === 'BUSINESS' ? 'success' :
+                                        org.planTier === 'PRO' ? 'default' :
+                                        'secondary'
+                                      }
+                                      className="text-[9px] px-1.5 py-0"
+                                    >
+                                      {org.planTier}
                                     </Badge>
-                                  )}
+                                    <span
+                                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                                        isUrgent
+                                          ? 'bg-red-50 text-[#ba1a1a]'
+                                          : 'bg-amber-50 text-[#b06000]'
+                                      }`}
+                                    >
+                                      {days !== null ? `${days}d left` : 'No date'}
+                                    </span>
+                                  </div>
+                                  <p className="text-[10px] text-[#434655] mt-0.5">
+                                    {org.userCount} users &middot; {org.invoiceCount} invoices
+                                  </p>
                                 </div>
-                                <p className="text-[10px] text-[#434655] mt-0.5">
-                                  {org.userCount} users &middot; {org.invoiceCount} invoices
-                                </p>
+                                <Button
+                                  variant="outline"
+                                  onClick={() => setEditingOrgId(org.id)}
+                                  className="px-2.5 py-1 rounded-lg border border-[rgba(196,197,215,0.4)] hover:bg-[#eef4ff] text-[10px] font-semibold flex items-center gap-1 cursor-pointer min-h-[30px] text-[#434655] hover:text-[#0037b0]"
+                                >
+                                  <HugeiconsIcon icon={Settings02Icon} size={10} strokeWidth={2} />
+                                  Configure
+                                </Button>
                               </div>
-                              <span className="text-[10px] text-[#434655] tabular-nums">
-                                {new Date(org.createdAt).toLocaleDateString(undefined, {
-                                  month: 'short',
-                                  day: 'numeric',
-                                })}
-                              </span>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       ) : (
-                        <p className="text-center text-xs text-[#434655] py-8">No organizations found</p>
+                        <p className="text-center text-xs text-[#434655] py-8">No trials expiring this week</p>
                       )}
                     </CardContent>
                   </Card>
@@ -332,7 +466,7 @@ export function AdminDashboardPage() {
                     <div className="px-6 pt-6 pb-2">
                       <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2">
                         <HugeiconsIcon icon={TrendingUpDownIcon} size={16} strokeWidth={1.5} className="text-[#006c49]" />
-                        Top Organizations by Volume
+                        Top Organizations by Collected Volume
                       </h3>
                     </div>
                     <CardContent className="px-6 pb-6">
@@ -465,91 +599,100 @@ export function AdminDashboardPage() {
                   </div>
                 ) : orgsData && orgsData.items.length > 0 ? (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">                      <thead>
-                          <tr className="bg-[#f8f9ff]/80 text-[10px] font-semibold uppercase tracking-wider text-[#434655] border-b border-[rgba(196,197,215,0.2)]">
-                            <th className="px-6 py-4">Organization</th>
-                            <th className="px-6 py-4">Plan &amp; Status</th>
-                            <th className="px-6 py-4">Usage</th>
-                            <th className="px-6 py-4">Date Joined</th>
-                            <th className="px-6 py-4 text-right">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[rgba(196,197,215,0.1)]">
-                          {orgsData.items.map((org, index) => (
-                            <tr
-                              key={org.id}
-                              className={`hover:bg-[#f8f9ff]/50 transition-colors ${
-                                index % 2 === 1 ? 'bg-slate-50/20' : ''
-                              }`}
-                            >
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-3">
-                                  <div className="h-9 w-9 bg-[#eef4ff] rounded-xl flex items-center justify-center font-semibold text-[#0037b0] select-none text-xs shrink-0">
-                                    {org.name.slice(0, 2).toUpperCase()}
-                                  </div>
-                                  <div>
-                                    <p className="text-sm font-medium text-[#121c28]">{org.name}</p>
-                                    <p className="text-[10px] text-[#434655]">{org.slug}</p>
-                                  </div>
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-[#f8f9ff]/80 text-[10px] font-semibold uppercase tracking-wider text-[#434655] border-b border-[rgba(196,197,215,0.2)]">
+                          <th className="px-6 py-4">Organization</th>
+                          <th className="px-6 py-4">Plan &amp; Status</th>
+                          <th className="px-6 py-4">Trial Status</th>
+                          <th className="px-6 py-4">Usage</th>
+                          <th className="px-6 py-4">Last Active</th>
+                          <th className="px-6 py-4">Date Joined</th>
+                          <th className="px-6 py-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[rgba(196,197,215,0.1)]">
+                        {orgsData.items.map((org, index) => (
+                          <tr
+                            key={org.id}
+                            className={`hover:bg-[#f8f9ff]/50 transition-colors ${
+                              index % 2 === 1 ? 'bg-slate-50/20' : ''
+                            }`}
+                          >
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="h-9 w-9 bg-[#eef4ff] rounded-xl flex items-center justify-center font-semibold text-[#0037b0] select-none text-xs shrink-0">
+                                  {org.name.slice(0, 2).toUpperCase()}
                                 </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="flex flex-col gap-1 items-start">
-                                  <Badge
-                                    variant={
-                                      org.planTier === 'BUSINESS' ? 'success' :
-                                      org.planTier === 'PRO' ? 'default' :
-                                      'secondary'
-                                    }
-                                    className="text-[9px] px-1.5 py-0"
-                                  >
-                                    {org.planTier}
-                                  </Badge>
-                                  <Badge
-                                    variant={
-                                      org.subscriptionStatus === 'ACTIVE' ? 'success' :
-                                      org.subscriptionStatus === 'TRIALING' ? 'warning' :
-                                      'destructive'
-                                    }
-                                    className="text-[8px] px-1 py-0 uppercase"
-                                  >
-                                    {org.subscriptionStatus}
-                                  </Badge>
+                                <div>
+                                  <p className="text-sm font-medium text-[#121c28]">{org.name}</p>
+                                  <p className="text-[10px] text-[#434655]">{org.slug}</p>
                                 </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="text-xs text-[#434655]">
-                                  <span className="font-medium text-[#121c28]">{org.userCount}</span> users &middot;{' '}
-                                  <span className="font-medium text-[#121c28]">{org.invoiceCount}</span> invoices
-                                </div>
-                                {org.isGrandfathered && (
-                                  <Badge variant="outline" className="text-[8px] px-1 py-0 mt-1 border-amber-300 text-amber-600 bg-amber-50/20">
-                                    Grandfathered
-                                  </Badge>
-                                )}
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className="text-xs text-[#434655] tabular-nums">
-                                  {new Date(org.createdAt).toLocaleDateString(undefined, {
-                                    year: 'numeric',
-                                    month: 'short',
-                                    day: 'numeric',
-                                  })}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 text-right">
-                                <Button
-                                  variant="outline"
-                                  onClick={() => setEditingOrgId(org.id)}
-                                  className="px-3 py-1.5 rounded-xl border border-[rgba(196,197,215,0.4)] hover:bg-[#eef4ff] hover:border-[#0037b0]/20 text-xs font-semibold flex items-center gap-1.5 ml-auto min-h-[36px] text-[#434655] hover:text-[#0037b0] transition-colors"
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex flex-col gap-1 items-start">
+                                <Badge
+                                  variant={
+                                    org.planTier === 'BUSINESS' ? 'success' :
+                                    org.planTier === 'PRO' ? 'default' :
+                                    'secondary'
+                                  }
+                                  className="text-[9px] px-1.5 py-0"
                                 >
-                                  <HugeiconsIcon icon={Settings02Icon} size={14} strokeWidth={1.5} />
-                                  Configure
-                                </Button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
+                                  {org.planTier}
+                                </Badge>
+                                <Badge
+                                  variant={
+                                    org.subscriptionStatus === 'ACTIVE' ? 'success' :
+                                    org.subscriptionStatus === 'TRIALING' ? 'warning' :
+                                    'destructive'
+                                  }
+                                  className="text-[8px] px-1 py-0 uppercase"
+                                >
+                                  {org.subscriptionStatus}
+                                </Badge>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <TrialStatusCell org={org} />
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="text-xs text-[#434655]">
+                                <span className="font-medium text-[#121c28]">{org.userCount}</span> users &middot;{' '}
+                                <span className="font-medium text-[#121c28]">{org.invoiceCount}</span> invoices
+                              </div>
+                              {org.isGrandfathered && (
+                                <Badge variant="outline" className="text-[8px] px-1 py-0 mt-1 border-amber-300 text-amber-600 bg-amber-50/20">
+                                  Grandfathered
+                                </Badge>
+                              )}
+                            </td>
+                            <td className="px-6 py-4">
+                              <LastActiveIndicator dateString={org.lastInvoiceAt} />
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="text-xs text-[#434655] tabular-nums">
+                                {new Date(org.createdAt).toLocaleDateString(undefined, {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <Button
+                                variant="outline"
+                                onClick={() => setEditingOrgId(org.id)}
+                                className="px-3 py-1.5 rounded-xl border border-[rgba(196,197,215,0.4)] hover:bg-[#eef4ff] hover:border-[#0037b0]/20 text-xs font-semibold flex items-center gap-1.5 ml-auto min-h-[36px] text-[#434655] hover:text-[#0037b0] transition-colors"
+                              >
+                                <HugeiconsIcon icon={Settings02Icon} size={14} strokeWidth={1.5} />
+                                Configure
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
                     </table>
                   </div>
                 ) : (
@@ -567,7 +710,7 @@ export function AdminDashboardPage() {
                         <>
                           Showing{' '}
                           <span className="font-semibold text-[#121c28]">
-                            {(page - 1) * 20 + 1}–{Math.min(page * 20, orgsData.meta.total)}
+                            {(page - 1) * limit + 1}–{Math.min(page * limit, orgsData.meta.total)}
                           </span>{' '}
                           of{' '}
                           <span className="font-semibold text-[#121c28]">{orgsData.meta.total}</span>{' '}
@@ -618,15 +761,15 @@ export function AdminDashboardPage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.12)] rounded-3xl bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white">
                     <CardContent className="p-6">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#93c5fd]">
-                        Total SaaS Revenue
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#bfdbfe]">
+                        MRR
                       </p>
                       <p className="mt-2 text-3xl font-bold tracking-tight text-white">
-                        {formatCurrency(dashboardData.subscriptions.revenue)}
+                        {formatCurrency(dashboardData.subscriptions.revenueCurrentMonth)}
                       </p>
                       <div className="mt-4 flex items-center gap-1.5 text-[10px] font-semibold text-[#bfdbfe]">
-                        <HugeiconsIcon icon={TrendingUpDownIcon} size={14} strokeWidth={2} />
-                        Recurring subscription income
+                        <MoMBadge value={dashboardData.subscriptions.revenueChangePct} />
+                        <span>vs prior month ({formatCurrency(dashboardData.subscriptions.revenuePreviousMonth)})</span>
                       </div>
                     </CardContent>
                   </Card>
@@ -634,14 +777,14 @@ export function AdminDashboardPage() {
                   <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white">
                     <CardContent className="p-6">
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655]">
-                        SaaS Revenue vs Last Month
+                        All-Time SaaS Revenue
                       </p>
                       <p className="mt-2 text-2xl font-bold tracking-tight text-[#121c28]">
-                        {formatCurrency(dashboardData.subscriptions.revenueCurrentMonth)}
+                        {formatCurrency(dashboardData.subscriptions.revenue)}
                       </p>
-                      <div className="mt-2 flex items-center gap-1.5">
-                        <MoMBadge value={dashboardData.subscriptions.revenueChangePct} />
-                        <span className="text-[10px] text-[#434655]">vs prior month ({formatCurrency(dashboardData.subscriptions.revenuePreviousMonth)})</span>
+                      <div className="mt-4 flex items-center gap-1.5 text-[10px] text-[#434655]">
+                        <HugeiconsIcon icon={TrendingUpDownIcon} size={14} strokeWidth={2} className="text-[#0037b0]" />
+                        Total subscription income collected
                       </div>
                     </CardContent>
                   </Card>
@@ -663,18 +806,26 @@ export function AdminDashboardPage() {
                         )
                         const pct = total > 0 ? (count / total) * 100 : 0
                         return (
-                          <div key={plan} className="space-y-1">
+                          <div key={plan} className="space-y-1.5">
                             <div className="flex items-center justify-between text-xs">
-                              <Badge
-                                variant={
-                                  plan === 'BUSINESS' ? 'success' :
-                                  plan === 'PRO' ? 'default' :
-                                  'secondary'
-                                }
-                                className="text-[9px] px-1.5 py-0"
-                              >
-                                {plan}
-                              </Badge>
+                              <div className="flex items-center gap-2">
+                                <Badge
+                                  variant={
+                                    plan === 'BUSINESS' ? 'success' :
+                                    plan === 'PRO' ? 'default' :
+                                    'secondary'
+                                  }
+                                  className="text-[9px] px-1.5 py-0"
+                                >
+                                  {plan}
+                                </Badge>
+                                {plan !== 'FREE' && (
+                                  <span className="text-[10px] text-[#434655] font-semibold">
+                                    {dashboardData.subscriptions.byPlanStatus[plan]?.ACTIVE || 0} paying &middot;{' '}
+                                    {dashboardData.subscriptions.byPlanStatus[plan]?.TRIALING || 0} trialing
+                                  </span>
+                                )}
+                              </div>
                               <span className="font-bold text-slate-700">
                                 {count} orgs ({pct.toFixed(1)}%)
                               </span>
@@ -742,45 +893,108 @@ export function AdminDashboardPage() {
                   </Card>
                 </div>
 
-                {/* Invoices Volume by Status */}
-                <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white overflow-hidden">
-                  <div className="px-6 pt-6 pb-2">
-                    <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2">
-                      <HugeiconsIcon icon={Invoice03Icon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />
-                      Invoice Billing Volume by Status
-                    </h3>
-                  </div>
-                  <CardContent className="px-6 pb-6">
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                      {Object.entries(dashboardData.invoices).map(([status, info]) => (
-                        <div
-                          key={status}
-                          className="p-4 bg-[#f8f9ff] rounded-2xl flex flex-col justify-between"
-                        >
-                          <div className="flex items-center justify-between">
-                            <Badge
-                              variant={
-                                status === 'PAID' ? 'success' :
-                                status === 'OVERDUE' ? 'destructive' :
-                                status === 'DRAFT' ? 'secondary' :
-                                'default'
-                              }
-                              className="text-[9px] px-1.5 py-0"
-                            >
-                              {status.replace('_', ' ')}
-                            </Badge>
-                            <span className="text-[10px] font-bold text-slate-400">
-                              {info.count} count
-                            </span>
-                          </div>
-                          <p className="text-lg font-bold text-[#121c28] mt-3">
-                            {formatCurrency(info.total)}
-                          </p>
-                        </div>
-                      ))}
+                <div className="grid gap-6 lg:grid-cols-2">
+                  {/* Revenue at Risk Panel */}
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white overflow-hidden">
+                    <div className="px-6 pt-6 pb-2 flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2">
+                        <span role="img" aria-label="warning" className="text-red-500">⚠️</span>
+                        Revenue at Risk (Past Due Tenants)
+                      </h3>
+                      {pastDueOrgsData && (
+                        <Badge variant="destructive" className="text-[9px] px-1.5 py-0 border-0 bg-red-50 text-[#ba1a1a]">
+                          {pastDueOrgsData.items.length} past due
+                        </Badge>
+                      )}
                     </div>
-                  </CardContent>
-                </Card>
+                    <CardContent className="px-6 pb-6">
+                      {pastDueOrgsData && pastDueOrgsData.items.length > 0 ? (
+                        <div className="space-y-1.5 max-h-[300px] overflow-y-auto scrollbar-none">
+                          {pastDueOrgsData.items.map((org, idx) => (
+                            <div
+                              key={org.id}
+                              className={`flex items-center justify-between px-3 py-2.5 rounded-xl ${
+                                idx % 2 === 0 ? 'bg-[#f8f9ff]/80' : 'bg-white'
+                              }`}
+                            >
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-medium text-[#121c28]">{org.name}</p>
+                                  <Badge
+                                    variant={
+                                      org.planTier === 'BUSINESS' ? 'success' :
+                                      org.planTier === 'PRO' ? 'default' :
+                                      'secondary'
+                                    }
+                                    className="text-[9px] px-1.5 py-0"
+                                  >
+                                    {org.planTier}
+                                  </Badge>
+                                </div>
+                                <p className="text-[10px] text-[#434655] mt-0.5">
+                                  {org.userCount} users &middot; {org.invoiceCount} invoices
+                                </p>
+                              </div>
+                              <Button
+                                variant="outline"
+                                onClick={() => setEditingOrgId(org.id)}
+                                className="px-2.5 py-1 rounded-lg border border-[rgba(196,197,215,0.4)] hover:bg-[#eef4ff] text-[10px] font-semibold flex items-center gap-1 cursor-pointer min-h-[30px] text-[#434655] hover:text-[#ba1a1a]"
+                              >
+                                <HugeiconsIcon icon={Settings02Icon} size={10} strokeWidth={2} />
+                                Resolve
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-12 text-[#c4c5d7]">
+                          <span role="img" aria-label="success" className="text-2xl mb-1">✅</span>
+                          <p className="text-xs text-[#434655] font-semibold">Zero revenue currently at risk</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Invoices Volume by Status */}
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white overflow-hidden">
+                    <div className="px-6 pt-6 pb-2">
+                      <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2">
+                        <HugeiconsIcon icon={Invoice03Icon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />
+                        Invoice Billing Volume by Status
+                      </h3>
+                    </div>
+                    <CardContent className="px-6 pb-6">
+                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
+                        {Object.entries(dashboardData.invoices).map(([status, info]) => (
+                          <div
+                            key={status}
+                            className="p-4 bg-[#f8f9ff] rounded-2xl flex flex-col justify-between"
+                          >
+                            <div className="flex items-center justify-between">
+                              <Badge
+                                variant={
+                                  status === 'PAID' ? 'success' :
+                                  status === 'OVERDUE' ? 'destructive' :
+                                  status === 'DRAFT' ? 'secondary' :
+                                  'default'
+                                }
+                                className="text-[9px] px-1.5 py-0"
+                              >
+                                {status.replace('_', ' ')}
+                              </Badge>
+                              <span className="text-[10px] font-bold text-slate-400">
+                                {info.count} count
+                              </span>
+                            </div>
+                            <p className="text-lg font-bold text-[#121c28] mt-3">
+                              {formatCurrency(info.total)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
             ) : null}
           </>

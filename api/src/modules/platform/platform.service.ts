@@ -26,6 +26,14 @@ export class PlatformService {
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
 
+    // Health metric boundaries
+    const nextWeek = new Date(now);
+    nextWeek.setDate(now.getDate() + 7);
+    const nextMonth = new Date(now);
+    nextMonth.setDate(now.getDate() + 30);
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(now.getDate() - 30);
+
     const [
       totalOrgs,
       newOrgsThisWeek,
@@ -48,6 +56,15 @@ export class PlatformService {
       lastMonthFeesResult,
       currentMonthSubRevenueResult,
       lastMonthSubRevenueResult,
+      // ── New health metrics ──
+      trialsExpiringThisWeekList,
+      trialsExpiringThisMonthCount,
+      monthlyActiveTenantsCount,
+      paidGmvResult,
+      currentMonthPaidGmvResult,
+      lastMonthPaidGmvResult,
+      cancelledOrgsCount,
+      orgsPlanStatusGroup,
     ] = await Promise.all([
       // Total organizations
       this.prisma.organization.count(),
@@ -104,6 +121,7 @@ export class PlatformService {
           planTier: true,
           subscriptionStatus: true,
           isGrandfathered: true,
+          trialEndDate: true,
           _count: {
             select: { users: true, invoices: true },
           },
@@ -139,7 +157,7 @@ export class PlatformService {
         FROM organizations o
         LEFT JOIN users u ON u.organization_id = o.id
         LEFT JOIN invoices i ON i.organization_id = o.id
-          AND i.status NOT IN ('CANCELLED')
+          AND i.status = 'PAID'
           AND i.deleted_at IS NULL
         GROUP BY o.id, o.name, o.slug, o.created_at, o.plan_tier, o.subscription_status, o.is_grandfathered
         ORDER BY volume DESC
@@ -205,7 +223,7 @@ export class PlatformService {
         where: { createdAt: { gte: startOfLastMonth, lte: endOfLastMonth } },
       }),
 
-      // Current month subscription payments
+      // Current month subscription payments (MRR proxy)
       this.prisma.subscriptionPayment.aggregate({
         _sum: { amount: true },
         where: { createdAt: { gte: startOfCurrentMonth } },
@@ -215,6 +233,85 @@ export class PlatformService {
       this.prisma.subscriptionPayment.aggregate({
         _sum: { amount: true },
         where: { createdAt: { gte: startOfLastMonth, lte: endOfLastMonth } },
+      }),
+
+      // ── Health metrics ──
+
+      // Trials expiring this week (action list)
+      this.prisma.organization.findMany({
+        where: {
+          subscriptionStatus: 'TRIALING',
+          trialEndDate: { gte: now, lte: nextWeek },
+        },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          planTier: true,
+          trialStartDate: true,
+          trialEndDate: true,
+          _count: { select: { users: true, invoices: true } },
+        },
+        orderBy: { trialEndDate: 'asc' },
+      }),
+
+      // Trials expiring this month (count for alert)
+      this.prisma.organization.count({
+        where: {
+          subscriptionStatus: 'TRIALING',
+          trialEndDate: { gte: now, lte: nextMonth },
+        },
+      }),
+
+      // Monthly Active Tenants — orgs with at least 1 invoice in the last 30 days
+      this.prisma.organization.count({
+        where: {
+          invoices: {
+            some: {
+              createdAt: { gte: thirtyDaysAgo },
+              deletedAt: null,
+            },
+          },
+        },
+      }),
+
+      // Collected GMV — PAID invoices only (all-time)
+      this.prisma.invoice.aggregate({
+        _sum: { total: true },
+        where: { status: 'PAID', deletedAt: null },
+      }),
+
+      // Current month collected GMV
+      this.prisma.invoice.aggregate({
+        _sum: { total: true },
+        where: {
+          status: 'PAID',
+          deletedAt: null,
+          createdAt: { gte: startOfCurrentMonth },
+        },
+      }),
+
+      // Last month collected GMV
+      this.prisma.invoice.aggregate({
+        _sum: { total: true },
+        where: {
+          status: 'PAID',
+          deletedAt: null,
+          createdAt: { gte: startOfLastMonth, lte: endOfLastMonth },
+        },
+      }),
+
+      // Churned orgs (CANCELLED + EXPIRED)
+      this.prisma.organization.count({
+        where: {
+          subscriptionStatus: { in: ['CANCELLED', 'EXPIRED'] },
+        },
+      }),
+
+      // Joint plan and status grouping for detailed breakdown
+      this.prisma.organization.groupBy({
+        by: ['planTier', 'subscriptionStatus'],
+        _count: { id: true },
       }),
     ]);
 
@@ -248,6 +345,21 @@ export class PlatformService {
       }
     }
 
+    const byPlanStatus: Record<string, { TRIALING: number; ACTIVE: number; CANCELLED: number; EXPIRED: number }> = {
+      FREE: { TRIALING: 0, ACTIVE: 0, CANCELLED: 0, EXPIRED: 0 },
+      STARTER: { TRIALING: 0, ACTIVE: 0, CANCELLED: 0, EXPIRED: 0 },
+      PRO: { TRIALING: 0, ACTIVE: 0, CANCELLED: 0, EXPIRED: 0 },
+      BUSINESS: { TRIALING: 0, ACTIVE: 0, CANCELLED: 0, EXPIRED: 0 },
+    };
+
+    for (const item of orgsPlanStatusGroup) {
+      const plan = item.planTier;
+      const status = item.subscriptionStatus;
+      if (plan in byPlanStatus && status in byPlanStatus[plan as keyof typeof byPlanStatus]) {
+        byPlanStatus[plan as keyof typeof byPlanStatus][status as 'TRIALING' | 'ACTIVE' | 'CANCELLED' | 'EXPIRED'] = item._count.id;
+      }
+    }
+
     // Process invoice status breakdown
     const invoiceStatusBreakdown = invoicesByStatus.reduce(
       (acc, item) => {
@@ -273,6 +385,21 @@ export class PlatformService {
     const curMonthSubs = Number(currentMonthSubRevenueResult._sum.amount) || 0;
     const prevMonthSubs = Number(lastMonthSubRevenueResult._sum.amount) || 0;
     const subsMoMChange = this.calculateMoMChange(curMonthSubs, prevMonthSubs);
+
+    // Health metric computations
+    const activePayingOrgs = byStatus.ACTIVE;
+    const trialConversionRate = totalOrgs > 0
+      ? Number(((activePayingOrgs / totalOrgs) * 100).toFixed(1))
+      : 0;
+
+    const monthlyActiveTenantsRate = totalOrgs > 0
+      ? Number(((monthlyActiveTenantsCount / totalOrgs) * 100).toFixed(1))
+      : 0;
+
+    const collectedGmv = Number(paidGmvResult._sum.total) || 0;
+    const curMonthCollectedGmv = Number(currentMonthPaidGmvResult._sum.total) || 0;
+    const prevMonthCollectedGmv = Number(lastMonthPaidGmvResult._sum.total) || 0;
+    const collectedGmvChangePct = this.calculateMoMChange(curMonthCollectedGmv, prevMonthCollectedGmv);
 
     return {
       organizations: {
@@ -301,11 +428,39 @@ export class PlatformService {
       subscriptions: {
         byPlan,
         byStatus,
+        byPlanStatus,
         grandfathered: grandfatheredCount,
         revenue: Number(subscriptionRevenueResult._sum.amount) || 0,
         revenueCurrentMonth: curMonthSubs,
         revenuePreviousMonth: prevMonthSubs,
         revenueChangePct: subsMoMChange,
+      },
+      health: {
+        trialConversionRate,
+        monthlyActiveTenants: monthlyActiveTenantsCount,
+        monthlyActiveTenantsRate,
+        trialsExpiringThisWeek: trialsExpiringThisWeekList.length,
+        trialsExpiringThisMonth: trialsExpiringThisMonthCount,
+        churnedOrgs: cancelledOrgsCount,
+        collectedGmv,
+        collectedGmvCurrentMonth: curMonthCollectedGmv,
+        collectedGmvPreviousMonth: prevMonthCollectedGmv,
+        collectedGmvChangePct,
+        trialsExpiringSoon: trialsExpiringThisWeekList.map((org) => {
+          const daysRemaining = org.trialEndDate
+            ? Math.floor((new Date(org.trialEndDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+            : null;
+          return {
+            id: org.id,
+            name: org.name,
+            slug: org.slug,
+            planTier: org.planTier,
+            trialEndDate: org.trialEndDate,
+            daysRemaining,
+            userCount: org._count.users,
+            invoiceCount: org._count.invoices,
+          };
+        }),
       },
       recentSignups: recentSignups.map((org) => ({
         id: org.id,
@@ -317,6 +472,7 @@ export class PlatformService {
         planTier: org.planTier,
         subscriptionStatus: org.subscriptionStatus,
         isGrandfathered: org.isGrandfathered,
+        trialEndDate: org.trialEndDate,
       })),
       topOrganizations: topOrgsByVolume,
     };
@@ -333,6 +489,7 @@ export class PlatformService {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 20;
     const skip = (page - 1) * limit;
+    const now = new Date();
 
     const where: any = {};
 
@@ -372,6 +529,9 @@ export class PlatformService {
           subscriptionStatus: true,
           isGrandfathered: true,
           platformFeePercent: true,
+          trialStartDate: true,
+          trialEndDate: true,
+          subscriptionStartDate: true,
           createdAt: true,
           _count: {
             select: {
@@ -379,17 +539,38 @@ export class PlatformService {
               invoices: true,
             },
           },
+          // Latest invoice date as "last active" proxy
+          invoices: {
+            select: { createdAt: true },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            where: { deletedAt: null },
+          },
         },
       }),
       this.prisma.organization.count({ where }),
     ]);
 
-    const formattedItems = items.map((org) => ({
-      ...org,
-      userCount: org._count.users,
-      invoiceCount: org._count.invoices,
-      platformFeePercent: Number(org.platformFeePercent),
-    }));
+    const formattedItems = items.map((org) => {
+      const daysInTrial = org.trialStartDate
+        ? Math.floor((now.getTime() - new Date(org.trialStartDate).getTime()) / (1000 * 60 * 60 * 24))
+        : null;
+      const trialDaysRemaining = org.trialEndDate
+        ? Math.floor((new Date(org.trialEndDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        : null;
+      const lastInvoiceAt = org.invoices[0]?.createdAt ?? null;
+
+      return {
+        ...org,
+        invoices: undefined, // strip the raw relation from response
+        userCount: org._count.users,
+        invoiceCount: org._count.invoices,
+        platformFeePercent: Number(org.platformFeePercent),
+        daysInTrial,
+        trialDaysRemaining,
+        lastInvoiceAt,
+      };
+    });
 
     return {
       items: formattedItems,
