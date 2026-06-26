@@ -58,13 +58,13 @@ const InfoIcon = () => (
 
 function MetricTooltip({ content }: { content: string }) {
   return (
-    <div className="group relative inline-block ml-1.5 align-middle select-none">
+    <div className="group relative inline-block ml-1.5 align-middle select-none hover:z-50">
       <InfoIcon />
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 scale-0 group-hover:scale-100 transition-all origin-bottom z-50 pointer-events-none">
-        <div className="bg-white/95 backdrop-blur-md border border-[rgba(196,197,215,0.25)] shadow-[0px_8px_24px_rgba(0,55,176,0.08)] rounded-xl p-2.5 text-[10px] text-slate-600 font-normal leading-normal whitespace-normal break-words normal-case">
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 w-48 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none">
+        <div className="bg-white border border-slate-200 shadow-[0px_8px_24px_rgba(0,55,176,0.08)] rounded-xl p-2.5 text-[10px] text-[#434655] font-normal leading-normal whitespace-normal break-words normal-case">
           {content}
         </div>
-        <div className="w-2 h-2 bg-white/95 backdrop-blur-md border-r border-b border-[rgba(196,197,215,0.25)] rotate-45 absolute top-full left-1/2 -translate-x-1/2 -translate-y-1" />
+        <div className="w-2 h-2 bg-white border-r border-b border-slate-200 rotate-45 absolute top-full left-1/2 -translate-x-1/2 -translate-y-1" />
       </div>
     </div>
   )
@@ -1079,7 +1079,7 @@ export function AdminDashboardPage() {
 
                 <div className="grid gap-6 lg:grid-cols-2">
                   {/* Revenue at Risk Panel */}
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white overflow-hidden">
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white">
                     <div className="px-6 pt-6 pb-2 flex items-center justify-between">
                       <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2">
                         <span role="img" aria-label="warning" className="text-red-500">⚠️</span>
