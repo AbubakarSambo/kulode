@@ -26,15 +26,6 @@ import {
   MoreVerticalIcon,
 } from '@hugeicons/core-free-icons'
 
-function MailIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="4" width="20" height="16" rx="2" />
-      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-    </svg>
-  )
-}
-
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -382,12 +373,13 @@ export function InvoiceDetailPage() {
       }
     }
 
+    const clientFirstName = invoice.client?.name ? invoice.client.name.split(' ')[0] : null
+    const greeting = clientFirstName ? `Hi ${clientFirstName} 👋` : `Hi there 👋`
     const orgName = organization?.name || 'Us'
-    const dueStr = invoice.dueDate ? formatDate(invoice.dueDate) : 'soon'
-    const clientGreeting = invoice.client?.name ? `Hi ${invoice.client.name.split(' ')[0]}` : 'Hi there'
+    const dueStr = invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'soon'
 
     const lines = [
-      `${clientGreeting} 👋`,
+      greeting,
       ``,
       `Please find your invoice from *${orgName}* below:`,
       ``,
@@ -506,7 +498,7 @@ export function InvoiceDetailPage() {
           <p className="text-[11px] text-slate-400 mt-1">Corporate Invoice</p>
         </div>
         <div className="sm:text-right">
-          <span className="text-[9px] font-bold uppercase tracking-widest text-[#0037b0] bg-[#0037b0]/5 px-2.5 py-1 rounded-md">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-[#0037b0] bg-[#0037b0]/5 px-2.5 py-1 rounded-md">
             INVOICE
           </span>
           <h1 className="text-lg font-bold tracking-tight text-slate-900 mt-2">{invoice.invoiceNumber}</h1>
@@ -516,7 +508,7 @@ export function InvoiceDetailPage() {
       {/* Bilateral Details Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
         <div className="bg-background/50 p-4.5 rounded-2xl border border-[#eef4ff]/30">
-          <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 block mb-2">Billed To</span>
+          <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 block mb-2">Billed To</span>
           <Link to={`/clients/${invoice.client.id}`} className="text-sm font-bold text-[#0037b0] hover:underline block truncate max-w-[280px]">
             {invoice.client.name}
           </Link>
@@ -529,11 +521,11 @@ export function InvoiceDetailPage() {
         </div>
         <div className="bg-background/50 p-4.5 rounded-2xl border border-[#eef4ff]/30 sm:text-right flex flex-col justify-between gap-3">
           <div>
-            <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 block mb-0.5">Issue Date</span>
+            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 block mb-0.5">Issue Date</span>
             <span className="text-xs font-bold text-slate-750">{formatDate(invoice.issueDate)}</span>
           </div>
           <div>
-            <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 block mb-0.5">Due Date</span>
+            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 block mb-0.5">Due Date</span>
             <span className="text-xs font-bold text-rose-600">{formatDate(invoice.dueDate)}</span>
           </div>
         </div>
@@ -573,7 +565,7 @@ export function InvoiceDetailPage() {
 
         {/* Mobile Vertical List View (Fits large text / prices with NO horizontal scroll) */}
         <div className="block sm:hidden space-y-3.5 pb-4">
-          <p className="text-[9px] font-bold tracking-widest text-slate-450 uppercase mb-2">Invoice Items</p>
+          <p className="text-[11px] font-bold tracking-widest text-slate-450 uppercase mb-2">Invoice Items</p>
           {invoice.items.map((item, index) => (
             <div 
               key={index}
@@ -636,7 +628,7 @@ export function InvoiceDetailPage() {
       {/* Notes */}
       {invoice.notes && (
         <div className="border-t border-[#eef4ff]/30 pt-4 mt-8">
-          <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Notes</p>
+          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Notes</p>
           <p className="mt-2 text-xs font-medium text-slate-600 leading-relaxed bg-background/50 p-4 rounded-xl border border-[#eef4ff]/30">{invoice.notes}</p>
         </div>
       )}
@@ -690,7 +682,7 @@ export function InvoiceDetailPage() {
                 className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors text-xs font-semibold"
               >
                 <WhatsAppIcon className="mr-2 h-4 w-4" />
-                Share
+                Send via WhatsApp
               </Button>
             )}
 
@@ -814,7 +806,7 @@ export function InvoiceDetailPage() {
         }
       />
 
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
+      <div className="flex-1 overflow-y-auto [webkit-overflow-scrolling:touch] p-4 pb-32 sm:p-6">
         <div className="mx-auto max-w-7xl">
           {/* Mobile Back Navigation & Actions Header */}
           <div className="flex items-center justify-between mb-4 sm:hidden relative z-30">
@@ -992,11 +984,11 @@ export function InvoiceDetailPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-background/50 p-4 rounded-2xl border border-[#eef4ff]/30">
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Total Billed</span>
+                    <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Total Billed</span>
                     <p className="text-sm font-bold text-slate-700 mt-1 tabular-nums">{formatCurrency(invoice.total)}</p>
                   </div>
                   <div className="bg-background/50 p-4 rounded-2xl border border-[#eef4ff]/30">
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Paid To Date</span>
+                    <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Paid To Date</span>
                     <p className="text-sm font-bold text-emerald-600 mt-1 tabular-nums">{formatCurrency(invoice.amountPaid)}</p>
                   </div>
                 </div>
@@ -1042,7 +1034,7 @@ export function InvoiceDetailPage() {
                   outstanding > 0 ? "bg-rose-50/20 text-rose-950" : "bg-emerald-50/20 text-emerald-950"
                 )}>
                   <div>
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Balance Due</span>
+                    <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Balance Due</span>
                     <p className="text-base font-bold tracking-tight mt-0.5 tabular-nums">{formatCurrency(outstanding)}</p>
                   </div>
                   {renderStatusPill(invoice.status)}
@@ -1148,37 +1140,54 @@ export function InvoiceDetailPage() {
             </div>
           )}
 
-          {/* Action: Send via Email */}
-          {!isExpired && (
+          {/* Action: Mark as Sent */}
+          {!isExpired && canSend && (
             <div className="flex items-center gap-2.5">
               <span className="bg-slate-900/80 text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-sm">
-                Send Email
+                Mark as Sent
               </span>
               <button 
                 onClick={() => {
                   setIsFabMenuOpen(false)
                   sendMutation.mutate()
                 }} 
-                className="w-11 h-11 rounded-full bg-[#0037b0] text-white flex items-center justify-center shadow-md active:scale-95 transition-transform cursor-pointer"
-                aria-label="Send via Email"
+                className="w-11 h-11 rounded-full bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-md active:scale-95 transition-transform cursor-pointer border-0"
+                aria-label="Mark as Sent"
               >
-                <MailIcon className="h-4.5 w-4.5" />
+                <HugeiconsIcon icon={SentIcon} size={18} strokeWidth={1.5} />
               </button>
             </div>
           )}
 
+          {/* Action: Download PDF */}
+          <div className="flex items-center gap-2.5">
+            <span className="bg-slate-900/80 text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-sm">
+              Download PDF
+            </span>
+            <button 
+              onClick={() => {
+                setIsFabMenuOpen(false)
+                downloadPdf()
+              }} 
+              className="w-11 h-11 rounded-full bg-slate-800 text-white flex items-center justify-center shadow-md active:scale-95 transition-transform cursor-pointer border-0"
+              aria-label="Download PDF"
+            >
+              <HugeiconsIcon icon={Download02Icon} size={16} strokeWidth={1.5} />
+            </button>
+          </div>
+
           {/* Action: Share via WhatsApp */}
           <div className="flex items-center gap-2.5">
             <span className="bg-slate-900/80 text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-sm">
-              WhatsApp Link
+              Send via WhatsApp
             </span>
             <button 
               onClick={() => {
                 setIsFabMenuOpen(false)
                 shareWhatsApp()
               }} 
-              className="w-11 h-11 rounded-full bg-[#25D366] text-white flex items-center justify-center shadow-md active:scale-95 transition-transform cursor-pointer"
-              aria-label="WhatsApp Link"
+              className="w-11 h-11 rounded-full bg-[#25D366] text-white flex items-center justify-center shadow-md active:scale-95 transition-transform cursor-pointer border-0"
+              aria-label="Send via WhatsApp"
             >
               <WhatsAppIcon className="h-4.5 w-4.5" />
             </button>

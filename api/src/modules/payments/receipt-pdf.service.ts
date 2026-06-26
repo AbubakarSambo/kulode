@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as PDFDocument from 'pdfkit';
+import * as https from 'https';
+import * as http from 'http';
 
 interface ReceiptData {
   receiptNumber: string;
@@ -23,12 +25,22 @@ interface ReceiptData {
     email?: string | null;
     phone?: string | null;
     address?: string | null;
+    logo?: string | null;
   };
 }
 
 @Injectable()
 export class ReceiptPdfService {
   async generatePdf(receipt: ReceiptData): Promise<Buffer> {
+    let logoBuffer: Buffer | null = null;
+    if (receipt.organization.logo) {
+      try {
+        logoBuffer = await this.fetchImageBuffer(receipt.organization.logo);
+      } catch (err) {
+        console.error('Failed to fetch organization logo image in Receipt PDF service:', err);
+      }
+    }
+
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({
         size: 'A4',
@@ -50,26 +62,35 @@ export class ReceiptPdfService {
       const mutedColor = '#64748b';
       const successColor = '#10b981';
 
-      // Header - Organization info
+      // Header - Logo + Organization info (left side)
+      let orgY = 50;
+      if (logoBuffer) {
+        doc.image(logoBuffer, 50, orgY, { fit: [120, 40] });
+        orgY += 50;
+      }
+
       doc
         .fillColor(primaryColor)
-        .fontSize(24)
+        .fontSize(logoBuffer ? 13 : 24)
         .font('Helvetica-Bold')
-        .text(receipt.organization.name, 50, 50, { width: 260, lineBreak: true });
+        .text(receipt.organization.name, 50, orgY, { width: 260, lineBreak: true });
+
+      orgY += logoBuffer ? 18 : 28;
 
       doc.fillColor(mutedColor).fontSize(10).font('Helvetica');
 
-      let yPos = doc.y + 6;
       if (receipt.organization.email) {
-        doc.text(receipt.organization.email, 50, yPos, { width: 260 });
-        yPos += 14;
+        doc.text(receipt.organization.email, 50, orgY, { width: 260 });
+        orgY += 14;
       }
       if (receipt.organization.phone) {
-        doc.text(receipt.organization.phone, 50, yPos, { width: 260 });
-        yPos += 14;
+        doc.text(receipt.organization.phone, 50, orgY, { width: 260 });
+        orgY += 14;
       }
       if (receipt.organization.address) {
-        doc.text(receipt.organization.address, 50, yPos, { width: 260 });
+        const addrHeight = doc.heightOfString(receipt.organization.address, { width: 260 });
+        doc.text(receipt.organization.address, 50, orgY, { width: 260 });
+        orgY += addrHeight;
       }
 
       // Receipt title (right-aligned in box from 345 to 545)
@@ -93,11 +114,12 @@ export class ReceiptPdfService {
         .text('PAID', 345, 96, { align: 'right', width: 200 });
 
       // Divider
+      const dividerY = Math.max(orgY + 15, 150);
       doc
         .strokeColor('#e2e8f0')
         .lineWidth(1)
-        .moveTo(50, 150)
-        .lineTo(545, 150)
+        .moveTo(50, dividerY)
+        .lineTo(545, dividerY)
         .stroke();
 
       // Received From section
@@ -105,27 +127,29 @@ export class ReceiptPdfService {
         .fillColor(mutedColor)
         .fontSize(10)
         .font('Helvetica-Bold')
-        .text('RECEIVED FROM', 50, 170);
+        .text('RECEIVED FROM', 50, dividerY + 20);
 
       doc
         .fillColor(textColor)
         .fontSize(12)
         .font('Helvetica-Bold')
-        .text(receipt.client.name, 50, 188);
+        .text(receipt.client.name, 50, dividerY + 38);
 
       doc.fillColor(mutedColor).fontSize(10).font('Helvetica');
 
-      yPos = 205;
+      let clientDetailsY = dividerY + 55;
       if (receipt.client.email) {
-        doc.text(receipt.client.email, 50, yPos);
-        yPos += 14;
+        doc.text(receipt.client.email, 50, clientDetailsY);
+        clientDetailsY += 14;
       }
       if (receipt.client.phone) {
-        doc.text(receipt.client.phone, 50, yPos);
-        yPos += 14;
+        doc.text(receipt.client.phone, 50, clientDetailsY);
+        clientDetailsY += 14;
       }
       if (receipt.client.address) {
-        doc.text(receipt.client.address, 50, yPos, { width: 200 });
+        const addrHeight = doc.heightOfString(receipt.client.address, { width: 200 });
+        doc.text(receipt.client.address, 50, clientDetailsY, { width: 200 });
+        clientDetailsY += addrHeight;
       }
 
       // Payment details
@@ -133,18 +157,18 @@ export class ReceiptPdfService {
         .fillColor(mutedColor)
         .fontSize(10)
         .font('Helvetica-Bold')
-        .text('PAYMENT DATE', 350, 170)
-        .text('PAYMENT METHOD', 450, 170);
+        .text('PAYMENT DATE', 350, dividerY + 20)
+        .text('PAYMENT METHOD', 450, dividerY + 20);
 
       doc
         .fillColor(textColor)
         .fontSize(10)
         .font('Helvetica')
-        .text(this.formatDate(receipt.paymentDate), 350, 188)
-        .text(receipt.paymentMethod.replace('_', ' '), 450, 188);
+        .text(this.formatDate(receipt.paymentDate), 350, dividerY + 38)
+        .text(receipt.paymentMethod.replace('_', ' '), 450, dividerY + 38);
 
       // Payment details box
-      const boxY = 280;
+      const boxY = Math.max(clientDetailsY + 25, dividerY + 130);
       const boxHeight = 140;
 
       // Box background
@@ -274,5 +298,17 @@ export class ReceiptPdfService {
       maximumFractionDigits: 2,
     }).format(num);
     return `NGN ${formatted}`;
+  }
+
+  private fetchImageBuffer(url: string): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const client = url.startsWith('https') ? https : http;
+      client.get(url, (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk) => chunks.push(chunk));
+        res.on('end', () => resolve(Buffer.concat(chunks)));
+        res.on('error', reject);
+      }).on('error', reject);
+    });
   }
 }

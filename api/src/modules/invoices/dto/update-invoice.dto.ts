@@ -7,6 +7,7 @@ import {
   ValidateNested,
   IsNumber,
   Min,
+  Max,
   IsOptional,
   IsIn,
   ArrayMinSize,
@@ -80,6 +81,14 @@ export class UpdateInvoiceDto {
   @IsNumber()
   @Min(0)
   discountPercent?: number;
+
+  @ApiPropertyOptional({ example: 7.5, description: 'Custom tax rate percentage (0-100)' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  taxRate?: number;
+
 
   @ApiPropertyOptional({ example: 'Thank you for your business!' })
   @IsOptional()

@@ -94,6 +94,14 @@ export class CreateInvoiceDto {
   @Min(0)
   discountPercent?: number;
 
+  @ApiPropertyOptional({ example: 7.5, description: 'Custom tax rate percentage (0-100)' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  taxRate?: number;
+
+
   @ApiPropertyOptional({ 
     type: [CreateInstallmentDto],
     description: 'Payment installments. If provided, percentages must add up to 100.',
