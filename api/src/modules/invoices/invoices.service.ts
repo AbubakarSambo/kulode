@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ForbiddenException,
   ConflictException,
+  Logger,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
@@ -22,6 +23,7 @@ import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class InvoicesService {
+  private readonly logger = new Logger(InvoicesService.name);
   private readonly lastCheckedReferences = new Map<string, number>();
 
   constructor(
@@ -478,6 +480,10 @@ export class InvoicesService {
   async markAsSent(id: string, organizationId: string) {
     const invoice = await this.prisma.invoice.findFirst({
       where: { id, organizationId, deletedAt: null },
+      include: {
+        client: { select: { name: true, email: true } },
+        organization: { select: { name: true } },
+      },
     });
 
     if (!invoice) {
@@ -492,6 +498,25 @@ export class InvoicesService {
       where: { id },
       data: { status: 'SENT' },
     });
+
+    if (invoice.client.email) {
+      const dueDate = invoice.dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+      const total = Number(invoice.total).toLocaleString('en-NG', { style: 'currency', currency: 'NGN' });
+
+      try {
+        await this.emailService.sendInvoiceEmail(
+          invoice.client.email,
+          invoice.client.name,
+          invoice.invoiceNumber,
+          invoice.organization.name,
+          total,
+          dueDate,
+          invoice.paymentUrl,
+        );
+      } catch (err) {
+        this.logger.error(`Failed to send invoice email for ${invoice.invoiceNumber}: ${err.message}`);
+      }
+    }
 
     return updated;
   }
