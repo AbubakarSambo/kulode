@@ -24,6 +24,8 @@ import {
   Sent02Icon,
   PlusSignIcon,
   Delete02Icon,
+  Settings02Icon,
+  ArrowDown01Icon,
 } from "@hugeicons/core-free-icons";
 import { WowCelebration } from "./WowCelebration";
 import { formatCurrency, cn, formatAmountInput, parseAmountInput } from "@/lib/utils";
@@ -177,8 +179,9 @@ export function WelcomeStepper() {
   });
   const [vatEnabled, setVatEnabled] = useState(() => {
     const saved = localStorage.getItem("tari1-onboarding-vatEnabled");
-    return saved !== null ? saved === "true" : false;
+    return saved !== null ? saved === "true" : true;
   });
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [taxRate, setTaxRate] = useState(() => {
     const saved = localStorage.getItem("tari1-onboarding-taxRate");
     return saved !== null ? Number(saved) : 7.5;
@@ -216,7 +219,7 @@ export function WelcomeStepper() {
   const [invoiceNotes, setInvoiceNotes] = useState(() => {
     return localStorage.getItem("tari1-onboarding-invoiceNotes") || "";
   });
-  const [sendEmail, setSendEmail] = useState(false);
+  const sendEmail = false;
   const [billingItems, setBillingItems] = useState<BillingItem[]>(() => {
     const saved = localStorage.getItem("tari1-onboarding-billingItems");
     if (saved) {
@@ -1065,7 +1068,7 @@ export function WelcomeStepper() {
 
   return (
     <div className="fixed inset-0 z-[9990] flex items-center justify-center p-1 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto overflow-x-hidden animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl sm:rounded-[24px] w-full max-w-xl shadow-[0_16px_48px_rgba(0,55,176,0.08)] flex flex-col overflow-hidden max-h-[96vh] sm:max-h-[92vh] font-sans antialiased text-slate-900 animate-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-2xl sm:rounded-[24px] w-full max-w-3xl shadow-[0_16px_48px_rgba(0,55,176,0.08)] flex flex-col overflow-hidden max-h-[96vh] sm:max-h-[92vh] font-sans antialiased text-slate-900 animate-in zoom-in-95 duration-200">
         
         {/* Header bar (no 1px lines, bg shift) */}
         <div className="px-4 sm:px-8 pt-8 pb-4 flex items-center justify-between bg-[#f8f9ff]/40 shrink-0">
@@ -1522,229 +1525,249 @@ export function WelcomeStepper() {
                           </div>
                         </div>
                       ))}
+                        {/* Collapsible Advanced Invoice Settings */}
+                    <div className="mt-4 border-t border-slate-200/40 pt-4 text-left">
+                      <button
+                        type="button"
+                        onClick={() => setShowAdvanced(!showAdvanced)}
+                        className="flex items-center justify-between w-full py-2.5 px-1 text-xs font-bold text-[#0037b0] hover:text-[#1d4ed8] cursor-pointer bg-transparent border-0 outline-none select-none transition-colors"
+                      >
+                        <span className="flex items-center gap-2">
+                          <HugeiconsIcon icon={Settings02Icon} size={15} />
+                          {showAdvanced ? "Hide Advanced Settings" : "Show Advanced Settings (VAT, Discount, Terms, Notes...)"}
+                        </span>
+                        <div className={`transition-transform duration-200 ${showAdvanced ? "rotate-180" : ""}`}>
+                          <HugeiconsIcon icon={ArrowDown01Icon} size={15} />
+                        </div>
+                      </button>
                     </div>
 
-                    {/* VAT Configuration Toggle */}
-                    <div className="p-3.5 bg-slate-50 border border-slate-200/40 rounded-xl flex items-center justify-between mt-4">
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          id="vatEnabledCheckbox"
-                          checked={vatEnabled}
-                          onChange={(e) => setVatEnabled(e.target.checked)}
-                          className="w-4 h-4 rounded text-[#0037b0] border-[#c4c5d7]/60 focus:ring-[#0037b0] cursor-pointer"
-                        />
-                        <label htmlFor="vatEnabledCheckbox" className="text-xs font-bold text-slate-800 cursor-pointer select-none">
-                          Apply VAT (7.5%) to this invoice & save as default
-                        </label>
-                      </div>
-                      {vatEnabled && (
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold animate-in fade-in duration-200">
-                          <span>Rate:</span>
-                          <input
-                            type="number"
-                            value={taxRate}
-                            inputMode="decimal"
-                            onChange={(e) => setTaxRate(Number(e.target.value))}
-                            className="w-12 h-7 px-1.5 text-center bg-white border border-[#c4c5d7]/40 rounded-md font-bold text-[#0037b0]"
-                          />
-                          <span>%</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Discount Configuration */}
-                    <div className="p-3.5 bg-slate-50 border border-slate-200/40 rounded-xl mt-3 flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-800">Add Discount</span>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min="0"
-                          placeholder="0"
-                          inputMode="decimal"
-                          value={discountPercent || ""}
-                          onChange={(e) => setDiscountPercent(Number(e.target.value))}
-                          className="w-20 h-8 px-2 text-center bg-white border border-[#c4c5d7]/40 rounded-lg font-bold text-[#0037b0] text-[16px] sm:text-xs outline-none focus:border-[#0037b0]"
-                        />
-                        <div className="flex rounded-lg border border-[#c4c5d7]/40 overflow-hidden bg-white">
-                          <button
-                            type="button"
-                            onClick={() => setDiscountType("PERCENTAGE")}
-                            className={`px-2.5 py-1 text-xs font-bold cursor-pointer border-0 ${
-                              discountType === "PERCENTAGE"
-                                ? "bg-[#0037b0] text-white"
-                                : "text-slate-500 hover:bg-slate-50 bg-transparent"
-                            }`}
-                          >
-                            %
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDiscountType("FIXED")}
-                            className={`px-2.5 py-1 text-xs font-bold cursor-pointer border-0 ${
-                              discountType === "FIXED"
-                                ? "bg-[#0037b0] text-white"
-                                : "text-slate-500 hover:bg-slate-50 bg-transparent"
-                            }`}
-                          >
-                            ₦
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Split Payments Card */}
-                    <div className="p-3.5 bg-slate-50 border border-slate-200/40 rounded-xl mt-3 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="checkbox"
-                            id="splitPaymentsCheckbox"
-                            checked={enableInstallments}
-                            onChange={(e) => setEnableInstallments(e.target.checked)}
-                            className="w-4 h-4 rounded text-[#0037b0] border-[#c4c5d7]/60 focus:ring-[#0037b0] cursor-pointer"
-                          />
-                          <label htmlFor="splitPaymentsCheckbox" className="text-xs font-bold text-slate-800 cursor-pointer select-none">
-                            Enable Split Payments / Installments
-                          </label>
-                        </div>
-                        {enableInstallments && (
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                            installmentsTotal === 100 
-                              ? "bg-emerald-50 text-[#006c49] border border-emerald-100" 
-                              : "bg-rose-50 text-rose-600 border border-rose-100"
-                          }`}>
-                            {installmentsTotal}%
-                          </span>
-                        )}
-                      </div>
-
-                      {enableInstallments && (
-                        <div className="space-y-2 pt-3 border-t border-slate-200/30 animate-in fade-in duration-200">
-                          {installments.map((inst, index) => (
-                            <div key={index} className="flex flex-col sm:flex-row sm:items-center gap-2 p-2 sm:p-0 bg-[#f8f9ff]/50 sm:bg-transparent rounded-lg border border-slate-200/40 sm:border-0">
-                              <div className="flex items-center gap-2 flex-1 w-full">
-                                <input
-                                  type="text"
-                                  placeholder="Payment Label (e.g. Deposit)"
-                                  value={inst.label}
-                                  onChange={(e) => {
-                                    const newInst = [...installments];
-                                    newInst[index].label = e.target.value;
-                                    setInstallments(newInst);
-                                  }}
-                                  className="flex-1 min-w-0 h-8 px-2.5 text-[15px] sm:text-xs bg-white rounded-lg border border-[#c4c5d7]/40 outline-none font-semibold text-slate-700 focus:border-[#0037b0]"
-                                />
-                                {installments.length > 1 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const newInst = [...installments];
-                                      newInst.splice(index, 1);
-                                      setInstallments(newInst);
-                                    }}
-                                    className="sm:hidden w-8 h-8 rounded-lg flex items-center justify-center bg-rose-50 text-rose-500 border border-rose-100 cursor-pointer text-sm font-bold shrink-0"
-                                  >
-                                    &times;
-                                  </button>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2 justify-between sm:justify-start w-full sm:w-auto">
-                                <div className="flex items-center gap-1.5 bg-white border border-[#c4c5d7]/40 rounded-lg px-2 h-8 w-20 shrink-0">
-                                  <input
-                                    type="number"
-                                    placeholder="0"
-                                    inputMode="numeric"
-                                    pattern="[0-9]*"
-                                    value={inst.percentage || ""}
-                                    onChange={(e) => {
-                                      const newInst = [...installments];
-                                      newInst[index].percentage = Number(e.target.value);
-                                      setInstallments(newInst);
-                                    }}
-                                    className="w-full min-w-0 text-[15px] sm:text-xs font-bold text-[#0037b0] text-center outline-none border-0 p-0 bg-transparent"
-                                  />
-                                  <span className="text-[10px] font-bold text-slate-400 select-none">%</span>
-                                </div>
-                                <span className="text-[11px] sm:text-[10px] font-bold text-slate-650 sm:w-20 text-right sm:shrink-0">
-                                  {formatCurrency(total * ((inst.percentage || 0) / 100))}
-                                </span>
-                                {installments.length > 1 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const newInst = [...installments];
-                                      newInst.splice(index, 1);
-                                      setInstallments(newInst);
-                                    }}
-                                    className="hidden sm:flex w-6 h-6 rounded-full items-center justify-center bg-white text-rose-500 border border-slate-200 cursor-pointer text-xs font-bold shrink-0"
-                                  >
-                                    &times;
-                                  </button>
-                                )}
-                              </div>
+                    {showAdvanced && (
+                      <div className="space-y-4 pt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                        {/* VAT Configuration Toggle */}
+                        <div className="p-3.5 bg-slate-50 border border-slate-200/40 rounded-xl flex items-center justify-between mt-0">
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              id="vatEnabledCheckbox"
+                              checked={vatEnabled}
+                              onChange={(e) => setVatEnabled(e.target.checked)}
+                              className="w-4 h-4 rounded text-[#0037b0] border-[#c4c5d7]/60 focus:ring-[#0037b0] cursor-pointer"
+                            />
+                            <label htmlFor="vatEnabledCheckbox" className="text-xs font-bold text-slate-800 cursor-pointer select-none">
+                              Apply VAT (7.5%) to this invoice & save as default
+                            </label>
+                          </div>
+                          {vatEnabled && (
+                            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold animate-in fade-in duration-200">
+                              <span>Rate:</span>
+                              <input
+                                type="number"
+                                value={taxRate}
+                                inputMode="decimal"
+                                onChange={(e) => setTaxRate(Number(e.target.value))}
+                                className="w-12 h-7 px-1.5 text-center bg-white border border-[#c4c5d7]/40 rounded-md font-bold text-[#0037b0]"
+                              />
+                              <span>%</span>
                             </div>
-                          ))}
-                          
-                          <div className="flex gap-2 justify-end pt-1.5">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setInstallments([...installments, { label: `Payment ${installments.length + 1}`, percentage: 0 }]);
-                              }}
-                              className="px-2.5 py-1 text-[10px] font-bold border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-md cursor-pointer"
-                            >
-                              + Add Payment
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const count = installments.length;
-                                const basePercent = Math.floor(100 / count);
-                                const remainder = 100 % count;
-                                const updated = installments.map((inst, i) => ({
-                                  ...inst,
-                                  percentage: basePercent + (i < remainder ? 1 : 0),
-                                }));
-                                setInstallments(updated);
-                              }}
-                              className="px-2.5 py-1 text-[10px] font-bold border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-md cursor-pointer"
-                            >
-                              Split Equally
-                            </button>
+                          )}
+                        </div>
+
+                        {/* Discount Configuration */}
+                        <div className="p-3.5 bg-slate-50 border border-slate-200/40 rounded-xl mt-3 flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-800">Add Discount</span>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="0"
+                              inputMode="decimal"
+                              value={discountPercent || ""}
+                              onChange={(e) => setDiscountPercent(Number(e.target.value))}
+                              className="w-20 h-8 px-2 text-center bg-white border border-[#c4c5d7]/40 rounded-lg font-bold text-[#0037b0] text-[16px] sm:text-xs outline-none focus:border-[#0037b0]"
+                            />
+                            <div className="flex rounded-lg border border-[#c4c5d7]/40 overflow-hidden bg-white">
+                              <button
+                                type="button"
+                                onClick={() => setDiscountType("PERCENTAGE")}
+                                className={`px-2.5 py-1 text-xs font-bold cursor-pointer border-0 ${
+                                  discountType === "PERCENTAGE"
+                                    ? "bg-[#0037b0] text-white"
+                                    : "text-slate-500 hover:bg-slate-50 bg-transparent"
+                                }`}
+                              >
+                                %
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDiscountType("FIXED")}
+                                className={`px-2.5 py-1 text-xs font-bold cursor-pointer border-0 ${
+                                  discountType === "FIXED"
+                                    ? "bg-[#0037b0] text-white"
+                                    : "text-slate-500 hover:bg-slate-50 bg-transparent"
+                                }`}
+                              >
+                                ₦
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      )}
-                    </div>
 
-                    {/* Payment Terms field */}
-                    <div className="space-y-2 text-left mt-4 border-t border-slate-200/40 pt-4">
-                      <label htmlFor="paymentTermsInput" className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
-                        Payment Terms
-                      </label>
-                      <input
-                        id="paymentTermsInput"
-                        type="text"
-                        placeholder="e.g. Payment is due within 30 days of invoice date."
-                        value={paymentTerms}
-                        onChange={(e) => setPaymentTerms(e.target.value)}
-                        className="w-full h-11 px-4 text-[16px] sm:text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 focus:ring-1 focus:ring-[#0037b0]"
-                      />
-                    </div>
+                        {/* Split Payments Card */}
+                        <div className="p-3.5 bg-slate-50 border border-slate-200/40 rounded-xl mt-3 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="checkbox"
+                                id="splitPaymentsCheckbox"
+                                checked={enableInstallments}
+                                onChange={(e) => setEnableInstallments(e.target.checked)}
+                                className="w-4 h-4 rounded text-[#0037b0] border-[#c4c5d7]/60 focus:ring-[#0037b0] cursor-pointer"
+                              />
+                              <label htmlFor="splitPaymentsCheckbox" className="text-xs font-bold text-slate-800 cursor-pointer select-none">
+                                Enable Split Payments / Installments
+                              </label>
+                            </div>
+                            {enableInstallments && (
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                                installmentsTotal === 100 
+                                  ? "bg-emerald-50 text-[#006c49] border border-emerald-100" 
+                                  : "bg-rose-50 text-rose-600 border border-rose-100"
+                              }`}>
+                                {installmentsTotal}%
+                              </span>
+                            )}
+                          </div>
 
-                    {/* Invoice Notes field */}
-                    <div className="space-y-2 text-left mt-3">
-                      <label htmlFor="invoiceNotesInput" className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
-                        Default Invoice Notes
-                      </label>
-                      <textarea
-                        id="invoiceNotesInput"
-                        placeholder="e.g. Thank you for your business! Please include invoice number in payment description."
-                        rows={2}
-                        value={invoiceNotes}
-                        onChange={(e) => setInvoiceNotes(e.target.value)}
-                        className="w-full px-4 py-3 text-[16px] sm:text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 resize-none leading-relaxed transition-colors focus:ring-1 focus:ring-[#0037b0]"
-                      />
+                          {enableInstallments && (
+                            <div className="space-y-2 pt-3 border-t border-slate-200/30 animate-in fade-in duration-200">
+                              {installments.map((inst, index) => (
+                                <div key={index} className="flex flex-col sm:flex-row sm:items-center gap-2 p-2 sm:p-0 bg-[#f8f9ff]/50 sm:bg-transparent rounded-lg border border-slate-200/40 sm:border-0">
+                                  <div className="flex items-center gap-2 flex-1 w-full">
+                                    <input
+                                      type="text"
+                                      placeholder="Payment Label (e.g. Deposit)"
+                                      value={inst.label}
+                                      onChange={(e) => {
+                                        const newInst = [...installments];
+                                        newInst[index].label = e.target.value;
+                                        setInstallments(newInst);
+                                      }}
+                                      className="flex-1 min-w-0 h-8 px-2.5 text-[15px] sm:text-xs bg-white rounded-lg border border-[#c4c5d7]/40 outline-none font-semibold text-slate-700 focus:border-[#0037b0]"
+                                    />
+                                    {installments.length > 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const newInst = [...installments];
+                                          newInst.splice(index, 1);
+                                          setInstallments(newInst);
+                                        }}
+                                        className="sm:hidden w-8 h-8 rounded-lg flex items-center justify-center bg-rose-50 text-rose-500 border border-rose-100 cursor-pointer text-sm font-bold shrink-0"
+                                      >
+                                        &times;
+                                      </button>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 justify-between sm:justify-start w-full sm:w-auto">
+                                    <div className="flex items-center gap-1.5 bg-white border border-[#c4c5d7]/40 rounded-lg px-2 h-8 w-20 shrink-0">
+                                      <input
+                                        type="number"
+                                        placeholder="0"
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
+                                        value={inst.percentage || ""}
+                                        onChange={(e) => {
+                                          const newInst = [...installments];
+                                          newInst[index].percentage = Number(e.target.value);
+                                          setInstallments(newInst);
+                                        }}
+                                        className="w-full min-w-0 text-[15px] sm:text-xs font-bold text-[#0037b0] text-center outline-none border-0 p-0 bg-transparent"
+                                      />
+                                      <span className="text-[10px] font-bold text-slate-400 select-none">%</span>
+                                    </div>
+                                    <span className="text-[11px] sm:text-[10px] font-bold text-slate-655 sm:w-20 text-right sm:shrink-0">
+                                      {formatCurrency(total * ((inst.percentage || 0) / 100))}
+                                    </span>
+                                    {installments.length > 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const newInst = [...installments];
+                                          newInst.splice(index, 1);
+                                          setInstallments(newInst);
+                                        }}
+                                        className="hidden sm:flex w-6 h-6 rounded-full items-center justify-center bg-white text-rose-500 border border-slate-200 cursor-pointer text-xs font-bold shrink-0"
+                                      >
+                                        &times;
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                              
+                              <div className="flex gap-2 justify-end pt-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setInstallments([...installments, { label: `Payment ${installments.length + 1}`, percentage: 0 }]);
+                                  }}
+                                  className="px-2.5 py-1 text-[10px] font-bold border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-md cursor-pointer"
+                                >
+                                  + Add Payment
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const count = installments.length;
+                                    const basePercent = Math.floor(100 / count);
+                                    const remainder = 100 % count;
+                                    const updated = installments.map((inst, i) => ({
+                                      ...inst,
+                                      percentage: basePercent + (i < remainder ? 1 : 0),
+                                    }));
+                                    setInstallments(updated);
+                                  }}
+                                  className="px-2.5 py-1 text-[10px] font-bold border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-md cursor-pointer"
+                                >
+                                  Split Equally
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Payment Terms field */}
+                        <div className="space-y-2 text-left mt-4 border-t border-slate-200/40 pt-4">
+                          <label htmlFor="paymentTermsInput" className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                            Payment Terms
+                          </label>
+                          <input
+                            id="paymentTermsInput"
+                            type="text"
+                            placeholder="e.g. Payment is due within 30 days of invoice date."
+                            value={paymentTerms}
+                            onChange={(e) => setPaymentTerms(e.target.value)}
+                            className="w-full h-11 px-4 text-[16px] sm:text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 focus:ring-1 focus:ring-[#0037b0]"
+                          />
+                        </div>
+
+                        {/* Invoice Notes field */}
+                        <div className="space-y-2 text-left mt-3">
+                          <label htmlFor="invoiceNotesInput" className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                            Default Invoice Notes
+                          </label>
+                          <textarea
+                            id="invoiceNotesInput"
+                            placeholder="e.g. Thank you for your business! Please include invoice number in payment description."
+                            rows={2}
+                            value={invoiceNotes}
+                            onChange={(e) => setInvoiceNotes(e.target.value)}
+                            className="w-full px-4 py-3 text-[16px] sm:text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 resize-none leading-relaxed transition-colors focus:ring-1 focus:ring-[#0037b0]"
+                          />
+                        </div>
+                      </div>
+                    )}
                     </div>
                   </div>
                 </div>
@@ -1752,18 +1775,6 @@ export function WelcomeStepper() {
 
               {step === 4 && (
                 <div className="space-y-6 animate-in fade-in duration-200">
-                  {/* Warning Banner if Settlement Bank is not connected */}
-                  {(!isBankConnected && !user?.organization?.isPaystackVerified) && (
-                    <div className="p-4.5 rounded-[20px] bg-amber-50/70 border border-amber-100/40 text-amber-800 flex flex-col gap-1.5 shadow-[0_8px_24px_rgba(255,221,184,0.06)] text-left">
-                      <div className="flex items-center gap-2 font-bold text-xs">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                        No Payout Bank Connected
-                      </div>
-                      <p className="text-xs sm:text-[11px] text-slate-500 font-semibold leading-relaxed">
-                        Clients will not be able to pay this invoice online (Card, Bank Transfer, USSD). You can configure a bank below or publish offline.
-                      </p>
-                    </div>
-                  )}
 
                   <div className="space-y-4">
                     <span className="text-xs sm:text-[10px] font-bold text-slate-450 uppercase tracking-wider block text-left">
@@ -2029,40 +2040,6 @@ export function WelcomeStepper() {
                     )}
                   </div>
 
-                  {/* Send Email Copy Toggle Checkbox */}
-                  <div className="p-3.5 bg-slate-50 border border-slate-200/50 rounded-[20px] shadow-[0px_4px_12px_rgba(0,55,176,0.02)] space-y-3">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        id="sendEmailCheckbox"
-                        checked={sendEmail}
-                        onChange={(e) => setSendEmail(e.target.checked)}
-                        className="w-4 h-4 rounded text-[#0037b0] border-[#c4c5d7]/60 focus:ring-[#0037b0] cursor-pointer"
-                      />
-                      <label htmlFor="sendEmailCheckbox" className="text-xs font-bold text-slate-800 cursor-pointer select-none">
-                        Send email copy to client now
-                      </label>
-                    </div>
-                    
-                    {sendEmail && (
-                      <div className="pl-7 space-y-1.5 text-left animate-in fade-in slide-in-from-top-1 duration-200">
-                        <label htmlFor="confirmEmailInput" className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block font-sans">
-                          Recipient Email Address
-                        </label>
-                        <input
-                          id="confirmEmailInput"
-                          type="email"
-                          placeholder="client@example.com"
-                          value={clientEmail}
-                          onChange={(e) => setClientEmail(e.target.value)}
-                          className="w-full h-10 px-3 text-[16px] sm:text-xs bg-white rounded-lg border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 focus:ring-1 focus:ring-[#0037b0]"
-                        />
-                        <p className="text-[9px] text-slate-450 font-semibold leading-relaxed">
-                          Please verify this address carefully to prevent delivery failures and bounced emails.
-                        </p>
-                      </div>
-                    )}
-                  </div>
                 </div>
               )}
             </>
