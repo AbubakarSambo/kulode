@@ -6,7 +6,6 @@ import {
   Building03Icon,
   UserGroupIcon,
   MoneyReceive02Icon,
-  Coins01Icon,
   Invoice03Icon,
   Crown02Icon,
   Search01Icon,
@@ -14,7 +13,6 @@ import {
   Cancel01Icon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
-  PercentCircleIcon,
   TrendingUpDownIcon,
   AnalyticsIcon,
   DashboardBrowsingIcon,
@@ -169,14 +167,14 @@ export function AdminDashboardPage() {
               </div>
             ) : dashboardData ? (
               <div className="space-y-6">
-                {/* Stats Cards Row */}
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                {/* Stats Cards Row — 4 cols after removing platform fees */}
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   {/* Stat Card: Total Organizations */}
                   <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all">
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#434655]">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655]">
                             Total Organizations
                           </p>
                           <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28]">
@@ -201,14 +199,14 @@ export function AdminDashboardPage() {
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#434655]">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655]">
                             Total Users
                           </p>
                           <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28]">
                             {dashboardData.users.total}
                           </p>
                           <p className="mt-2 text-[10px] text-[#434655]">
-                            <span className="font-bold text-[#121c28]">{dashboardData.organizations.active}</span> active tenants
+                            <span className="font-semibold text-[#121c28]">{dashboardData.organizations.active}</span> active tenants
                           </p>
                         </div>
                         <div className="rounded-2xl bg-[#eef4ff] p-3 shrink-0 ml-2">
@@ -223,7 +221,7 @@ export function AdminDashboardPage() {
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#434655]">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655]">
                             Gross Merch. Vol
                           </p>
                           <p className="mt-1.5 text-xl font-bold tracking-tight text-[#121c28] truncate">
@@ -241,35 +239,12 @@ export function AdminDashboardPage() {
                     </CardContent>
                   </Card>
 
-                  {/* Stat Card: Platform Fees */}
+                  {/* Stat Card: SaaS Revenue */}
                   <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all">
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#434655]">
-                            Platform Fees
-                          </p>
-                          <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28] truncate">
-                            {formatCurrency(dashboardData.revenue.platformFees)}
-                          </p>
-                          <div className="mt-2 flex items-center gap-1.5">
-                            <MoMBadge value={dashboardData.revenue.platformFeesChangePct} />
-                            <span className="text-[10px] text-[#434655]">vs last month</span>
-                          </div>
-                        </div>
-                        <div className="rounded-2xl bg-[#eef4ff] p-3 shrink-0 ml-2">
-                          <HugeiconsIcon icon={Coins01Icon} size={18} strokeWidth={1.5} className="text-[#0037b0]" />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Stat Card: SaaS Subscriptions */}
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all">
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#434655]">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655]">
                             SaaS Revenue
                           </p>
                           <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28] truncate">
@@ -306,17 +281,17 @@ export function AdminDashboardPage() {
                     </div>
                     <CardContent className="px-6 pb-6">
                       {dashboardData.recentSignups.length > 0 ? (
-                        <div className="space-y-1.5">
+                        <div className="space-y-1">
                           {dashboardData.recentSignups.map((org, idx) => (
                             <div
                               key={org.id}
-                              className={`flex items-center justify-between p-3 rounded-2xl ${
+                              className={`flex items-center justify-between px-3 py-2.5 rounded-xl ${
                                 idx % 2 === 0 ? 'bg-[#f8f9ff]/80' : 'bg-white'
                               }`}
                             >
                               <div>
                                 <div className="flex items-center gap-2">
-                                  <p className="text-sm font-bold text-slate-800">{org.name}</p>
+                                  <p className="text-sm font-medium text-[#121c28]">{org.name}</p>
                                   <Badge
                                     variant={
                                       org.planTier === 'BUSINESS' ? 'success' :
@@ -333,11 +308,11 @@ export function AdminDashboardPage() {
                                     </Badge>
                                   )}
                                 </div>
-                                <p className="text-[10px] font-semibold text-slate-400 mt-0.5">
+                                <p className="text-[10px] text-[#434655] mt-0.5">
                                   {org.userCount} users &middot; {org.invoiceCount} invoices
                                 </p>
                               </div>
-                              <span className="text-[10px] font-bold text-slate-400">
+                              <span className="text-[10px] text-[#434655] tabular-nums">
                                 {new Date(org.createdAt).toLocaleDateString(undefined, {
                                   month: 'short',
                                   day: 'numeric',
@@ -347,7 +322,7 @@ export function AdminDashboardPage() {
                           ))}
                         </div>
                       ) : (
-                        <p className="text-center text-xs text-slate-400 py-8">No organizations found</p>
+                        <p className="text-center text-xs text-[#434655] py-8">No organizations found</p>
                       )}
                     </CardContent>
                   </Card>
@@ -362,21 +337,21 @@ export function AdminDashboardPage() {
                     </div>
                     <CardContent className="px-6 pb-6">
                       {dashboardData.topOrganizations.length > 0 ? (
-                        <div className="space-y-1.5">
+                        <div className="space-y-1">
                           {dashboardData.topOrganizations.map((org, index) => (
                             <div
                               key={org.id}
-                              className={`flex items-center justify-between p-3 rounded-2xl ${
+                              className={`flex items-center justify-between px-3 py-2.5 rounded-xl ${
                                 index % 2 === 0 ? 'bg-[#f8f9ff]/80' : 'bg-white'
                               }`}
                             >
                               <div className="flex items-center gap-3">
-                                <span className="text-xs font-bold text-slate-300">
+                                <span className="text-[10px] font-semibold text-[#c4c5d7] w-5 text-right tabular-nums">
                                   #{String(index + 1).padStart(2, '0')}
                                 </span>
                                 <div>
                                   <div className="flex items-center gap-2">
-                                    <p className="text-sm font-bold text-slate-800">{org.name}</p>
+                                    <p className="text-sm font-medium text-[#121c28]">{org.name}</p>
                                     <Badge
                                       variant={
                                         org.planTier === 'BUSINESS' ? 'success' :
@@ -388,19 +363,19 @@ export function AdminDashboardPage() {
                                       {org.planTier}
                                     </Badge>
                                   </div>
-                                  <p className="text-[10px] font-semibold text-slate-400 mt-0.5">
+                                  <p className="text-[10px] text-[#434655] mt-0.5">
                                     {org.invoiceCount} invoices
                                   </p>
                                 </div>
                               </div>
-                              <span className="text-sm font-bold text-[#121c28]">
+                              <span className="text-sm font-semibold text-[#121c28] tabular-nums">
                                 {formatCurrency(org.volume)}
                               </span>
                             </div>
                           ))}
                         </div>
                       ) : (
-                        <p className="text-center text-xs text-slate-400 py-8">No billing records found</p>
+                        <p className="text-center text-xs text-[#434655] py-8">No billing records found</p>
                       )}
                     </CardContent>
                   </Card>
@@ -490,98 +465,91 @@ export function AdminDashboardPage() {
                   </div>
                 ) : orgsData && orgsData.items.length > 0 ? (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-[#f8f9ff]/80 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                          <th className="px-6 py-4">Organization</th>
-                          <th className="px-6 py-4">Plan & Status</th>
-                          <th className="px-6 py-4">Usage Parameters</th>
-                          <th className="px-6 py-4">Platform Fee %</th>
-                          <th className="px-6 py-4">Date Joined</th>
-                          <th className="px-6 py-4 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50">
-                        {orgsData.items.map((org, index) => (
-                          <tr
-                            key={org.id}
-                            className={`hover:bg-[#f8f9ff]/50 transition-colors ${
-                              index % 2 === 1 ? 'bg-slate-50/20' : ''
-                            }`}
-                          >
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-3">
-                                <div className="h-9 w-9 bg-[#0037b0]/5 rounded-xl flex items-center justify-center font-bold text-[#0037b0] select-none text-xs">
-                                  {org.name.slice(0, 2).toUpperCase()}
-                                </div>
-                                <div>
-                                  <p className="text-sm font-bold text-slate-800">{org.name}</p>
-                                  <p className="text-[10px] font-semibold text-slate-400">{org.slug}</p>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex flex-col gap-1 items-start">
-                                <Badge
-                                  variant={
-                                    org.planTier === 'BUSINESS' ? 'success' :
-                                    org.planTier === 'PRO' ? 'default' :
-                                    'secondary'
-                                  }
-                                  className="text-[9px] px-1.5 py-0"
-                                >
-                                  {org.planTier}
-                                </Badge>
-                                <Badge
-                                  variant={
-                                    org.subscriptionStatus === 'ACTIVE' ? 'success' :
-                                    org.subscriptionStatus === 'TRIALING' ? 'warning' :
-                                    'destructive'
-                                  }
-                                  className="text-[8px] px-1 py-0 uppercase"
-                                >
-                                  {org.subscriptionStatus}
-                                </Badge>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="text-xs text-slate-600">
-                                <span className="font-bold text-slate-800">{org.userCount}</span> users &middot;{' '}
-                                <span className="font-bold text-slate-800">{org.invoiceCount}</span> invoices
-                              </div>
-                              {org.isGrandfathered && (
-                                <Badge variant="outline" className="text-[8px] px-1 py-0 mt-1 border-amber-300 text-amber-600 bg-amber-50/20">
-                                  Grandfathered
-                                </Badge>
-                              )}
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="text-xs font-bold text-slate-700">
-                                {org.platformFeePercent}%
-                              </span>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="text-xs text-slate-500">
-                                {new Date(org.createdAt).toLocaleDateString(undefined, {
-                                  year: 'numeric',
-                                  month: 'short',
-                                  day: 'numeric',
-                                })}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                              <Button
-                                variant="outline"
-                                onClick={() => setEditingOrgId(org.id)}
-                                className="px-3 py-1.5 rounded-xl border border-[rgba(196,197,215,0.4)] hover:bg-[#eef4ff] hover:border-[#0037b0]/20 text-xs font-semibold flex items-center gap-1.5 ml-auto min-h-[36px] text-[#434655] hover:text-[#0037b0] transition-colors"
-                              >
-                                <HugeiconsIcon icon={Settings02Icon} size={14} strokeWidth={1.5} />
-                                Configure
-                              </Button>
-                            </td>
+                    <table className="w-full text-left border-collapse">                      <thead>
+                          <tr className="bg-[#f8f9ff]/80 text-[10px] font-semibold uppercase tracking-wider text-[#434655] border-b border-[rgba(196,197,215,0.2)]">
+                            <th className="px-6 py-4">Organization</th>
+                            <th className="px-6 py-4">Plan &amp; Status</th>
+                            <th className="px-6 py-4">Usage</th>
+                            <th className="px-6 py-4">Date Joined</th>
+                            <th className="px-6 py-4 text-right">Actions</th>
                           </tr>
-                        ))}
-                      </tbody>
+                        </thead>
+                        <tbody className="divide-y divide-[rgba(196,197,215,0.1)]">
+                          {orgsData.items.map((org, index) => (
+                            <tr
+                              key={org.id}
+                              className={`hover:bg-[#f8f9ff]/50 transition-colors ${
+                                index % 2 === 1 ? 'bg-slate-50/20' : ''
+                              }`}
+                            >
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="h-9 w-9 bg-[#eef4ff] rounded-xl flex items-center justify-center font-semibold text-[#0037b0] select-none text-xs shrink-0">
+                                    {org.name.slice(0, 2).toUpperCase()}
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-[#121c28]">{org.name}</p>
+                                    <p className="text-[10px] text-[#434655]">{org.slug}</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex flex-col gap-1 items-start">
+                                  <Badge
+                                    variant={
+                                      org.planTier === 'BUSINESS' ? 'success' :
+                                      org.planTier === 'PRO' ? 'default' :
+                                      'secondary'
+                                    }
+                                    className="text-[9px] px-1.5 py-0"
+                                  >
+                                    {org.planTier}
+                                  </Badge>
+                                  <Badge
+                                    variant={
+                                      org.subscriptionStatus === 'ACTIVE' ? 'success' :
+                                      org.subscriptionStatus === 'TRIALING' ? 'warning' :
+                                      'destructive'
+                                    }
+                                    className="text-[8px] px-1 py-0 uppercase"
+                                  >
+                                    {org.subscriptionStatus}
+                                  </Badge>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="text-xs text-[#434655]">
+                                  <span className="font-medium text-[#121c28]">{org.userCount}</span> users &middot;{' '}
+                                  <span className="font-medium text-[#121c28]">{org.invoiceCount}</span> invoices
+                                </div>
+                                {org.isGrandfathered && (
+                                  <Badge variant="outline" className="text-[8px] px-1 py-0 mt-1 border-amber-300 text-amber-600 bg-amber-50/20">
+                                    Grandfathered
+                                  </Badge>
+                                )}
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="text-xs text-[#434655] tabular-nums">
+                                  {new Date(org.createdAt).toLocaleDateString(undefined, {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric',
+                                  })}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                <Button
+                                  variant="outline"
+                                  onClick={() => setEditingOrgId(org.id)}
+                                  className="px-3 py-1.5 rounded-xl border border-[rgba(196,197,215,0.4)] hover:bg-[#eef4ff] hover:border-[#0037b0]/20 text-xs font-semibold flex items-center gap-1.5 ml-auto min-h-[36px] text-[#434655] hover:text-[#0037b0] transition-colors"
+                                >
+                                  <HugeiconsIcon icon={Settings02Icon} size={14} strokeWidth={1.5} />
+                                  Configure
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
                     </table>
                   </div>
                 ) : (
@@ -591,28 +559,37 @@ export function AdminDashboardPage() {
                   </div>
                 )}
 
-                {/* Pagination Controls */}
-                {orgsData && orgsData.meta.totalPages > 1 && (
+                {/* Pagination — always visible when data loaded */}
+                {orgsData && (
                   <div className="flex items-center justify-between border-t border-[rgba(196,197,215,0.15)] px-6 py-4 bg-white">
                     <span className="text-xs text-[#434655]">
-                      Page <span className="font-bold text-[#121c28]">{page}</span> of{' '}
-                      <span className="font-bold text-[#121c28]">{orgsData.meta.totalPages}</span>
+                      {orgsData.meta.total > 0 ? (
+                        <>
+                          Showing{' '}
+                          <span className="font-semibold text-[#121c28]">
+                            {(page - 1) * 20 + 1}–{Math.min(page * 20, orgsData.meta.total)}
+                          </span>{' '}
+                          of{' '}
+                          <span className="font-semibold text-[#121c28]">{orgsData.meta.total}</span>{' '}
+                          organizations
+                        </>
+                      ) : 'No results'}
                     </span>
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
                         disabled={page === 1}
                         onClick={() => setPage((p) => Math.max(1, p - 1))}
-                        className="px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer min-h-[36px] border-[rgba(196,197,215,0.4)] text-[#434655] hover:bg-[#eef4ff] hover:text-[#0037b0] transition-colors"
+                        className="px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer min-h-[36px] border-[rgba(196,197,215,0.4)] text-[#434655] hover:bg-[#eef4ff] hover:text-[#0037b0] transition-colors disabled:opacity-40"
                       >
                         <HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={2} />
                         Previous
                       </Button>
                       <Button
                         variant="outline"
-                        disabled={page === orgsData.meta.totalPages}
+                        disabled={page === orgsData.meta.totalPages || orgsData.meta.totalPages === 0}
                         onClick={() => setPage((p) => Math.min(orgsData.meta.totalPages, p + 1))}
-                        className="px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer min-h-[36px] border-[rgba(196,197,215,0.4)] text-[#434655] hover:bg-[#eef4ff] hover:text-[#0037b0] transition-colors"
+                        className="px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer min-h-[36px] border-[rgba(196,197,215,0.4)] text-[#434655] hover:bg-[#eef4ff] hover:text-[#0037b0] transition-colors disabled:opacity-40"
                       >
                         Next
                         <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={2} />
@@ -637,50 +614,35 @@ export function AdminDashboardPage() {
               </div>
             ) : dashboardData ? (
               <div className="space-y-6">
-                {/* Revenue Summary row */}
-                <div className="grid gap-4 sm:grid-cols-3">
+                {/* Revenue Summary — SaaS subscription only */}
+                <div className="grid gap-4 sm:grid-cols-2">
                   <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.12)] rounded-3xl bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white">
                     <CardContent className="p-6">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#93c5fd]">
-                        Combined Platform Income
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#93c5fd]">
+                        Total SaaS Revenue
                       </p>
                       <p className="mt-2 text-3xl font-bold tracking-tight text-white">
-                        {formatCurrency(
-                          dashboardData.subscriptions.revenue + dashboardData.revenue.platformFees
-                        )}
+                        {formatCurrency(dashboardData.subscriptions.revenue)}
                       </p>
                       <div className="mt-4 flex items-center gap-1.5 text-[10px] font-semibold text-[#bfdbfe]">
                         <HugeiconsIcon icon={TrendingUpDownIcon} size={14} strokeWidth={2} />
-                        Aggregated cash flow streams
+                        Recurring subscription income
                       </div>
                     </CardContent>
                   </Card>
 
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.02)] rounded-3xl bg-white">
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white">
                     <CardContent className="p-6">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                        SaaS Subscription Stream
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655]">
+                        SaaS Revenue vs Last Month
                       </p>
                       <p className="mt-2 text-2xl font-bold tracking-tight text-[#121c28]">
-                        {formatCurrency(dashboardData.subscriptions.revenue)}
+                        {formatCurrency(dashboardData.subscriptions.revenueCurrentMonth)}
                       </p>
-                      <p className="mt-1 text-[10px] text-slate-400 font-semibold">
-                        Sustained recurring membership fees
-                      </p>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.02)] rounded-3xl bg-white">
-                    <CardContent className="p-6">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                        Transaction Fee Stream
-                      </p>
-                      <p className="mt-2 text-2xl font-bold tracking-tight text-[#121c28]">
-                        {formatCurrency(dashboardData.revenue.platformFees)}
-                      </p>
-                      <p className="mt-1 text-[10px] text-slate-400 font-semibold">
-                        Aggregated commission from client payment routes
-                      </p>
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <MoMBadge value={dashboardData.subscriptions.revenueChangePct} />
+                        <span className="text-[10px] text-[#434655]">vs prior month ({formatCurrency(dashboardData.subscriptions.revenuePreviousMonth)})</span>
+                      </div>
                     </CardContent>
                   </Card>
                 </div>
@@ -866,7 +828,7 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
   const [planTier, setPlanTier] = useState<string>(org.planTier)
   const [subscriptionStatus, setSubscriptionStatus] = useState<string>(org.subscriptionStatus)
   const [isGrandfathered, setIsGrandfathered] = useState<boolean>(org.isGrandfathered)
-  const [platformFeePercent, setPlatformFeePercent] = useState<number>(org.platformFeePercent)
+  const [platformFeePercent] = useState<number>(org.platformFeePercent)
 
   const updateMutation = useMutation({
     mutationFn: (data: {
@@ -969,28 +931,10 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
               </div>
             </div>
 
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="platformFeePercent" className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Platform Fee %</Label>
-                <div className="relative">
-                  <Input
-                    id="platformFeePercent"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
-                    value={platformFeePercent}
-                    onChange={(e) => setPlatformFeePercent(Number(e.target.value))}
-                    className="pr-10"
-                  />
-                  <HugeiconsIcon icon={PercentCircleIcon} size={16} strokeWidth={1.5} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#c4c5d7]" />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between sm:pt-6">
+              <div className="flex items-center justify-between py-2">
                 <div className="space-y-0.5">
-                  <Label htmlFor="isGrandfathered" className="text-xs font-bold text-slate-700">Grandfathered Status</Label>
-                  <p className="text-[10px] text-slate-400">Exempt from standard pricing logic</p>
+                  <Label htmlFor="isGrandfathered" className="text-xs font-semibold text-[#121c28]">Grandfathered Status</Label>
+                  <p className="text-[10px] text-[#434655]">Exempt from standard pricing logic</p>
                 </div>
                 <input
                   id="isGrandfathered"
@@ -1000,7 +944,6 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
                   className="h-5 w-5 rounded border-slate-300 text-primary focus:ring-primary/20 accent-[#0037b0] cursor-pointer"
                 />
               </div>
-            </div>
 
             <div className="flex justify-end gap-3 border-t border-slate-100 pt-4 mt-6">
               <Button
