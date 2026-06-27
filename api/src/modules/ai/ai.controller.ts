@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AiService } from './ai.service';
 import { ReportFilterDto } from '../reports/dto';
@@ -21,5 +21,15 @@ export class AiController {
     @Query() filter: ReportFilterDto,
   ) {
     return this.aiService.getInsights(organizationId, filter);
+  }
+
+  @Post('chat')
+  @ApiOperation({ summary: 'Chat with AI about your business data' })
+  @ApiResponse({ status: 200, description: 'AI chat response' })
+  async chat(
+    @CurrentUser('organizationId') organizationId: string,
+    @Body() body: { messages: { role: 'user' | 'assistant'; content: string }[] },
+  ) {
+    return this.aiService.chat(body.messages, organizationId);
   }
 }

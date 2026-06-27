@@ -16,6 +16,11 @@ export interface InsightsResponse {
   period: { startDate: string; endDate: string }
 }
 
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 export const aiApi = {
   getInsights: async (filters: ReportFilters = {}): Promise<InsightsResponse> => {
     const params = new URLSearchParams()
@@ -24,6 +29,11 @@ export const aiApi = {
     if (filters.endDate) params.append('endDate', filters.endDate)
 
     const response = await apiClient.get<ApiResponse<InsightsResponse>>(`/ai/insights?${params}`)
+    return response.data.data
+  },
+
+  chat: async (messages: ChatMessage[]): Promise<{ message: string }> => {
+    const response = await apiClient.post<ApiResponse<{ message: string }>>('/ai/chat', { messages })
     return response.data.data
   },
 }

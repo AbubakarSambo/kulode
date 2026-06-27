@@ -16,6 +16,7 @@ import {
   SecurityLockIcon,
   LockPasswordIcon,
   AiBrain02Icon,
+  AiChat01Icon,
 } from '@hugeicons/core-free-icons'
 import { cn } from '@/lib/utils'
 
@@ -147,6 +148,19 @@ export function InsightsIcon({ className }: IconProps) {
   return (
     <HugeiconsIcon
       icon={AiBrain02Icon}
+      size={SIZE}
+      color="currentColor"
+      strokeWidth={1.5}
+      className={cn('shrink-0', className)}
+    />
+  )
+}
+
+// 9c. AI Chat
+export function AiChatIcon({ className }: IconProps) {
+  return (
+    <HugeiconsIcon
+      icon={AiChat01Icon}
       size={SIZE}
       color="currentColor"
       strokeWidth={1.5}

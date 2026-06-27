@@ -47,6 +47,9 @@ export { ReportsPage } from './reports/Reports'
 // Insights
 export { InsightsPage } from './insights/InsightsPage'
 
+// AI Chat
+export { AiChatPage } from './ai-chat/AiChatPage'
+
 // Settings
 export { SettingsPage } from './settings/Settings'
 export { UsersPage } from './settings/UsersPage'

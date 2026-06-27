@@ -36,6 +36,7 @@ import {
   TaxFilingPackPage,
   ReportsPage,
   InsightsPage,
+  AiChatPage,
   InventoryPage,
   SettingsPage,
   UsersPage,
@@ -119,6 +120,7 @@ function App() {
                 </Route>
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/insights" element={<InsightsPage />} />
+                <Route path="/ai-chat" element={<AiChatPage />} />
                 <Route path="/tax" element={<TaxFilingPackPage />} />
               </Route>
 
