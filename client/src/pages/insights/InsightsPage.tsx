@@ -208,14 +208,14 @@ export function InsightsPage() {
                 <InsightCard key={i} insight={insight} />
               ))}
             </div>
-          ) : !loading && !data ? (
+          ) : (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="w-16 h-16 rounded-2xl bg-[#0037b0]/5 flex items-center justify-center mb-4">
                 <InsightsIcon className="text-[#0037b0]/40 w-8 h-8" />
               </div>
-              <p className="text-slate-500 text-sm">Select a period to generate insights</p>
+              <p className="text-slate-500 text-sm">No insights available for this period</p>
             </div>
-          ) : null}
+          )}
 
         </div>
       </div>

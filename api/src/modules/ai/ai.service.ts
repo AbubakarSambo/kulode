@@ -111,11 +111,12 @@ ${products.products.map((p, i) => `  ${i + 1}. ${p.label}: ${fmt(p.revenue)} rev
 `.trim();
 
     const response = await this.anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2048,
       system: `You are a sharp business analyst reviewing financial data for a small business owner.
-Analyse the data and generate clear, specific insights with actionable recommendations.
-Be direct and use the actual numbers. Avoid generic advice — make it specific to what the data shows.
+Analyse the data and call the report_insights tool with EXACTLY 5 insights — no more, no fewer.
+Each insight must reference specific numbers from the data.
+Be direct and use the actual numbers from the data provided. Avoid generic advice.
 Currency is Nigerian Naira (₦).`,
       tools: [INSIGHTS_TOOL],
       tool_choice: { type: 'any' },
