@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
+
+type FunctionToolCall = { type: 'function'; id: string; function: { name: string; arguments: string } };
 import { ReportsService } from '../reports/reports.service';
 import { ClientsService } from '../clients/clients.service';
-import { InvoicesService } from '../invoices/invoices.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { PaymentsService } from '../payments/payments.service';
 import { VendorsService } from '../vendors/vendors.service';
@@ -23,42 +24,6 @@ export interface InsightsResponse {
   insights: Insight[];
   period: { startDate: Date; endDate: Date };
 }
-
-const INSIGHTS_TOOL: Anthropic.Tool = {
-  name: 'report_insights',
-  description: 'Generate structured business insights from the provided financial data.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      summary: {
-        type: 'string',
-        description: 'A 2-3 sentence executive summary of business health for the period.',
-      },
-      insights: {
-        type: 'array',
-        description: 'Array of 5 specific, actionable insights.',
-        items: {
-          type: 'object',
-          properties: {
-            title: { type: 'string', description: 'Short headline for the insight (5-8 words).' },
-            body: { type: 'string', description: 'What the data shows, with specific numbers (2-3 sentences).' },
-            recommendation: { type: 'string', description: 'A specific, actionable next step (1-2 sentences).' },
-            sentiment: {
-              type: 'string',
-              enum: ['positive', 'warning', 'neutral'],
-            },
-            category: {
-              type: 'string',
-              enum: ['revenue', 'expenses', 'clients', 'collections', 'products'],
-            },
-          },
-          required: ['title', 'body', 'recommendation', 'sentiment', 'category'],
-        },
-      },
-    },
-    required: ['summary', 'insights'],
-  },
-};
 
 type Period =
   | 'THIS_MONTH'
@@ -106,161 +71,187 @@ function getDateRange(period: Period): { startDate: Date; endDate: Date } {
   return { startDate, endDate };
 }
 
-const PERIOD_ENUM = ['THIS_MONTH', 'LAST_MONTH', 'THIS_QUARTER', 'LAST_QUARTER', 'THIS_YEAR', 'LAST_YEAR'] as const;
-const STATUS_ENUM = ['DRAFT', 'SENT', 'PAID', 'PARTIALLY_PAID', 'OVERDUE', 'CANCELLED'] as const;
+const PERIOD_ENUM = ['THIS_MONTH', 'LAST_MONTH', 'THIS_QUARTER', 'LAST_QUARTER', 'THIS_YEAR', 'LAST_YEAR'];
+const STATUS_ENUM = ['DRAFT', 'SENT', 'PAID', 'PARTIALLY_PAID', 'OVERDUE', 'CANCELLED'];
 
-const CHAT_TOOLS: Anthropic.Tool[] = [
+const periodParam = { type: 'string', enum: PERIOD_ENUM, description: 'The time period to query.' };
+
+const CHAT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
   {
-    name: 'get_financial_summary',
-    description: 'Get income collected, total expenses, net profit, profit margin, and invoice status counts for a period.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        period: { type: 'string', enum: PERIOD_ENUM as unknown as string[] },
-      },
-      required: ['period'],
+    type: 'function',
+    function: {
+      name: 'get_financial_summary',
+      description: 'Get income collected, total expenses, net profit, profit margin, and invoice status counts for a period.',
+      parameters: { type: 'object', properties: { period: periodParam }, required: ['period'] },
     },
   },
   {
-    name: 'get_cashflow',
-    description: 'Get month-by-month income vs expenses breakdown for a period.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        period: { type: 'string', enum: PERIOD_ENUM as unknown as string[] },
-      },
-      required: ['period'],
+    type: 'function',
+    function: {
+      name: 'get_cashflow',
+      description: 'Get month-by-month income vs expenses breakdown for a period.',
+      parameters: { type: 'object', properties: { period: periodParam }, required: ['period'] },
     },
   },
   {
-    name: 'get_outstanding_invoices',
-    description: 'Get all unpaid invoices (sent, partially paid, overdue) with client names, amounts owed, and days overdue.',
-    input_schema: { type: 'object', properties: {} },
-  },
-  {
-    name: 'get_top_clients',
-    description: 'Get clients ranked by revenue paid for a period, including payment count.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        period: { type: 'string', enum: PERIOD_ENUM as unknown as string[] },
-      },
-      required: ['period'],
+    type: 'function',
+    function: {
+      name: 'get_outstanding_invoices',
+      description: 'Get all unpaid invoices (sent, partially paid, overdue) with client names, amounts owed, and days overdue.',
+      parameters: { type: 'object', properties: {} },
     },
   },
   {
-    name: 'get_expense_breakdown',
-    description: 'Get expenses broken down by category with monthly trend for a period.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        period: { type: 'string', enum: PERIOD_ENUM as unknown as string[] },
-      },
-      required: ['period'],
+    type: 'function',
+    function: {
+      name: 'get_top_clients',
+      description: 'Get clients ranked by revenue paid for a period, including payment count.',
+      parameters: { type: 'object', properties: { period: periodParam }, required: ['period'] },
     },
   },
   {
-    name: 'get_top_products_and_services',
-    description: 'Get best-selling products and services ranked by revenue for a period.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        period: { type: 'string', enum: PERIOD_ENUM as unknown as string[] },
-      },
-      required: ['period'],
+    type: 'function',
+    function: {
+      name: 'get_expense_breakdown',
+      description: 'Get expenses broken down by category with monthly trend for a period.',
+      parameters: { type: 'object', properties: { period: periodParam }, required: ['period'] },
     },
   },
   {
-    name: 'search_clients',
-    description: 'Search for clients by name or email. Returns matching clients with invoice count.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        query: { type: 'string', description: 'Name or email to search for.' },
-      },
-      required: ['query'],
+    type: 'function',
+    function: {
+      name: 'get_top_products_and_services',
+      description: 'Get best-selling products and services ranked by revenue for a period.',
+      parameters: { type: 'object', properties: { period: periodParam }, required: ['period'] },
     },
   },
   {
-    name: 'get_client_history',
-    description: 'Get full details for a specific client: contact info, their recent invoices, and total revenue from them.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        clientId: { type: 'string', description: 'The client UUID from search_clients.' },
-      },
-      required: ['clientId'],
-    },
-  },
-  {
-    name: 'search_invoices',
-    description: 'Search and filter invoices flexibly. All parameters are optional — combine as needed.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        clientName: { type: 'string', description: 'Filter by client name (partial match).' },
-        status: { type: 'string', enum: STATUS_ENUM as unknown as string[], description: 'Filter by invoice status.' },
-        startDate: { type: 'string', description: 'Issue date from (YYYY-MM-DD).' },
-        endDate: { type: 'string', description: 'Issue date to (YYYY-MM-DD).' },
-        minAmount: { type: 'number', description: 'Minimum invoice total.' },
-        maxAmount: { type: 'number', description: 'Maximum invoice total.' },
-        limit: { type: 'number', description: 'Max results to return (default 20, max 50).' },
+    type: 'function',
+    function: {
+      name: 'search_clients',
+      description: 'Search for clients by name or email. Returns matching clients with invoice count.',
+      parameters: {
+        type: 'object',
+        properties: { query: { type: 'string', description: 'Name or email to search for.' } },
+        required: ['query'],
       },
     },
   },
   {
-    name: 'get_payments_list',
-    description: 'Get a list of individual payments received in a period, with client and invoice info.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        period: { type: 'string', enum: PERIOD_ENUM as unknown as string[] },
-      },
-      required: ['period'],
-    },
-  },
-  {
-    name: 'get_expenses_list',
-    description: 'Get individual expense records for a period with category and vendor info.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        period: { type: 'string', enum: PERIOD_ENUM as unknown as string[] },
-      },
-      required: ['period'],
-    },
-  },
-  {
-    name: 'get_inventory',
-    description: 'Get all inventory items with current stock levels, available quantity, unit price, and reorder status.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        search: { type: 'string', description: 'Optional name filter.' },
+    type: 'function',
+    function: {
+      name: 'get_client_history',
+      description: 'Get full details for a specific client: contact info, recent invoices, and total revenue.',
+      parameters: {
+        type: 'object',
+        properties: { clientId: { type: 'string', description: 'The client UUID from search_clients.' } },
+        required: ['clientId'],
       },
     },
   },
   {
-    name: 'get_vendors',
-    description: 'Get the list of vendors with contact details.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        search: { type: 'string', description: 'Optional name/contact search.' },
+    type: 'function',
+    function: {
+      name: 'search_invoices',
+      description: 'Search and filter invoices flexibly. All parameters are optional — combine as needed.',
+      parameters: {
+        type: 'object',
+        properties: {
+          clientName: { type: 'string', description: 'Filter by client name (partial match).' },
+          status: { type: 'string', enum: STATUS_ENUM, description: 'Filter by invoice status.' },
+          startDate: { type: 'string', description: 'Issue date from (YYYY-MM-DD).' },
+          endDate: { type: 'string', description: 'Issue date to (YYYY-MM-DD).' },
+          minAmount: { type: 'number', description: 'Minimum invoice total.' },
+          maxAmount: { type: 'number', description: 'Maximum invoice total.' },
+          limit: { type: 'number', description: 'Max results (default 20, max 50).' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_payments_list',
+      description: 'Get a list of individual payments received in a period, with client and invoice info.',
+      parameters: { type: 'object', properties: { period: periodParam }, required: ['period'] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_expenses_list',
+      description: 'Get individual expense records for a period with category and vendor info.',
+      parameters: { type: 'object', properties: { period: periodParam }, required: ['period'] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_inventory',
+      description: 'Get all inventory items with current stock levels, available quantity, unit price, and reorder status.',
+      parameters: {
+        type: 'object',
+        properties: { search: { type: 'string', description: 'Optional name filter.' } },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_vendors',
+      description: 'Get the list of vendors with contact details.',
+      parameters: {
+        type: 'object',
+        properties: { search: { type: 'string', description: 'Optional name/contact search.' } },
       },
     },
   },
 ];
 
+const INSIGHTS_TOOL: OpenAI.Chat.ChatCompletionTool = {
+  type: 'function',
+  function: {
+    name: 'report_insights',
+    description: 'Generate structured business insights from the provided financial data.',
+    parameters: {
+      type: 'object',
+      properties: {
+        summary: {
+          type: 'string',
+          description: 'A 2-3 sentence executive summary of business health for the period.',
+        },
+        insights: {
+          type: 'array',
+          description: 'Array of exactly 5 specific, actionable insights.',
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string', description: 'Short headline (5-8 words).' },
+              body: { type: 'string', description: 'What the data shows with specific numbers (2-3 sentences).' },
+              recommendation: { type: 'string', description: 'A specific, actionable next step (1-2 sentences).' },
+              sentiment: { type: 'string', enum: ['positive', 'warning', 'neutral'] },
+              category: { type: 'string', enum: ['revenue', 'expenses', 'clients', 'collections', 'products'] },
+            },
+            required: ['title', 'body', 'recommendation', 'sentiment', 'category'],
+          },
+        },
+      },
+      required: ['summary', 'insights'],
+    },
+  },
+};
+
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
-  private readonly anthropic = new Anthropic();
+  private readonly client = new OpenAI({
+    apiKey: process.env.DEEPSEEK_API_KEY,
+    baseURL: 'https://api.deepseek.com',
+  });
 
   constructor(
     private readonly reportsService: ReportsService,
     private readonly clientsService: ClientsService,
-    private readonly invoicesService: InvoicesService,
     private readonly expensesService: ExpensesService,
     private readonly paymentsService: PaymentsService,
     private readonly vendorsService: VendorsService,
@@ -284,9 +275,8 @@ export class AiService {
       this.reportsService.getTopProducts(organizationId, effectiveFilter),
     ]);
 
-    const currency = '₦';
     const fmt = (n: number) =>
-      n >= 1_000_000 ? `${currency}${(n / 1_000_000).toFixed(1)}M` : `${currency}${n.toLocaleString()}`;
+      n >= 1_000_000 ? `₦${(n / 1_000_000).toFixed(1)}M` : `₦${n.toLocaleString()}`;
 
     const dataPrompt = `
 BUSINESS FINANCIAL DATA (period: ${effectiveFilter.period})
@@ -316,26 +306,27 @@ ${services.services.map((s, i) => `  ${i + 1}. ${s.label}: ${fmt(s.revenue)} rev
 ${products.products.map((p, i) => `  ${i + 1}. ${p.label}: ${fmt(p.revenue)} revenue, sold ${p.count}x`).join('\n') || '  No products data'}
 `.trim();
 
-    const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 2048,
-      system: `You are a sharp business analyst reviewing financial data for a small business owner.
-Analyse the data and call the report_insights tool with EXACTLY 5 insights — no more, no fewer.
-Each insight must reference specific numbers from the data.
-Be direct and use the actual numbers from the data provided. Avoid generic advice.
-Currency is Nigerian Naira (₦).`,
+    const response = await this.client.chat.completions.create({
+      model: 'deepseek-chat',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a sharp business analyst. Analyse the financial data and call report_insights with EXACTLY 5 insights. Each must reference specific numbers. Currency is ₦ (Nigerian Naira).`,
+        },
+        { role: 'user', content: dataPrompt },
+      ],
       tools: [INSIGHTS_TOOL],
-      tool_choice: { type: 'any' },
-      messages: [{ role: 'user', content: dataPrompt }],
+      tool_choice: { type: 'function', function: { name: 'report_insights' } },
+      max_tokens: 2048,
     });
 
-    const toolUse = response.content.find((b) => b.type === 'tool_use') as Anthropic.ToolUseBlock | undefined;
-    if (!toolUse) {
-      this.logger.error('AI did not return structured insights');
+    const rawToolCall = response.choices[0]?.message?.tool_calls?.[0] as FunctionToolCall | undefined;
+    if (!rawToolCall || rawToolCall.type !== 'function') {
+      this.logger.error('DeepSeek did not return structured insights');
       throw new Error('Failed to generate insights');
     }
 
-    const result = toolUse.input as { summary: string; insights: Insight[] };
+    const result = JSON.parse(rawToolCall.function.arguments) as { summary: string; insights: Insight[] };
 
     return {
       summary: result.summary,
@@ -350,58 +341,58 @@ Currency is Nigerian Naira (₦).`,
   ): Promise<{ message: string }> {
     const today = new Date().toISOString().split('T')[0];
 
-    const anthropicMessages: Anthropic.MessageParam[] = messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
-
-    while (true) {
-      const response = await this.anthropic.messages.create({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1024,
-        system: `You are a knowledgeable business analyst with access to this business's live data.
+    const chatMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      {
+        role: 'system',
+        content: `You are a knowledgeable business analyst with access to this business's live data.
 Answer questions conversationally using the tools to look up real data — never guess or estimate numbers.
-Use markdown for formatting: **bold** for key figures, bullet lists, tables where appropriate, headers (##) for sections.
+Use markdown for formatting: **bold** for key figures, bullet lists, tables where appropriate, ## for section headers.
 Do not use emojis. Keep responses concise. Format currency as ₦ (Nigerian Naira).
 Today is ${today}.`,
+      },
+      ...messages.map((m) => ({ role: m.role, content: m.content } as OpenAI.Chat.ChatCompletionMessageParam)),
+    ];
+
+    while (true) {
+      const response = await this.client.chat.completions.create({
+        model: 'deepseek-chat',
+        messages: chatMessages,
         tools: CHAT_TOOLS,
-        messages: anthropicMessages,
+        max_tokens: 1024,
       });
 
-      if (response.stop_reason === 'end_turn') {
-        const textBlock = response.content.find((b) => b.type === 'text') as Anthropic.TextBlock | undefined;
-        return { message: textBlock?.text ?? '' };
+      const choice = response.choices[0];
+      const message = choice.message;
+
+      if (choice.finish_reason === 'stop') {
+        return { message: message.content ?? '' };
       }
 
-      if (response.stop_reason === 'tool_use') {
-        anthropicMessages.push({ role: 'assistant', content: response.content });
-        const toolResults: Anthropic.ToolResultBlockParam[] = [];
+      if (choice.finish_reason === 'tool_calls') {
+        chatMessages.push(message);
 
-        for (const block of response.content) {
-          if (block.type !== 'tool_use') continue;
-          const toolUse = block as Anthropic.ToolUseBlock;
+        for (const rawCall of message.tool_calls ?? []) {
+          const toolCall = rawCall as FunctionToolCall;
           let result: unknown;
-
           try {
-            result = await this.runTool(toolUse.name, toolUse.input as any, organizationId);
+            const input = JSON.parse(toolCall.function.arguments);
+            result = await this.runTool(toolCall.function.name, input, organizationId);
           } catch (err) {
-            this.logger.error(`Chat tool ${toolUse.name} failed`, err);
+            this.logger.error(`Chat tool ${toolCall.function.name} failed`, err);
             result = { error: err instanceof Error ? err.message : 'Tool execution failed' };
           }
 
-          toolResults.push({
-            type: 'tool_result',
-            tool_use_id: toolUse.id,
+          chatMessages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
             content: JSON.stringify(result),
           });
         }
 
-        anthropicMessages.push({ role: 'user', content: toolResults });
         continue;
       }
 
-      const textBlock = response.content.find((b) => b.type === 'text') as Anthropic.TextBlock | undefined;
-      return { message: textBlock?.text ?? 'Something went wrong. Please try again.' };
+      return { message: message.content ?? 'Something went wrong. Please try again.' };
     }
   }
 
@@ -436,11 +427,7 @@ Today is ${today}.`,
       }
 
       case 'search_clients':
-        return this.clientsService.findAll(organizationId, {
-          search: input.query,
-          page: 1,
-          limit: 15,
-        });
+        return this.clientsService.findAll(organizationId, { search: input.query, page: 1, limit: 15 });
 
       case 'get_client_history':
         return this.clientsService.findOne(input.clientId, organizationId);
@@ -487,22 +474,12 @@ Today is ${today}.`,
 
       case 'get_payments_list': {
         const { startDate, endDate } = getDateRange(period);
-        return this.paymentsService.findAll(organizationId, {
-          startDate,
-          endDate,
-          page: 1,
-          limit: 50,
-        });
+        return this.paymentsService.findAll(organizationId, { startDate, endDate, page: 1, limit: 50 });
       }
 
       case 'get_expenses_list': {
         const { startDate, endDate } = getDateRange(period);
-        return this.expensesService.findAll(organizationId, {
-          startDate,
-          endDate,
-          page: 1,
-          limit: 50,
-        });
+        return this.expensesService.findAll(organizationId, { startDate, endDate, page: 1, limit: 50 });
       }
 
       case 'get_inventory': {
@@ -515,11 +492,7 @@ Today is ${today}.`,
       }
 
       case 'get_vendors':
-        return this.vendorsService.findAll(organizationId, {
-          search: input.search,
-          page: 1,
-          limit: 50,
-        });
+        return this.vendorsService.findAll(organizationId, { search: input.search, page: 1, limit: 50 });
 
       default:
         return { error: `Unknown tool: ${name}` };
