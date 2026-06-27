@@ -610,6 +610,7 @@ export function InvoicesListPage() {
           </Button>
         </div>
       </BottomSheet>
+
     </div>
   )
 }

@@ -44,6 +44,9 @@ export { InventoryPage } from './inventory/InventoryPage'
 // Reports
 export { ReportsPage } from './reports/Reports'
 
+// Insights
+export { InsightsPage } from './insights/InsightsPage'
+
 // Settings
 export { SettingsPage } from './settings/Settings'
 export { UsersPage } from './settings/UsersPage'

@@ -35,6 +35,7 @@ import {
   BulkRecategorizePage,
   TaxFilingPackPage,
   ReportsPage,
+  InsightsPage,
   InventoryPage,
   SettingsPage,
   UsersPage,
@@ -117,6 +118,7 @@ function App() {
                   <Route path="/expenses/bulk-recategorize" element={<BulkRecategorizePage />} />
                 </Route>
                 <Route path="/reports" element={<ReportsPage />} />
+                <Route path="/insights" element={<InsightsPage />} />
                 <Route path="/tax" element={<TaxFilingPackPage />} />
               </Route>
 

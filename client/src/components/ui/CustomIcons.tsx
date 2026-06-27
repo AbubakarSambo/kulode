@@ -15,6 +15,7 @@ import {
   Logout01Icon,
   SecurityLockIcon,
   LockPasswordIcon,
+  AiBrain02Icon,
 } from '@hugeicons/core-free-icons'
 import { cn } from '@/lib/utils'
 
@@ -133,6 +134,19 @@ export function ReportsIcon({ className }: IconProps) {
   return (
     <HugeiconsIcon
       icon={AnalyticsIcon}
+      size={SIZE}
+      color="currentColor"
+      strokeWidth={1.5}
+      className={cn('shrink-0', className)}
+    />
+  )
+}
+
+// 9b. AI Insights — Brain
+export function InsightsIcon({ className }: IconProps) {
+  return (
+    <HugeiconsIcon
+      icon={AiBrain02Icon}
       size={SIZE}
       color="currentColor"
       strokeWidth={1.5}

@@ -20,6 +20,7 @@ import { SubscriptionModule } from './modules/subscription';
 import { InventoryModule } from './modules/inventory';
 import { TaxModule } from './modules/tax';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
+import { AiModule } from './modules/ai/ai.module';
 import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor, SubscriptionReadOnlyGuard } from './common';
 
 
@@ -46,6 +47,7 @@ import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor, 
     SubscriptionModule,
     TaxModule,
     OnboardingModule,
+    AiModule,
   ],
   providers: [
     {
