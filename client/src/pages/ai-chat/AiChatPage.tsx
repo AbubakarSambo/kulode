@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
 import { Header } from '@/components/layout'
 import { aiApi, type ChatMessage } from '@/api/ai'
 import { AiChatIcon } from '@/components/ui/CustomIcons'
@@ -35,24 +36,47 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   return (
     <div className={cn('flex items-end gap-2', isUser && 'flex-row-reverse')}>
       {!isUser && (
-        <div className="w-7 h-7 rounded-full bg-[#0037b0]/10 flex items-center justify-center shrink-0">
+        <div className="w-7 h-7 rounded-full bg-[#0037b0]/10 flex items-center justify-center shrink-0 mb-0.5">
           <AiChatIcon className="text-[#0037b0] w-4 h-4" />
         </div>
       )}
       <div
         className={cn(
-          'max-w-[78%] px-4 py-3 text-sm leading-relaxed shadow-sm',
+          'max-w-[82%] px-4 py-3 text-sm shadow-sm',
           isUser
-            ? 'bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white rounded-2xl rounded-br-sm'
+            ? 'bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white rounded-2xl rounded-br-sm leading-relaxed'
             : 'bg-white border border-slate-200 text-slate-800 rounded-2xl rounded-bl-sm',
         )}
       >
-        {message.content.split('\n').map((line, i) => (
-          <span key={i}>
-            {line}
-            {i < message.content.split('\n').length - 1 && <br />}
-          </span>
-        ))}
+        {isUser ? (
+          message.content
+        ) : (
+          <ReactMarkdown
+            components={{
+              p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+              strong: ({ children }) => <strong className="font-semibold text-slate-900">{children}</strong>,
+              h1: ({ children }) => <h1 className="text-base font-bold text-slate-900 mb-2 mt-1">{children}</h1>,
+              h2: ({ children }) => <h2 className="text-sm font-bold text-slate-900 mb-2 mt-1">{children}</h2>,
+              h3: ({ children }) => <h3 className="text-sm font-semibold text-slate-900 mb-1.5 mt-1">{children}</h3>,
+              ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-2 text-slate-700">{children}</ul>,
+              ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-2 text-slate-700">{children}</ol>,
+              li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+              hr: () => <hr className="border-slate-200 my-3" />,
+              table: ({ children }) => (
+                <div className="overflow-x-auto my-2 rounded-lg border border-slate-200">
+                  <table className="w-full text-xs">{children}</table>
+                </div>
+              ),
+              thead: ({ children }) => <thead className="bg-slate-50">{children}</thead>,
+              th: ({ children }) => <th className="px-3 py-2 text-left font-semibold text-slate-600 border-b border-slate-200 whitespace-nowrap">{children}</th>,
+              td: ({ children }) => <td className="px-3 py-2 text-slate-700 border-b border-slate-100 last:border-0">{children}</td>,
+              tr: ({ children }) => <tr className="hover:bg-slate-50/50">{children}</tr>,
+              code: ({ children }) => <code className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-xs font-mono">{children}</code>,
+            }}
+          >
+            {message.content}
+          </ReactMarkdown>
+        )}
       </div>
     </div>
   )
