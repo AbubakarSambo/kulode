@@ -16,6 +16,7 @@
 5. **Build + lint must pass** before finalizing any code change. Run in the modified component's directory.
 6. **Run tests before build + lint** after any changes to a file that has a corresponding `.spec.ts` or `.test.ts`.
 7. **Self-host all assets** — Never reference external CDN URLs for fonts/icons or use external/hotlinked image URLs (e.g. googleusercontent) in frontend code. Always host them locally inside the `public/` directory or corresponding package configuration.
+8. **Always run `npm install` after pulling or rebasing** — When retrieving new updates from a remote branch (e.g. `git fetch`, `git pull` or `git rebase`), immediately run `npm install` in the relevant directories (`client/` and/or `api/`) to catch any newly added dependencies before attempting to build or run the code.
 
 ---
 

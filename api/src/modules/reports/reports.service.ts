@@ -48,8 +48,42 @@ export class ReportsService {
     return { startDate, endDate };
   }
 
+  private getPreviousDateRange(startDate: Date, endDate: Date, period: ReportPeriod | string): { startDate: Date; endDate: Date } {
+    const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+    
+    const prevStartDate = new Date(startDate);
+    const prevEndDate = new Date(endDate);
+
+    if (period === ReportPeriod.THIS_MONTH || period === ReportPeriod.LAST_MONTH) {
+      prevStartDate.setMonth(prevStartDate.getMonth() - 1);
+      prevEndDate.setMonth(prevEndDate.getMonth() - 1);
+    } else if (period === ReportPeriod.THIS_QUARTER || period === ReportPeriod.LAST_QUARTER) {
+      prevStartDate.setMonth(prevStartDate.getMonth() - 3);
+      prevEndDate.setMonth(prevEndDate.getMonth() - 3);
+    } else if (period === ReportPeriod.THIS_YEAR || period === ReportPeriod.LAST_YEAR) {
+      prevStartDate.setFullYear(prevStartDate.getFullYear() - 1);
+      prevEndDate.setFullYear(prevEndDate.getFullYear() - 1);
+    } else {
+      // For CUSTOM, shift back by the exact millisecond difference
+      prevStartDate.setTime(prevStartDate.getTime() - diffTime);
+      prevEndDate.setTime(prevEndDate.getTime() - diffTime);
+    }
+
+    return { startDate: prevStartDate, endDate: prevEndDate };
+  }
+
+  private calculatePercentageChange(current: number, previous: number): number {
+    if (previous === 0) {
+      return current > 0 ? 100 : 0;
+    }
+    return Number((((current - previous) / previous) * 100).toFixed(2));
+  }
+
   async getSummary(organizationId: string, filter: ReportFilterDto) {
     const { startDate, endDate } = this.getDateRange(filter);
+
+    // Get previous period range for PoP calculations
+    const prevRange = this.getPreviousDateRange(startDate, endDate, filter.period || 'THIS_MONTH');
 
     // Get total income (payments received)
     const payments = await this.prisma.payment.aggregate({
@@ -72,7 +106,48 @@ export class ReportsService {
       _count: true,
     });
 
-    // Get invoice stats
+    // Get previous period income
+    const prevPayments = await this.prisma.payment.aggregate({
+      where: {
+        organizationId,
+        paymentDate: { gte: prevRange.startDate, lte: prevRange.endDate },
+      },
+      _sum: { amount: true },
+    });
+
+    // Get previous period expenses
+    const prevExpenses = await this.prisma.expense.aggregate({
+      where: {
+        organizationId,
+        expenseDate: { gte: prevRange.startDate, lte: prevRange.endDate },
+        deletedAt: null,
+      },
+      _sum: { amount: true },
+    });
+
+    // Get cumulative payments (since inception)
+    const allPayments = await this.prisma.payment.aggregate({
+      where: { organizationId },
+      _sum: { amount: true },
+    });
+
+    // Get cumulative expenses (since inception)
+    const allExpenses = await this.prisma.expense.aggregate({
+      where: { organizationId, deletedAt: null },
+      _sum: { amount: true },
+    });
+
+    // Get unpaid/overdue invoice totals (outstanding receivables)
+    const unpaidInvoices = await this.prisma.invoice.aggregate({
+      where: {
+        organizationId,
+        status: { in: ['SENT', 'PARTIALLY_PAID', 'OVERDUE'] },
+        deletedAt: null,
+      },
+      _sum: { total: true, amountPaid: true },
+    });
+
+    // Get invoice stats for active period
     const invoices = await this.prisma.invoice.groupBy({
       by: ['status'],
       where: {
@@ -88,6 +163,27 @@ export class ReportsService {
     const totalExpenses = Number(expenses._sum.amount || 0);
     const profit = totalIncome - totalExpenses;
 
+    const prevIncome = Number(prevPayments._sum.amount || 0);
+    const prevExpensesVal = Number(prevExpenses._sum.amount || 0);
+    const prevProfit = prevIncome - prevExpensesVal;
+
+    const incomeChange = this.calculatePercentageChange(totalIncome, prevIncome);
+    const expensesChange = this.calculatePercentageChange(totalExpenses, prevExpensesVal);
+    const profitChange = this.calculatePercentageChange(profit, prevProfit);
+
+    const cumulativeCash = Number(allPayments._sum.amount || 0) - Number(allExpenses._sum.amount || 0);
+    const totalOutstanding = Number(unpaidInvoices._sum.total || 0) - Number(unpaidInvoices._sum.amountPaid || 0);
+
+    // Compute average monthly burn rate for active period
+    const diffMonths = Math.max(
+      1,
+      (endDate.getFullYear() - startDate.getFullYear()) * 12 +
+        (endDate.getMonth() - startDate.getMonth()) +
+        1
+    );
+    const monthlyBurn = totalExpenses / diffMonths;
+    const runwayMonths = monthlyBurn > 0 ? (cumulativeCash > 0 ? cumulativeCash / monthlyBurn : 0) : null;
+
     // Calculate totals by invoice status
     const invoiceStats = invoices.reduce(
       (acc, inv) => {
@@ -100,19 +196,98 @@ export class ReportsService {
       {} as Record<string, { count: number; total: number }>,
     );
 
+    // Compute Insights
+    const insights: { id: string; type: 'info' | 'warning' | 'critical'; title: string; message: string }[] = [];
+
+    // 1. Runway Warning
+    if (runwayMonths !== null) {
+      if (runwayMonths < 3) {
+        insights.push({
+          id: 'low-runway',
+          type: 'critical',
+          title: 'Critical Cash Runway',
+          message: `Your cash runway is currently ${runwayMonths.toFixed(1)} months. Consider accelerating overdue invoice collection or optimizing operational expenses.`,
+        });
+      } else if (runwayMonths < 6) {
+        insights.push({
+          id: 'low-runway',
+          type: 'warning',
+          title: 'Low Cash Runway',
+          message: `Your cash runway is currently ${runwayMonths.toFixed(1)} months. We recommend reviewing outstanding receivables to safeguard cash flow.`,
+        });
+      }
+    }
+
+    // 2. Client Concentration
+    const topClientPayment = await this.prisma.$queryRaw<{ client_name: string; total: number }[]>`
+      SELECT 
+        c.name as client_name,
+        SUM(p.amount)::numeric as total
+      FROM payments p
+      JOIN invoices i ON p.invoice_id = i.id
+      JOIN clients c ON i.client_id = c.id
+      WHERE p.organization_id = ${organizationId}
+        AND p.payment_date >= ${startDate}
+        AND p.payment_date <= ${endDate}
+      GROUP BY c.id, c.name
+      ORDER BY total DESC
+      LIMIT 1
+    `;
+
+    if (topClientPayment && topClientPayment.length > 0 && totalIncome > 0) {
+      const topClientRatio = (Number(topClientPayment[0].total) / totalIncome) * 100;
+      if (topClientRatio > 30) {
+        insights.push({
+          id: 'client-concentration',
+          type: 'warning',
+          title: 'Client Concentration Risk',
+          message: `${topClientPayment[0].client_name} accounts for ${topClientRatio.toFixed(1)}% of your income this period. High dependency detected; consider diversifying your client base.`,
+        });
+      }
+    }
+
+    // 3. Burn Rate Spike
+    if (expensesChange > 20) {
+      insights.push({
+        id: 'expense-spike',
+        type: 'warning',
+        title: 'Expense Spike Detected',
+        message: `Your expenses have increased by ${expensesChange.toFixed(1)}% compared to the prior period. Check your category breakdown to isolate the increase.`,
+      });
+    }
+
+    // 4. Receivables Collector
+    if (totalIncome > 0) {
+      const receivablesRatio = (totalOutstanding / totalIncome) * 100;
+      if (receivablesRatio > 30) {
+        insights.push({
+          id: 'receivables-leak',
+          type: 'info',
+          title: 'High Receivables Balance',
+          message: `Outstanding overdue invoices equal ${receivablesRatio.toFixed(1)}% of your total income. Consider enabling automated reminders on pending invoices.`,
+        });
+      }
+    }
+
     return {
       period: { startDate, endDate },
       income: {
         total: totalIncome,
         paymentCount: payments._count,
+        change: incomeChange,
       },
       expenses: {
         total: totalExpenses,
         expenseCount: expenses._count,
+        change: expensesChange,
       },
       profit,
+      profitChange,
       profitMargin: totalIncome > 0 ? ((profit / totalIncome) * 100).toFixed(2) : 0,
+      cumulativeCash,
+      runwayMonths,
       invoices: invoiceStats,
+      insights,
     };
   }
 
@@ -290,84 +465,75 @@ export class ReportsService {
   async getTopServices(organizationId: string, filter: ReportFilterDto) {
     const { startDate, endDate } = this.getDateRange(filter);
 
-    const items = await this.prisma.invoiceItem.findMany({
-      where: {
-        serviceItemId: { not: null },
-        invoice: {
-          organizationId,
-          status: { in: ['PAID', 'PARTIALLY_PAID'] },
-          issueDate: { gte: startDate, lte: endDate },
-          deletedAt: null,
-        },
-      },
-      select: {
-        serviceItemId: true,
-        amount: true,
-        serviceItem: { select: { name: true } },
-      },
-    });
+    const services = await this.prisma.$queryRaw<
+      { id: string; label: string; revenue: number; volume: number; count: number }[]
+    >`
+      SELECT 
+        ii.service_item_id as id,
+        COALESCE(si.name, ii.description) as label,
+        SUM(ii.amount)::numeric as revenue,
+        SUM(ii.quantity)::numeric as volume,
+        COUNT(ii.id)::integer as count
+      FROM invoice_items ii
+      JOIN invoices i ON ii.invoice_id = i.id
+      LEFT JOIN service_items si ON ii.service_item_id = si.id
+      WHERE i.organization_id = ${organizationId}
+        AND ii.service_item_id IS NOT NULL
+        AND i.status IN ('PAID', 'PARTIALLY_PAID')
+        AND i.issue_date >= ${startDate}
+        AND i.issue_date <= ${endDate}
+        AND i.deleted_at IS NULL
+      GROUP BY ii.service_item_id, si.name, ii.description
+      ORDER BY revenue DESC
+    `;
 
-    const grouped = new Map<string, { label: string; revenue: number; count: number }>();
-
-    for (const item of items) {
-      const key = item.serviceItemId!;
-      const label = item.serviceItem?.name ?? key;
-      const existing = grouped.get(key);
-      if (existing) {
-        existing.revenue += Number(item.amount);
-        existing.count += 1;
-      } else {
-        grouped.set(key, { label, revenue: Number(item.amount), count: 1 });
-      }
-    }
-
-    const sorted = Array.from(grouped.values())
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 5);
-
-    return { period: { startDate, endDate }, services: sorted };
+    return { 
+      period: { startDate, endDate }, 
+      services: services.map(s => ({
+        id: s.id,
+        label: s.label,
+        revenue: Number(s.revenue || 0),
+        volume: Number(s.volume || 0),
+        count: Number(s.count || 0)
+      })) 
+    };
   }
 
   async getTopProducts(organizationId: string, filter: ReportFilterDto) {
     const { startDate, endDate } = this.getDateRange(filter);
 
-    const items = await this.prisma.invoiceItem.findMany({
-      where: {
-        inventoryItemId: { not: null },
-        invoice: {
-          organizationId,
-          status: { in: ['PAID', 'PARTIALLY_PAID'] },
-          issueDate: { gte: startDate, lte: endDate },
-          deletedAt: null,
-        },
-      },
-      select: {
-        inventoryItemId: true,
-        description: true,
-        amount: true,
-        inventoryItem: { select: { name: true } },
-      },
-    });
+    const products = await this.prisma.$queryRaw<
+      { id: string; label: string; revenue: number; volume: number; count: number }[]
+    >`
+      SELECT 
+        ii.inventory_item_id as id,
+        COALESCE(inv.name, ii.description) as label,
+        SUM(ii.amount)::numeric as revenue,
+        SUM(ii.quantity)::numeric as volume,
+        COUNT(ii.id)::integer as count
+      FROM invoice_items ii
+      JOIN invoices i ON ii.invoice_id = i.id
+      LEFT JOIN inventory_items inv ON ii.inventory_item_id = inv.id
+      WHERE i.organization_id = ${organizationId}
+        AND ii.inventory_item_id IS NOT NULL
+        AND i.status IN ('PAID', 'PARTIALLY_PAID')
+        AND i.issue_date >= ${startDate}
+        AND i.issue_date <= ${endDate}
+        AND i.deleted_at IS NULL
+      GROUP BY ii.inventory_item_id, inv.name, ii.description
+      ORDER BY revenue DESC
+    `;
 
-    const grouped = new Map<string, { label: string; revenue: number; count: number }>();
-
-    for (const item of items) {
-      const key = item.inventoryItemId!;
-      const label = item.inventoryItem?.name ?? item.description;
-      const existing = grouped.get(key);
-      if (existing) {
-        existing.revenue += Number(item.amount);
-        existing.count += 1;
-      } else {
-        grouped.set(key, { label, revenue: Number(item.amount), count: 1 });
-      }
-    }
-
-    const sorted = Array.from(grouped.values())
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 5);
-
-    return { period: { startDate, endDate }, products: sorted };
+    return { 
+      period: { startDate, endDate }, 
+      products: products.map(p => ({
+        id: p.id,
+        label: p.label,
+        revenue: Number(p.revenue || 0),
+        volume: Number(p.volume || 0),
+        count: Number(p.count || 0)
+      })) 
+    };
   }
 
   async getCashflow(organizationId: string, filter: ReportFilterDto) {
@@ -404,7 +570,23 @@ export class ReportsService {
     const incomeMap = new Map(monthlyIncome.map((i) => [i.month, Number(i.total)]));
     const expenseMap = new Map(monthlyExpenses.map((e) => [e.month, Number(e.total)]));
     
-    const allMonths = new Set([...incomeMap.keys(), ...expenseMap.keys()]);
+    // Generate all months between startDate and endDate to pad the timeline
+    const allMonths = new Set<string>();
+    const current = new Date(startDate);
+    current.setDate(1); // Set to 1st of month to avoid edge cases
+    const end = new Date(endDate);
+    
+    while (current <= end) {
+      const year = current.getFullYear();
+      const monthStr = String(current.getMonth() + 1).padStart(2, '0');
+      allMonths.add(`${year}-${monthStr}`);
+      current.setMonth(current.getMonth() + 1);
+    }
+    
+    // Ensure any unexpected months returned by SQL are also included
+    for (const m of incomeMap.keys()) allMonths.add(m);
+    for (const m of expenseMap.keys()) allMonths.add(m);
+
     const cashflow = Array.from(allMonths)
       .sort()
       .map((month) => {

@@ -429,11 +429,20 @@ export interface Expense {
 // Report types
 export interface FinancialSummary {
   period: { startDate: string; endDate: string }
-  income: { total: number; paymentCount: number }
-  expenses: { total: number; expenseCount: number }
+  income: { total: number; paymentCount: number; change?: number }
+  expenses: { total: number; expenseCount: number; change?: number }
   profit: number
+  profitChange?: number
   profitMargin: number | string
+  cumulativeCash?: number
+  runwayMonths?: number | null
   invoices: Record<string, { count: number; total: number }>
+  insights?: Array<{
+    id: string
+    type: 'info' | 'warning' | 'critical'
+    title: string
+    message: string
+  }>
 }
 
 export interface CashflowReport {
