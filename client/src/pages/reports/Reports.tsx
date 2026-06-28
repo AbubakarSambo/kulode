@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar, Cell } from 'recharts'
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, BarChart, Bar, Cell, Legend, ComposedChart, Line } from 'recharts'
 import { Link } from 'react-router-dom'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
@@ -90,6 +90,7 @@ export function ReportsPage() {
     cashflow: true,
     expenses: true,
     clients: true,
+    paymentMethods: true,
     top5: true,
     performanceList: true,
     taxEstimator: true
@@ -660,28 +661,53 @@ export function ReportsPage() {
                     <CardContent className="p-6 pt-0 animate-fadeIn">
                       <div className="h-80 mt-2">
                         <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={cashflow?.monthly ?? []}>
+                          <ComposedChart data={cashflow?.monthly ?? []}>
                             <defs>
                               <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
-                                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                <stop offset="5%" stopColor="#006c49" stopOpacity={0.2} />
+                                <stop offset="95%" stopColor="#006c49" stopOpacity={0} />
                               </linearGradient>
                               <linearGradient id="expensesGradient" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#ef4444" stopOpacity={0.2} />
-                                <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                                <stop offset="5%" stopColor="#0037b0" stopOpacity={0.2} />
+                                <stop offset="95%" stopColor="#0037b0" stopOpacity={0} />
                               </linearGradient>
                             </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                            <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                            <YAxis tickFormatter={formatAxisY} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#c4c5d7" opacity={0.15} />
+                            <XAxis 
+                              dataKey="month" 
+                              stroke="#434655" 
+                              fontSize={10} 
+                              tickLine={false} 
+                              axisLine={false} 
+                              tickFormatter={(val) => {
+                                if (!val) return '';
+                                const d = new Date(val + '-01T00:00:00');
+                                return isNaN(d.getTime()) ? val : d.toLocaleString('en-US', { month: 'short' });
+                              }}
+                            />
+                            <YAxis tickFormatter={formatAxisY} stroke="#434655" fontSize={10} tickLine={false} axisLine={false} />
                             <Tooltip
                               formatter={(value) => formatCurrency(Number(value))}
-                              labelFormatter={(label) => `Month: ${label}`}
-                              contentStyle={{ borderRadius: '12px', borderColor: '#e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
+                              labelFormatter={(label) => {
+                                if (!label) return '';
+                                const d = new Date(label + '-01T00:00:00');
+                                return isNaN(d.getTime()) ? `Month: ${label}` : d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+                              }}
+                              contentStyle={{
+                                background: 'rgba(255, 255, 255, 0.9)',
+                                backdropFilter: 'blur(8px)',
+                                border: '1px solid rgba(196, 197, 215, 0.2)',
+                                borderRadius: '12px',
+                                boxShadow: '0px 8px 24px rgba(0, 55, 176, 0.04)',
+                                fontSize: '11px',
+                                color: '#121c28'
+                              }}
                             />
-                            <Area type="linear" dataKey="income" name="Income" stroke="#10b981" strokeWidth={2} fill="url(#incomeGradient)" dot={{ r: 3, fill: '#10b981', strokeWidth: 0 }} activeDot={{ r: 5 }} />
-                            <Area type="linear" dataKey="expenses" name="Expenses" stroke="#ef4444" strokeWidth={2} fill="url(#expensesGradient)" dot={{ r: 3, fill: '#ef4444', strokeWidth: 0 }} activeDot={{ r: 5 }} />
-                          </AreaChart>
+                            <Legend verticalAlign="top" height={36} iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', fontWeight: 600 }} />
+                            <Area type="monotone" dataKey="income" name="Income" stroke="#006c49" strokeWidth={2} fillOpacity={1} fill="url(#incomeGradient)" />
+                            <Area type="monotone" dataKey="expenses" name="Expenses" stroke="#0037b0" strokeWidth={2} fillOpacity={1} fill="url(#expensesGradient)" />
+                            <Line type="monotone" dataKey="net" name="Net Profit" stroke="#121c28" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 4, fill: '#121c28', strokeWidth: 0 }} activeDot={{ r: 6 }} />
+                          </ComposedChart>
                         </ResponsiveContainer>
                       </div>
                     </CardContent>
@@ -702,7 +728,7 @@ export function ReportsPage() {
                       className="p-6 pb-2 cursor-pointer select-none flex flex-row items-center justify-between hover:bg-slate-50/50 transition-colors rounded-t-[24px]"
                       onClick={() => toggleCard('clients')}
                     >
-                      <CardTitle className="text-base font-semibold text-slate-700">Client Risk Concentration</CardTitle>
+                      <CardTitle className="text-base font-semibold text-slate-700">Top Revenue Clients</CardTitle>
                       <HugeiconsIcon icon={ArrowDown01Icon} size={20} className={cn("text-slate-400 transition-transform duration-200", cardState.clients && "rotate-180")} />
                     </CardHeader>
                     {cardState.clients && (
@@ -734,6 +760,54 @@ export function ReportsPage() {
                         ) : (
                           <div className="text-center py-8">
                             <p className="text-xs text-slate-400 font-semibold">No billing records found</p>
+                          </div>
+                        )}
+                      </CardContent>
+                    )}
+                  </Card>
+
+                  {/* Revenue by Payment Method Card (Collapsible) */}
+                  <Card className="border border-border/80 bg-white shadow-[0_4px_12px_rgba(0,55,176,0.01)] rounded-[24px]">
+                    <CardHeader 
+                      className="p-6 pb-2 cursor-pointer select-none flex flex-row items-center justify-between hover:bg-slate-50/50 transition-colors rounded-t-[24px]"
+                      onClick={() => toggleCard('paymentMethods')}
+                    >
+                      <CardTitle className="text-base font-semibold text-slate-700">Revenue by Payment Method</CardTitle>
+                      <HugeiconsIcon icon={ArrowDown01Icon} size={20} className={cn("text-slate-400 transition-transform duration-200", cardState.paymentMethods && "rotate-180")} />
+                    </CardHeader>
+                    {cardState.paymentMethods && (
+                      <CardContent className="p-6 pt-0 space-y-4 animate-fadeIn">
+                        {incomeBreakdown?.byPaymentMethod && incomeBreakdown.byPaymentMethod.length > 0 ? (
+                          <div className="space-y-4 mt-2">
+                            {incomeBreakdown.byPaymentMethod.map((method: { method: string; total: number; count: number }, i: number) => {
+                              const totalInc = incomeBreakdown.byPaymentMethod.reduce((sum: number, m: { method: string; total: number; count: number }) => sum + m.total, 0)
+                              const pct = totalInc > 0 ? (method.total / totalInc) * 100 : 0
+                              
+                              // Format the method name (e.g., BANK_TRANSFER -> Bank Transfer)
+                              const formattedMethod = method.method ? method.method.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'Unknown'
+
+                              return (
+                                <div key={method.method || 'unknown'} className="space-y-2">
+                                  <div className="flex items-center justify-between text-xs font-semibold">
+                                    <span className="text-slate-600 font-medium truncate max-w-[150px]">{formattedMethod}</span>
+                                    <div className="text-right flex items-center gap-1.5 shrink-0">
+                                      <span className="text-slate-800 font-semibold">{formatCurrency(method.total)}</span>
+                                      <span className="text-slate-400 text-[10px] font-medium">({pct.toFixed(0)}%)</span>
+                                    </div>
+                                  </div>
+                                  <div className="w-full bg-slate-100/70 h-2 rounded-full overflow-hidden">
+                                    <div 
+                                      className={cn(PROGRESS_COLORS[(i + 2) % PROGRESS_COLORS.length], "h-full rounded-full transition-all duration-500")} 
+                                      style={{ width: `${pct}%` }} 
+                                    />
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8">
+                            <p className="text-xs text-slate-400 font-semibold">No payment records found</p>
                           </div>
                         )}
                       </CardContent>

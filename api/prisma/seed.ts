@@ -50,6 +50,7 @@ async function main() {
       lastName: 'Doe',
       role: 'SUPER_ADMIN',
       isEmailVerified: true,
+      isPlatformAdmin: true,
     },
   });
 

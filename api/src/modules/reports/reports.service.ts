@@ -570,7 +570,23 @@ export class ReportsService {
     const incomeMap = new Map(monthlyIncome.map((i) => [i.month, Number(i.total)]));
     const expenseMap = new Map(monthlyExpenses.map((e) => [e.month, Number(e.total)]));
     
-    const allMonths = new Set([...incomeMap.keys(), ...expenseMap.keys()]);
+    // Generate all months between startDate and endDate to pad the timeline
+    const allMonths = new Set<string>();
+    const current = new Date(startDate);
+    current.setDate(1); // Set to 1st of month to avoid edge cases
+    const end = new Date(endDate);
+    
+    while (current <= end) {
+      const year = current.getFullYear();
+      const monthStr = String(current.getMonth() + 1).padStart(2, '0');
+      allMonths.add(`${year}-${monthStr}`);
+      current.setMonth(current.getMonth() + 1);
+    }
+    
+    // Ensure any unexpected months returned by SQL are also included
+    for (const m of incomeMap.keys()) allMonths.add(m);
+    for (const m of expenseMap.keys()) allMonths.add(m);
+
     const cashflow = Array.from(allMonths)
       .sort()
       .map((month) => {
