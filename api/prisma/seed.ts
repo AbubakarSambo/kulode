@@ -163,54 +163,73 @@ async function main() {
     createdClients.push(client);
   }
 
-  const acmeClient1 = createdClients[0];
-  const acmeClient2 = createdClients[1];
+  // Acme Service Items (16 items)
+  const servicesData = [
+    { name: 'Software Development Consulting', description: 'Senior Software Architecture and engineering consulting per hour', unitPrice: 75000 },
+    { name: 'Cloud Infrastructure Audit', description: 'Comprehensive review of AWS/GCP setups and cost optimization report', unitPrice: 350000 },
+    { name: 'UI/UX Product Design Workshop', description: 'Interactive design sprints and user journey mapping', unitPrice: 250000 },
+    { name: 'Cybersecurity Pentesting Audit', description: 'Security threat analysis, vulnerability scans, and reporting', unitPrice: 500000 },
+    { name: 'Backend API Optimization', description: 'Performance tuning, query optimizations, and scaling consulting', unitPrice: 120000 },
+    { name: 'Mobile App Development', description: 'iOS and Android native or hybrid development sprints', unitPrice: 150000 },
+    { name: 'DevOps Pipeline Automation', description: 'CI/CD setups, Kubernetes orchestration, and deployment automation', unitPrice: 180000 },
+    { name: 'PostgreSQL Database Tuning', description: 'Index analysis, query rewrites, and database maintenance tuning', unitPrice: 95000 },
+    { name: 'AI/ML Model Integration', description: 'Integrating LLMs, data modeling, and machine learning pipelines', unitPrice: 300000 },
+    { name: 'Technical Writing & Documentation', description: 'API reference guides, developer portals, and system manuals', unitPrice: 60000 },
+    { name: 'Agile Project Management Consultancy', description: 'Scrum master outsourcing and agile transition consulting', unitPrice: 80000 },
+    { name: 'Quality Assurance Automation', description: 'Writing E2E Playwright/Cypress tests and integration suites', unitPrice: 85000 },
+    { name: 'Front-End React Development', description: 'Vite, Next.js, and TypeScript frontend development sprints', unitPrice: 90000 },
+    { name: 'System Architecture Review', description: 'Reviewing blueprints, microservice design, and design documents', unitPrice: 200000 },
+    { name: 'Data Analytics & Business Intelligence', description: 'Building dashboards, ETL pipelines, and warehouse setups', unitPrice: 160000 },
+    { name: 'IT Support Desk Retainer', description: '24/7 helpdesk and infrastructure support retainer per month', unitPrice: 450000 },
+  ];
 
-  // Acme Service Items
-  const acmeService1 = await prisma.serviceItem.create({
-    data: {
-      organizationId: acme.id,
-      name: 'Software Development Consulting',
-      description: 'Senior Software Architecture and engineering consulting per hour',
-      unitPrice: 75000,
-    },
-  });
+  const createdServices = [];
+  for (const item of servicesData) {
+    const service = await prisma.serviceItem.create({
+      data: {
+        organizationId: acme.id,
+        name: item.name,
+        description: item.description,
+        unitPrice: item.unitPrice,
+      },
+    });
+    createdServices.push(service);
+  }
 
-  const acmeService2 = await prisma.serviceItem.create({
-    data: {
-      organizationId: acme.id,
-      name: 'Cloud Infrastructure Audit',
-      description: 'Comprehensive review of AWS/GCP setups and cost optimization report',
-      unitPrice: 350000,
-    },
-  });
+  // Acme Inventory Items (16 items)
+  const inventoryItemsData = [
+    { name: 'Dell XPS 15 Laptop', description: 'Core i7, 32GB RAM, 1TB SSD developer workstation laptop', unitPrice: 1800000, onHandQuantity: 15, sku: 'DELL-XPS15-01' },
+    { name: 'Logitech MX Master 3S Mouse', description: 'Ergonomic wireless mouse for developers', unitPrice: 95000, onHandQuantity: 40, sku: 'LOGI-MX3S-02' },
+    { name: 'Apple MacBook Pro 16 M3', description: 'M3 Max, 64GB RAM, 2TB SSD high-end developer laptop', unitPrice: 3500000, onHandQuantity: 10, sku: 'APPL-MBP16-03' },
+    { name: 'ASUS ProArt Display 27"', description: '4K HDR color-accurate monitor for designer setups', unitPrice: 450000, onHandQuantity: 8, sku: 'ASUS-PA27-04' },
+    { name: 'Keychron Q1 Mechanical Keyboard', description: 'Fully assembled custom mechanical keyboard', unitPrice: 165000, onHandQuantity: 20, sku: 'KEYC-Q1-05' },
+    { name: 'Sony WH-1000XM5 Headphones', description: 'Wireless noise-canceling headphones for deep focus work', unitPrice: 320000, onHandQuantity: 12, sku: 'SONY-XM5-06' },
+    { name: 'Herman Miller Aeron Chair', description: 'Ergonomic office chair for software engineers', unitPrice: 1200000, onHandQuantity: 5, sku: 'HM-AERON-07' },
+    { name: 'Ubiquiti UniFi Dream Machine', description: 'Enterprise-grade firewall and router console', unitPrice: 550000, onHandQuantity: 6, sku: 'UBIQ-UDM-08' },
+    { name: 'Elgato Stream Deck MK.2', description: '15 programmable LCD keys for workflow automation', unitPrice: 130000, onHandQuantity: 18, sku: 'ELGA-SDECK-09' },
+    { name: 'Seagate 4TB External SSD', description: 'High-speed external backup solid-state drive', unitPrice: 190000, onHandQuantity: 25, sku: 'SEAG-SSD4-10' },
+    { name: 'Belkin 3-in-1 Wireless Charger', description: 'MagSafe charging station for iPhone, Watch, and AirPods', unitPrice: 95000, onHandQuantity: 15, sku: 'BELK-CHG-11' },
+    { name: 'Shure MV7 USB Microphone', description: 'Podcasting and corporate calling dynamic microphone', unitPrice: 220000, onHandQuantity: 10, sku: 'SHUR-MV7-12' },
+    { name: 'Anker PowerConf H700 Headset', description: 'Wireless business headset with active noise canceling', unitPrice: 110000, onHandQuantity: 22, sku: 'ANKR-H700-13' },
+    { name: 'Apple Studio Display 27"', description: '5K Retina display with nano-texture glass', unitPrice: 1600000, onHandQuantity: 4, sku: 'APPL-STUDIO-14' },
+    { name: 'Keychron K2 Wireless Keyboard', description: 'Compact Bluetooth mechanical keyboard', unitPrice: 85000, onHandQuantity: 30, sku: 'KEYC-K2-15' },
+    { name: 'LG UltraFine 32" 4K Monitor', description: 'Ergonomic stand UHD IPS monitor', unitPrice: 650000, onHandQuantity: 7, sku: 'LG-32UN880-16' },
+  ];
 
-  // Acme Inventory Items
-  const acmeInventory1 = await prisma.inventoryItem.create({
-    data: {
-      organizationId: acme.id,
-      name: 'Dell XPS 15 Laptop',
-      description: 'Core i7, 32GB RAM, 1TB SSD developer workstation laptop',
-      unitPrice: 1800000,
-      onHandQuantity: 15,
-      reservedQuantity: 2,
-      reorderLevel: 3,
-      sku: 'DELL-XPS15-01',
-    },
-  });
-
-  const acmeInventory2 = await prisma.inventoryItem.create({
-    data: {
-      organizationId: acme.id,
-      name: 'Logitech MX Master 3S Mouse',
-      description: 'Ergonomic wireless mouse for developers',
-      unitPrice: 95000,
-      onHandQuantity: 40,
-      reservedQuantity: 0,
-      reorderLevel: 5,
-      sku: 'LOGI-MX3S-02',
-    },
-  });
+  const createdInventory = [];
+  for (const item of inventoryItemsData) {
+    const inv = await prisma.inventoryItem.create({
+      data: {
+        organizationId: acme.id,
+        name: item.name,
+        description: item.description,
+        unitPrice: item.unitPrice,
+        onHandQuantity: item.onHandQuantity,
+        sku: item.sku,
+      },
+    });
+    createdInventory.push(inv);
+  }
 
   // Acme Default Expense Categories
   const rentCat = await prisma.expenseCategory.create({
@@ -652,19 +671,88 @@ async function main() {
         },
       });
 
-      // Create line item
-      await prisma.invoiceItem.create({
-        data: {
-          invoiceId: invoice.id,
-          description: 'Consulting and Support Services',
-          quantity: 1,
-          unitPrice: subtotal,
-          amount: subtotal,
-        },
-      });
+      // Link to real services and products randomly
+      const randType = Math.random();
+      let finalSubtotal = subtotal;
+      let finalTaxAmount = taxAmount;
+      let finalTotal = total;
+      let finalAmountPaid = amountPaid;
+
+      if (randType < 0.45) {
+        // Link to ServiceItem
+        const service = createdServices[Math.floor(Math.random() * createdServices.length)];
+        const qty = Math.floor(1 + Math.random() * 5);
+        finalSubtotal = Number(service.unitPrice) * qty;
+        finalTaxAmount = Math.round(finalSubtotal * 0.075);
+        finalTotal = finalSubtotal + finalTaxAmount;
+        finalAmountPaid = status === 'PAID' ? finalTotal : (status === 'PARTIALLY_PAID' ? Math.round(finalTotal / 2) : 0);
+
+        // Update the invoice
+        await prisma.invoice.update({
+          where: { id: invoice.id },
+          data: {
+            subtotal: finalSubtotal,
+            taxAmount: finalTaxAmount,
+            total: finalTotal,
+            amountPaid: finalAmountPaid
+          }
+        });
+
+        await prisma.invoiceItem.create({
+          data: {
+            invoiceId: invoice.id,
+            serviceItemId: service.id,
+            description: service.name,
+            quantity: qty,
+            unitPrice: service.unitPrice,
+            amount: finalSubtotal,
+          },
+        });
+      } else if (randType < 0.90) {
+        // Link to InventoryItem
+        const inventory = createdInventory[Math.floor(Math.random() * createdInventory.length)];
+        const qty = Math.floor(1 + Math.random() * 3);
+        finalSubtotal = Number(inventory.unitPrice) * qty;
+        finalTaxAmount = Math.round(finalSubtotal * 0.075);
+        finalTotal = finalSubtotal + finalTaxAmount;
+        finalAmountPaid = status === 'PAID' ? finalTotal : (status === 'PARTIALLY_PAID' ? Math.round(finalTotal / 2) : 0);
+
+        // Update the invoice
+        await prisma.invoice.update({
+          where: { id: invoice.id },
+          data: {
+            subtotal: finalSubtotal,
+            taxAmount: finalTaxAmount,
+            total: finalTotal,
+            amountPaid: finalAmountPaid
+          }
+        });
+
+        await prisma.invoiceItem.create({
+          data: {
+            invoiceId: invoice.id,
+            inventoryItemId: inventory.id,
+            description: inventory.name,
+            quantity: qty,
+            unitPrice: inventory.unitPrice,
+            amount: finalSubtotal,
+          },
+        });
+      } else {
+        // General custom consulting line item
+        await prisma.invoiceItem.create({
+          data: {
+            invoiceId: invoice.id,
+            description: 'Consulting and Support Services',
+            quantity: 1,
+            unitPrice: subtotal,
+            amount: subtotal,
+          },
+        });
+      }
 
       // Create payment record if paid/partially paid
-      if (amountPaid > 0) {
+      if (finalAmountPaid > 0) {
         const methods: ('BANK_TRANSFER' | 'PAYSTACK' | 'CARD' | 'CASH')[] = ['BANK_TRANSFER', 'PAYSTACK', 'CARD', 'CASH'];
         const randMethod = methods[Math.floor(Math.random() * methods.length)];
         
@@ -679,7 +767,7 @@ async function main() {
           data: {
             organizationId: acme.id,
             invoiceId: invoice.id,
-            amount: amountPaid,
+            amount: finalAmountPaid,
             paymentMethod: randMethod,
             paymentDate: new Date(issueDate.getTime() + 1 * 24 * 60 * 60 * 1000),
             isAutoRecorded: false,

@@ -284,13 +284,13 @@ export function RegisterPage() {
   }
 
   const handleMagicLinkSubmit = (data: MagicLinkForm) => {
-    // eslint-disable-next-line react-hooks/purity
+     
     if (Date.now() - mountedAt.current < 1500) return
     magicLinkMutation.mutate(data)
   }
 
   const handlePasswordSubmit = (data: RegisterForm) => {
-    // eslint-disable-next-line react-hooks/purity
+     
     if (Date.now() - mountedAt.current < 1500) return
     registerMutation.mutate(data)
   }

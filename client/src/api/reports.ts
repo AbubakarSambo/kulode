@@ -81,4 +81,25 @@ export const reportsApi = {
     const response = await apiClient.get<ApiResponse<any>>(`/reports/top-products?${params}`)
     return response.data.data
   },
+
+  downloadPdf: async (filters: ReportFilters = {}) => {
+    const params = new URLSearchParams()
+    if (filters.period) params.append('period', filters.period)
+    if (filters.startDate) params.append('startDate', filters.startDate)
+    if (filters.endDate) params.append('endDate', filters.endDate)
+
+    const response = await apiClient.get(`/reports/pdf?${params}`, {
+      responseType: 'blob'
+    })
+    
+    // Create blob link to download
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    const timestamp = new Date().toISOString().split('T')[0]
+    link.setAttribute('download', `Tari1_Report_${filters.period || 'CUSTOM'}_${timestamp}.pdf`)
+    document.body.appendChild(link)
+    link.click()
+    link.parentNode?.removeChild(link)
+  },
 }

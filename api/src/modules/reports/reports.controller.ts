@@ -1,6 +1,8 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Query, UseGuards, Res } from '@nestjs/common';
+import { Response } from 'express';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiProduces } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
+import { ReportPdfService } from './report-pdf.service';
 import { ReportFilterDto } from './dto';
 import { CurrentUser, Roles, Role, RequiresPlan, PlanGuard } from '../../common';
 
@@ -11,7 +13,30 @@ import { CurrentUser, Roles, Role, RequiresPlan, PlanGuard } from '../../common'
 @Controller('reports')
 @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.ACCOUNTANT)
 export class ReportsController {
-  constructor(private readonly reportsService: ReportsService) {}
+  constructor(
+    private readonly reportsService: ReportsService,
+    private readonly reportPdfService: ReportPdfService,
+  ) {}
+
+  @Get('pdf')
+  @ApiOperation({ summary: 'Download financial report as PDF' })
+  @ApiResponse({ status: 200, description: 'PDF file' })
+  @ApiProduces('application/pdf')
+  async downloadPdf(
+    @CurrentUser('organizationId') organizationId: string,
+    @Query() filter: ReportFilterDto,
+    @Res() res: Response,
+  ) {
+    const pdfBuffer = await this.reportPdfService.generatePdf(organizationId, filter);
+    
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="Financial_Report_${filter.period || 'CUSTOM'}.pdf"`,
+      'Content-Length': pdfBuffer.length,
+    });
+    
+    res.send(pdfBuffer);
+  }
 
   @Get('summary')
   @ApiOperation({ summary: 'Get financial summary (income, expenses, profit)' })
