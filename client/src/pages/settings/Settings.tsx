@@ -1,7 +1,7 @@
 import { Header } from '@/components/layout'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui'
 import { Link } from 'react-router-dom'
-import { Building, Users, CreditCard, Tags } from 'lucide-react'
+import { Building, Users, CreditCard, Tags, Sparkles } from 'lucide-react'
 import { useSubscription } from '@/hooks/useSubscription'
 import { useOverscrollBounce } from '@/hooks'
 
@@ -27,6 +27,12 @@ export function SettingsPage() {
       description: 'Configure payment integration',
       icon: CreditCard,
       href: '/settings/paystack',
+    },
+    {
+      title: 'System Updates',
+      description: 'View release notes and platform changelogs',
+      icon: Sparkles,
+      href: '/settings/changelog',
     },
     ...(effectivePlan !== 'FREE'
       ? [

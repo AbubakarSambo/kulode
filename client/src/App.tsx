@@ -49,7 +49,11 @@ import {
   ShortLinkRedirectPage,
   AdminDashboardPage,
   BillingPage,
+  ChangelogPage,
 } from '@/pages'
+import { useVersionCheck } from '@/hooks/useVersionCheck'
+import { WhatsNewModal } from '@/components/changelog/WhatsNewModal'
+import { ReloadBanner } from '@/components/changelog/ReloadBanner'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -85,9 +89,27 @@ function HomeRedirect() {
   return null
 }
 
+function AppVersionManager() {
+  const { serverVersion, isUpdateAvailable, lastSeenVersion, setLastSeenVersion } = useVersionCheck()
+
+  const isModalOpen = isUpdateAvailable && lastSeenVersion !== serverVersion
+
+  const handleCloseModal = () => {
+    setLastSeenVersion(serverVersion)
+  }
+
+  return (
+    <>
+      <ReloadBanner isVisible={isUpdateAvailable} latestVersion={serverVersion} />
+      <WhatsNewModal isOpen={isModalOpen} onClose={handleCloseModal} version={serverVersion} />
+    </>
+  )
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <AppVersionManager />
       <BrowserRouter>
         <Routes>
           {/* Guest-only routes (redirect to dashboard if already logged in) */}
@@ -186,6 +208,7 @@ function App() {
               <Route path="/settings/paystack" element={<PaystackPage />} />
               <Route path="/settings/categories" element={<CategoriesPage />} />
               <Route path="/settings/services" element={<ServiceItemsPage />} />
+              <Route path="/settings/changelog" element={<ChangelogPage />} />
             </Route>
           </Route>
 

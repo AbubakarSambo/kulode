@@ -163,5 +163,20 @@ const posthogHost = import.meta.env.PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog
         });
       })();
     </script>
+
+    <script is:inline>
+      // Local network routing fix: dynamically rewrite localhost:5173 links 
+      // to the current browser hostname so devices on the same network can access the app.
+      (function() {
+        if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+          var links = document.querySelectorAll('a');
+          for (var i = 0; i < links.length; i++) {
+            if (links[i].href && links[i].href.indexOf('localhost:5173') !== -1) {
+              links[i].href = links[i].href.replace('localhost', window.location.hostname);
+            }
+          }
+        }
+      })();
+    </script>
   </body>
 </html>

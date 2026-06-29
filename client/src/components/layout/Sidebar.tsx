@@ -386,6 +386,16 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
               )}
             </button>
           </div>
+
+          {/* Subtle version code label */}
+          <div className={cn(
+            "pt-2 px-2.5 flex items-center justify-between border-t border-slate-200/20 select-none mt-2",
+            isCollapsed && "lg:justify-center lg:px-0 lg:border-0 lg:pt-1"
+          )}>
+            <span className="text-[9px] font-bold text-slate-400">
+              {isCollapsed ? `v${__APP_VERSION__}` : `Tari v${__APP_VERSION__}`}
+            </span>
+          </div>
         </div>
       </div>
     </>
