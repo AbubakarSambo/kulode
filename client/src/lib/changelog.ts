@@ -13,6 +13,29 @@ export interface ChangelogEntry {
 }
 
 export const changelogData: Record<string, ChangelogEntry> = {
+  '1.1.3': {
+    version: '1.1.3',
+    title: 'Mobile Navigation Polish & Icon Alignment',
+    date: '2026-06-30',
+    type: 'minor',
+    features: [
+      {
+        title: 'Hugeicons Mobile Consistency',
+        description: 'Replaced all mobile navigation Lucide icons with custom Hugeicons, aligning them perfectly with the desktop experience.',
+        tag: 'UI Polish',
+      },
+      {
+        title: 'AI Chat and Platform Admin Routes on Mobile',
+        description: 'Added missing AI Chat route to mobile Operations grid, creating a balanced 3x3 layout, and added Platform Admin entry at the bottom drawer if authorized.',
+        tag: 'New Feature',
+      },
+      {
+        title: 'Safe-Area Layout & iOS Viewport Fixes',
+        description: 'Updated container heights to use dynamic viewport units (dvh) and fixed broken Tailwind CSS safe-area-inset calculations that caused elements to overlap on Safari.',
+        tag: 'Stability',
+      },
+    ],
+  },
   '1.1.2': {
     version: '1.1.2',
     title: 'Advanced AI Data Viz & Chat Organization',

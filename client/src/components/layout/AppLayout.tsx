@@ -1,24 +1,27 @@
 import { useState } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { 
-  LayoutDashboard, 
-  Users, 
-  FileText, 
-  CreditCard,
   MoreHorizontal,
-  Store,
-  Receipt,
-  Package,
-  Wrench,
-  BarChart3,
-  BookOpen,
-  Settings,
-  LifeBuoy,
-  LogOut,
   X,
-  Lock,
-  LucideIcon
 } from 'lucide-react'
+import {
+  DashboardIcon,
+  ClientsIcon,
+  InvoicesIcon,
+  PaymentsIcon,
+  VendorsIcon,
+  ExpensesIcon,
+  InventoryIcon,
+  ServicesIcon,
+  ReportsIcon,
+  AiChatIcon,
+  TaxIcon,
+  SettingsIcon,
+  SupportIcon,
+  LogoutIcon,
+  ShieldIcon,
+  LockIcon,
+} from '@/components/ui/CustomIcons'
 import { Sidebar } from './Sidebar'
 import { WelcomeStepper } from '@/components/WelcomeStepper'
 import { TrialBanner } from '../shared/TrialBanner'
@@ -56,25 +59,26 @@ export function AppLayout() {
   }
 
   const navItems = [
-    { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Clients', href: '/clients', icon: Users },
-    { name: 'Invoices', href: '/invoices', icon: FileText },
-    { name: 'Payments', href: '/payments', icon: CreditCard },
+    { name: 'Overview', href: '/dashboard', icon: DashboardIcon },
+    { name: 'Clients', href: '/clients', icon: ClientsIcon },
+    { name: 'Invoices', href: '/invoices', icon: InvoicesIcon },
+    { name: 'Payments', href: '/payments', icon: PaymentsIcon },
   ]
 
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
   const canViewReports = isAdmin || user?.role === 'ACCOUNTANT'
 
   const moreItems = [
-    { name: 'Vendors', href: '/vendors', icon: Store, requiresPlan: 'PRO' as PlanTier, visible: user?.role !== 'STAFF' },
-    { name: 'Expenses', href: '/expenses', icon: Receipt, requiresPlan: 'PRO' as PlanTier, visible: user?.role !== 'STAFF' },
-    { name: 'Product Inventory', href: '/inventory', icon: Package, requiresPlan: 'PRO' as PlanTier },
-    { name: 'Services', href: '/settings/services', icon: Wrench },
-    { name: 'Reports', href: '/reports', icon: BarChart3, requiresPlan: 'PRO' as PlanTier, visible: canViewReports },
-    { name: 'Tax', href: '/tax', icon: BookOpen, requiresPlan: 'PRO' as PlanTier, visible: user?.role !== 'STAFF' },
-    { name: 'Settings', href: '/settings', icon: Settings, visible: isAdmin },
-    { name: 'Billing & Plans', href: '/settings/billing', icon: CreditCard, visible: isAdmin },
-  ].filter((item) => item.visible !== false) as Array<{ name: string; href: string; icon: LucideIcon; requiresPlan?: PlanTier; visible?: boolean }>
+    { name: 'Vendors', href: '/vendors', icon: VendorsIcon, requiresPlan: 'PRO' as PlanTier, visible: user?.role !== 'STAFF' },
+    { name: 'Expenses', href: '/expenses', icon: ExpensesIcon, requiresPlan: 'PRO' as PlanTier, visible: user?.role !== 'STAFF' },
+    { name: 'Product Inventory', href: '/inventory', icon: InventoryIcon, requiresPlan: 'PRO' as PlanTier },
+    { name: 'Services', href: '/settings/services', icon: ServicesIcon },
+    { name: 'Reports', href: '/reports', icon: ReportsIcon, requiresPlan: 'PRO' as PlanTier, visible: canViewReports },
+    { name: 'AI Chat', href: '/ai-chat', icon: AiChatIcon, requiresPlan: 'PRO' as PlanTier, visible: canViewReports },
+    { name: 'Tax', href: '/tax', icon: TaxIcon, requiresPlan: 'PRO' as PlanTier, visible: user?.role !== 'STAFF' },
+    { name: 'Settings', href: '/settings', icon: SettingsIcon, visible: isAdmin },
+    { name: 'Billing & Plans', href: '/settings/billing', icon: PaymentsIcon, visible: isAdmin },
+  ].filter((item) => item.visible !== false) as Array<{ name: string; href: string; icon: React.ComponentType<{ className?: string }>; requiresPlan?: PlanTier; visible?: boolean }>
 
   const isHideMobileNav = location.pathname.includes('/new') || 
     (location.pathname.startsWith('/invoices/') && location.pathname !== '/invoices') ||
@@ -82,7 +86,7 @@ export function AppLayout() {
     (location.pathname.startsWith('/vendors/') && location.pathname !== '/vendors')
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-dvh overflow-hidden bg-background">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <WelcomeStepper />
 
@@ -101,13 +105,13 @@ export function AppLayout() {
 
         {location.pathname.startsWith('/payments') && <TrialBanner />}
 
-        <div className={cn("flex-1 overflow-hidden flex flex-col", isHideMobileNav ? "pb-0" : "pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pb-0")}>
+        <div className={cn("flex-1 overflow-hidden flex flex-col", isHideMobileNav ? "pb-0" : "pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-0")}>
           <Outlet />
         </div>
 
         {/* Floating Mobile Bottom Navigation Dock */}
         {!isHideMobileNav && (
-          <div className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom,0px))] left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-md lg:hidden">
+          <div className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-md lg:hidden">
             <div className="bg-card/95 backdrop-blur-lg border border-border rounded-full px-2 py-1.5 shadow-[0_16px_40px_rgba(0,55,176,0.12)] flex justify-between items-center">
               {navItems.map((item) => {
                 const isActive = location.pathname.startsWith(item.href)
@@ -123,7 +127,7 @@ export function AppLayout() {
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  <item.icon className="h-4.5 w-4.5" strokeWidth={isActive ? 2 : 1.5} />
+                  <item.icon className="h-4.5 w-4.5 shrink-0" />
                   <span className="text-[9px] tracking-tight font-semibold">{item.name}</span>
                 </Link>
               )
@@ -153,7 +157,7 @@ export function AppLayout() {
               className="fixed inset-0 z-45 bg-slate-900/40 backdrop-blur-sm lg:hidden transition-opacity"
               onClick={() => setMoreOpen(false)}
             />
-            <div className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-md rounded-t-[32px] shadow-[0_-12px_40px_rgba(0,55,176,0.06)] px-6 pt-6 pb-[calc(2rem+env(safe-area-inset-bottom,0px))] lg:hidden max-h-[85vh] overflow-y-auto border-t border-border animate-in slide-in-from-bottom duration-300">
+            <div className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-md rounded-t-[32px] shadow-[0_-12px_40px_rgba(0,55,176,0.06)] px-6 pt-6 pb-[calc(2rem+env(safe-area-inset-bottom))] lg:hidden max-h-[85vh] overflow-y-auto border-t border-border animate-in slide-in-from-bottom duration-300">
               <div className="flex items-center justify-between mb-6">
                 <span className="text-sm font-bold uppercase tracking-wider text-slate-400">All Operations</span>
                 <button 
@@ -182,10 +186,10 @@ export function AppLayout() {
                       )}
                     >
                       <div className="relative">
-                        <item.icon className="h-6 w-6" strokeWidth={1.5} />
+                        <item.icon className="h-6 w-6 shrink-0" />
                         {isLocked && (
                           <div className="absolute -top-1 -right-1 bg-amber-500 text-white rounded-full p-0.5 shadow-sm">
-                            <Lock className="h-2 w-2" />
+                            <LockIcon className="h-2 w-2" />
                           </div>
                         )}
                       </div>
@@ -211,12 +215,23 @@ export function AppLayout() {
                   </div>
                 </div>
 
+                {user?.isPlatformAdmin && (
+                  <Link
+                    to="/admin"
+                    onClick={() => setMoreOpen(false)}
+                    className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-[#0037b0] bg-[#0037b0]/5 hover:bg-[#0037b0]/10 transition-colors border border-[#0037b0]/10"
+                  >
+                    <ShieldIcon className="h-5 w-5" />
+                    Platform Admin
+                  </Link>
+                )}
+
                 <a
                   href="mailto:abubakar.sambo@tarione.com"
                   onClick={() => setMoreOpen(false)}
                   className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-foreground bg-muted hover:bg-accent transition-colors"
                 >
-                  <LifeBuoy className="h-5 w-5" strokeWidth={1.5} />
+                  <SupportIcon className="h-5 w-5" />
                   Contact Support
                 </a>
                 <button
@@ -224,9 +239,9 @@ export function AppLayout() {
                     setMoreOpen(false)
                     logout()
                   }}
-                  className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-rose-600 bg-rose-500/10 hover:bg-rose-500/20 transition-colors"
+                  className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-rose-600 bg-rose-500/10 hover:bg-rose-500/20 transition-colors cursor-pointer"
                 >
-                  <LogOut className="h-5 w-5" strokeWidth={1.5} />
+                  <LogoutIcon className="h-5 w-5" />
                   Logout
                 </button>
               </div>

@@ -61,16 +61,16 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   return (
     <div className={cn('flex items-end gap-2', isUser && 'flex-row-reverse')}>
       {!isUser && (
-        <div className="w-7 h-7 rounded-full bg-[#0037b0]/10 flex items-center justify-center shrink-0 mb-0.5">
+        <div className="hidden sm:flex w-7 h-7 rounded-full bg-[#0037b0]/10 items-center justify-center shrink-0 mb-0.5">
           <AiChatIcon className="text-[#0037b0] w-4 h-4" />
         </div>
       )}
       <div
         className={cn(
-          'px-4 py-3 text-sm shadow-[0px_12px_32px_rgba(0,55,176,0.08)]',
+          'px-3 py-2.5 sm:px-4 sm:py-3 text-sm shadow-[0px_12px_32px_rgba(0,55,176,0.08)]',
           isUser
-            ? 'max-w-[82%] bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white rounded-2xl rounded-br-sm leading-relaxed'
-            : 'max-w-[95%] bg-white border border-slate-200 text-slate-800 rounded-2xl rounded-bl-sm w-full',
+            ? 'max-w-[85%] sm:max-w-[82%] bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white rounded-2xl rounded-br-sm leading-relaxed'
+            : 'max-w-full sm:max-w-[95%] bg-white border border-slate-200 text-slate-800 rounded-2xl rounded-bl-sm w-full',
         )}
       >
         {isUser ? (
@@ -253,7 +253,7 @@ export function AiChatPage() {
           </div>
         </div>
 
-        <div ref={scrollContainerRef} className="flex-1 overflow-auto px-4 pb-4 sm:px-8">
+        <div ref={scrollContainerRef} className="flex-1 overflow-auto px-2 pb-4 sm:px-8">
           <div className="max-w-4xl mx-auto pt-4 sm:pt-8 flex flex-col gap-4 min-h-full">
 
             {isEmpty ? (
