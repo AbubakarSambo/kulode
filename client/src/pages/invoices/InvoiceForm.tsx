@@ -2301,7 +2301,7 @@ export function NewInvoicePage() {
           </div>
 
           {/* VIEWPORT-FIXED STICKY FOOTER (MOBILE) */}
-          <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200/80 px-6 py-4 flex items-center justify-between shadow-[0_-4px_20px_rgba(0,55,176,0.05)] pb-[calc(16px+env(safe-area-inset-bottom,0px))]">
+          <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200/80 px-6 py-4 flex items-center justify-between shadow-[0_-4px_20px_rgba(0,55,176,0.05)] pb-[calc(16px+env(safe-area-inset-bottom))]">
             <div className="flex flex-col">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Amount</span>
               <span className="text-base font-black text-[#0037b0] tabular-nums">{formatCurrency(total)}</span>
@@ -2391,7 +2391,7 @@ export function NewInvoicePage() {
         />
         
         {/* Drawer Content */}
-        <div className="relative w-full max-w-md bg-white rounded-t-[28px] border-t border-slate-200/50 p-6 shadow-[0px_-8px_30px_rgba(0,55,176,0.1)] z-10 max-h-[90vh] overflow-y-auto pb-[calc(24px+env(safe-area-inset-bottom,0px))] transition-transform transform duration-300">
+        <div className="relative w-full max-w-md bg-white rounded-t-[28px] border-t border-slate-200/50 p-6 shadow-[0px_-8px_30px_rgba(0,55,176,0.1)] z-10 max-h-[90vh] overflow-y-auto pb-[calc(24px+env(safe-area-inset-bottom))] transition-transform transform duration-300">
           <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6" />
           
           <h3 className="text-lg font-bold text-slate-800 mb-4">
