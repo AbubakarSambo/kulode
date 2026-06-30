@@ -16,9 +16,21 @@ export interface InsightsResponse {
   period: { startDate: string; endDate: string }
 }
 
+export interface ChatSession {
+  id: string
+  title: string
+  isPinned: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 export interface ChatMessage {
+  id?: string
+  sessionId?: string
   role: 'user' | 'assistant'
   content: string
+  layout?: any
+  createdAt?: string
 }
 
 export const aiApi = {
@@ -32,8 +44,35 @@ export const aiApi = {
     return response.data.data
   },
 
-  chat: async (messages: ChatMessage[]): Promise<{ message: string }> => {
-    const response = await apiClient.post<ApiResponse<{ message: string }>>('/ai/chat', { messages })
+  listSessions: async (search?: string): Promise<ChatSession[]> => {
+    const params = new URLSearchParams()
+    if (search) params.append('search', search)
+    const response = await apiClient.get<ApiResponse<ChatSession[]>>(`/ai/sessions?${params}`)
+    return response.data.data
+  },
+
+  createSession: async (title: string): Promise<ChatSession> => {
+    const response = await apiClient.post<ApiResponse<ChatSession>>('/ai/sessions', { title })
+    return response.data.data
+  },
+
+  updateSession: async (id: string, data: { title?: string; isPinned?: boolean }): Promise<ChatSession> => {
+    const response = await apiClient.patch<ApiResponse<ChatSession>>(`/ai/sessions/${id}`, data)
+    return response.data.data
+  },
+
+  deleteSession: async (id: string): Promise<void> => {
+    await apiClient.delete<ApiResponse<void>>(`/ai/sessions/${id}`)
+  },
+
+  getMessages: async (id: string): Promise<ChatMessage[]> => {
+    const response = await apiClient.get<ApiResponse<ChatMessage[]>>(`/ai/sessions/${id}/messages`)
+    return response.data.data
+  },
+
+  chat: async (messages: ChatMessage[], sessionId?: string): Promise<{ message: string; layout?: any; sessionId: string }> => {
+    const response = await apiClient.post<ApiResponse<{ message: string; layout?: any; sessionId: string }>>('/ai/chat', { messages, sessionId })
     return response.data.data
   },
 }
+

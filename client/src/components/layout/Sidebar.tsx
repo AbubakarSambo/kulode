@@ -17,7 +17,6 @@ import {
   InventoryIcon,
   ServicesIcon,
   ReportsIcon,
-  InsightsIcon,
   AiChatIcon,
   TaxIcon,
   SettingsIcon,
@@ -52,11 +51,15 @@ const navigationGroups = [
     ]
   },
   {
-    title: 'Compliance & Tax',
+    title: 'Analytics & Reporting',
     items: [
       { name: 'Reports', href: '/reports', icon: ReportsIcon, requiresPlan: 'PRO' as PlanTier },
-      { name: 'AI Insights', href: '/insights', icon: InsightsIcon, requiresPlan: 'PRO' as PlanTier },
       { name: 'AI Chat', href: '/ai-chat', icon: AiChatIcon, requiresPlan: 'PRO' as PlanTier },
+    ]
+  },
+  {
+    title: 'Compliance & Tax',
+    items: [
       { name: 'Tax', href: '/tax', icon: TaxIcon, requiresPlan: 'PRO' as PlanTier },
     ]
   }
@@ -110,7 +113,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
     .map((group) => ({
       ...group,
       items: group.items.filter((item) => {
-        if ((item.href === '/reports' || item.href === '/insights' || item.href === '/ai-chat') && !canViewReports) return false
+        if ((item.href === '/reports' || item.href === '/ai-chat') && !canViewReports) return false
         if (
           (item.href === '/payments' ||
             item.href === '/expenses' ||
