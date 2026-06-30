@@ -22,6 +22,7 @@ export function useVersionCheck() {
   };
 
   const checkVersion = useCallback(async () => {
+    if (import.meta.env.DEV) return;
     try {
       const response = await apiClient.get<{ success: boolean; data: VersionResponse }>('/system/version');
       const data = response.data.data;
@@ -42,6 +43,7 @@ export function useVersionCheck() {
 
     // 2. Listen to custom DOM events from Axios interceptor
     const handleVersionDetected = (e: Event) => {
+      if (import.meta.env.DEV) return;
       const detectedVersion = (e as CustomEvent<string>).detail;
       if (detectedVersion) {
         setServerVersion(detectedVersion);
