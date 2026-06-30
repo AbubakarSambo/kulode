@@ -63,9 +63,9 @@ function CustomLineChart({ data }: { data: { label: string; value: number }[] })
   }
 
   return (
-    <div className="w-full h-64 mt-4">
+    <div className="w-full h-56 sm:h-64 mt-4">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+        <LineChart data={data} margin={{ top: 10, right: 5, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
           <XAxis
             dataKey="label"
@@ -116,9 +116,9 @@ function CustomBarChart({ data }: { data: { label: string; value: number }[] }) 
   }
 
   return (
-    <div className="w-full h-64 mt-4">
+    <div className="w-full h-56 sm:h-64 mt-4">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+        <BarChart data={data} margin={{ top: 10, right: 5, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
           <XAxis
             dataKey="label"
@@ -239,10 +239,10 @@ function MultiSeriesChart({ type, stacked, data, series }: { type: 'bar' | 'line
   const safeSeries = series || []
 
   return (
-    <div className="w-full h-64 mt-4">
+    <div className="w-full h-56 sm:h-64 mt-4">
       <ResponsiveContainer width="100%" height="100%">
         {type === 'bar' ? (
-          <BarChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+          <BarChart data={data} margin={{ top: 10, right: 5, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
             <XAxis dataKey="label" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} dy={10} />
             <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} tickFormatter={formatYAxis} dx={-10} />
@@ -256,7 +256,7 @@ function MultiSeriesChart({ type, stacked, data, series }: { type: 'bar' | 'line
             ))}
           </BarChart>
         ) : (
-          <LineChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+          <LineChart data={data} margin={{ top: 10, right: 5, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
             <XAxis dataKey="label" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} dy={10} />
             <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} tickFormatter={formatYAxis} dx={-10} />
