@@ -10,6 +10,8 @@ import { VendorsService } from '../vendors/vendors.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReportFilterDto, ReportPeriod } from '../reports/dto';
+import { CreateChatSessionDto, UpdateChatSessionDto, SearchChatSessionsDto } from './dto/chat-session.dto';
+
 
 export interface Insight {
   title: string;
@@ -338,25 +340,68 @@ ${products.products.map((p, i) => `  ${i + 1}. ${p.label}: ${fmt(p.revenue)} rev
   async chat(
     messages: { role: 'user' | 'assistant'; content: string }[],
     organizationId: string,
-  ): Promise<{ message: string }> {
+    userId: string,
+    sessionId?: string,
+  ): Promise<{ message: string; layout?: any; sessionId: string }> {
     const today = new Date().toISOString().split('T')[0];
 
-    const chatMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+    let session = sessionId
+      ? await this.prisma.chatSession.findFirst({
+          where: { id: sessionId, organizationId, userId, deletedAt: null },
+        })
+      : null;
+
+    const userMessageContent = messages[messages.length - 1]?.content ?? '';
+
+    if (!session) {
+      const title = userMessageContent.slice(0, 50) || 'New Chat';
+      session = await this.prisma.chatSession.create({
+        data: {
+          organizationId,
+          userId,
+          title,
+        },
+      });
+    }
+
+    // Save the user message to the DB
+    await this.prisma.chatMessage.create({
+      data: {
+        sessionId: session.id,
+        role: 'user',
+        content: userMessageContent,
+      },
+    });
+
+    // Load last 10 messages from DB to avoid context window explosion
+    const dbMessages = await this.prisma.chatMessage.findMany({
+      where: { sessionId: session.id },
+      orderBy: { createdAt: 'asc' },
+    });
+    const recentMessages = dbMessages.slice(-10);
+
+    // --- STAGE 1: Data Analyst Agent (Tool Calling Loop) ---
+    const analystMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       {
         role: 'system',
-        content: `You are a knowledgeable business analyst with access to this business's live data.
-Answer questions conversationally using the tools to look up real data — never guess or estimate numbers.
-Use markdown for formatting: **bold** for key figures, bullet lists, tables where appropriate, ## for section headers.
-Do not use emojis. Keep responses concise. Format currency as ₦ (Nigerian Naira).
+        content: `You are a precise business database analyst.
+Your only job is to query the database using your tools to gather all data needed to answer the user's question.
+Do not write essays, summaries, or styling suggestions. Simply execute the tool calls.
+Once you have run all necessary tools to fetch the relevant data, output a short message confirming that you have finished gathering data (e.g. "Data gathered.").
 Today is ${today}.`,
       },
-      ...messages.map((m) => ({ role: m.role, content: m.content } as OpenAI.Chat.ChatCompletionMessageParam)),
+      ...recentMessages.map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      } as OpenAI.Chat.ChatCompletionMessageParam)),
     ];
+
+    const gatheredData: Record<string, any>[] = [];
 
     while (true) {
       const response = await this.client.chat.completions.create({
         model: 'deepseek-chat',
-        messages: chatMessages,
+        messages: analystMessages,
         tools: CHAT_TOOLS,
         max_tokens: 1024,
       });
@@ -365,13 +410,14 @@ Today is ${today}.`,
       const message = choice.message;
 
       if (choice.finish_reason === 'stop') {
-        return { message: message.content ?? '' };
+        break;
       }
 
       if (choice.finish_reason === 'tool_calls') {
-        chatMessages.push(message);
+        analystMessages.push(message);
 
-        for (const rawCall of message.tool_calls ?? []) {
+        const toolCalls = message.tool_calls ?? [];
+        const toolPromises = toolCalls.map(async (rawCall) => {
           const toolCall = rawCall as FunctionToolCall;
           let result: unknown;
           try {
@@ -382,7 +428,34 @@ Today is ${today}.`,
             result = { error: err instanceof Error ? err.message : 'Tool execution failed' };
           }
 
-          chatMessages.push({
+          // Truncate list outputs to prevent token bloat
+          if (Array.isArray(result) && result.length > 10) {
+            result = {
+              totalCount: result.length,
+              items: result.slice(0, 10),
+              note: `Truncated for context length. Showing first 10 out of ${result.length}.`,
+            };
+          } else if (result && typeof result === 'object' && 'data' in result && Array.isArray((result as any).data)) {
+            const dataArr = (result as any).data;
+            if (dataArr.length > 10) {
+              (result as any).data = dataArr.slice(0, 10);
+              (result as any).note = `Truncated for context length. Showing first 10 out of ${dataArr.length}.`;
+            }
+          }
+
+          return { toolCall, result };
+        });
+
+        const executedTools = await Promise.all(toolPromises);
+
+        for (const { toolCall, result } of executedTools) {
+          gatheredData.push({
+            toolName: toolCall.function.name,
+            arguments: toolCall.function.arguments,
+            output: result,
+          });
+
+          analystMessages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
             content: JSON.stringify(result),
@@ -392,9 +465,169 @@ Today is ${today}.`,
         continue;
       }
 
-      return { message: message.content ?? 'Something went wrong. Please try again.' };
+      break;
     }
+
+    // --- STAGE 2: UI/UX Expert & Styling Agent (Synthesis and Design Mapping) ---
+    const hasData = gatheredData.length > 0;
+
+    const presenterSystemPrompt = `You are a premium UI/UX Design & Presentation Expert for Tari1, a fintech app built around "The Architectural Ledger" design system.
+Your job is to read the raw database JSON records fetched by the Analyst and translate them into a beautiful, scannability-optimized layout for the user.
+
+Adhere strictly to these DESIGN.md guidelines:
+1. Title Card Requirement: You must ALWAYS start your summary text with a clear, relevant H2 markdown header (e.g. "## Monthly Cashflow Performance" or "## Top Receivables Alert") to act as a report title.
+2. Spacing: Use clean lists and headers (##, ###). Use double line breaks between sections to give the information breathing room.
+3. No Markdown Tables: Never write raw markdown tables (e.g. | Month |). Instead, represent tabular data using the custom InteractiveTable JSON component layout below.
+4. Chart Selection Rules:
+   - Use "LineChart" for monthly time trends (e.g. monthly cashflow).
+   - Use "BarChart" for category breakdowns or comparison of top clients.
+   - Use "InteractiveTable" for lists of clients, payments, or vendors.
+5. Component Mapping: You MUST ALWAYS output a JSON object matching the schema below. If it's a simple greeting, put it in the "summary" field and leave "layout" as an empty array. Do not wrap the JSON in markdown code blocks.
+
+SCHEMA:
+{
+  "summary": "Title header followed by a friendly, plain-text executive summary (2-3 sentences max) outlining key takeaways.",
+  "layout": [
+    { "component": "KPICard", "props": { "title": "Net Profit", "value": "₦141.1M", "trend": "+12%", "sentiment": "positive" } },
+    { "component": "LineChart", "props": { "data": [{ "label": "Jan", "value": 1000000 }] } },
+    { "component": "BarChart", "props": { "data": [{ "label": "Jan", "value": 1000000 }] } },
+    { "component": "InteractiveTable", "props": { "headers": ["Header1", "Header2"], "rows": [["Col1", "Col2"]] } },
+    { "component": "Tabs", "props": { "tabs": [{ "label": "Tab Name", "content": { "component": "LineChart", "props": { "data": [] } } }] } }
+  ]
+}
+
+Today is ${today}.`;
+
+    const presenterUserMessage = hasData
+      ? `Original User Query: "${userMessageContent}"\n\nFetched Raw Data Payload:\n${JSON.stringify(gatheredData, null, 2)}`
+      : userMessageContent;
+
+    const presenterMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      { role: 'system', content: presenterSystemPrompt },
+      ...recentMessages.slice(0, -1).map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      } as OpenAI.Chat.ChatCompletionMessageParam)),
+      { role: 'user', content: presenterUserMessage },
+    ];
+
+    const presenterResponse = await this.client.chat.completions.create({
+      model: 'deepseek-chat',
+      messages: presenterMessages,
+      max_tokens: 1536,
+      response_format: { type: 'json_object' },
+    });
+
+    const presenterText = presenterResponse.choices[0]?.message?.content ?? '{}';
+    let layout: any = null;
+    let finalContent = 'Sorry, something went wrong formatting the report.';
+
+    try {
+      const parsed = JSON.parse(presenterText);
+      finalContent = parsed.summary || presenterText;
+      layout = parsed.layout || null;
+    } catch (err) {
+      this.logger.error('Failed to parse JSON layout from UI/UX agent', err);
+      finalContent = presenterText;
+    }
+
+    // Save assistant message to the DB
+    await this.prisma.chatMessage.create({
+      data: {
+        sessionId: session.id,
+        role: 'assistant',
+        content: finalContent,
+        layout: layout ?? undefined,
+      },
+    });
+
+    // Update session's last active time
+    await this.prisma.chatSession.update({
+      where: { id: session.id },
+      data: { updatedAt: new Date() },
+    });
+
+    return {
+      message: finalContent,
+      layout,
+      sessionId: session.id,
+    };
   }
+
+  async listSessions(organizationId: string, userId: string, query: SearchChatSessionsDto) {
+    const where: any = {
+      organizationId,
+      userId,
+      deletedAt: null,
+    };
+    if (query.search) {
+      where.title = {
+        contains: query.search,
+        mode: 'insensitive',
+      };
+    }
+    return this.prisma.chatSession.findMany({
+      where,
+      orderBy: [
+        { isPinned: 'desc' },
+        { updatedAt: 'desc' },
+      ],
+    });
+  }
+
+  async createSession(organizationId: string, userId: string, dto: CreateChatSessionDto) {
+    return this.prisma.chatSession.create({
+      data: {
+        organizationId,
+        userId,
+        title: dto.title,
+      },
+    });
+  }
+
+  async updateSession(
+    organizationId: string,
+    userId: string,
+    id: string,
+    dto: UpdateChatSessionDto,
+  ) {
+    await this.prisma.chatSession.findFirstOrThrow({
+      where: { id, organizationId, userId, deletedAt: null },
+    });
+
+    return this.prisma.chatSession.update({
+      where: { id },
+      data: {
+        title: dto.title !== undefined ? dto.title : undefined,
+        isPinned: dto.isPinned !== undefined ? dto.isPinned : undefined,
+      },
+    });
+  }
+
+  async deleteSession(organizationId: string, userId: string, id: string) {
+    await this.prisma.chatSession.findFirstOrThrow({
+      where: { id, organizationId, userId, deletedAt: null },
+    });
+
+    return this.prisma.chatSession.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+      },
+    });
+  }
+
+  async getMessages(organizationId: string, userId: string, sessionId: string) {
+    await this.prisma.chatSession.findFirstOrThrow({
+      where: { id: sessionId, organizationId, userId, deletedAt: null },
+    });
+
+    return this.prisma.chatMessage.findMany({
+      where: { sessionId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
 
   private async runTool(name: string, input: Record<string, any>, organizationId: string): Promise<unknown> {
     const period = (input.period ?? 'THIS_MONTH') as Period;

@@ -13,6 +13,34 @@ export interface ChangelogEntry {
 }
 
 export const changelogData: Record<string, ChangelogEntry> = {
+  '1.1.1': {
+    version: '1.1.1',
+    title: 'The AI Chat Polish Update',
+    date: '2026-06-30',
+    type: 'patch',
+    features: [
+      {
+        title: 'Bulletproof Layouts',
+        description: 'Enhanced the AI chat interface with a new responsive design that ensures charts and metrics look perfect on any screen size without overlapping.',
+        tag: 'UI Polish',
+      },
+      {
+        title: 'Accidental Deletion Protection',
+        description: 'Added a safety confirmation dialog when deleting chat threads to prevent accidental loss of your important data insights.',
+        tag: 'Stability',
+      },
+      {
+        title: 'Streamlined Navigation',
+        description: 'Reorganized the sidebar menu to group reporting tools together logically and removed clutter to keep your workspace focused.',
+        tag: 'UI Polish',
+      },
+      {
+        title: 'Reliable AI Responses',
+        description: 'Upgraded the backend AI processor to guarantee flawless data formatting, ensuring reports always load perfectly without technical glitches.',
+        tag: 'Stability',
+      },
+    ],
+  },
   '1.1.0': {
     version: '1.1.0',
     title: 'The Automation & Performance Release',

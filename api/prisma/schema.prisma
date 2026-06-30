@@ -143,6 +143,7 @@ model Organization {
   stockMovements       StockMovement[]
   subscriptionPayments SubscriptionPayment[]
   taxReportLogs        TaxReportLog[]
+  chatSessions         ChatSession[]
 
   @@map("organizations")
 }
@@ -172,6 +173,7 @@ model User {
   recordedExpenses   Expense[]              @relation("RecordedByUser")
   verificationTokens EmailVerificationToken[]
   taxReportLogs      TaxReportLog[]
+  chatSessions       ChatSession[]
 
   @@index([organizationId])
   @@map("users")
@@ -562,4 +564,40 @@ model ShortLink {
 
   @@map("short_links")
 }
+
+model ChatSession {
+  id             String        @id @default(uuid())
+  organizationId String        @map("organization_id")
+  userId         String        @map("user_id")
+  title          String
+  isPinned       Boolean       @default(false) @map("is_pinned")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  deletedAt      DateTime?     @map("deleted_at")
+
+  // Relations
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages       ChatMessage[]
+
+  @@index([organizationId, userId])
+  @@index([deletedAt])
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id             String      @id @default(uuid())
+  sessionId      String      @map("session_id")
+  role           String      // "user" | "assistant"
+  content        String
+  layout         Json?       // Optional JSON layout representing dynamic UI components
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  // Relations
+  session        ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("chat_messages")
+}
+
 
