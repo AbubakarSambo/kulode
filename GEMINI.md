@@ -84,3 +84,16 @@ Then proceed.
 | `.agent/WORKFLOWS.md` | Running servers, Git operations, or making architectural decisions |
 | `.agent/SESSION-HANDOFF.md` | User pastes a handoff — read it to load session context |
 
+
+---
+
+## SemVer & Release Notes Workflow (MANDATORY)
+
+When implementing new features, security updates, performance optimizations, or bug fixes:
+
+1. **Lockstep Versioning:** Always update the `version` field in BOTH `client/package.json` and `api/package.json` to the same new version in lockstep.
+2. **Release Notes Registry:** Document the changes in `client/src/lib/changelog.ts` under the corresponding version key.
+   - **User-Centric Language:** Always translate developer-speak into clear user benefits (e.g. explain *speed improvement* instead of *database indexing details*).
+   - **Badge Tags:** Mark features using standard tags: `New Feature`, `Performance`, `Stability`, or `UI Polish`.
+3. **Vite Rebuild:** Run `npm run build` in the `client/` directory after changing version parameters. This updates the global compiled constant `__APP_VERSION__` in client-side bundles.
+

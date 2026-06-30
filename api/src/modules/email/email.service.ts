@@ -30,19 +30,40 @@ export class EmailService {
     }
     this.resend = new Resend(apiKey);
     this.fromEmail = this.configService.get<string>('resend.fromEmail') || 'Tari1 <noreply@tarione.com>';
-    this.frontendUrl = this.configService.get<string>('resend.frontendUrl') || 'http://localhost:5173';
-    this.brandWebsiteUrl = this.configService.get<string>('resend.brandWebsiteUrl') || 'https://www.tarione.com';
+
+    // Sanitize Frontend URL (remove trailing slashes, enforce protocol)
+    let frontend = this.configService.get<string>('resend.frontendUrl') || 'http://localhost:5173';
+    frontend = frontend.trim().replace(/\/$/, '');
+    if (!/^https?:\/\//i.test(frontend)) {
+      frontend = `https://${frontend}`;
+    }
+    this.frontendUrl = frontend;
+
+    // Sanitize Brand Website URL (remove trailing slashes, enforce protocol)
+    let brand = this.configService.get<string>('resend.brandWebsiteUrl') || 'https://www.tarione.com';
+    brand = brand.trim().replace(/\/$/, '');
+    if (!/^https?:\/\//i.test(brand)) {
+      brand = `https://${brand}`;
+    }
+    this.brandWebsiteUrl = brand;
   }
 
   private buildEmailHtml(options: EmailOptions): string {
     const accentColor = options.accentColor || '#0037b0';
     
+    // Bulletproof Table-Button Layout
     const ctaSection = options.ctaText && options.ctaUrl
       ? `
         <div style="margin: 32px 0; text-align: left;">
-          <a href="${options.ctaUrl}" class="btn" style="background: ${accentColor}; background: linear-gradient(135deg, #0037b0 0%, #1d4ed8 100%); color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 12px; display: inline-block; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; font-weight: 600; border: none; outline: none;">
-            ${options.ctaText}
-          </a>
+          <table border="0" cellpadding="0" cellspacing="0" style="border-collapse: separate; mso-table-lspace: 0pt; mso-table-rspace: 0pt; width: auto;">
+            <tr>
+              <td align="center" valign="middle" style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; mso-line-height-rule: exactly; border-radius: 12px; background-color: ${accentColor};" bgcolor="${accentColor}">
+                <a href="${options.ctaUrl}" target="_blank" class="btn" style="border: 12px solid ${accentColor}; border-left: 24px solid ${accentColor}; border-right: 24px solid ${accentColor}; display: inline-block; color: #ffffff !important; background-color: ${accentColor}; text-decoration: none; font-weight: 600; border-radius: 12px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 100%;">
+                  ${options.ctaText}
+                </a>
+              </td>
+            </tr>
+          </table>
         </div>
       `
       : '';
@@ -74,10 +95,14 @@ export class EmailService {
 
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
+    .btn { color: #ffffff !important; text-decoration: none !important; }
+    .receipt-label { color: #64748b; }
+    .receipt-value { color: #121c28; font-weight: 700; }
+
     @media screen and (max-width: 600px) {
       .email-container { width: 100% !important; padding: 16px !important; }
       .email-card { padding: 24px !important; border-radius: 16px !important; }
-      .btn { display: block !important; width: 100% !important; box-sizing: border-box !important; text-align: center !important; }
+      .btn { display: block !important; width: 100% !important; box-sizing: border-box !important; text-align: center !important; border-left: 0px !important; border-right: 0px !important; }
     }
 
     @media (prefers-color-scheme: dark) {
@@ -90,6 +115,9 @@ export class EmailService {
       .logo-fallback { color: #ffffff !important; }
       .receipt-box { background-color: #1e293b !important; border-color: #334155 !important; }
       .footer-text { color: #64748b !important; }
+      .btn { color: #ffffff !important; }
+      .receipt-label { color: #94a3b8 !important; }
+      .receipt-value { color: #ffffff !important; }
     }
 
     [data-ogsc] body { background-color: #0b131f !important; }
@@ -101,10 +129,13 @@ export class EmailService {
     [data-ogsc] .logo-fallback { color: #ffffff !important; }
     [data-ogsc] .receipt-box { background-color: #1e293b !important; border-color: #334155 !important; }
     [data-ogsc] .footer-text { color: #64748b !important; }
+    [data-ogsc] .btn { color: #ffffff !important; }
+    [data-ogsc] .receipt-label { color: #94a3b8 !important; }
+    [data-ogsc] .receipt-value { color: #ffffff !important; }
   </style>
 </head>
 <body style="margin: 0; padding: 0; background-color: #f8f9ff; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8f9ff;">
+  <table border="0; " cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8f9ff;">
     <tr>
       <td align="center" style="padding: 40px 20px;" class="email-container">
         <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 560px; background-color: #ffffff; border: 1px solid #eef4ff; border-radius: 20px; box-shadow: 0px 12px 32px rgba(0, 55, 176, 0.04); overflow: hidden;" class="email-card">
@@ -311,20 +342,20 @@ export class EmailService {
         <div class="receipt-box" style="margin: 24px 0; padding: 20px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
           <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 14px; line-height: 1.6;">
             <tr>
-              <td style="color: #64748b; padding-bottom: 8px;">Invoice Number</td>
-              <td align="right" style="font-weight: 700; color: #121c28; padding-bottom: 8px;">${invoiceNumber}</td>
+              <td class="receipt-label" style="padding-bottom: 8px;">Invoice Number</td>
+              <td align="right" class="receipt-value" style="padding-bottom: 8px;">${invoiceNumber}</td>
             </tr>
             <tr>
-              <td style="color: #64748b; padding-bottom: 8px;">Total Amount</td>
-              <td align="right" style="font-weight: 700; color: #121c28; padding-bottom: 8px;">${total}</td>
+              <td class="receipt-label" style="padding-bottom: 8px;">Total Amount</td>
+              <td align="right" class="receipt-value" style="padding-bottom: 8px;">${total}</td>
             </tr>
             <tr>
-              <td style="color: #64748b; padding-bottom: 8px;">Amount Due</td>
-              <td align="right" style="font-weight: 700; color: #ba1a1a; padding-bottom: 8px;">${outstanding}</td>
+              <td class="receipt-label" style="padding-bottom: 8px;">Amount Due</td>
+              <td align="right" class="receipt-value" style="color: #ba1a1a !important; padding-bottom: 8px;">${outstanding}</td>
             </tr>
             <tr>
-              <td style="color: #64748b;">Due Date</td>
-              <td align="right" style="font-weight: 700; color: #121c28;">${dueDate}</td>
+              <td class="receipt-label">Due Date</td>
+              <td align="right" class="receipt-value">${dueDate}</td>
             </tr>
           </table>
         </div>
@@ -459,19 +490,19 @@ export class EmailService {
         <p>Hi ${firstName},</p>
         <p>Thank you! Your subscription to the <strong>Tari1 ${planTier}</strong> plan is now active.</p>
         <div class="receipt-box" style="margin: 24px 0; padding: 20px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
-          <h4 style="margin-top: 0; margin-bottom: 12px; font-size: 14px; color: #121c28;">Receipt Summary</h4>
+          <h4 style="margin-top: 0; margin-bottom: 12px; font-size: 14px;" class="receipt-value">Receipt Summary</h4>
           <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 14px; line-height: 1.6;">
             <tr>
-              <td style="color: #64748b; padding-bottom: 8px;">Plan:</td>
-              <td align="right" style="font-weight: 700; color: #121c28; padding-bottom: 8px;">${planTier} (${billingPeriod.toLowerCase()})</td>
+              <td class="receipt-label" style="padding-bottom: 8px;">Plan:</td>
+              <td align="right" class="receipt-value" style="padding-bottom: 8px;">${planTier} (${billingPeriod.toLowerCase()})</td>
             </tr>
             <tr>
-              <td style="color: #64748b; padding-bottom: 8px;">Amount Paid:</td>
-              <td align="right" style="font-weight: 700; color: #121c28; padding-bottom: 8px;">${formattedAmount}</td>
+              <td class="receipt-label" style="padding-bottom: 8px;">Amount Paid:</td>
+              <td align="right" class="receipt-value" style="padding-bottom: 8px;">${formattedAmount}</td>
             </tr>
             <tr>
-              <td style="color: #64748b;">Next Billing Date:</td>
-              <td align="right" style="font-weight: 700; color: #121c28;">${nextBillingDate}</td>
+              <td class="receipt-label">Next Billing Date:</td>
+              <td align="right" class="receipt-value">${nextBillingDate}</td>
             </tr>
           </table>
         </div>
@@ -508,16 +539,16 @@ export class EmailService {
         <div class="receipt-box" style="margin: 24px 0; padding: 20px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
           <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 14px; line-height: 1.6;">
             <tr>
-              <td style="color: #64748b; padding-bottom: 8px;">Invoice Number</td>
-              <td align="right" style="font-weight: 700; color: #121c28; padding-bottom: 8px;">${invoiceNumber}</td>
+              <td class="receipt-label" style="padding-bottom: 8px;">Invoice Number</td>
+              <td align="right" class="receipt-value" style="padding-bottom: 8px;">${invoiceNumber}</td>
             </tr>
             <tr>
-              <td style="color: #64748b; padding-bottom: 8px;">Total Amount</td>
-              <td align="right" style="font-weight: 700; color: #121c28; padding-bottom: 8px;">${total}</td>
+              <td class="receipt-label" style="padding-bottom: 8px;">Total Amount</td>
+              <td align="right" class="receipt-value" style="padding-bottom: 8px;">${total}</td>
             </tr>
             <tr>
-              <td style="color: #64748b;">Due Date</td>
-              <td align="right" style="font-weight: 700; color: #121c28;">${dueDate}</td>
+              <td class="receipt-label">Due Date</td>
+              <td align="right" class="receipt-value">${dueDate}</td>
             </tr>
           </table>
         </div>
@@ -555,24 +586,24 @@ export class EmailService {
         <div class="receipt-box" style="margin: 24px 0; padding: 20px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
           <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 14px; line-height: 1.6;">
             <tr>
-              <td style="color: #64748b; padding-bottom: 8px;">Invoice Number</td>
-              <td align="right" style="font-weight: 700; color: #121c28; padding-bottom: 8px;">${invoiceNumber}</td>
+              <td class="receipt-label" style="padding-bottom: 8px;">Invoice Number</td>
+              <td align="right" class="receipt-value" style="padding-bottom: 8px;">${invoiceNumber}</td>
             </tr>
             <tr>
-              <td style="color: #64748b; padding-bottom: 8px;">Amount Paid</td>
-              <td align="right" style="font-weight: 700; color: #006c49; padding-bottom: 8px;">${amountPaid}</td>
+              <td class="receipt-label" style="padding-bottom: 8px;">Amount Paid</td>
+              <td align="right" class="receipt-value" style="color: #006c49 !important; padding-bottom: 8px;">${amountPaid}</td>
             </tr>
             <tr>
-              <td style="color: #64748b; padding-bottom: 8px;">Balance Outstanding</td>
-              <td align="right" style="font-weight: 700; color: #121c28; padding-bottom: 8px;">${outstanding}</td>
+              <td class="receipt-label" style="padding-bottom: 8px;">Balance Outstanding</td>
+              <td align="right" class="receipt-value" style="padding-bottom: 8px;">${outstanding}</td>
             </tr>
             <tr>
-              <td style="color: #64748b; padding-bottom: 8px;">Payment Date</td>
-              <td align="right" style="font-weight: 700; color: #121c28; padding-bottom: 8px;">${paymentDate}</td>
+              <td class="receipt-label" style="padding-bottom: 8px;">Payment Date</td>
+              <td align="right" class="receipt-value" style="padding-bottom: 8px;">${paymentDate}</td>
             </tr>
             <tr>
-              <td style="color: #64748b;">Payment Method</td>
-              <td align="right" style="font-weight: 700; color: #121c28; text-transform: capitalize;">${channel}</td>
+              <td class="receipt-label">Payment Method</td>
+              <td align="right" class="receipt-value">${channel}</td>
             </tr>
           </table>
         </div>
@@ -605,31 +636,31 @@ export class EmailService {
         <p>Hi ${merchantName},</p>
         <p>Congratulations! <strong>${clientName}</strong> has paid <strong>${amountPaid}</strong> for invoice <strong>${invoiceNumber}</strong>.</p>
         <div class="receipt-box" style="margin: 24px 0; padding: 20px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
-          <h4 style="margin-top: 0; margin-bottom: 12px; font-size: 14px; color: #121c28;">Transaction Details</h4>
+          <h4 style="margin-top: 0; margin-bottom: 12px;" class="receipt-value">Transaction Details</h4>
           <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 14px; line-height: 1.6;">
             <tr>
-              <td style="color: #64748b; padding-bottom: 8px;">Client</td>
-              <td align="right" style="font-weight: 700; color: #121c28; padding-bottom: 8px;">${clientName}</td>
+              <td class="receipt-label" style="padding-bottom: 8px;">Client</td>
+              <td align="right" class="receipt-value" style="padding-bottom: 8px;">${clientName}</td>
             </tr>
             <tr>
-              <td style="color: #64748b; padding-bottom: 8px;">Invoice</td>
-              <td align="right" style="font-weight: 700; color: #121c28; padding-bottom: 8px;">${invoiceNumber}</td>
+              <td class="receipt-label" style="padding-bottom: 8px;">Invoice</td>
+              <td align="right" class="receipt-value" style="padding-bottom: 8px;">${invoiceNumber}</td>
             </tr>
             <tr>
-              <td style="color: #64748b; padding-bottom: 8px;">Amount Paid</td>
-              <td align="right" style="font-weight: 700; color: #006c49; padding-bottom: 8px;">${amountPaid}</td>
+              <td class="receipt-label" style="padding-bottom: 8px;">Amount Paid</td>
+              <td align="right" class="receipt-value" style="color: #006c49 !important; padding-bottom: 8px;">${amountPaid}</td>
             </tr>
             <tr>
-              <td style="color: #64748b; padding-bottom: 8px;">Payment Date</td>
-              <td align="right" style="font-weight: 700; color: #121c28; padding-bottom: 8px;">${paymentDate}</td>
+              <td class="receipt-label" style="padding-bottom: 8px;">Payment Date</td>
+              <td align="right" class="receipt-value" style="padding-bottom: 8px;">${paymentDate}</td>
             </tr>
             <tr>
-              <td style="color: #64748b; padding-bottom: 8px;">Payment Channel</td>
-              <td align="right" style="font-weight: 700; color: #121c28; text-transform: capitalize;">${channel}</td>
+              <td class="receipt-label" style="padding-bottom: 8px;">Payment Channel</td>
+              <td align="right" class="receipt-value" style="padding-bottom: 8px;">${channel}</td>
             </tr>
             <tr>
-              <td style="color: #64748b;">Settlement Status</td>
-              <td align="right" style="font-weight: 700; color: #121c28;">${settlementStatus}</td>
+              <td class="receipt-label">Settlement Status</td>
+              <td align="right" class="receipt-value">${settlementStatus}</td>
             </tr>
           </table>
         </div>

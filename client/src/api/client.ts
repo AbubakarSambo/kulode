@@ -26,10 +26,20 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// Response interceptor - handle errors
+// Response interceptor - handle errors and version headers
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const versionHeader = response?.headers?.['x-app-version']
+    if (versionHeader) {
+      window.dispatchEvent(new CustomEvent('app-version-detected', { detail: versionHeader }))
+    }
+    return response
+  },
   (error: AxiosError<{ message?: string; errors?: Record<string, string[]> }>) => {
+    const versionHeader = error.response?.headers?.['x-app-version']
+    if (versionHeader) {
+      window.dispatchEvent(new CustomEvent('app-version-detected', { detail: versionHeader }))
+    }
     const message = error.response?.data?.message || 'An error occurred'
     
     if (error.response?.status === 401) {

@@ -710,6 +710,14 @@ export class PaystackService {
     const formattedAmount = amountPaid.toLocaleString('en-NG', { style: 'currency', currency: 'NGN' });
     const formattedPaymentDate = new Date(paidAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 
+    // Format payment channel for presentation (e.g. bank_transfer -> Bank Transfer)
+    const cleanChannel = channel
+      ? channel
+          .split('_')
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ')
+      : 'Card';
+
     // 1. Send receipt to Client
     if (invoice.client?.email) {
       try {
@@ -721,7 +729,7 @@ export class PaystackService {
           formattedAmount,
           outstandingAmount,
           formattedPaymentDate,
-          channel,
+          cleanChannel,
         );
       } catch (err) {
         this.logger.error(`Failed to send payment receipt email to client ${invoice.client.email}: ${err.message}`);
@@ -754,7 +762,7 @@ export class PaystackService {
           invoice.client?.name || 'Client',
           invoice.invoiceNumber,
           formattedAmount,
-          channel,
+          cleanChannel,
           settlementStatus,
           formattedPaymentDate,
         );

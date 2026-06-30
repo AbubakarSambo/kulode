@@ -58,6 +58,7 @@ export { CategoriesPage } from './settings/CategoriesPage'
 export { ServiceItemsPage } from './settings/ServiceItemsPage'
 export { OrganizationPage } from './settings/OrganizationPage'
 export { BillingPage } from './settings/BillingPage'
+export { ChangelogPage } from './settings/ChangelogPage'
 
 // Admin
 export { AdminDashboardPage } from './admin/AdminDashboard'
