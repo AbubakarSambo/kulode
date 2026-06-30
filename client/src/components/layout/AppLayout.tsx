@@ -25,7 +25,6 @@ import {
 import { Sidebar } from './Sidebar'
 import { WelcomeStepper } from '@/components/WelcomeStepper'
 import { TrialBanner } from '../shared/TrialBanner'
-import { RebrandBanner } from '../shared/RebrandBanner'
 import { SubscriptionExpiredBanner } from '../shared/SubscriptionExpiredBanner'
 import { useAuthStore } from '@/stores/auth'
 import { useLogout } from '@/hooks'
@@ -92,7 +91,6 @@ export function AppLayout() {
 
       <main className="flex flex-1 flex-col overflow-hidden relative">
         <SubscriptionExpiredBanner />
-        <RebrandBanner />
         {/* Mobile header with brand mark (with top notch safe-area support) */}
         <div className="flex h-[calc(3.5rem+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] items-center justify-between bg-background/80 backdrop-blur-md px-6 lg:hidden border-b border-[#eef4ff]/50 z-30">
           <div className="flex items-center gap-2">

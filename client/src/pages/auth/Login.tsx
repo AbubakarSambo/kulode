@@ -97,7 +97,9 @@ export function LoginPage() {
         
         {/* Logo */}
         <div className="relative z-10 flex items-center gap-3">
-          <Logo variant="inverted" className="h-11 w-auto" />
+          <a href={LANDING_URL} className="hover:opacity-90 transition-opacity">
+            <Logo variant="inverted" className="h-14 w-auto" />
+          </a>
         </div>
         
         {/* Center Content & Animated Mockups */}
@@ -167,7 +169,7 @@ export function LoginPage() {
 
         {/* Footer */}
         <div className="relative z-10 flex justify-between items-center text-xs text-blue-200/50">
-          <p>© {new Date().getFullYear()} Tari1. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Tari1. All rights reserved. <span className="font-mono opacity-80 text-[10px] bg-white/10 text-white px-1.5 py-0.5 rounded ml-1">v{__APP_VERSION__}</span></p>
           <a href="/privacy" className="hover:text-white transition-colors">Privacy & Terms</a>
         </div>
       </div>
@@ -190,7 +192,9 @@ export function LoginPage() {
         <Card className={`w-full max-w-md border border-slate-200/60 shadow-[0_20px_50px_rgba(0,55,176,0.06)] bg-white rounded-[32px] p-2 transition-transform duration-300 ${overscrollActive ? "animate-rubber-bottom" : ""}`}>
           <CardHeader className="text-center pb-4 pt-6">
             <div className="mb-4 lg:hidden flex justify-center">
-              <Logo className="h-10 w-auto" />
+              <a href={LANDING_URL} className="hover:opacity-90 transition-opacity">
+                <Logo className="h-12 w-auto" />
+              </a>
             </div>
             <CardTitle className="text-2xl font-black text-slate-900 tracking-tight">Welcome back</CardTitle>
             <CardDescription className="text-xs text-slate-500 mt-1">Sign in to your account to continue</CardDescription>

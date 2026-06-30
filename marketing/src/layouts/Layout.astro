@@ -1,6 +1,5 @@
 ---
 import '../styles/global.css'
-import RebrandBanner from '../components/RebrandBanner.astro'
 
 interface Props {
   title: string
@@ -127,7 +126,6 @@ const posthogHost = import.meta.env.PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog
     )}
   </head>
   <body class="bg-white text-gray-900 antialiased overflow-x-hidden w-full relative">
-    <RebrandBanner />
     <slot />
 
     <!-- Cookie Consent Banner -->

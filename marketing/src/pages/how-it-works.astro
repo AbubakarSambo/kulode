@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro'
 import Navbar from '../components/Navbar.astro'
+import Footer from '../components/Footer.astro'
 
 const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
 ---
@@ -298,23 +299,7 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
     </section>
   </main>
 
-  <!-- Footer -->
-  <footer class="w-full py-12 bg-surface border-t border-outline-variant">
-    <div class="flex flex-col md:flex-row justify-between items-center gap-element-gap px-container-padding max-w-7xl mx-auto">
-      <div class="flex flex-col gap-4 items-center md:items-start">
-        <span class="text-2xl font-bold tracking-tight text-primary">Tari1</span>
-        <p class="text-sm text-text-secondary text-center md:text-left max-w-xs">
-          © {new Date().getFullYear()} Tari1. All rights reserved. Built for the modern freelancer.
-        </p>
-        <p class="text-xs text-text-secondary text-center md:text-left">Lagos, Nigeria · <a href="mailto:abubakar.sambo@tarione.com" class="hover:text-primary transition-colors">abubakar.sambo@tarione.com</a></p>
-      </div>
-      <div class="flex flex-wrap justify-center gap-8">
-        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/privacy">Privacy Policy</a>
-        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/terms">Terms of Service</a>
-        <a class="text-sm text-text-secondary hover:text-primary transition-all" href="mailto:abubakar.sambo@tarione.com">Contact Support</a>
-      </div>
-    </div>
-  </footer>
+  <Footer />
 
   <script>
     // Scroll stagger animations
