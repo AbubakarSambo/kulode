@@ -13,6 +13,29 @@ export interface ChangelogEntry {
 }
 
 export const changelogData: Record<string, ChangelogEntry> = {
+  '1.1.2': {
+    version: '1.1.2',
+    title: 'Advanced AI Data Viz & Chat Organization',
+    date: '2026-06-30',
+    type: 'minor',
+    features: [
+      {
+        title: 'Temporal Grouping for Chat History',
+        description: 'Tired of endless scrolling? Chat threads are now intelligently grouped by date (Today, Yesterday, Previous 7 Days, etc.), making it effortless to find your past analyses.',
+        tag: 'UI Polish',
+      },
+      {
+        title: 'Multi-Series Charts',
+        description: 'The AI can now generate advanced Stacked Bar Charts and Multi-Line Charts, giving you deep comparative insights into month-over-month product sales and more.',
+        tag: 'New Feature',
+      },
+      {
+        title: 'Expansive Chat Layout',
+        description: 'We dramatically widened the AI Chat interface to take full advantage of desktop screens, giving your data visualizations the breathing room they deserve.',
+        tag: 'UI Polish',
+      },
+    ],
+  },
   '1.1.1': {
     version: '1.1.1',
     title: 'The AI Chat Polish Update',

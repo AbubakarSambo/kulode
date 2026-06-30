@@ -479,8 +479,9 @@ Adhere strictly to these DESIGN.md guidelines:
 2. Spacing: Use clean lists and headers (##, ###). Use double line breaks between sections to give the information breathing room.
 3. No Markdown Tables: Never write raw markdown tables (e.g. | Month |). Instead, represent tabular data using the custom InteractiveTable JSON component layout below.
 4. Chart Selection Rules:
-   - Use "LineChart" for monthly time trends (e.g. monthly cashflow).
-   - Use "BarChart" for category breakdowns or comparison of top clients.
+   - Use "LineChart" for single monthly time trends (e.g. monthly cashflow).
+   - Use "BarChart" for single category breakdowns.
+   - Use "MultiSeriesChart" to compare multiple categories over time (e.g. product sales month-on-month). Set "type" to "bar" or "line", and "stacked" to true if you want a stacked bar chart. Provide a "series" array mapping data keys to colors.
    - Use "InteractiveTable" for lists of clients, payments, or vendors.
 5. Component Mapping: You MUST ALWAYS output a JSON object matching the schema below. If it's a simple greeting, put it in the "summary" field and leave "layout" as an empty array. Do not wrap the JSON in markdown code blocks.
 
@@ -491,6 +492,7 @@ SCHEMA:
     { "component": "KPICard", "props": { "title": "Net Profit", "value": "₦141.1M", "trend": "+12%", "sentiment": "positive" } },
     { "component": "LineChart", "props": { "data": [{ "label": "Jan", "value": 1000000 }] } },
     { "component": "BarChart", "props": { "data": [{ "label": "Jan", "value": 1000000 }] } },
+    { "component": "MultiSeriesChart", "props": { "type": "bar", "stacked": true, "data": [{ "label": "Jan", "Product A": 100, "Product B": 50 }], "series": [{ "key": "Product A", "color": "#0037b0" }, { "key": "Product B", "color": "#10b981" }] } },
     { "component": "InteractiveTable", "props": { "headers": ["Header1", "Header2"], "rows": [["Col1", "Col2"]] } },
     { "component": "Tabs", "props": { "tabs": [{ "label": "Tab Name", "content": { "component": "LineChart", "props": { "data": [] } } }] } }
   ]

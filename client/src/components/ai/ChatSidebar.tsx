@@ -70,6 +70,43 @@ export function ChatSidebar({
   const pinnedSessions = filteredSessions.filter((s) => s.isPinned)
   const recentSessions = filteredSessions.filter((s) => !s.isPinned)
 
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const sevenDaysAgo = new Date(today)
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+  const thirtyDaysAgo = new Date(today)
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+  const todaySessions: ChatSession[] = []
+  const yesterdaySessions: ChatSession[] = []
+  const previous7DaysSessions: ChatSession[] = []
+  const previous30DaysSessions: ChatSession[] = []
+  const olderSessions: ChatSession[] = []
+
+  recentSessions.forEach((session) => {
+    const d = new Date(session.updatedAt)
+    if (d >= today) {
+      todaySessions.push(session)
+    } else if (d >= yesterday) {
+      yesterdaySessions.push(session)
+    } else if (d >= sevenDaysAgo) {
+      previous7DaysSessions.push(session)
+    } else if (d >= thirtyDaysAgo) {
+      previous30DaysSessions.push(session)
+    } else {
+      olderSessions.push(session)
+    }
+  })
+
+  const sortByDateDesc = (a: ChatSession, b: ChatSession) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  todaySessions.sort(sortByDateDesc)
+  yesterdaySessions.sort(sortByDateDesc)
+  previous7DaysSessions.sort(sortByDateDesc)
+  previous30DaysSessions.sort(sortByDateDesc)
+  olderSessions.sort(sortByDateDesc)
+
   const renderSessionItem = (session: ChatSession) => {
     const isActive = session.id === currentSessionId
     const isEditing = session.id === editingSessionId
@@ -197,17 +234,39 @@ export function ChatSidebar({
         )}
 
         <div>
-          {pinnedSessions.length > 0 && (
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2 mb-1.5">
-              Recent Threads
-            </p>
+          {todaySessions.length > 0 && (
+            <div className="mb-4">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2 mb-1.5">Today</p>
+              {todaySessions.map(renderSessionItem)}
+            </div>
           )}
-          {recentSessions.length > 0 ? (
-            recentSessions.map(renderSessionItem)
-          ) : (
-            searchQuery && (
-              <p className="text-xs text-slate-400 text-center py-4">No matching chats found.</p>
-            )
+          {yesterdaySessions.length > 0 && (
+            <div className="mb-4">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2 mb-1.5">Yesterday</p>
+              {yesterdaySessions.map(renderSessionItem)}
+            </div>
+          )}
+          {previous7DaysSessions.length > 0 && (
+            <div className="mb-4">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2 mb-1.5">Previous 7 Days</p>
+              {previous7DaysSessions.map(renderSessionItem)}
+            </div>
+          )}
+          {previous30DaysSessions.length > 0 && (
+            <div className="mb-4">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2 mb-1.5">Previous 30 Days</p>
+              {previous30DaysSessions.map(renderSessionItem)}
+            </div>
+          )}
+          {olderSessions.length > 0 && (
+            <div className="mb-4">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2 mb-1.5">Older</p>
+              {olderSessions.map(renderSessionItem)}
+            </div>
+          )}
+
+          {recentSessions.length === 0 && searchQuery && (
+            <p className="text-xs text-slate-400 text-center py-4">No matching chats found.</p>
           )}
         </div>
       </div>

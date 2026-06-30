@@ -9,6 +9,7 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
+  Legend,
 } from 'recharts'
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
@@ -226,6 +227,54 @@ function TabsComponent({ tabs }: { tabs: { label: string; content: ComponentConf
   )
 }
 
+// 6. Multi-Series Chart Component
+function MultiSeriesChart({ type, stacked, data, series }: { type: 'bar' | 'line'; stacked?: boolean; data: any[]; series: { key: string; color?: string; label?: string }[] }) {
+  const formatYAxis = (tickItem: number) => {
+    if (tickItem >= 1_000_000) return `₦${(tickItem / 1_000_000).toFixed(1)}M`
+    if (tickItem >= 1_000) return `₦${(tickItem / 1_000).toFixed(0)}k`
+    return `₦${tickItem}`
+  }
+
+  const defaultColors = ['#0037b0', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
+  const safeSeries = series || []
+
+  return (
+    <div className="w-full h-64 mt-4">
+      <ResponsiveContainer width="100%" height="100%">
+        {type === 'bar' ? (
+          <BarChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+            <XAxis dataKey="label" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} dy={10} />
+            <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} tickFormatter={formatYAxis} dx={-10} />
+            <Tooltip
+              contentStyle={{ backgroundColor: '#ffffff', border: 'none', borderRadius: '12px', boxShadow: '0px 12px 32px rgba(0, 55, 176, 0.08)', fontSize: '12px' }}
+              formatter={(value: any) => [`₦${Number(value).toLocaleString()}`, '']}
+            />
+            <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+            {safeSeries.map((s, i) => (
+              <Bar key={s.key} dataKey={s.key} name={s.label || s.key} stackId={stacked ? 'a' : undefined} fill={s.color || defaultColors[i % defaultColors.length]} radius={stacked ? 0 : [4, 4, 0, 0]} maxBarSize={45} />
+            ))}
+          </BarChart>
+        ) : (
+          <LineChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+            <XAxis dataKey="label" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} dy={10} />
+            <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} tickFormatter={formatYAxis} dx={-10} />
+            <Tooltip
+              contentStyle={{ backgroundColor: '#ffffff', border: 'none', borderRadius: '12px', boxShadow: '0px 12px 32px rgba(0, 55, 176, 0.08)', fontSize: '12px' }}
+              formatter={(value: any) => [`₦${Number(value).toLocaleString()}`, '']}
+            />
+            <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+            {safeSeries.map((s, i) => (
+              <Line key={s.key} type="monotone" dataKey={s.key} name={s.label || s.key} stroke={s.color || defaultColors[i % defaultColors.length]} strokeWidth={2} dot={{ r: 4, strokeWidth: 0 }} activeDot={{ r: 6 }} />
+            ))}
+          </LineChart>
+        )}
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
 // Main Dynamic Component Router Switcher
 export function DynamicComponentRenderer({ component, props }: ComponentConfig) {
   switch (component) {
@@ -235,6 +284,8 @@ export function DynamicComponentRenderer({ component, props }: ComponentConfig) 
       return <CustomLineChart data={props.data} />
     case 'BarChart':
       return <CustomBarChart data={props.data} />
+    case 'MultiSeriesChart':
+      return <MultiSeriesChart type={props.type} stacked={props.stacked} data={props.data} series={props.series} />
     case 'InteractiveTable':
       return <InteractiveTable headers={props.headers} rows={props.rows} />
     case 'Tabs':

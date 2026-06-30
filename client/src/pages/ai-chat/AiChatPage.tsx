@@ -254,7 +254,7 @@ export function AiChatPage() {
         </div>
 
         <div ref={scrollContainerRef} className="flex-1 overflow-auto px-4 pb-4 sm:px-8">
-          <div className="max-w-2xl mx-auto pt-4 sm:pt-8 flex flex-col gap-4 min-h-full">
+          <div className="max-w-4xl mx-auto pt-4 sm:pt-8 flex flex-col gap-4 min-h-full">
 
             {isEmpty ? (
               <div className="flex flex-col items-center justify-center flex-1 py-12 text-center">
@@ -290,7 +290,7 @@ export function AiChatPage() {
 
         {/* Input bar */}
         <div className="border-t border-border bg-background px-4 py-3 sm:px-8">
-          <div className="max-w-2xl mx-auto flex items-end gap-2">
+          <div className="max-w-4xl mx-auto flex items-end gap-2">
             <textarea
               ref={inputRef}
               value={input}
@@ -310,7 +310,7 @@ export function AiChatPage() {
               <HugeiconsIcon icon={MailSend02Icon} size={16} />
             </button>
           </div>
-          <p className="max-w-2xl mx-auto text-[10px] text-slate-400 mt-2 text-center">
+          <p className="max-w-4xl mx-auto text-[10px] text-slate-400 mt-2 text-center">
             Press Enter to send · Shift+Enter for new line
           </p>
         </div>
