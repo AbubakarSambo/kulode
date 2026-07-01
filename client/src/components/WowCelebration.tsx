@@ -8,7 +8,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 import apiClient from "@/api/client";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, normalizePhoneForWhatsApp } from "@/lib/utils";
 
 interface WowCelebrationProps {
   title: string;
@@ -242,7 +242,7 @@ export function WowCelebration({
     ];
 
     const text = lines.join('\n');
-    const cleanPhone = clientPhone ? clientPhone.replace(/\D/g, '') : '';
+    const cleanPhone = clientPhone ? normalizePhoneForWhatsApp(clientPhone) : '';
     const url = cleanPhone
       ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`
       : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;

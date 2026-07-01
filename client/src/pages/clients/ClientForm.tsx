@@ -6,6 +6,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { clientsApi } from '@/api'
 import { posthog } from '@/lib/posthog'
 import { useOverscrollBounce } from '@/hooks'
@@ -14,7 +15,6 @@ import { cn } from '@/lib/utils'
 import {
   UserIcon,
   Mail01Icon,
-  CallIcon,
   Location01Icon,
   Note01Icon,
 } from '@hugeicons/core-free-icons'
@@ -186,16 +186,14 @@ export function ClientFormPage({ mode = 'create', initialData }: ClientFormPageP
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone</Label>
-                  <div className="relative flex items-center">
-                    <HugeiconsIcon icon={CallIcon} size={16} strokeWidth={1.5} className="absolute left-3.5 text-slate-400 z-10 shrink-0 pointer-events-none" />
-                    <Input
-                      id="phone"
-                      placeholder="+234 123 456 7890"
-                      className="pl-10"
-                      {...register('phone')}
-                      error={errors.phone?.message}
-                    />
-                  </div>
+                  <PhoneInput
+                    id="phone"
+                    value={watch('phone') || ''}
+                    onChange={(val) => setValue('phone', val, { shouldValidate: true })}
+                  />
+                  {errors.phone?.message && (
+                    <p className="text-xs text-red-500">{errors.phone.message}</p>
+                  )}
                 </div>
               </div>
 

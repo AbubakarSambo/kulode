@@ -50,7 +50,7 @@ import { Modal } from '@/components/shared/Modal'
 import { invoicesApi, paymentsApi, organizationsApi } from '@/api'
 import apiClient from '@/api/client'
 import type { ApiResponse } from '@/types'
-import { formatCurrency, formatDate, cn, formatAmountInput, parseAmountInput } from '@/lib/utils'
+import { formatCurrency, formatDate, cn, formatAmountInput, parseAmountInput, normalizePhoneForWhatsApp } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
 import type { InvoiceStatus, PaymentMethod } from '@/types'
 import { useAuthStore } from '@/stores/auth'
@@ -405,7 +405,7 @@ export function InvoiceDetailPage() {
     ]
 
     const text = lines.join('\n')
-    const cleanPhone = invoice.client?.phone ? invoice.client.phone.replace(/\D/g, '') : ''
+    const cleanPhone = invoice.client?.phone ? normalizePhoneForWhatsApp(invoice.client.phone) : ''
     const url = cleanPhone
       ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`
       : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`

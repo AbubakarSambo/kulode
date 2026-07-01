@@ -6,6 +6,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { vendorsApi } from '@/api'
 import { posthog } from '@/lib/posthog'
 import { useOverscrollBounce } from '@/hooks'
@@ -36,6 +37,8 @@ function VendorFormPage({ mode = 'create', initialData }: VendorFormPageProps) {
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<VendorFormData>({
     resolver: zodResolver(vendorSchema),
@@ -173,12 +176,14 @@ function VendorFormPage({ mode = 'create', initialData }: VendorFormPageProps) {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone</Label>
-                  <Input
+                  <PhoneInput
                     id="phone"
-                    placeholder="+234 123 456 7890"
-                    {...register('phone')}
-                    error={errors.phone?.message}
+                    value={watch('phone') || ''}
+                    onChange={(val) => setValue('phone', val, { shouldValidate: true })}
                   />
+                  {errors.phone?.message && (
+                    <p className="text-xs text-red-500">{errors.phone.message}</p>
+                  )}
                 </div>
               </div>
             </CardContent>

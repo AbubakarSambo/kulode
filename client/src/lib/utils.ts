@@ -62,3 +62,14 @@ export function parseAmountInput(value: string): number {
   return isNaN(parsed) ? 0 : parsed
 }
 
+// WhatsApp requires full international format (no leading 0). Numbers saved in
+// local Nigerian format (e.g. "08130000101") otherwise fail to open in WhatsApp.
+export function normalizePhoneForWhatsApp(phone: string): string {
+  const digits = phone.replace(/\D/g, '')
+  if (!digits) return ''
+  if (digits.startsWith('0') && digits.length === 11) {
+    return `234${digits.slice(1)}`
+  }
+  return digits
+}
+

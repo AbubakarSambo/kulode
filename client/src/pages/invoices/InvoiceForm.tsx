@@ -25,6 +25,7 @@ import {
 } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, CardHeader, CardTitle, DatePicker } from '@/components/ui'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { clientsApi, invoicesApi, organizationsApi, inventoryApi } from '@/api'
 import { useOnboardingStore } from '@/stores/onboarding'
 import type { CreateInventoryItemData } from '@/api/inventory'
@@ -141,12 +142,10 @@ function CreateClientModal({
 
           <div className="space-y-1.5 text-left">
             <Label htmlFor="modal-client-phone" className="text-slate-500 font-semibold">Phone Number (Optional)</Label>
-            <Input
+            <PhoneInput
               id="modal-client-phone"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="e.g. +234 803 123 4567"
-              className="h-11 rounded-xl"
+              onChange={setPhone}
             />
           </div>
 
