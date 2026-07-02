@@ -13,6 +13,220 @@ export interface ChangelogEntry {
 }
 
 export const changelogData: Record<string, ChangelogEntry> = {
+  '1.2.1': {
+    version: '1.2.1',
+    date: '2026-07-02',
+    title: 'PDF Invoice Footer — Logo Centered, Brand Tagline & URL',
+    type: 'patch',
+    features: [
+      {
+        title: 'PDF Logo Properly Centered',
+        description: 'Fixed the Tari1 logo alignment in downloaded invoices. It was pinned to the left margin due to a PDFKit bug — now uses the fit+align technique to centre correctly across the full page width.',
+        tag: 'Stability',
+      },
+      {
+        title: 'New Footer Tagline',
+        description: 'Replaced "Powered by Tari1" with the new brand message: "Built with Tari1: Work smarter, stay organized. · tarione.com" — concise, memorable, and includes the website URL for discoverability.',
+        tag: 'UI Polish',
+      },
+      {
+        title: 'Report PDF Footer Updated',
+        description: 'Financial report PDFs now also show the updated "Built with Tari1 · tarione.com" attribution, consistent with the invoice footer.',
+        tag: 'UI Polish',
+      },
+    ],
+  },
+  '1.2.0': {
+    version: '1.2.0',
+    date: '2026-07-02',
+    title: 'PDF Footer Polish, WhatsApp Contact Picker & Billing Card Spacing',
+    type: 'minor',
+    features: [
+      {
+        title: 'PDF Footer — Catchy Brand Tagline',
+        description: 'Replaced "Powered by Tari1" with a more memorable message: "Invoice beautifully managed by Tari — Built for Nigerian businesses." Logo is now properly centred using PDFKit\'s align option instead of a hardcoded X offset.',
+        tag: 'UI Polish',
+      },
+      {
+        title: 'WhatsApp — Contact Picker Fallback',
+        description: 'When a client has no phone number saved, WhatsApp now opens with the message pre-filled and lets you choose from your existing contacts. The old approach (api.whatsapp.com/send with no phone) showed a "number not available" error — this is now fixed by using wa.me/?text= which opens the share picker.',
+        tag: 'Stability',
+      },
+      {
+        title: 'Billing Items Card Spacing Improved',
+        description: 'Increased padding inside each line item card (p-5/p-6), gap between cards (space-y-4), and internal field gap (gap-5) for a more breathable, scannable layout on both mobile and desktop.',
+        tag: 'UI Polish',
+      },
+    ],
+  },
+  '1.1.9': {
+    version: '1.1.9',
+    date: '2026-07-02',
+    title: 'Onboarding UX Overhaul — Resume, Links & Step Tracking',
+    type: 'patch',
+    features: [
+      {
+        title: 'Add Item Auto-Focus & Expand',
+        description: 'Adding a new billing line item now automatically collapses advanced settings and opens the new card in focus on mobile.',
+        tag: 'UI Polish',
+      },
+      {
+        title: 'Advanced Settings Accordion Exclusivity',
+        description: 'Opening the Advanced Settings (VAT, Discount, Terms) now collapses all open line item cards so you can see the section clearly.',
+        tag: 'UI Polish',
+      },
+      {
+        title: 'Desktop Billing Items Layout Fixed',
+        description: 'Removed duplicate column header row from web view; field labels now always appear above inputs for clean, scannable layout on both mobile and desktop.',
+        tag: 'UI Polish',
+      },
+      {
+        title: 'Payment Link Domain Fixed',
+        description: 'WhatsApp, Copy Link and PDF now correctly resolve to your current domain (localhost in dev, app.tarione.com in production). The hardcoded pay.tarione.com fallback has been removed.',
+        tag: 'Stability',
+      },
+      {
+        title: 'PDF FRONTEND_URL Configuration',
+        description: 'Added FRONTEND_URL to api/.env so PDF-generated payment links resolve correctly in local development.',
+        tag: 'Stability',
+      },
+      {
+        title: 'Onboarding Resume Now Restores Progress',
+        description: 'Resuming setup from the dashboard now returns you to your last active step, not step 1. Your form data (client details, billing items, bank info) is preserved across sessions.',
+        tag: 'Stability',
+      },
+      {
+        title: 'Step Progress Colour Coding',
+        description: 'The onboarding step tracker now shows green pills for completed steps, blue for the active step, and grey for upcoming steps — making it clear exactly where you are in the setup.',
+        tag: 'UI Polish',
+      },
+    ],
+  },
+  '1.1.8': {
+    version: '1.1.8',
+    title: 'Onboarding Celebration Replay Link Removal & Link Auditing',
+    date: '2026-07-02',
+    type: 'patch',
+    features: [
+      {
+        title: 'Replay Action Removal',
+        description: 'Removed the Replay link and separator from the footer of the onboarding milestone completion screen.',
+        tag: 'UI Polish',
+      },
+      {
+        title: 'Environment-Aware Public Redirects',
+        description: 'Audited and verified public sharing links to resolve correctly to local address in development and production checkout in deployment.',
+        tag: 'Stability',
+      },
+    ],
+  },
+  '1.1.7': {
+    version: '1.1.7',
+    title: 'Payout Card Style Alignments & Celebration Screen Action Hierarchy',
+    date: '2026-07-02',
+    type: 'patch',
+    features: [
+      {
+        title: 'Premium Card Style propagation',
+        description: 'Updated Payout Bank and Invoice Preview card shadows, borders, and corner radius to align with DESIGN.md rules.',
+        tag: 'UI Polish',
+      },
+      {
+        title: 'Payout Verify Button Wrapping Fix',
+        description: 'Added min-w-0 to the account number input field to prevent it from pushing Verify button out of container view on mobile devices.',
+        tag: 'Stability',
+      },
+      {
+        title: 'Celebration Navigation Links',
+        description: 'Changed Go to Dashboard from a button into a clean text link in the footer to keep WhatsApp sharing as the prominent call-to-action.',
+        tag: 'UI Polish',
+      },
+    ],
+  },
+  '1.1.6': {
+    version: '1.1.6',
+    title: 'Onboarding Web Full-Screen Experience & Card Layout Polishing',
+    date: '2026-07-02',
+    type: 'patch',
+    features: [
+      {
+        title: 'Full-Screen Layout on Web',
+        description: 'Migrated onboarding stepper and celebration screens to full-screen page layouts on desktop, removing tight centered modal constraints.',
+        tag: 'UI Polish',
+      },
+      {
+        title: 'Desktop Row Layout Alignments',
+        description: 'Fixed Step 3 cards crushing on desktop by keeping cards always expanded and hiding inline label headers.',
+        tag: 'Stability',
+      },
+      {
+        title: 'Premium Card Shadows & Rounded Corners',
+        description: 'Updated Step 3 card borders, rounded corners, and shadows to align with DESIGN.md premium styling rules.',
+        tag: 'UI Polish',
+      },
+      {
+        title: 'Onboarding Resume Setup Step Tracking',
+        description: 'Corrected the resume setup target step mapping to correctly load the saved active step from local storage instead of forcing step 1.',
+        tag: 'Stability',
+      },
+    ],
+  },
+  '1.1.5': {
+    version: '1.1.5',
+    title: 'Mobile Onboarding Header Icons & Celebration Screen Refinement',
+    date: '2026-07-01',
+    type: 'patch',
+    features: [
+      {
+        title: 'Inline Step Header Icons',
+        description: 'Positioned step-specific icons directly to the left of the active heading titles throughout the mobile onboarding flow.',
+        tag: 'UI Polish',
+      },
+      {
+        title: 'Line Item Card Accordions',
+        description: 'Overhauled Step 3 line items list into collapsible accordion cards to make multi-item entry clean and remove internal scrollbars.',
+        tag: 'UI Polish',
+      },
+      {
+        title: 'Bank Dropdown Z-Index Fix',
+        description: 'Fixed z-index clipping by adjusting card layout overflow settings on Step 4 bank selection dropdowns.',
+        tag: 'Stability',
+      },
+      {
+        title: 'Milestone Celebration Screen Redesign',
+        description: 'Updated the completion screen to feature unlocked badge status indicators, a structured invoice card, and a prominent WhatsApp sharing button.',
+        tag: 'New Feature',
+      },
+    ],
+  },
+  '1.1.4': {
+    version: '1.1.4',
+    title: 'Mobile Onboarding Redesign & Accordion Preview',
+    date: '2026-07-01',
+    type: 'patch',
+    features: [
+      {
+        title: 'Full-Screen Mobile Onboarding',
+        description: 'Redesigned the onboarding modal to occupy full-screen real estate on mobile devices for a native, immersive mobile onboarding experience.',
+        tag: 'UI Polish',
+      },
+      {
+        title: 'Pill-Selector Personalization',
+        description: 'Upgraded team size and job role dropdowns into clean, selectable button pills to make initial setup faster and more touch-friendly.',
+        tag: 'UI Polish',
+      },
+      {
+        title: 'Quantity Stepper Controls',
+        description: 'Added interactive plus and minus buttons to the line item quantity selector to save typing and make quantity adjustments a breeze.',
+        tag: 'New Feature',
+      },
+      {
+        title: 'Responsive Preview Accordions',
+        description: 'Introduced responsive collapsible panels in the final step to toggle between Payout Bank setup and Live Invoice Preview on mobile devices.',
+        tag: 'New Feature',
+      },
+    ],
+  },
   '1.1.3': {
     version: '1.1.3',
     title: 'Mobile Navigation Polish & Icon Alignment',

@@ -26,6 +26,7 @@ import {
   Delete02Icon,
   Settings02Icon,
   ArrowDown01Icon,
+  ArrowUp01Icon,
 } from "@hugeicons/core-free-icons";
 import { WowCelebration } from "./WowCelebration";
 import { formatCurrency, cn, formatAmountInput, parseAmountInput } from "@/lib/utils";
@@ -110,6 +111,16 @@ export function WelcomeStepper() {
   };
 
   const [step, setStep] = useState(1);
+  const [isMobile, setIsMobile] = useState(typeof window !== "undefined" ? window.innerWidth < 640 : false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
   const [isLoading, setIsLoading] = useState(false);
   const [isSavingStep, setIsSavingStep] = useState(false);
   const [loadingText, setLoadingText] = useState("");
@@ -158,9 +169,20 @@ export function WelcomeStepper() {
     return saved !== null ? saved === "true" : false;
   });
   const [showBankAccordion, setShowBankAccordion] = useState(false);
+  const [activeStep4Tab, setActiveStep4Tab] = useState<'bank' | 'preview'>(isBankConnected ? 'preview' : 'bank');
+  const [activeItemIndexStep3, setActiveItemIndexStep3] = useState<number>(0);
+
+  // Track which steps the user has completed (as a Set of step numbers)
+  const [completedSteps, setCompletedSteps] = useState<Set<number>>(() => {
+    const saved = localStorage.getItem('tari1-onboarding-completedSteps');
+    if (saved) {
+      try { return new Set(JSON.parse(saved) as number[]); } catch { /* ignore */ }
+    }
+    return new Set<number>();
+  });
 
   // Form States - Client details
-  const [clientType, setClientType] = useState<"individual" | "business">("business");
+  const [clientType, setClientType] = useState<"individual" | "business">((localStorage.getItem("tari1-onboarding-clientType") as "individual" | "business") || "business");
   const [clientName, setClientName] = useState(() => {
     return localStorage.getItem("tari1-onboarding-clientName") || (IS_DEV ? "Adebayo Technology Solutions" : "");
   });
@@ -219,7 +241,7 @@ export function WelcomeStepper() {
   const [invoiceNotes, setInvoiceNotes] = useState(() => {
     return localStorage.getItem("tari1-onboarding-invoiceNotes") || "";
   });
-  const sendEmail = false;
+
   const [billingItems, setBillingItems] = useState<BillingItem[]>(() => {
     const saved = localStorage.getItem("tari1-onboarding-billingItems");
     if (saved) {
@@ -330,6 +352,7 @@ export function WelcomeStepper() {
     localStorage.removeItem("tari1-onboarding-accountNumber");
     localStorage.removeItem("tari1-onboarding-verifiedAccountName");
     localStorage.removeItem("tari1-onboarding-isBankConnected");
+    localStorage.removeItem("tari1-onboarding-completedSteps");
   };
 
   // Revoke object URL on cleanup
@@ -456,6 +479,7 @@ export function WelcomeStepper() {
         bankCode,
       });
       setVerifiedAccountName(response.data.data.account_name);
+      toast.dismiss();
       toast.success("Account details verified successfully");
     } catch (err) {
       const error = err as { response?: { data?: { message?: string } } };
@@ -477,6 +501,7 @@ export function WelcomeStepper() {
       });
       setIsBankConnected(true);
       posthog.capture('onboarding_bank_connected');
+      toast.dismiss();
       toast.success("Payout bank connected successfully");
 
       queryClient.invalidateQueries({ queryKey: ["paystack-status"] });
@@ -502,6 +527,8 @@ export function WelcomeStepper() {
         type: "service",
       },
     ]);
+    setActiveItemIndexStep3(billingItems.length);
+    setShowAdvanced(false);
   };
 
   const handleRemoveItem = (index: number) => {
@@ -546,8 +573,15 @@ export function WelcomeStepper() {
         queryClient.invalidateQueries({ queryKey: ["onboarding-status"] });
         setStep(2);
         localStorage.setItem('tari1-onboarding-step', '2');
-      } catch {
-        toast.error("Failed to save branding details");
+        setCompletedSteps(prev => {
+          const next = new Set(prev); next.add(1);
+          localStorage.setItem('tari1-onboarding-completedSteps', JSON.stringify([...next]));
+          return next;
+        });
+      } catch (err) {
+        const error = err as { response?: { data?: { message?: string } } };
+        const msg = error.response?.data?.message || "Failed to save branding details";
+        toast.error("Error saving business profile", { description: msg });
       } finally {
         setIsSavingStep(false);
       }
@@ -562,6 +596,11 @@ export function WelcomeStepper() {
       }
       setStep(3);
       localStorage.setItem('tari1-onboarding-step', '3');
+      setCompletedSteps(prev => {
+        const next = new Set(prev); next.add(2);
+        localStorage.setItem('tari1-onboarding-completedSteps', JSON.stringify([...next]));
+        return next;
+      });
     } else if (step === 3) {
       // Validate all billing items
       for (let i = 0; i < billingItems.length; i++) {
@@ -601,6 +640,11 @@ export function WelcomeStepper() {
       }
       setStep(4);
       localStorage.setItem('tari1-onboarding-step', '4');
+      setCompletedSteps(prev => {
+        const next = new Set(prev); next.add(3);
+        localStorage.setItem('tari1-onboarding-completedSteps', JSON.stringify([...next]));
+        return next;
+      });
     }
   };
 
@@ -655,17 +699,7 @@ export function WelcomeStepper() {
   const handleFinishSend = async (bypassConfirm = false) => {
     if (!user) return;
 
-    if (sendEmail) {
-      if (!clientEmail.trim()) {
-        toast.error("Please enter a client email address to send the invoice");
-        return;
-      }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail.trim())) {
-        toast.error("Please enter a valid client email address");
-        return;
-      }
-    }
-
+    // Skip sendEmail checks as it's not used in wizard
     const hasPayouts = isBankConnected || user?.organization?.isPaystackVerified;
     const isBypassed = bypassConfirm === true;
     if (!hasPayouts && !isBypassed) {
@@ -801,12 +835,7 @@ export function WelcomeStepper() {
       });
 
       posthog.capture('onboarding_invoice_created', { invoice_id: invoice.id });
-      const shouldSend = sendEmail && !!clientEmail;
-      if (shouldSend) {
-        setLoadingText("Publishing invoice ledger & sending email…");
-        await invoicesApi.send(invoice.id);
-        posthog.capture('onboarding_invoice_sent', { invoice_id: invoice.id });
-      }
+      // Bypassed direct sendEmail as it is always false (shared manually via link/pdf/whatsapp)
 
       let paymentUrl: string | null = null;
       const hasPayouts = isBankConnected || user?.organization?.isPaystackVerified;
@@ -817,6 +846,11 @@ export function WelcomeStepper() {
           paymentUrl = linkData.paymentUrl;
         } catch (linkErr) {
           console.warn("Could not auto-generate payment link:", linkErr);
+          const error = linkErr as { response?: { data?: { message?: string } } };
+          const msg = error.response?.data?.message || "Verify your payment gateway configuration or account setup.";
+          toast.warning("Payment link generation failed", {
+            description: msg,
+          });
         }
       }
 
@@ -836,7 +870,7 @@ export function WelcomeStepper() {
 
       posthog.capture('onboarding_completed', {
         bank_connected: isBankConnected || !!user?.organization?.isPaystackVerified,
-        invoice_sent: shouldSend,
+        invoice_sent: false,
       });
       clearOnboardingLocalStorage();
       setShowCelebration(true);
@@ -859,16 +893,8 @@ export function WelcomeStepper() {
   if (showCelebration) {
     return (
       <WowCelebration
-        title="Setup Complete! 🚀"
-        description={
-          sendEmail && clientEmail
-            ? `Success! Your profile is personalized and your first invoice for ${formatCurrency(
-                total
-              )} has been sent to ${clientName}.`
-            : `Success! Your profile is personalized and your first invoice for ${formatCurrency(
-                total
-              )} is created and ready.`
-        }
+        title="You're all set!"
+        description={`Your profile is ready and your first invoice for ${formatCurrency(createdInvoiceTotal || total)} is created.`}
         invoiceId={createdInvoiceId}
         invoiceNumber={createdInvoiceNumber}
         paymentUrl={createdPaymentUrl}
@@ -889,39 +915,26 @@ export function WelcomeStepper() {
   }
 
   if (showSurvey) {
+    const orgName = user?.organization?.name || "your business";
     return (
-      <div className="fixed inset-0 z-[9990] bg-[#f8f9ff] flex items-center justify-center p-3 sm:p-6 font-sans antialiased text-slate-900 overflow-y-auto animate-in fade-in duration-300">
-        <div className="w-full max-w-[480px] bg-white rounded-[32px] pt-8 px-4.5 pb-24 sm:pt-10 sm:px-10 sm:pb-28 shadow-[0_20px_50px_rgba(0,55,176,0.06)] relative border border-slate-100 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+      <div className="fixed inset-0 z-[9990] bg-[#f8f9ff] flex flex-col items-center overflow-y-auto overflow-x-hidden font-sans antialiased text-slate-900 animate-in fade-in duration-300">
+        <div className="w-full max-w-2xl min-h-full bg-white border-x border-slate-200/40 relative pt-10 px-6 pb-24 lg:pt-12 lg:px-12 flex flex-col items-stretch text-left animate-in zoom-in-95 duration-200 shadow-sm">
           
-          {/* Layered Premium Fintech Badge Icon */}
-          <div className="relative mb-6 flex items-center justify-center select-none scale-105">
-            {/* Outer pulsating gradient halo */}
-            <div className="absolute w-24 h-24 bg-gradient-to-tr from-[#0037b0]/15 to-[#1d4ed8]/5 rounded-full animate-pulse blur-lg" />
-            
-            {/* Architectural Grid Background (Fine lines) */}
-            <div className="absolute w-20 h-20 rounded-full border border-dashed border-[#0037b0]/20 animate-spin [animation-duration:40s]" />
-            <div className="absolute w-16 h-16 rounded-full border border-[#0037b0]/10" />
-            
-            {/* Inner primary card with the icon */}
-            <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0_8px_24px_rgba(0,55,176,0.25)] border border-white/20 transform hover:rotate-12 transition-transform duration-300">
-              <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                <path d="M2 17l10 5 10-5" />
-                <path d="M2 12l10 5 10-5" />
-              </svg>
+          <div className="mb-8 mt-2 lg:mt-0 flex gap-3.5 items-start text-left">
+            <div className="w-12 h-12 rounded-2xl bg-[#0037b0]/8 text-[#0037b0] flex items-center justify-center shrink-0 mt-1">
+              <HugeiconsIcon icon={Store04Icon} size={24} strokeWidth={1.5} />
             </div>
-          </div>
-
-          <div className="mb-6">
-            <h2 className="text-[24px] font-semibold text-slate-900 tracking-tight font-inter">
-              Welcome, <span className="text-[#0037b0]">{user?.firstName || "there"}</span>!
-            </h2>
-            <p className="text-xs font-semibold text-slate-400 mt-1.5 uppercase tracking-wider">
-              Let's personalize your experience
-            </p>
-            <p className="text-[13px] sm:text-[11px] text-slate-500 font-medium leading-relaxed max-w-[320px] mx-auto mt-2 text-center">
-              Tell us a little bit about your business so we can customize your invoicing and tax compliance ledger.
-            </p>
+            <div>
+              <span className="text-[11px] font-bold text-[#0037b0] uppercase tracking-widest block">
+                Welcome to Tari1
+              </span>
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight mt-1 font-inter">
+                Let's set up {orgName}
+              </h2>
+              <p className="text-sm text-slate-500 mt-2 font-medium leading-relaxed">
+                A few quick answers so Tari1 tailors your invoices and tax compliance.
+              </p>
+            </div>
           </div>
 
           <form onSubmit={async (e) => {
@@ -963,22 +976,23 @@ export function WelcomeStepper() {
 
               queryClient.invalidateQueries({ queryKey: ["onboarding-status"] });
               
-              // Open setup stepper at step 1 (Branding)
-              openOnboarding(1);
-              setStep(1);
-              localStorage.setItem('tari1-onboarding-step', '1');
+              // Resume from the saved onboarding step, or default to step 1 (Branding)
+              const savedStep = parseInt(localStorage.getItem('tari1-onboarding-step') || '1', 10);
+              const resumeStep = (savedStep >= 1 && savedStep <= 4) ? savedStep : 1;
+              openOnboarding(resumeStep);
+              setStep(resumeStep);
+              toast.dismiss();
               toast.success("Profile personalized successfully!");
             } catch {
               toast.error("Failed to save profile personalization");
             } finally {
               setIsSavingStep(false);
             }
-          }} className="w-full space-y-5 text-left">
+          }} className="w-full flex-1 flex flex-col gap-6 text-left">
             
             {/* Business Category */}
             <div className="space-y-2">
-              <label htmlFor="surveyBusiness" className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                <HugeiconsIcon icon={Store04Icon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />
+              <label htmlFor="surveyBusiness" className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
                 Business Category
               </label>
               <SearchableSelect
@@ -1012,54 +1026,81 @@ export function WelcomeStepper() {
               </div>
             )}
 
-            {/* Org Size */}
-            <div className="space-y-2">
-              <label htmlFor="surveyOrgSize" className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                <HugeiconsIcon icon={UserGroupIcon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />
-                Team / Organization Size
+            {/* Team Size */}
+            <div className="space-y-2.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                Team Size
               </label>
-              <SearchableSelect
-                id="surveyOrgSize"
-                options={ORG_SIZES}
-                value={orgSize}
-                onChange={setOrgSize}
-                placeholder="Select organization size"
-              />
+              <div className="flex flex-wrap gap-2">
+                {ORG_SIZES.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setOrgSize(item.id)}
+                    className={cn(
+                      "px-4 py-2 text-xs font-semibold rounded-xl border transition-all cursor-pointer select-none active:scale-95 duration-100",
+                      orgSize === item.id
+                        ? "bg-[#0037b0]/5 border-[#0037b0] text-[#0037b0] ring-1 ring-[#0037b0]"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                    )}
+                  >
+                    {item.label === "Just me (Solo)" ? "Just me" : item.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Your Role */}
-            <div className="space-y-2">
-              <label htmlFor="surveyRole" className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                <HugeiconsIcon icon={CheckmarkCircle02Icon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />
-                Your Job Role
+            {/* Your Job Role */}
+            <div className="space-y-2.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                Your Role
               </label>
-              <SearchableSelect
-                id="surveyRole"
-                options={ROLES}
-                value={role}
-                onChange={setRole}
-                placeholder="Select your role"
-              />
+              <div className="flex flex-wrap gap-2">
+                {ROLES.map((item) => {
+                  let displayLabel = item.label;
+                  if (item.id === "founder") displayLabel = "Founder / Owner";
+                  if (item.id === "accountant") displayLabel = "Finance";
+                  if (item.id === "manager") displayLabel = "Operations";
+                  if (item.id === "other") displayLabel = "Employee / Other";
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setRole(item.id)}
+                      className={cn(
+                        "px-4 py-2 text-xs font-semibold rounded-xl border transition-all cursor-pointer select-none active:scale-95 duration-100",
+                        role === item.id
+                          ? "bg-[#0037b0]/5 border-[#0037b0] text-[#0037b0] ring-1 ring-[#0037b0]"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                      )}
+                    >
+                      {displayLabel}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Submit CTA */}
-            <button
-              type="submit"
-              disabled={isSavingStep || !businessType || !orgSize || !role}
-              className="w-full h-12 bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] hover:from-[#002f9c] hover:to-[#173fa3] text-white rounded-xl font-bold text-sm shadow-[0_12px_32px_rgba(0,55,176,0.15)] hover:shadow-[0_12px_32px_rgba(0,55,176,0.25)] transition-all active:scale-[0.98] active:translate-y-[1px] duration-150 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 select-none min-h-[44px] border-0"
-            >
-              {isSavingStep ? (
-                <>
-                  <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                  Saving Profile...
-                </>
-              ) : (
-                <>
-                  Complete Profile & Start Setup
-                  <HugeiconsIcon icon={ArrowRight02Icon} size={16} />
-                </>
-              )}
-            </button>
+            <div className="pt-4 lg:pt-0 mt-auto flex items-end">
+              <button
+                type="submit"
+                disabled={isSavingStep || !businessType || !orgSize || !role}
+                className="inline-flex h-12 px-6 bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white rounded-xl font-bold text-sm shadow-[0_4px_12px_rgba(0,55,176,0.15)] flex items-center justify-center gap-2 hover:opacity-95 active:scale-98 transition-all duration-150 cursor-pointer border-0 disabled:opacity-50 select-none min-h-[44px]"
+              >
+                {isSavingStep ? (
+                  <>
+                    <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                    Saving Profile...
+                  </>
+                ) : (
+                  <>
+                    Continue
+                    <HugeiconsIcon icon={ArrowRight02Icon} size={16} />
+                  </>
+                )}
+              </button>
+            </div>
           </form>
         </div>
       </div>
@@ -1067,12 +1108,12 @@ export function WelcomeStepper() {
   }
 
   return (
-    <div className="fixed inset-0 z-[9990] flex items-center justify-center p-1 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto overflow-x-hidden animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl sm:rounded-[24px] w-full max-w-3xl shadow-[0_16px_48px_rgba(0,55,176,0.08)] flex flex-col overflow-hidden max-h-[96vh] sm:max-h-[92vh] font-sans antialiased text-slate-900 animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-[9990] bg-[#f8f9ff] flex flex-col items-center overflow-y-auto overflow-x-hidden font-sans antialiased text-slate-900 animate-in fade-in duration-200">
+      <div className="bg-white w-full max-w-4xl min-h-full flex flex-col border-x border-slate-200/40 relative animate-in zoom-in-95 duration-200 shadow-sm">
         
         {/* Header bar (no 1px lines, bg shift) */}
-        <div className="px-4 sm:px-8 pt-8 pb-4 flex items-center justify-between bg-[#f8f9ff]/40 shrink-0">
-          <div className="flex items-center gap-3">
+        <div className="flex px-4 sm:px-8 pt-4 lg:pt-8 pb-4 items-center justify-between bg-[#f8f9ff]/40 shrink-0">
+          <div className="hidden lg:flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#0037b0]/8 text-[#0037b0] flex items-center justify-center">
               <HugeiconsIcon icon={
                 step === 1 ? Store04Icon :
@@ -1088,7 +1129,7 @@ export function WelcomeStepper() {
                  step === 3 ? "What Are You Charging For?" :
                  "Review & Send"}
               </h2>
-              <p className="text-[10px] font-semibold text-slate-455 mt-0.5 uppercase tracking-wider">
+              <p className="text-[10px] font-semibold text-slate-500 mt-0.5 uppercase tracking-wider">
                 {`Step ${step} of 4: Quick Setup`}
               </p>
             </div>
@@ -1097,7 +1138,7 @@ export function WelcomeStepper() {
           <button
             onClick={handleSkipOrDismiss}
             disabled={isLoading}
-            className="px-3 py-2 text-xs font-semibold text-slate-400 hover:text-[#0037b0] transition-colors cursor-pointer min-h-[44px] flex items-center bg-transparent border-0"
+            className="ml-auto px-3 py-2 text-xs font-semibold text-slate-400 hover:text-[#0037b0] transition-colors cursor-pointer min-h-[44px] flex items-center bg-transparent border-0"
           >
             Setup Later
           </button>
@@ -1106,31 +1147,72 @@ export function WelcomeStepper() {
         {/* Form Body Scroll Area */}
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-3.5 sm:px-8 py-5">
           
-          {/* Progress Tracker Capsules */}
+          {/* Step header and Segmented progress tracker (Mobile-friendly layout) */}
           {!isLoading && (
-            <div className="flex items-center gap-1.5 mb-6 bg-slate-50 p-1.5 rounded-xl">
-              {[1, 2, 3, 4].map((s) => {
-                let color = "bg-slate-200";
-                if (step === s) {
-                  color = "bg-gradient-to-r from-[#0037b0] to-[#1d4ed8]";
-                } else if (step > s) {
-                  const isSkippedBranding = s === 1 && !logoFile && !companyAddress.trim() && !businessName.trim();
-                  if (isSkippedBranding) {
-                    color = "bg-[#ffb04f]"; // warm amber for skipped optional steps
-                  } else {
-                    color = "bg-[#006c49]"; // green for completed
-                  }
-                }
-                return (
-                  <div 
-                    key={s}
-                    className={cn(
-                      "h-1 flex-1 rounded-full transition-all duration-300",
-                      color
-                    )} 
-                  />
-                );
-              })}
+            <div className="mb-6">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block text-left lg:hidden">
+                {`Step ${step} of 4 · Quick Setup`}
+              </span>
+              
+              {/* Segmented Progress Stepper with step numbers */}
+              <div className="flex gap-2 w-full mt-2.5 mb-6 items-center">
+                {[1, 2, 3, 4].map((s, i) => {
+                  const isDone = completedSteps.has(s);
+                  const isActive = s === step;
+                  // A step is "incomplete" if user is past it but it was never completed
+                  const isPast = s < step && !isDone;
+                  return (
+                    <div key={s} className="flex items-center flex-1 gap-2">
+                      <div
+                        className={cn(
+                          "flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold shrink-0 transition-all duration-300",
+                          isDone
+                            ? "bg-[#006c49] text-white" // completed green
+                            : isActive
+                            ? "bg-[#0037b0] text-white ring-2 ring-[#0037b0]/25" // active blue with halo
+                            : isPast
+                            ? "bg-[#ba1a1a] text-white" // skipped/incomplete — red warning
+                            : "bg-slate-100 text-slate-400" // not yet reached
+                        )}
+                      >
+                        {isDone ? "✓" : s}
+                      </div>
+                      {i < 3 && (
+                        <div className={cn(
+                          "h-0.5 flex-1 rounded-full transition-all duration-300",
+                          completedSteps.has(s) ? "bg-[#006c49]" : s < step ? "bg-[#ba1a1a]/20" : "bg-slate-100"
+                        )} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Mobile Active Step Titles with Inline Icons */}
+              <div className="lg:hidden text-left mb-6 animate-in fade-in duration-200 flex gap-3.5 items-start">
+                <div className="w-11 h-11 rounded-xl bg-[#0037b0]/8 text-[#0037b0] flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+                  <HugeiconsIcon icon={
+                    step === 1 ? Store04Icon :
+                    step === 2 ? UserGroupIcon :
+                    step === 3 ? Invoice03Icon :
+                    Briefcase02Icon
+                  } size={20} strokeWidth={1.5} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 tracking-tight">
+                    {step === 1 ? "Your business profile" :
+                     step === 2 ? "Who are you billing?" :
+                     step === 3 ? "What are you charging for?" :
+                     "Review & send"}
+                  </h3>
+                  <p className="text-sm text-slate-500 mt-1 font-medium leading-relaxed">
+                    {step === 1 ? "This appears at the top of every invoice you send." :
+                     step === 2 ? "We'll save this client and send them the invoice." :
+                     step === 3 ? "Add the line items for this invoice." :
+                     "Link a payout bank so clients can pay online."}
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1147,14 +1229,14 @@ export function WelcomeStepper() {
             <>
               {step === 1 && (
                 <div className="space-y-6 animate-in fade-in duration-200">
-                  <div className="space-y-4">
+                  <div className="hidden lg:block space-y-4">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block text-left">
                       Your business identity
                     </span>
                     <p className="text-[11px] text-slate-500 font-medium leading-relaxed text-left">
                       Confirm or update your business name, address, and logo. We will show these details at the top of your professional invoices.
                     </p>
-
+                  </div>
                     {/* Business Name input */}
                     <div className="space-y-2 text-left">
                       <label htmlFor="businessNameInput" className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
@@ -1177,7 +1259,7 @@ export function WelcomeStepper() {
                       </label>
                       
                       {logoPreviewUrl ? (
-                        <div className="flex items-center gap-4 p-3 bg-slate-50/60 rounded-xl border border-slate-150 animate-in fade-in duration-200">
+                        <div className="flex items-center gap-4 p-3 bg-slate-50/60 rounded-xl border border-slate-200/40 animate-in fade-in duration-200">
                           <img
                             src={logoPreviewUrl}
                             alt="Logo preview"
@@ -1204,10 +1286,10 @@ export function WelcomeStepper() {
                             if (file) handleLogoFile(file);
                           }}
                           onClick={() => fileInputRef.current?.click()}
-                          className="flex flex-col items-center justify-center gap-2 py-6 px-4 rounded-xl border-2 border-dashed border-slate-200 hover:border-[#0037b0] bg-[#f8f9ff]/30 hover:bg-[#f8f9ff]/80 text-slate-450 hover:text-[#0037b0] transition-all cursor-pointer select-none group text-center"
+                          className="flex flex-col items-center justify-center gap-2 py-6 px-4 rounded-xl border-2 border-dashed border-slate-200 hover:border-[#0037b0] bg-[#f8f9ff]/30 hover:bg-[#f8f9ff]/80 text-slate-400 hover:text-[#0037b0] transition-all cursor-pointer select-none group text-center"
                         >
                           <ImagePlus className="h-6 w-6 text-slate-400 group-hover:scale-110 group-hover:text-[#0037b0] transition-all duration-205" />
-                          <div className="text-xs font-bold text-slate-650 group-hover:text-slate-800">Drag logo here or click to browse</div>
+                          <div className="text-xs font-bold text-slate-600 group-hover:text-slate-800">Drag logo here or click to browse</div>
                           <div className="text-[9px] font-semibold text-slate-400">PNG, JPG, or SVG · Max 2MB</div>
                           <input
                             ref={fileInputRef}
@@ -1239,12 +1321,11 @@ export function WelcomeStepper() {
                       />
                     </div>
                   </div>
-                </div>
               )}
 
               {step === 2 && (
                 <div className="space-y-4 animate-in fade-in duration-200">
-                  <div className="bg-[#eef4ff]/40 p-4.5 rounded-2xl border border-[#0037b0]/5 text-left">
+                  <div className="hidden lg:block bg-[#eef4ff]/40 p-4.5 rounded-2xl border border-[#0037b0]/5 text-left">
                     <p className="text-xs text-slate-500 font-semibold leading-relaxed">
                       Enter your client's details. Tari1 will register this contact and generate the invoice for them.
                     </p>
@@ -1268,7 +1349,7 @@ export function WelcomeStepper() {
                           "flex-1 h-9 rounded-lg text-xs font-bold transition-all border-0 cursor-pointer",
                           clientType === "business"
                             ? "bg-white text-[#0037b0] shadow-sm"
-                            : "text-slate-400 hover:text-slate-650 bg-transparent"
+                            : "text-slate-400 hover:text-slate-600 bg-transparent"
                         )}
                       >
                         Business / Organization
@@ -1280,7 +1361,7 @@ export function WelcomeStepper() {
                           "flex-1 h-9 rounded-lg text-xs font-bold transition-all border-0 cursor-pointer",
                           clientType === "individual"
                             ? "bg-white text-[#0037b0] shadow-sm"
-                            : "text-slate-400 hover:text-slate-650 bg-transparent"
+                            : "text-slate-400 hover:text-slate-600 bg-transparent"
                         )}
                       >
                         Individual Client
@@ -1334,7 +1415,7 @@ export function WelcomeStepper() {
                             onChange={(e) => setIsWhatsapp(e.target.checked)}
                             className="w-3.5 h-3.5 rounded text-[#0037b0] border-[#c4c5d7]/60 focus:ring-[#0037b0]"
                           />
-                          <span className="text-[10px] text-slate-450 font-semibold">
+                          <span className="text-[10px] text-slate-400 font-semibold">
                             This is a WhatsApp number (enables direct sharing)
                           </span>
                         </label>
@@ -1361,7 +1442,7 @@ export function WelcomeStepper() {
 
               {step === 3 && (
                 <div className="space-y-4 animate-in fade-in duration-200">
-                  <div className="bg-[#f8f9ff] p-3 rounded-2xl border border-[#0037b0]/5 text-left">
+                  <div className="hidden lg:block bg-[#f8f9ff] p-3 rounded-2xl border border-[#0037b0]/5 text-left">
                     <p className="text-xs text-[#434655] font-semibold leading-relaxed">
                       Add the details of the services or products you want to bill this client for, along with payment terms and notes.
                     </p>
@@ -1373,7 +1454,7 @@ export function WelcomeStepper() {
                         <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
                           Billing Items
                         </label>
-                        <div className="w-4 h-4 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-450 hover:text-slate-600 flex items-center justify-center text-[10px] font-bold cursor-help transition-all">
+                        <div className="w-4 h-4 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-600 flex items-center justify-center text-[10px] font-bold cursor-help transition-all">
                           ?
                         </div>
                         {/* Tooltip Popup */}
@@ -1399,137 +1480,212 @@ export function WelcomeStepper() {
                       </button>
                     </div>
 
-                    <div className="hidden sm:grid grid-cols-12 gap-3 px-6 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      <div className="col-span-6 text-left">Item Description</div>
-                      <div className="col-span-2 text-center">Qty</div>
-                      <div className="col-span-3 text-left">Unit Price</div>
-                      <div className="col-span-1"></div>
-                    </div>
 
-                    <div className="space-y-3 max-h-[36vh] overflow-y-auto pr-1">
-                      {billingItems.map((item, index) => (
-                        <div
-                          key={item.id}
-                          className="p-4 sm:p-5 bg-white border border-[#c4c5d7]/30 rounded-xl relative shadow-sm text-left flex flex-col sm:grid sm:grid-cols-12 gap-4 sm:gap-3 animate-in fade-in duration-200"
-                        >
-                          {/* Header row for Mobile */}
-                          <div className="flex justify-between items-center pb-2.5 border-b border-slate-200/40 sm:hidden">
-                            <span className="text-xs font-bold text-slate-800">Item #{index + 1}</span>
-                            {billingItems.length > 1 && (
+
+                    <div className="space-y-4 pr-1">
+                      {billingItems.map((item, index) => {
+                        const isExpanded = activeItemIndexStep3 === index || !isMobile;
+                        return (
+                          <div
+                            key={item.id}
+                            className="bg-white border border-slate-100/60 rounded-[24px] relative shadow-[0_12px_32px_rgba(0,55,176,0.08)] text-left flex flex-col sm:grid sm:grid-cols-12 gap-5 sm:gap-4 transition-all duration-200 animate-in fade-in"
+                          >
+                            {/* Summary Card for Mobile when collapsed */}
+                            {!isExpanded && (
                               <button
                                 type="button"
-                                onClick={() => handleRemoveItem(index)}
-                                className="w-10 h-10 rounded-xl flex items-center justify-center bg-rose-50 text-rose-600 hover:bg-rose-100 cursor-pointer border-0 active:scale-95 transition-all"
-                                aria-label="Delete item"
+                                onClick={() => {
+                                  setActiveItemIndexStep3(index);
+                                  setShowAdvanced(false);
+                                }}
+                                className="w-full flex sm:hidden justify-between items-center p-4 text-left border-0 select-none bg-transparent hover:bg-slate-50/50 transition-colors cursor-pointer"
                               >
-                                <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.5} />
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className="w-7 h-7 rounded-lg bg-[#0037b0]/5 text-[#0037b0] flex items-center justify-center text-xs font-bold shrink-0">
+                                    #{index + 1}
+                                  </div>
+                                  <div className="truncate">
+                                    <p className="text-xs font-bold text-[#121c28] truncate">
+                                      {item.description || "Untitled item"}
+                                    </p>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                                      {item.quantity} x {formatCurrency(item.unitPrice)}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="text-right shrink-0 flex items-center gap-1.5">
+                                  <span className="text-xs font-bold text-slate-700">
+                                    {formatCurrency(item.quantity * item.unitPrice)}
+                                  </span>
+                                  <HugeiconsIcon icon={ArrowDown01Icon} size={14} className="text-slate-400" />
+                                </div>
                               </button>
                             )}
-                          </div>
 
-                          {/* Toggle Selector */}
-                          <div className="flex flex-col gap-1.5 sm:col-span-3">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-left">Type</span>
-                            <div className="flex w-full gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/30">
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateItem(index, "type", "service")}
-                                className={cn(
-                                  "py-2 text-xs font-bold rounded-lg transition-all border-0 cursor-pointer min-h-[40px] flex-1 flex items-center justify-center",
-                                  item.type === "service"
-                                    ? "bg-[#0037b0] text-white shadow-sm font-bold"
-                                    : "text-slate-500 hover:text-slate-700 bg-transparent"
+                            {/* Full Form Card (always visible on desktop, conditionally visible on mobile) */}
+                            <div className={cn("p-5 sm:p-6 flex flex-col gap-5 sm:gap-4 sm:contents w-full", isExpanded ? "block" : "hidden sm:grid sm:grid-cols-12")}>
+                              {/* Header row for Mobile */}
+                              <div className="flex justify-between items-center pb-3 border-b border-slate-200/40 sm:hidden">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold text-slate-800">Item #{index + 1}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveItemIndexStep3(-1)}
+                                    className="px-2 py-0.5 rounded bg-slate-100 text-slate-500 text-[10px] font-bold border-0 cursor-pointer"
+                                  >
+                                    Collapse
+                                  </button>
+                                </div>
+                                {billingItems.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleRemoveItem(index);
+                                      setActiveItemIndexStep3(0);
+                                    }}
+                                    className="w-11 h-11 rounded-xl flex items-center justify-center bg-rose-50 text-rose-600 hover:bg-rose-100 cursor-pointer border-0 active:scale-95 transition-all"
+                                    aria-label="Delete item"
+                                  >
+                                    <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.5} />
+                                  </button>
                                 )}
-                              >
-                                Service
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateItem(index, "type", "product")}
-                                className={cn(
-                                  "py-2 text-xs font-bold rounded-lg transition-all border-0 cursor-pointer min-h-[40px] flex-1 flex items-center justify-center",
-                                  item.type === "product"
-                                    ? "bg-[#0037b0] text-white shadow-sm font-bold"
-                                    : "text-slate-500 hover:text-slate-700 bg-transparent"
-                                )}
-                              >
-                                Product
-                              </button>
-                            </div>
-                          </div>
+                              </div>
 
-                          {/* Description Input */}
-                          <div className="flex flex-col gap-1.5 sm:col-span-4">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-left">Description</span>
-                            <input
-                              type="text"
-                              placeholder={item.type === "service" ? "Service Description (e.g. Web Design)" : "Product Description (e.g. Office Chair)"}
-                              value={item.description}
-                              onChange={(e) => handleUpdateItem(index, "description", e.target.value)}
-                              className="w-full h-11 px-3 text-[16px] sm:text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 focus:ring-1 focus:ring-[#0037b0]"
-                            />
-                          </div>
+                              {/* Toggle Selector */}
+                              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-left">Type</span>
+                                <div className="flex w-full gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/30">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateItem(index, "type", "service")}
+                                    className={cn(
+                                      "py-2 text-xs font-bold rounded-lg transition-all border-0 cursor-pointer min-h-[40px] flex-1 flex items-center justify-center",
+                                      item.type === "service"
+                                        ? "bg-[#0037b0] text-white shadow-sm font-bold"
+                                        : "text-slate-500 hover:text-slate-700 bg-transparent"
+                                    )}
+                                  >
+                                    Service
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateItem(index, "type", "product")}
+                                    className={cn(
+                                      "py-2 text-xs font-bold rounded-lg transition-all border-0 cursor-pointer min-h-[40px] flex-1 flex items-center justify-center",
+                                      item.type === "product"
+                                        ? "bg-[#0037b0] text-white shadow-sm font-bold"
+                                        : "text-slate-500 hover:text-slate-700 bg-transparent"
+                                    )}
+                                  >
+                                    Product
+                                  </button>
+                                </div>
+                              </div>
 
-                          {/* Quantity and Unit Price Wrapper for mobile spacing */}
-                          <div className="grid grid-cols-2 gap-3 sm:contents">
-                            {/* Quantity */}
-                            <div className="flex flex-col gap-1.5 sm:col-span-2">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-left">Qty</span>
-                              <input
-                                type="number"
-                                min="1"
-                                placeholder="Qty"
-                                inputMode="numeric"
-                                pattern="[0-9]*"
-                                value={item.quantity || ""}
-                                onChange={(e) => handleUpdateItem(index, "quantity", Number(e.target.value))}
-                                className="w-full h-11 px-3 text-[16px] sm:text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 text-center focus:ring-1 focus:ring-[#0037b0]"
-                              />
-                            </div>
-
-                            {/* Unit Price */}
-                            <div className="flex flex-col gap-1.5 sm:col-span-2">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-left">Unit Price</span>
-                              <div className="relative">
-                                <span className="absolute left-3.5 top-3.5 text-xs font-bold text-slate-400 select-none">
-                                  ₦
-                                </span>
+                              {/* Description Input */}
+                              <div className="flex flex-col gap-1.5 sm:col-span-5">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-left">Description</span>
                                 <input
                                   type="text"
-                                  placeholder="0.00"
-                                  inputMode="decimal"
-                                  value={item.unitPrice === 0 ? "" : formatAmountInput(item.unitPrice)}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    const numericValue = parseAmountInput(val);
-                                    handleUpdateItem(index, "unitPrice", numericValue);
-                                  }}
-                                  className="w-full h-11 pl-7 pr-3 text-[16px] sm:text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 focus:ring-1 focus:ring-[#0037b0]"
+                                  placeholder={item.type === "service" ? "Service Description (e.g. Web Design)" : "Product Description (e.g. Office Chair)"}
+                                  value={item.description}
+                                  onChange={(e) => handleUpdateItem(index, "description", e.target.value)}
+                                  className="w-full h-11 px-3 text-[16px] sm:text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 focus:ring-1 focus:ring-[#0037b0]"
                                 />
+                              </div>
+
+                              {/* Quantity and Unit Price Wrapper for mobile spacing */}
+                              <div className="grid grid-cols-12 gap-3 sm:contents">
+                                {/* Quantity */}
+                                <div className="flex flex-col gap-1.5 col-span-5 sm:col-span-2">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-left">Qty</span>
+                                  <div className="flex items-center rounded-xl border border-[#c4c5d7]/40 bg-white overflow-hidden h-11 w-full justify-between px-1 focus-within:border-[#0037b0] focus-within:ring-1 focus-within:ring-[#0037b0] transition-all">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const currentQty = item.quantity || 1;
+                                        if (currentQty > 1) {
+                                          handleUpdateItem(index, "quantity", currentQty - 1);
+                                        }
+                                      }}
+                                      className="w-7 h-7 rounded-lg flex items-center justify-center bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-all active:scale-90 border-0 cursor-pointer text-sm font-black select-none shrink-0"
+                                    >
+                                      -
+                                    </button>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      placeholder="1"
+                                      inputMode="numeric"
+                                      pattern="[0-9]*"
+                                      value={item.quantity || ""}
+                                      onChange={(e) => handleUpdateItem(index, "quantity", Math.max(1, Number(e.target.value)))}
+                                      className="w-6 text-center font-bold text-slate-700 bg-transparent border-0 outline-none p-0 focus:ring-0 text-[14px] sm:text-xs min-w-0"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const currentQty = item.quantity || 1;
+                                        handleUpdateItem(index, "quantity", currentQty + 1);
+                                      }}
+                                      className="w-7 h-7 rounded-lg flex items-center justify-center bg-[#0037b0]/5 hover:bg-[#0037b0]/15 text-[#0037b0] transition-all active:scale-90 border-0 cursor-pointer text-sm font-black select-none shrink-0"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Unit Price */}
+                                <div className="flex flex-col gap-1.5 col-span-7 sm:col-span-2">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-left">Unit Price</span>
+                                  <div className="relative">
+                                    <span className="absolute left-3.5 top-3 text-xs font-bold text-slate-400 select-none">
+                                      ₦
+                                    </span>
+                                    <input
+                                      type="text"
+                                      placeholder="0.00"
+                                      inputMode="decimal"
+                                      value={item.unitPrice === 0 ? "" : formatAmountInput(item.unitPrice)}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        const numericValue = parseAmountInput(val);
+                                        handleUpdateItem(index, "unitPrice", numericValue);
+                                      }}
+                                      className="w-full h-11 pl-7 pr-3 text-[16px] sm:text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 focus:ring-1 focus:ring-[#0037b0]"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Action - Delete (Desktop only) */}
+                              <div className="hidden sm:flex sm:col-span-1 justify-end items-end pb-1">
+                                  {billingItems.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveItem(index)}
+                                      className="w-11 h-11 rounded-xl flex items-center justify-center bg-slate-50 text-rose-500 hover:bg-rose-50 hover:text-rose-600 cursor-pointer active:scale-95 transition-all border-0"
+                                      aria-label="Delete item"
+                                    >
+                                      <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.5} />
+                                    </button>
+                                  )}
                               </div>
                             </div>
                           </div>
-
-                          {/* Action - Delete (Desktop only) */}
-                          <div className="hidden sm:flex sm:col-span-1 justify-end items-end pb-1">
-                            {billingItems.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveItem(index)}
-                                className="w-9 h-9 rounded-xl flex items-center justify-center bg-white text-rose-500 hover:bg-rose-50 border border-slate-200 cursor-pointer min-w-[36px] min-h-[36px] active:scale-95 transition-all"
-                                aria-label="Delete item"
-                              >
-                                <HugeiconsIcon icon={Delete02Icon} size={15} strokeWidth={1.5} />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                         {/* Collapsible Advanced Invoice Settings */}
                     <div className="mt-4 border-t border-slate-200/40 pt-4 text-left">
                       <button
                         type="button"
-                        onClick={() => setShowAdvanced(!showAdvanced)}
+                        onClick={() => {
+                          const nextVal = !showAdvanced;
+                          setShowAdvanced(nextVal);
+                          if (nextVal) {
+                            setActiveItemIndexStep3(-1);
+                          }
+                        }}
                         className="flex items-center justify-between w-full py-2.5 px-1 text-xs font-bold text-[#0037b0] hover:text-[#1d4ed8] cursor-pointer bg-transparent border-0 outline-none select-none transition-colors"
                       >
                         <span className="flex items-center gap-2">
@@ -1766,278 +1922,333 @@ export function WelcomeStepper() {
                             className="w-full px-4 py-3 text-[16px] sm:text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 resize-none leading-relaxed transition-colors focus:ring-1 focus:ring-[#0037b0]"
                           />
                         </div>
-                      </div>
-                    )}
+                    </div>
+                  )}
                     </div>
                   </div>
                 </div>
               )}
-
               {step === 4 && (
                 <div className="space-y-6 animate-in fade-in duration-200">
 
-                  <div className="space-y-4">
-                    <span className="text-xs sm:text-[10px] font-bold text-slate-450 uppercase tracking-wider block text-left">
-                      How should clients pay you?
-                    </span>
+                  {/* Accordion Wrapper */}
+                  <div className="lg:space-y-6 space-y-4">
                     
-                    {isBankConnected ? (
-                      <div className="p-4 bg-emerald-50/50 border border-emerald-100 rounded-[20px] flex items-center justify-between shadow-[0px_8px_24px_rgba(0,108,73,0.02)]">
-                        <div className="text-left">
-                          <p className="text-xs sm:text-[10px] font-bold text-emerald-800 uppercase tracking-widest flex items-center gap-1.5">
-                            <HugeiconsIcon icon={CheckmarkCircle02Icon} size={13} className="text-emerald-600" strokeWidth={2.5} />
-                            Payout Bank Connected
-                          </p>
-                          <h4 className="text-xs font-bold text-slate-800 mt-1">
-                            {verifiedAccountName || "Verified Account"}
-                          </h4>
-                          {accountNumber && accountNumber !== "••••••••••" && (
-                            <p className="text-xs sm:text-[10px] text-slate-500 mt-0.5 font-semibold">
-                              Account: {accountNumber} {bankCode ? `· ${banks?.find(b => b.code === bankCode)?.name || bankCode}` : ""}
-                            </p>
-                          )}
+                    {/* Panel 1: Payout Bank Setup */}
+                    <div className="rounded-[24px] border border-slate-100/60 bg-white shadow-[0_12px_32px_rgba(0,55,176,0.06)] relative z-50">
+                      {/* Header button (collapsible on mobile, static on desktop) */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveStep4Tab(activeStep4Tab === 'bank' ? 'preview' : 'bank');
+                        }}
+                        className="w-full flex items-center justify-between p-4 bg-slate-50/50 lg:pointer-events-none lg:bg-transparent border-0 select-none text-left cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <HugeiconsIcon icon={Store04Icon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />
+                          <span className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                            Payout Bank
+                          </span>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsBankConnected(false);
-                            setVerifiedAccountName(null);
-                            setAccountNumber("");
-                            setBankCode("");
-                            toast.info("Payout bank details cleared. You can now configure a new account.");
-                          }}
-                          className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-655 hover:text-slate-800 text-xs sm:text-[10px] font-bold transition-all cursor-pointer min-h-[38px] bg-white active:scale-98"
-                        >
-                          Clear & Change
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="rounded-2xl border border-dashed border-slate-200 p-4 bg-slate-50/50 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="text-left pr-4">
-                            <p className="text-xs font-bold text-slate-850">Configure Payout Bank</p>
-                            <p className="text-xs sm:text-[10px] text-slate-500 font-semibold mt-0.5 leading-normal">
-                              Link your settlement bank to enable online invoice payments (Cards, Bank Transfer, USSD).
-                            </p>
+                        <div className="lg:hidden text-slate-400">
+                          <HugeiconsIcon icon={activeStep4Tab === 'bank' ? ArrowUp01Icon : ArrowDown01Icon} size={18} strokeWidth={2} />
+                        </div>
+                      </button>
+
+                      {/* Content panel */}
+                      <div className={cn(
+                        "p-4 pt-0 lg:pt-4 border-t border-slate-100 lg:border-t-0 animate-in fade-in slide-in-from-top-2 duration-200",
+                        activeStep4Tab === 'bank' ? 'block' : 'hidden lg:block'
+                      )}>
+                        <div className="space-y-4">
+                          <div className="lg:hidden pt-4">
+                            <span className="text-xs sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider block text-left">
+                              How should clients pay you?
+                            </span>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => setShowBankAccordion(!showBankAccordion)}
-                            className="h-10 sm:h-9 px-4 rounded-lg bg-white border border-slate-200 hover:bg-[#eef4ff] text-xs sm:text-[10px] font-bold text-[#0037b0] min-h-[38px] cursor-pointer shrink-0 transition-all active:scale-98"
-                          >
-                            {showBankAccordion ? "Hide" : "Set Up"}
-                          </button>
-                        </div>
-
-                        {showBankAccordion && (
-                          <div className="pt-4 border-t border-slate-200/50 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                            <div className="space-y-2 text-left">
-                              <label htmlFor="step4BankSelect" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                                Destination Bank
-                              </label>
-                              <SearchableSelect
-                                id="step4BankSelect"
-                                options={banks ? banks.map((b) => ({ id: b.code, label: b.name })) : []}
-                                value={bankCode}
-                                onChange={(val) => {
-                                  setBankCode(val);
-                                  setVerifiedAccountName(null);
-                                }}
-                                placeholder="Choose your bank"
-                              />
-                            </div>
-
-                            <div className="space-y-2 text-left">
-                              <label htmlFor="step4AccountNumber" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                                Account Number
-                              </label>
-                              <div className="flex gap-3">
-                                <input
-                                  id="step4AccountNumber"
-                                  type="text"
-                                  placeholder="0123456789"
-                                  maxLength={10}
-                                  inputMode="numeric"
-                                  pattern="[0-9]*"
-                                  value={accountNumber}
-                                  onChange={(e) => {
-                                    setAccountNumber(e.target.value.replace(/\D/g, ""));
-                                    setVerifiedAccountName(null);
-                                  }}
-                                  className="flex-1 h-11 px-4 text-[16px] sm:text-xs rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 bg-white focus:ring-1 focus:ring-[#0037b0]"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={handleVerifyBank}
-                                  disabled={!bankCode || accountNumber.length !== 10 || isVerifyingBank}
-                                  className="h-11 px-4 rounded-xl border border-[#c4c5d7]/40 text-[#0037b0] hover:bg-[#eef4ff] text-xs font-bold disabled:opacity-40 min-h-[44px] cursor-pointer bg-white shrink-0"
-                                >
-                                  {isVerifyingBank ? "Checking…" : "Verify"}
-                                </button>
-                              </div>
-                            </div>
-
-                            {verifiedAccountName && (
-                              <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 text-[11px] animate-in fade-in duration-200 text-left">
-                                <p className="font-bold text-emerald-800 flex items-center gap-1.5">
-                                  <HugeiconsIcon icon={CheckmarkCircle02Icon} size={14} className="text-emerald-600" strokeWidth={2.5} />
-                                  Verified: {verifiedAccountName}
+                          
+                          {isBankConnected ? (
+                            <div className="p-4 bg-[#006c49]/5 border border-[#006c49]/15 rounded-[20px] flex items-center justify-between shadow-[0px_8px_24px_rgba(0,108,73,0.02)] text-left">
+                              <div>
+                                <p className="text-xs sm:text-[10px] font-bold text-[#006c49] uppercase tracking-widest flex items-center gap-1.5">
+                                  <HugeiconsIcon icon={CheckmarkCircle02Icon} size={13} className="text-[#006c49]" strokeWidth={2.5} />
+                                  Payout Bank Connected
                                 </p>
+                                <h4 className="text-xs font-bold text-[#121c28] mt-1">
+                                  {verifiedAccountName || "Verified Account"}
+                                </h4>
+                                {accountNumber && accountNumber !== "••••••••••" && (
+                                  <p className="text-xs sm:text-[10px] text-slate-500 mt-0.5 font-semibold">
+                                    Account: {accountNumber} {bankCode ? `· ${banks?.find(b => b.code === bankCode)?.name || bankCode}` : ""}
+                                  </p>
+                                )}
                               </div>
-                            )}
-
-                            {verifiedAccountName && (
                               <button
                                 type="button"
-                                onClick={handleSaveBank}
-                                disabled={isSavingBank}
-                                className="w-full h-11 bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white rounded-xl font-bold text-xs shadow-md transition-all active:scale-98 min-h-[44px] cursor-pointer border-0"
+                                onClick={() => {
+                                  setIsBankConnected(false);
+                                  setVerifiedAccountName(null);
+                                  setAccountNumber("");
+                                  setBankCode("");
+                                  toast.info("Payout bank details cleared. You can now configure a new account.");
+                                }}
+                                 className="px-3 py-1.5 rounded-lg border border-[#c4c5d7]/20 hover:bg-slate-50 text-slate-600 hover:text-slate-800 text-xs sm:text-[10px] font-bold transition-all cursor-pointer min-h-[38px] bg-white active:scale-98"
                               >
-                                {isSavingBank ? "Connecting Bank…" : "Confirm & Link Payout Bank"}
+                                Clear & Change
                               </button>
+                            </div>
+                          ) : (
+                            <div className="rounded-2xl border border-dashed border-slate-200 p-4 bg-slate-50/50 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div className="text-left pr-4">
+                                  <p className="text-xs font-bold text-[#121c28]">Configure Payout Bank</p>
+                                  <p className="text-xs sm:text-[10px] text-slate-500 font-semibold mt-0.5 leading-normal">
+                                    Link your settlement bank to enable online invoice payments (Cards, Bank Transfer, USSD).
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowBankAccordion(!showBankAccordion)}
+                                  className="h-10 sm:h-9 px-4 rounded-lg bg-white border border-[#c4c5d7]/20 hover:bg-[#eef4ff] text-xs sm:text-[10px] font-bold text-[#0037b0] min-h-[38px] cursor-pointer shrink-0 transition-all active:scale-98"
+                                >
+                                  {showBankAccordion ? "Hide" : "Set Up"}
+                                </button>
+                              </div>
+
+                              {showBankAccordion && (
+                                <div className="pt-4 border-t border-slate-200/50 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                                  <div className="space-y-2 text-left">
+                                    <label htmlFor="step4BankSelect" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                      Destination Bank
+                                    </label>
+                                    <SearchableSelect
+                                      id="step4BankSelect"
+                                      options={banks ? banks.map((b) => ({ id: b.code, label: b.name })) : []}
+                                      value={bankCode}
+                                      onChange={(val) => {
+                                        setBankCode(val);
+                                        setVerifiedAccountName(null);
+                                      }}
+                                      placeholder="Choose your bank"
+                                    />
+                                  </div>
+
+                                  <div className="space-y-2 text-left">
+                                    <label htmlFor="step4AccountNumber" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                      Account Number
+                                    </label>
+                                    <div className="flex gap-3">
+                                      <input
+                                        id="step4AccountNumber"
+                                        type="text"
+                                        placeholder="0123456789"
+                                        maxLength={10}
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
+                                        value={accountNumber}
+                                        onChange={(e) => {
+                                          setAccountNumber(e.target.value.replace(/\D/g, ""));
+                                          setVerifiedAccountName(null);
+                                        }}
+                                        className="flex-1 min-w-0 h-11 px-4 text-[16px] sm:text-xs rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 bg-white focus:ring-1 focus:ring-[#0037b0]"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={handleVerifyBank}
+                                        disabled={!bankCode || accountNumber.length !== 10 || isVerifyingBank}
+                                        className="h-11 px-4 rounded-xl border border-[#c4c5d7]/40 text-[#0037b0] hover:bg-[#eef4ff] text-xs font-bold disabled:opacity-40 min-h-[44px] cursor-pointer bg-white shrink-0"
+                                      >
+                                        {isVerifyingBank ? "Checking…" : "Verify"}
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {verifiedAccountName && (
+                                    <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 text-[11px] animate-in fade-in duration-200 text-left">
+                                      <p className="font-bold text-emerald-800 flex items-center gap-1.5">
+                                        <HugeiconsIcon icon={CheckmarkCircle02Icon} size={14} className="text-emerald-600" strokeWidth={2.5} />
+                                        Verified: {verifiedAccountName}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {verifiedAccountName && (
+                                    <button
+                                      type="button"
+                                      onClick={handleSaveBank}
+                                      disabled={isSavingBank}
+                                      className="w-full h-11 bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white rounded-xl font-bold text-xs shadow-md transition-all active:scale-98 min-h-[44px] cursor-pointer border-0"
+                                    >
+                                      {isSavingBank ? "Connecting Bank…" : "Confirm & Link Payout Bank"}
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Panel 2: Invoice Preview */}
+                    <div className="rounded-[24px] border border-slate-100/60 overflow-hidden bg-white shadow-[0_12px_32px_rgba(0,55,176,0.06)]">
+                      {/* Header button (collapsible on mobile, static on desktop) */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveStep4Tab(activeStep4Tab === 'preview' ? 'bank' : 'preview');
+                        }}
+                        className="w-full flex items-center justify-between p-4 bg-slate-50/50 lg:pointer-events-none lg:bg-transparent border-0 select-none text-left cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <HugeiconsIcon icon={Invoice03Icon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />
+                          <span className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                            Invoice Preview
+                          </span>
+                        </div>
+                        <div className="lg:hidden text-slate-400">
+                          <HugeiconsIcon icon={activeStep4Tab === 'preview' ? ArrowUp01Icon : ArrowDown01Icon} size={18} strokeWidth={2} />
+                        </div>
+                      </button>
+
+                      {/* Content panel */}
+                      <div className={cn(
+                        "p-4 pt-0 lg:pt-4 border-t border-slate-100 lg:border-t-0 animate-in fade-in slide-in-from-top-2 duration-200",
+                        activeStep4Tab === 'preview' ? 'block' : 'hidden lg:block'
+                      )}>
+                        {/* Redesigned Premium Invoice Preview */}
+                        <div className="p-5 sm:p-6 rounded-[24px] bg-[#f8f9ff] border border-[#c4c5d7]/20 relative overflow-hidden text-slate-800 shadow-[0px_12px_32px_rgba(0,55,176,0.04)]">
+                          <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6">
+                            <div className="text-left">
+                              {logoPreviewUrl || user?.organization?.logo ? (
+                                <img
+                                  src={logoPreviewUrl || user?.organization?.logo}
+                                  alt="Logo"
+                                  className="h-10 max-w-[140px] object-contain rounded-xl mb-3 bg-white p-1 shadow-[0_4px_12px_rgba(0,0,0,0.02)]"
+                                />
+                              ) : (
+                                <h4 className="text-sm sm:text-base font-bold text-[#0037b0] uppercase tracking-tight">
+                                  {businessName || user?.organizationName}
+                                </h4>
+                              )}
+                              <p className="text-xs text-slate-500 font-semibold mt-1 whitespace-pre-wrap max-w-[220px] leading-relaxed">
+                                  {companyAddress.trim() || user?.organization?.address || "Lagos, Nigeria"}
+                              </p>
+                            </div>
+                            <div className="text-left sm:text-right w-full sm:w-auto flex sm:flex-col justify-between sm:justify-start items-center sm:items-end gap-2">
+                              <span className="text-xs font-bold text-[#006c49] bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100 uppercase tracking-wider">
+                                Draft
+                              </span>
+                              <p className="text-xs text-slate-400 font-bold sm:mt-1">INV-001 (Preview)</p>
+                            </div>
+                          </div>
+
+                          <div className="pt-4 mb-6 text-left border-t border-slate-200/40">
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Billed To</p>
+                            <p className="text-sm font-bold text-slate-800">{clientName || "Client Name"}</p>
+                            {clientEmail && <p className="text-xs text-slate-500 font-medium mt-0.5">{clientEmail}</p>}
+                            {clientAddress.trim() && (
+                              <p className="text-xs text-slate-500 font-medium mt-1 whitespace-pre-wrap max-w-[240px] leading-relaxed">
+                                {clientAddress.trim()}
+                              </p>
                             )}
                           </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
 
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block text-left">
-                    Invoice Preview
-                  </span>
-
-                  {/* Redesigned Premium Invoice Preview */}
-                  <div className="p-5 sm:p-6 rounded-[24px] bg-[#f8f9ff] border border-[#c4c5d7]/20 relative overflow-hidden text-slate-800 shadow-[0px_12px_32px_rgba(0,55,176,0.04)]">
-                    <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6">
-                      <div className="text-left">
-                        {logoPreviewUrl || user?.organization?.logo ? (
-                          <img
-                            src={logoPreviewUrl || user?.organization?.logo}
-                            alt="Logo"
-                            className="h-10 max-w-[140px] object-contain rounded-xl mb-3 bg-white p-1 shadow-[0_4px_12px_rgba(0,0,0,0.02)]"
-                          />
-                        ) : (
-                          <h4 className="text-sm sm:text-base font-bold text-[#0037b0] uppercase tracking-tight">
-                            {businessName || user?.organizationName}
-                          </h4>
-                        )}
-                        <p className="text-xs text-slate-500 font-semibold mt-1 whitespace-pre-wrap max-w-[220px] leading-relaxed">
-                          {companyAddress.trim() || user?.organization?.address || "Lagos, Nigeria"}
-                        </p>
-                      </div>
-                      <div className="text-left sm:text-right w-full sm:w-auto flex sm:flex-col justify-between sm:justify-start items-center sm:items-end gap-2">
-                        <span className="text-xs font-bold text-[#006c49] bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100 uppercase tracking-wider">
-                          Draft
-                        </span>
-                        <p className="text-xs text-slate-400 font-bold sm:mt-1">INV-001 (Preview)</p>
-                      </div>
-                    </div>
-
-                    <div className="pt-4 mb-6 text-left border-t border-slate-200/40">
-                      <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Billed To</p>
-                      <p className="text-sm font-bold text-slate-800">{clientName || "Client Name"}</p>
-                      {clientEmail && <p className="text-xs text-slate-500 font-medium mt-0.5">{clientEmail}</p>}
-                      {clientAddress.trim() && (
-                        <p className="text-xs text-slate-500 font-medium mt-1 whitespace-pre-wrap max-w-[240px] leading-relaxed">
-                          {clientAddress.trim()}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Table-free responsive billing items */}
-                    <div className="space-y-2 mb-6 bg-white p-4 rounded-[20px] border border-[#c4c5d7]/20 max-h-56 overflow-y-auto">
-                      <div className="hidden sm:grid grid-cols-12 gap-2 text-xs font-bold pb-2 text-slate-400 uppercase tracking-wider border-b border-slate-50">
-                        <span className="col-span-8 text-left">Description</span>
-                        <span className="col-span-1 text-center">Qty</span>
-                        <span className="col-span-3 text-right">Total</span>
-                      </div>
-                      
-                      {billingItems.map((item, idx) => (
-                        <div 
-                          key={item.id} 
-                          className={`flex flex-col sm:grid sm:grid-cols-12 gap-2 p-3 sm:p-2 rounded-xl text-left ${
-                            idx % 2 === 0 ? 'bg-[#f8f9ff]/50' : 'bg-white'
-                          }`}
-                        >
-                          <div className="col-span-8 flex items-start sm:items-center gap-2">
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-slate-150 rounded text-slate-600 uppercase tracking-wider select-none shrink-0 mt-0.5 sm:mt-0">
-                              {item.type === "service" ? "SRV" : "PRD"}
-                            </span>
-                            <span className="text-xs sm:text-sm font-bold text-slate-700 leading-normal break-words">
-                              {item.description || "Untitled item"}
-                            </span>
-                          </div>
-                          
-                          <div className="col-span-1 text-xs text-slate-500 font-semibold sm:text-center flex sm:block justify-between items-center mt-1 sm:mt-0">
-                            <span className="sm:hidden text-[10px] text-slate-400 uppercase tracking-wider font-bold">Quantity</span>
-                            <span className="tabular-nums font-bold text-slate-700">{item.quantity}</span>
-                          </div>
-                          
-                          <div className="col-span-3 text-xs sm:text-sm text-slate-850 font-bold sm:text-right flex sm:block justify-between items-center mt-1 sm:mt-0 border-t border-dashed border-slate-100 sm:border-0 pt-1.5 sm:pt-0">
-                            <span className="sm:hidden text-[10px] text-slate-400 uppercase tracking-wider font-bold">Total</span>
-                            <span className="tabular-nums font-bold text-slate-800">{formatCurrency(item.quantity * item.unitPrice)}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex flex-col items-end gap-2.5 pt-4 border-t border-slate-200/40">
-                      <div className="flex justify-between w-full max-w-[200px] text-xs font-semibold text-slate-500">
-                        <span>Subtotal:</span>
-                        <span className="tabular-nums font-bold text-slate-750">{formatCurrency(subtotal)}</span>
-                      </div>
-                      {discountAmount > 0 && (
-                        <div className="flex justify-between w-full max-w-[200px] text-xs font-semibold text-[#006c49]">
-                          <span>Discount {discountType === "PERCENTAGE" ? `(${discountPercent}%)` : ""}:</span>
-                          <span className="tabular-nums font-bold">-{formatCurrency(discountAmount)}</span>
-                        </div>
-                      )}
-                      {vatRate > 0 && (
-                        <div className="flex justify-between w-full max-w-[200px] text-xs font-semibold text-slate-500">
-                          <span>VAT ({vatRate}%):</span>
-                          <span className="tabular-nums font-bold text-slate-750">{formatCurrency(vatAmount)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between w-full max-w-[220px] text-sm sm:text-base font-bold border-t border-slate-200/40 pt-2.5">
-                        <span className="text-[#0037b0]">Amount Due:</span>
-                        <span className="tabular-nums text-slate-900 font-bold">{formatCurrency(total)}</span>
-                      </div>
-                    </div>
-
-                    {enableInstallments && (
-                      <div className="pt-4 mt-4 w-full animate-in fade-in duration-200 border-t border-slate-200/40">
-                        <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-3 text-left">Payment Schedule</p>
-                        <div className="space-y-2">
-                          {installments.map((inst, index) => (
-                            <div key={index} className="flex justify-between items-center text-xs font-bold text-slate-700 bg-white p-3 rounded-xl border border-[#c4c5d7]/20 shadow-[0_2px_8px_rgba(0,0,0,0.01)]">
-                              <span className="flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-[#0037b0]" />
-                                <span>{inst.label}</span>
-                                <span className="text-slate-400 font-semibold text-[10px]">({inst.percentage}%)</span>
-                              </span>
-                              <span className="tabular-nums text-slate-900 font-bold">{formatCurrency(total * ((inst.percentage || 0) / 100))}</span>
+                          {/* Table-free responsive billing items */}
+                          <div className="space-y-2 mb-6 bg-white p-4 rounded-[20px] border border-[#c4c5d7]/20">
+                            <div className="hidden sm:grid grid-cols-12 gap-2 text-xs font-bold pb-2 text-slate-400 uppercase tracking-wider border-b border-slate-50">
+                              <span className="col-span-8 text-left">Description</span>
+                              <span className="col-span-1 text-center">Qty</span>
+                              <span className="col-span-3 text-right">Total</span>
                             </div>
-                          ))}
+                            
+                            {billingItems.map((item, idx) => (
+                              <div 
+                                key={item.id} 
+                                className={`flex flex-col sm:grid sm:grid-cols-12 gap-2 p-3 sm:p-2 rounded-xl text-left ${
+                                  idx % 2 === 0 ? 'bg-[#f8f9ff]/50' : 'bg-white'
+                                }`}
+                              >
+                                <div className="col-span-8 flex items-start sm:items-center gap-2">
+                                  <span className="text-xs sm:text-sm font-bold text-slate-700 leading-normal break-words">
+                                    {item.description || "Untitled item"}
+                                  </span>
+                                </div>
+                                
+                                <div className="col-span-1 text-xs text-slate-500 font-semibold sm:text-center flex sm:block justify-between items-center mt-1 sm:mt-0">
+                                  <span className="sm:hidden text-[10px] text-slate-400 uppercase tracking-wider font-bold">Quantity</span>
+                                  <span className="tabular-nums font-bold text-slate-700">{item.quantity}</span>
+                                </div>
+                                
+                                 <div className="col-span-3 text-xs sm:text-sm text-[#121c28] font-bold sm:text-right flex sm:block justify-between items-center mt-1 sm:mt-0 border-t border-dashed border-slate-100 sm:border-0 pt-1.5 sm:pt-0">
+                                  <span className="sm:hidden text-[10px] text-slate-400 uppercase tracking-wider font-bold">Total</span>
+                                  <span className="tabular-nums font-bold text-slate-800">{formatCurrency(item.quantity * item.unitPrice)}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="flex flex-col items-end gap-2.5 pt-4 border-t border-slate-200/40">
+                            <div className="flex justify-between w-full max-w-[200px] text-xs font-semibold text-slate-500">
+                              <span>Subtotal:</span>
+                              <span className="tabular-nums font-bold text-[#121c28]">{formatCurrency(subtotal)}</span>
+                            </div>
+                            {discountAmount > 0 && (
+                              <div className="flex justify-between w-full max-w-[200px] text-xs font-semibold text-[#006c49]">
+                                <span>Discount {discountType === "PERCENTAGE" ? `(${discountPercent}%)` : ""}:</span>
+                                <span className="tabular-nums font-bold">-{formatCurrency(discountAmount)}</span>
+                              </div>
+                            )}
+                            {vatRate > 0 && (
+                              <div className="flex justify-between w-full max-w-[200px] text-xs font-semibold text-slate-500">
+                                <span>VAT ({vatRate}%):</span>
+                                <span className="tabular-nums font-bold text-[#121c28]">{formatCurrency(vatAmount)}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between w-full max-w-[220px] text-sm sm:text-base font-bold border-t border-slate-200/40 pt-2.5">
+                              <span className="text-[#0037b0]">Amount Due:</span>
+                              <span className="tabular-nums text-slate-900 font-bold">{formatCurrency(total)}</span>
+                            </div>
+                          </div>
+
+                          {enableInstallments && (
+                            <div className="pt-4 mt-4 w-full animate-in fade-in duration-200 border-t border-slate-200/40">
+                              <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-3 text-left">Payment Schedule</p>
+                              <div className="space-y-2">
+                                {installments.map((inst, index) => (
+                                  <div key={index} className="flex justify-between items-center text-xs font-bold text-slate-700 bg-white p-3 rounded-xl border border-[#c4c5d7]/20 shadow-[0_2px_8px_rgba(0,0,0,0.01)]">
+                                    <span className="flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-[#0037b0]" />
+                                      <span>{inst.label}</span>
+                                      <span className="text-slate-400 font-semibold text-[10px]">({inst.percentage}%)</span>
+                                    </span>
+                                    <span className="tabular-nums text-slate-900 font-bold">{formatCurrency(total * ((inst.percentage || 0) / 100))}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {(paymentTerms || invoiceNotes) && (
+                            <div className="pt-4 mt-4 text-left space-y-3 border-t border-slate-200/40">
+                              {paymentTerms && (
+                                <div className="bg-[#f8f9ff] p-3 rounded-xl border-l-2 border-[#0037b0]">
+                                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Terms</p>
+                                  <p className="text-xs text-slate-600 font-semibold mt-0.5 leading-normal">{paymentTerms}</p>
+                                </div>
+                              )}
+                              {invoiceNotes && (
+                                <div className="bg-[#f8f9ff] p-3 rounded-xl border-l-2 border-slate-300">
+                                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Notes</p>
+                                  <p className="text-xs text-slate-600 font-semibold mt-0.5 leading-normal">{invoiceNotes}</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
-                    )}
+                    </div>
 
-                    {(paymentTerms || invoiceNotes) && (
-                      <div className="pt-4 mt-4 text-left space-y-3 border-t border-slate-200/40">
-                        {paymentTerms && (
-                          <div className="bg-[#f8f9ff] p-3 rounded-xl border-l-2 border-[#0037b0]">
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Terms</p>
-                            <p className="text-xs text-slate-600 font-semibold mt-0.5 leading-normal">{paymentTerms}</p>
-                          </div>
-                        )}
-                        {invoiceNotes && (
-                          <div className="bg-[#f8f9ff] p-3 rounded-xl border-l-2 border-slate-300">
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Notes</p>
-                            <p className="text-xs text-slate-600 font-semibold mt-0.5 leading-normal">{invoiceNotes}</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
 
                 </div>
@@ -2074,9 +2285,9 @@ export function WelcomeStepper() {
               ) : (
                 <button
                   onClick={() => handleFinishSend()}
-                  className="h-12 sm:h-11 px-6 rounded-xl bg-gradient-to-r from-[#006c49] to-[#059669] text-white text-sm sm:text-xs font-bold shadow-[0_4px_12px_rgba(0,108,73,0.15)] flex items-center gap-2 hover:opacity-95 cursor-pointer border-0"
+                  className="h-12 sm:h-11 px-6 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white text-sm sm:text-xs font-bold shadow-[0_4px_12px_rgba(0,55,176,0.15)] flex items-center gap-2 hover:opacity-95 cursor-pointer border-0"
                 >
-                  {sendEmail && clientEmail ? "Publish & Send" : "Publish Invoice"}
+                  Publish Invoice
                   <HugeiconsIcon icon={Sent02Icon} size={16} />
                 </button>
               )}

@@ -1,11 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Sparkles, Trophy } from "lucide-react";
+import { Trophy } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Link02Icon,
-  Download02Icon,
-} from "@hugeicons/core-free-icons";
+import { Link02Icon, Download02Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 import apiClient from "@/api/client";
 import { formatCurrency, normalizePhoneForWhatsApp } from "@/lib/utils";
@@ -48,7 +45,12 @@ const COLORS = [
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+    >
       <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
     </svg>
   );
@@ -183,13 +185,8 @@ export function WowCelebration({
   }, []);
 
   const getPublicInvoiceUrl = () => {
-    const baseOrigin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
-      ? 'https://pay.tarione.com'
-      : window.location.origin;
-    return `${baseOrigin}/i/${shareToken || ""}`;
+    return `${window.location.origin}/i/${shareToken || ""}`;
   };
-
-
 
   const copyPublicLink = () => {
     navigator.clipboard.writeText(getPublicInvoiceUrl());
@@ -201,7 +198,10 @@ export function WowCelebration({
     let displayUrl = publicUrl;
     if (publicUrl) {
       try {
-        const res = await apiClient.get<{ url: string }>('/invoices/public/shorten', { params: { url: publicUrl } });
+        const res = await apiClient.get<{ url: string }>(
+          "/invoices/public/shorten",
+          { params: { url: publicUrl } },
+        );
         if (res.data && res.data.url) {
           displayUrl = res.data.url;
         }
@@ -210,43 +210,52 @@ export function WowCelebration({
       }
     }
 
-    const clientFirstName = clientName ? clientName.split(' ')[0] : null;
-    const greeting = clientFirstName ? `Hi ${clientFirstName} 👋` : `Hi there 👋`;
-    const senderName = orgName || 'Us';
-    const dueStr = dueDate ? new Date(dueDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'soon';
+    const clientFirstName = clientName ? clientName.split(" ")[0] : null;
+    const greeting = clientFirstName
+      ? `Hi ${clientFirstName} 👋`
+      : `Hi there 👋`;
+    const senderName = orgName || "Us";
+    const dueStr = dueDate
+      ? new Date(dueDate).toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })
+      : "soon";
 
     const lines = [
       greeting,
       ``,
       `Please find your invoice from *${senderName}* below:`,
       ``,
-      `📄 *Invoice:* ${invoiceNumber || ''}`,
-      `💰 *Amount Due:* ${total !== undefined ? formatCurrency(total) : ''}`,
+      `📄 *Invoice:* ${invoiceNumber || ""}`,
+      `💰 *Amount Due:* ${total !== undefined ? formatCurrency(total) : ""}`,
       `📅 *Due Date:* ${dueStr}`,
-      ...(displayUrl ? [
-        ``,
-        `🔗 *View & Pay Online:*`,
-        displayUrl,
-        ``,
-        `Via the link above you can:`,
-        `✅ View the full invoice details`,
-        `🏦 Pay by *bank transfer* (recommended — no card needed)`,
-        `💳 Or pay by *card* via Paystack`,
-        `📥 Download your invoice or receipt`,
-        ``,
-        `If you have any questions, feel free to reach out. Thank you for your business! 🙏`,
-      ] : [
-        ``,
-        `Please reach out to process your payment.`,
-      ])
+      ...(displayUrl
+        ? [
+            ``,
+            `🔗 *View & Pay Online:*`,
+            displayUrl,
+            ``,
+            `Via the link above you can:`,
+            `✅ View the full invoice details`,
+            `🏦 Pay by *bank transfer* (recommended — no card needed)`,
+            `💳 Or pay by *card* via Paystack`,
+            `📥 Download your invoice or receipt`,
+            ``,
+            `If you have any questions, feel free to reach out. Thank you for your business! 🙏`,
+          ]
+        : [``, `Please reach out to process your payment.`]),
     ];
 
-    const text = lines.join('\n');
-    const cleanPhone = clientPhone ? normalizePhoneForWhatsApp(clientPhone) : '';
+    const text = lines.join("\n");
+    const cleanPhone = clientPhone
+      ? normalizePhoneForWhatsApp(clientPhone)
+      : "";
     const url = cleanPhone
       ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`
-      : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
+      : `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, "_blank");
   };
 
   const downloadPdf = async () => {
@@ -274,28 +283,32 @@ export function WowCelebration({
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm select-none overflow-y-auto">
+    <div className="fixed inset-0 z-[9999] bg-[#f8f9ff] flex flex-col items-center overflow-y-auto overflow-x-hidden select-none font-sans antialiased text-slate-900 animate-in fade-in duration-200">
       {/* Confetti Canvas */}
-      <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" />
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 pointer-events-none"
+      />
 
       {/* Celebration Modal Card */}
       <div
-        className={`relative max-w-md w-full bg-white rounded-[24px] p-6 text-center shadow-[0_32px_64px_rgba(0,55,176,0.12)] transition-all duration-500 ease-out transform my-8 ${
-          showCard ? "translate-y-0 opacity-100 scale-100" : "translate-y-12 opacity-0 scale-90"
+        className={`relative w-full max-w-2xl min-h-full bg-white border-x border-slate-200/40 p-8 md:p-12 text-center shadow-sm transition-all duration-500 ease-out transform ${
+          showCard
+            ? "translate-y-0 opacity-100 scale-100"
+            : "translate-y-12 opacity-0 scale-90"
         }`}
       >
         {/* Floating Ring & Icon */}
-        <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-lg shadow-[#0037b0]/20 mb-4 animate-bounce">
-          <Trophy className="w-8 h-8" strokeWidth={1.5} />
+        <div className="mx-auto w-16 h-16 rounded-3xl bg-[#0037b0] text-white flex items-center justify-center shadow-lg shadow-[#0037b0]/20 mb-4 animate-bounce">
+          <Trophy className="w-8 h-8 text-white" strokeWidth={1.5} />
         </div>
 
         {/* Milestone Badge */}
-        <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-100 text-[#006c49] text-xs font-bold uppercase tracking-wider mb-3">
-          <Sparkles className="w-3.5 h-3.5" />
-          Milestone Unlocked
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#6ffbbe]/10 border border-[#6ffbbe]/25 text-[#006c49] text-[10px] font-bold uppercase tracking-widest mb-4">
+          ✦ MILESTONE UNLOCKED
         </div>
 
-        <h3 className="text-xl font-bold text-slate-900 tracking-tight leading-tight mb-1">
+        <h3 className="text-2xl font-bold text-slate-900 tracking-tight leading-tight mb-2 font-inter">
           {title}
         </h3>
         <p className="text-sm text-slate-500 font-semibold leading-relaxed mb-6 px-2">
@@ -308,7 +321,9 @@ export function WowCelebration({
             <div className="bg-[#f8f9ff] rounded-2xl p-4.5 text-left mb-6 flex flex-col gap-2">
               <div className="flex justify-between items-center text-xs text-slate-400 font-bold uppercase tracking-wider">
                 <span>Invoice Issued</span>
-                <span className="text-emerald-700 font-black">{invoiceNumber}</span>
+                <span className="text-emerald-700 font-black">
+                  {invoiceNumber}
+                </span>
               </div>
               <div className="text-slate-800 text-sm font-semibold truncate">
                 {clientName}
@@ -328,7 +343,7 @@ export function WowCelebration({
                 {/* WhatsApp is the primary visual CTA */}
                 <button
                   onClick={shareWhatsApp}
-                  className="col-span-2 py-3.5 px-4 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white text-xs font-bold shadow-md hover:opacity-95 active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer border-0"
+                  className="col-span-2 py-3.5 px-4 rounded-xl bg-[#25D366] hover:bg-[#20ba56] text-white text-xs font-bold shadow-md hover:opacity-95 active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer border-0"
                 >
                   <WhatsAppIcon className="h-4 w-4" />
                   Send via WhatsApp
@@ -340,8 +355,12 @@ export function WowCelebration({
                     onClick={copyPublicLink}
                     className="py-3 px-4 rounded-xl bg-[#eef4ff] hover:bg-[#e0ecff] text-[#0037b0] text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 border-0"
                   >
-                    <HugeiconsIcon icon={Link02Icon} size={14} strokeWidth={1.5} />
-                    Copy Payment Link
+                    <HugeiconsIcon
+                      icon={Link02Icon}
+                      size={14}
+                      strokeWidth={1.5}
+                    />
+                    Copy link
                   </button>
                 )}
 
@@ -350,16 +369,20 @@ export function WowCelebration({
                   disabled={isDownloading}
                   className={`${shareToken ? "col-span-1" : "col-span-2"} py-3 px-4 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all active:scale-98 border-0`}
                 >
-                  <HugeiconsIcon icon={Download02Icon} size={14} strokeWidth={1.5} />
-                  {isDownloading ? "Downloading..." : "Download PDF"}
+                  <HugeiconsIcon
+                    icon={Download02Icon}
+                    size={14}
+                    strokeWidth={1.5}
+                  />
+                  {isDownloading ? "Downloading..." : "PDF"}
                 </button>
               </div>
             </div>
           </>
         )}
 
-        {/* Footer Navigation CTA */}
-        <div className="flex flex-col gap-2.5 w-full mt-6">
+        {/* Footer Navigation Link */}
+        <div className="flex items-center justify-center gap-4 mt-8 pt-4 border-t border-slate-100 text-xs font-bold">
           {invoiceId ? (
             <button
               onClick={() => {
@@ -369,9 +392,9 @@ export function WowCelebration({
                   navigate("/dashboard");
                 }, 300);
               }}
-              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white text-xs font-bold shadow-md hover:opacity-95 active:scale-98 transition-all cursor-pointer border-0"
+              className="text-slate-400 hover:text-[#0037b0] transition-colors cursor-pointer bg-transparent border-0 font-bold"
             >
-              Go to Dashboard
+              Go to dashboard
             </button>
           ) : (
             <button
@@ -379,9 +402,9 @@ export function WowCelebration({
                 setShowCard(false);
                 setTimeout(onClose, 300);
               }}
-              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white text-xs font-bold shadow-md hover:opacity-95 active:scale-98 transition-all cursor-pointer border-0"
+              className="text-slate-400 hover:text-[#0037b0] transition-colors cursor-pointer bg-transparent border-0 font-bold"
             >
-              Awesome, Let's Go!
+              Go to dashboard
             </button>
           )}
         </div>

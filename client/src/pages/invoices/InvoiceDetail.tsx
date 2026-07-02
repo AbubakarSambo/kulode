@@ -357,10 +357,7 @@ export function InvoiceDetailPage() {
   const shareWhatsApp = async () => {
     if (!invoice) return
     posthog.capture('invoice_shared_whatsapp', { invoice_id: invoice.id })
-    const baseOrigin = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
-      ? 'https://pay.tarione.com'
-      : window.location.origin
-    const publicUrl = invoice.shareToken ? `${baseOrigin}/i/${invoice.shareToken}` : null
+    const publicUrl = invoice.shareToken ? `${window.location.origin}/i/${invoice.shareToken}` : null
     let displayUrl = publicUrl
     if (publicUrl) {
       try {
@@ -408,7 +405,7 @@ export function InvoiceDetailPage() {
     const cleanPhone = invoice.client?.phone ? normalizePhoneForWhatsApp(invoice.client.phone) : ''
     const url = cleanPhone
       ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`
-      : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`
+      : `https://wa.me/?text=${encodeURIComponent(text)}`
     window.open(url, '_blank')
   }
 

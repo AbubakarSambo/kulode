@@ -558,21 +558,26 @@ export class InvoicePdfService {
         }
 
         if (tari1LogoBuffer) {
-          // Center-align Tari1 logo in the footer
-          doc.image(tari1LogoBuffer, 255, footerY + 10, { height: 16 });
-          
+          // Use fit within full content-width box + align:'center' — the correct PDFKit centering technique.
+          // This scales the image to fit within 495pt wide x 16pt tall and centres it horizontally.
+          doc.image(tari1LogoBuffer, 50, footerY + 8, {
+            fit: [495, 16],
+            align: 'center',
+            valign: 'center',
+          });
+
           if (!isPro) {
             doc
               .fillColor('#94a3b8')
-              .fontSize(7.5)
+              .fontSize(7)
               .font('Helvetica')
-              .text('Powered by Tari1', 50, footerY + 28, {
+              .text('Built with Tari1: Work smarter, stay organized. · www.tarione.com', 50, footerY + 28, {
                 width: 495,
                 align: 'center',
               });
           }
         } else {
-          // Fallback to text logo if image loading fails
+          // Fallback: text "Tari1" brand mark when logo image unavailable
           doc
             .fillColor(primaryColor)
             .fontSize(10)
@@ -581,13 +586,13 @@ export class InvoicePdfService {
               width: 495,
               align: 'center',
             });
-          
+
           if (!isPro) {
             doc
               .fillColor('#94a3b8')
-              .fontSize(7.5)
+              .fontSize(7)
               .font('Helvetica')
-              .text('Powered by Tari1', 50, footerY + 22, {
+              .text('Built with Tari1: Work smarter, stay organized. · www.tarione.com', 50, footerY + 22, {
                 width: 495,
                 align: 'center',
               });
