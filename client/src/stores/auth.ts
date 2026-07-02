@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { posthog } from '@/lib/posthog'
+import { queryClient } from '@/lib/queryClient'
 import type { User } from '@/types'
 
 interface AuthState {
@@ -39,6 +40,7 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         localStorage.removeItem('token')
         posthog.reset()
+        queryClient.clear()
         set({ user: null, token: null, isAuthenticated: false })
       },
 

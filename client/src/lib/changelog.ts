@@ -13,6 +13,29 @@ export interface ChangelogEntry {
 }
 
 export const changelogData: Record<string, ChangelogEntry> = {
+  '1.2.2': {
+    version: '1.2.2',
+    date: '2026-07-03',
+    title: 'Modern Segmented Stepper, Interactive Navigation & Clear Session Cache',
+    type: 'patch',
+    features: [
+      {
+        title: 'Modern Segmented Stepper',
+        description: 'Replaced the circle-and-line stepper with a sleek, minimalist progress pill bar layout (Concept A) at the top of the card. Completed steps show green or warning amber pills with micro-sized check/exclamation indicators, active step is highlighted in primary blue, and upcoming steps are grey.',
+        tag: 'New Feature',
+      },
+      {
+        title: 'Interactive Progress Bar',
+        description: 'Previously completed or warning onboarding steps are now clickable segments, allowing you to jump back directly to edit details without clicking "Back" multiple times.',
+        tag: 'UI Polish',
+      },
+      {
+        title: 'Clear Session Cache on Logout',
+        description: 'Fixed session pollution by clearing the global React Query cache on logout. This prevents outstanding balances or onboarding checklist progress from a previous session from displaying when logging in as a new user.',
+        tag: 'Stability',
+      },
+    ],
+  },
   '1.2.1': {
     version: '1.2.1',
     date: '2026-07-02',
