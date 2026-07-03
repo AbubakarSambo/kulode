@@ -167,7 +167,7 @@ export class ReportPdfService {
         doc.switchToPage(i);
         doc.fontSize(8).fillColor(mutedColor)
            .text(`Page ${i + 1} of ${pages.count}`, 50, 800, { align: 'center' });
-        doc.text('Powered by Tari1', 50, 800, { align: 'right' });
+        doc.text('Built with Tari1 · www.tarione.com', 50, 800, { align: 'right' });
       }
 
       doc.end();

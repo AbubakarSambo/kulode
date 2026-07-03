@@ -14,7 +14,6 @@ import {
   BankIcon,
   InformationCircleIcon,
 } from '@hugeicons/core-free-icons'
-import { RebrandBanner } from '@/components/shared'
 import apiClient from '@/api/client'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
@@ -325,7 +324,6 @@ export function PublicInvoicePage() {
 
   return (
     <div className="min-h-screen bg-[#f8f9ff]">
-      <RebrandBanner />
 
       <div className="px-4 py-6 md:px-8 md:py-10">
         <div className="mx-auto max-w-2xl space-y-5">

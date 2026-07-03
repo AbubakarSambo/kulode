@@ -141,19 +141,17 @@ export function OnboardingChecklist({ onStartInvoiceWizard }: { onStartInvoiceWi
         >
           <button
             onClick={() => {
+              const savedStep = parseInt(localStorage.getItem('tari1-onboarding-step') || '0', 10);
               let targetStep = 1;
-              if (!status.steps.businessProfile) {
-                targetStep = 1;
-              } else if (!status.steps.firstClient) {
-                targetStep = 2;
-              } else if (!status.steps.inventoryItems) {
-                targetStep = 3;
-              } else if (!status.steps.firstInvoice) {
-                targetStep = 4;
+              if (savedStep >= 1 && savedStep <= 4) {
+                targetStep = savedStep;
               } else {
-                const savedStep = parseInt(localStorage.getItem('tari1-onboarding-step') || '0', 10);
-                if (savedStep >= 1 && savedStep <= 4) {
-                  targetStep = savedStep;
+                if (!status.steps.businessProfile) {
+                  targetStep = 1;
+                } else if (!status.steps.firstClient) {
+                  targetStep = 2;
+                } else if (!status.steps.inventoryItems) {
+                  targetStep = 3;
                 } else {
                   targetStep = 4;
                 }

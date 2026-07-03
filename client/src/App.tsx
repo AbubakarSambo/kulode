@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { AppLayout } from '@/components/layout'
 import { ProtectedRoute, GuestRoute, PlanGatedRoute, ReadOnlyGatedRoute } from '@/components/shared'
@@ -55,14 +55,7 @@ import { useVersionCheck } from '@/hooks/useVersionCheck'
 import { WhatsNewModal } from '@/components/changelog/WhatsNewModal'
 import { ReloadBanner } from '@/components/changelog/ReloadBanner'
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      retry: 1,
-    },
-  },
-})
+import { queryClient } from '@/lib/queryClient'
 
 function HomeRedirect() {
   const { isAuthenticated, _hasHydrated } = useAuthStore()
@@ -217,7 +210,7 @@ function App() {
           <Route path="*" element={<Navigate to="/invoices" replace />} />
         </Routes>
       </BrowserRouter>
-      <Toaster position="bottom-right" richColors />
+      <Toaster position="bottom-right" richColors duration={2500} />
     </QueryClientProvider>
   )
 }
