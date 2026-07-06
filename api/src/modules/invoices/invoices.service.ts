@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateInvoiceDto,
@@ -31,6 +32,7 @@ export class InvoicesService {
     private inventoryService: InventoryService,
     private paystackService: PaystackService,
     private emailService: EmailService,
+    private configService: ConfigService,
   ) {}
 
   async findAll(organizationId: string, filter: InvoiceFilterDto) {
@@ -484,7 +486,8 @@ export class InvoicesService {
       where: { id, organizationId, deletedAt: null },
       include: {
         client: { select: { name: true, email: true } },
-        organization: { select: { name: true } },
+        organization: { select: { name: true, paystackSubaccountCode: true } },
+        installments: true,
       },
     });
 
@@ -496,14 +499,60 @@ export class InvoicesService {
       throw new BadRequestException('Invoice is not in draft status');
     }
 
-    const updated = await this.prisma.invoice.update({
+    await this.prisma.invoice.update({
       where: { id },
       data: { status: 'SENT' },
     });
 
+    // Best-effort: auto-generate the payment link(s) so the invoice is
+    // immediately payable the moment it's shared, without a manual step.
+    // `paymentLinkWarning` surfaces back to the UI when Paystack is connected
+    // but link generation couldn't run/succeed, so the failure isn't silent.
+    let paymentLinkWarning: string | null = null;
+
+    if (invoice.organization.paystackSubaccountCode) {
+      if (!invoice.client.email) {
+        paymentLinkWarning =
+          'Online payment link could not be created because this client has no email address on file. Add one, then reopen this invoice to generate it.';
+      } else if (invoice.installments.length > 0) {
+        const failedLabels: string[] = [];
+        for (const installment of invoice.installments.filter((inst) => !inst.isPaid && !inst.paymentUrl)) {
+          try {
+            await this.paystackService.initializeInstallmentTransaction(
+              organizationId,
+              id,
+              installment.id,
+              invoice.client.email,
+              Number(installment.amount),
+            );
+          } catch (err) {
+            this.logger.error(
+              `Failed to auto-generate payment link for installment ${installment.label} of ${invoice.invoiceNumber}: ${err.message}`,
+            );
+            failedLabels.push(installment.label);
+          }
+        }
+        if (failedLabels.length > 0) {
+          paymentLinkWarning = `Online payment link could not be created for: ${failedLabels.join(', ')}. Check your Paystack setup and try again.`;
+        }
+      } else {
+        try {
+          const outstanding = Number(invoice.total) - Number(invoice.amountPaid);
+          await this.paystackService.initializeTransaction(organizationId, id, invoice.client.email, outstanding);
+        } catch (err) {
+          this.logger.error(`Failed to auto-generate payment link for ${invoice.invoiceNumber}: ${err.message}`);
+          paymentLinkWarning = 'Online payment link could not be created. Check your Paystack setup and try again.';
+        }
+      }
+    }
+
+    const updated = await this.prisma.invoice.findFirst({ where: { id } });
+
     if (invoice.client.email) {
       const dueDate = invoice.dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
       const total = Number(invoice.total).toLocaleString('en-NG', { style: 'currency', currency: 'NGN' });
+      const frontendUrl = this.configService.get<string>('resend.frontendUrl') || 'http://localhost:5173';
+      const viewUrl = invoice.shareToken ? `${frontendUrl.replace(/\/$/, '')}/i/${invoice.shareToken}` : null;
 
       try {
         await this.emailService.sendInvoiceEmail(
@@ -513,14 +562,15 @@ export class InvoicesService {
           invoice.organization.name,
           total,
           dueDate,
-          invoice.paymentUrl,
+          updated?.paymentUrl ?? null,
+          viewUrl,
         );
       } catch (err) {
         this.logger.error(`Failed to send invoice email for ${invoice.invoiceNumber}: ${err.message}`);
       }
     }
 
-    return updated;
+    return { ...updated, paymentLinkWarning };
   }
 
   async cancel(id: string, organizationId: string) {
@@ -532,8 +582,8 @@ export class InvoicesService {
       throw new NotFoundException('Invoice not found');
     }
 
-    if (invoice.status === 'PAID') {
-      throw new BadRequestException('Cannot cancel a paid invoice');
+    if (Number(invoice.amountPaid) > 0) {
+      throw new BadRequestException('Cannot cancel an invoice that has received payment');
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -560,7 +610,14 @@ export class InvoicesService {
       throw new NotFoundException('Invoice not found');
     }
 
-    // Super admins can delete any invoice, others can only delete drafts
+    // Invoices with any recorded payment can never be deleted, regardless of role —
+    // deleting would remove them from every report/listing while the underlying
+    // Payment/PaymentInstallment rows (real money already collected) remain orphaned.
+    if (Number(invoice.amountPaid) > 0) {
+      throw new BadRequestException('Cannot delete an invoice that has received payment');
+    }
+
+    // Super admins can delete any unpaid invoice, others can only delete drafts
     const isSuperAdmin = userRole === 'SUPER_ADMIN';
     if (!isSuperAdmin && invoice.status !== 'DRAFT') {
       throw new ForbiddenException('Only draft invoices can be deleted');
@@ -619,6 +676,23 @@ export class InvoicesService {
     );
 
     return { message: 'Reminder sent successfully' };
+  }
+
+  async markOverdueInvoices() {
+    const result = await this.prisma.invoice.updateMany({
+      where: {
+        status: 'SENT',
+        dueDate: { lt: new Date() },
+        deletedAt: null,
+      },
+      data: { status: 'OVERDUE' },
+    });
+
+    if (result.count > 0) {
+      this.logger.log(`Marked ${result.count} invoice(s) as overdue`);
+    }
+
+    return result;
   }
 
   async duplicate(id: string, organizationId: string, userId: string) {
@@ -713,6 +787,9 @@ export class InvoicesService {
     });
     if (!link) {
       throw new NotFoundException('Short link not found');
+    }
+    if (link.expiresAt && link.expiresAt < new Date()) {
+      throw new NotFoundException('Short link has expired');
     }
     return link.targetUrl;
   }

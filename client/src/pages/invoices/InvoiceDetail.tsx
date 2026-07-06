@@ -13,7 +13,6 @@ import {
   PlusSignIcon,
   CreditCardIcon,
   Link02Icon,
-  CopyIcon,
   Share02Icon,
   Download02Icon,
   AlertDiamondIcon,
@@ -145,13 +144,21 @@ export function InvoiceDetailPage() {
 
   const sendMutation = useMutation({
     mutationFn: () => invoicesApi.send(id!),
-    onSuccess: () => {
-      queryClient.setQueryData(['invoices', id], (old: typeof invoice) =>
-        old ? { ...old, status: 'SENT' as const } : old
-      )
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['invoices', id] })
       queryClient.invalidateQueries({ queryKey: ['invoices'], exact: false, refetchType: 'none' })
       posthog.capture('invoice_sent', { invoice_id: id })
-      toast.success('Invoice sent', { description: 'Invoice has been marked as sent' })
+
+      if (data.paymentLinkWarning) {
+        toast.warning('Invoice sent', { description: data.paymentLinkWarning })
+      } else {
+        toast.success('Invoice sent', { description: 'Invoice has been marked as sent' })
+      }
+    },
+    onError: (error: any) => {
+      toast.error('Failed to send invoice', {
+        description: error.response?.data?.message || 'Please try again',
+      })
     },
   })
 
@@ -164,6 +171,11 @@ export function InvoiceDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['invoices'], exact: false, refetchType: 'none' })
       posthog.capture('invoice_cancelled', { invoice_id: id })
       toast.success('Invoice cancelled')
+    },
+    onError: (error: any) => {
+      toast.error('Failed to cancel invoice', {
+        description: error.response?.data?.message || 'Please try again',
+      })
     },
   })
 
@@ -200,6 +212,11 @@ export function InvoiceDetailPage() {
       posthog.capture('invoice_deleted', { invoice_id: id })
       toast.success('Invoice deleted')
       navigate('/invoices')
+    },
+    onError: (error: any) => {
+      toast.error('Failed to delete invoice', {
+        description: error.response?.data?.message || 'Please try again',
+      })
     },
   })
 
@@ -318,21 +335,12 @@ export function InvoiceDetailPage() {
   const isSuperAdmin = user?.role === 'SUPER_ADMIN'
   const canRecordPayment = invoice.status !== 'DRAFT' && invoice.status !== 'CANCELLED' && invoice.status !== 'PAID'
   const canSend = invoice.status === 'DRAFT'
-  const canCancel = invoice.status !== 'PAID' && invoice.status !== 'CANCELLED'
-  const canDelete = isSuperAdmin || invoice.status === 'DRAFT'
-  const canGenerateLink = invoice.status !== 'CANCELLED' && invoice.status !== 'PAID'
-  const hasPaymentLink = !!invoice.paymentUrl
-
-  const copyPaymentLink = () => {
-    if (invoice?.shareToken) {
-      const publicUrl = `${window.location.origin}/i/${invoice.shareToken}`
-      navigator.clipboard.writeText(publicUrl)
-      posthog.capture('payment_link_copied', { invoice_id: id })
-      toast.success('Invoice link copied to clipboard')
-    } else {
-      toast.error('Invoice is in DRAFT. Please mark as sent first.')
-    }
-  }
+  const hasReceivedPayment = Number(invoice.amountPaid) > 0
+  const canCancel = invoice.status !== 'PAID' && invoice.status !== 'CANCELLED' && !hasReceivedPayment
+  const canDelete = (isSuperAdmin || invoice.status === 'DRAFT') && !hasReceivedPayment
+  const hasInstallments = (invoice.installments?.length ?? 0) > 0
+  const canGenerateLink = invoice.status !== 'CANCELLED' && invoice.status !== 'PAID' && !hasInstallments
+  const hasPaymentLink = !!invoice.paymentUrl || hasInstallments
 
   const downloadPdf = async () => {
     try {
@@ -715,29 +723,16 @@ export function InvoiceDetailPage() {
                 )}
 
                 {invoice.status !== 'DRAFT' && invoice.shareToken && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsMoreDropdownOpen(false)
-                        copyPaymentLink()
-                      }}
-                      className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
-                    >
-                      <HugeiconsIcon icon={CopyIcon} size={14} strokeWidth={1.5} />
-                      Copy Link
-                    </button>
-                    <a
-                      href={`/i/${invoice.shareToken}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
-                      onClick={() => setIsMoreDropdownOpen(false)}
-                    >
-                      <HugeiconsIcon icon={Share02Icon} size={14} strokeWidth={1.5} />
-                      Open Link
-                    </a>
-                  </>
+                  <a
+                    href={`/i/${invoice.shareToken}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
+                    onClick={() => setIsMoreDropdownOpen(false)}
+                  >
+                    <HugeiconsIcon icon={Share02Icon} size={14} strokeWidth={1.5} />
+                    Open Link
+                  </a>
                 )}
 
                 {!isExpired && (invoice.status === 'SENT' || invoice.status === 'OVERDUE') && (
@@ -845,29 +840,16 @@ export function InvoiceDetailPage() {
                 )}
 
                 {invoice.status !== 'DRAFT' && invoice.shareToken && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsMoreDropdownOpen(false)
-                        copyPaymentLink()
-                      }}
-                      className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
-                    >
-                      <HugeiconsIcon icon={CopyIcon} size={14} strokeWidth={1.5} />
-                      Copy Link
-                    </button>
-                    <a
-                      href={`/i/${invoice.shareToken}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
-                      onClick={() => setIsMoreDropdownOpen(false)}
-                    >
-                      <HugeiconsIcon icon={Share02Icon} size={14} strokeWidth={1.5} />
-                      Open Link
-                    </a>
-                  </>
+                  <a
+                    href={`/i/${invoice.shareToken}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
+                    onClick={() => setIsMoreDropdownOpen(false)}
+                  >
+                    <HugeiconsIcon icon={Share02Icon} size={14} strokeWidth={1.5} />
+                    Open Link
+                  </a>
                 )}
 
                 {!isExpired && (invoice.status === 'SENT' || invoice.status === 'OVERDUE') && (

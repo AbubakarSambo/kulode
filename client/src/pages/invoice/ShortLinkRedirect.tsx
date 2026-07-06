@@ -15,24 +15,40 @@ export function ShortLinkRedirectPage() {
       return
     }
 
-    const resolveLink = async () => {
+    const MAX_ATTEMPTS = 3
+    let cancelled = false
+
+    const resolveLink = async (attempt: number) => {
       try {
-        const response = await apiClient.get<{ targetUrl: string }>(
+        const response = await apiClient.get<{ data: { targetUrl: string } }>(
           `/invoices/public/short-links/${slug}`
         )
-        const targetUrl = response.data.targetUrl
+        const targetUrl = response.data.data.targetUrl
         if (targetUrl) {
           window.location.replace(targetUrl)
         } else {
           setError('This payment link has expired or is invalid.')
         }
       } catch (err) {
+        const status = (err as { response?: { status?: number } }).response?.status
+        // 404 means the link is genuinely gone/expired — retrying won't help.
+        // Anything else (network hiccup, 5xx, server mid-restart) is worth retrying.
+        if (status !== 404 && attempt < MAX_ATTEMPTS) {
+          setTimeout(() => {
+            if (!cancelled) resolveLink(attempt + 1)
+          }, 1000 * attempt)
+          return
+        }
         console.error('Failed to resolve short link:', err)
         setError('This payment link has expired or is invalid.')
       }
     }
 
-    resolveLink()
+    resolveLink(1)
+
+    return () => {
+      cancelled = true
+    }
   }, [slug])
 
   if (error) {

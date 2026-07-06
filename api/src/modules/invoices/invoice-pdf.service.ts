@@ -409,10 +409,10 @@ export class InvoicePdfService {
       // Render payment links asynchronously using helper
       const self = this;
       const balanceDue = Number(invoice.total) - Number(invoice.amountPaid);
-      const unpaidInstallments = invoice.installments?.filter(inst => !inst.isPaid && inst.paymentUrl) || [];
+      const allInstallments = (invoice.installments || []).slice().sort((a, b) => a.sequence - b.sequence);
 
       const renderPaymentLinks = async () => {
-        if (unpaidInstallments.length > 0 && balanceDue > 0) {
+        if (allInstallments.length > 0 && balanceDue > 0) {
           // World-class table style installment schedule
           let scheduleY = currentY + 30;
           doc
@@ -423,9 +423,7 @@ export class InvoicePdfService {
 
           scheduleY += 15;
 
-          for (const inst of unpaidInstallments) {
-            const shortenedUrl = await self.tryShortenUrl(inst.paymentUrl!);
-
+          for (const inst of allInstallments) {
             // Soft gray line backplates for readability
             doc
               .fillColor('#f8f9ff')
@@ -443,18 +441,33 @@ export class InvoicePdfService {
               .font('Helvetica')
               .text(self.formatCurrency(inst.amount), 190, scheduleY, { width: 90, align: 'right' });
 
-            doc
-              .fillColor(primaryColor)
-              .text('Pay Link: ', 295, scheduleY);
+            if (inst.isPaid) {
+              doc
+                .fillColor(successColor)
+                .font('Helvetica-Bold')
+                .text('PAID', 295, scheduleY, { width: 195 });
+            } else if (inst.paymentUrl) {
+              const shortenedUrl = await self.tryShortenUrl(inst.paymentUrl);
 
-            doc
-              .fillColor(primaryColor)
-              .font('Helvetica-Bold')
-              .text(shortenedUrl.replace(/^https?:\/\//, ''), 340, scheduleY, {
-                link: inst.paymentUrl!,
-                underline: true,
-                width: 195
-              });
+              doc
+                .fillColor(primaryColor)
+                .font('Helvetica')
+                .text('Pay Link: ', 295, scheduleY);
+
+              doc
+                .fillColor(primaryColor)
+                .font('Helvetica-Bold')
+                .text(shortenedUrl.replace(/^https?:\/\//, ''), 340, scheduleY, {
+                  link: shortenedUrl,
+                  underline: true,
+                  width: 195
+                });
+            } else {
+              doc
+                .fillColor(mutedColor)
+                .font('Helvetica')
+                .text('Link pending', 295, scheduleY, { width: 195 });
+            }
 
             scheduleY += 24;
           }
@@ -491,7 +504,7 @@ export class InvoicePdfService {
             .fillColor(primaryColor)
             .font('Helvetica-Bold')
             .text(shortenedUrl.replace(/^https?:\/\//, ''), 248, paymentY + 11, {
-              link: invoice.paymentUrl,
+              link: shortenedUrl,
               underline: true,
               width: 280
             });
@@ -629,10 +642,14 @@ export class InvoicePdfService {
           }
         }
 
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 90);
+
         shortLink = await this.prisma.shortLink.create({
           data: {
             slug,
             targetUrl,
+            expiresAt,
           },
         });
       }

@@ -148,9 +148,11 @@ export class InvoicesController {
   ) {
     let invoice = await this.invoicesService.findOneWithOrganization(id, organizationId);
 
-    // Generate payment links for unpaid installments
+    // Generate payment links for unpaid installments. Skipped for DRAFT invoices —
+    // downloading a preview shouldn't have the side effect of sending the invoice
+    // (auto-generating a link on a DRAFT invoice transitions it to SENT and emails the client).
     const balanceDue = invoice.total - invoice.amountPaid;
-    if (balanceDue > 0 && invoice.client.email) {
+    if (invoice.status !== 'DRAFT' && balanceDue > 0 && invoice.client.email) {
       try {
         if (invoice.installments && invoice.installments.length > 0) {
           // Use installment-based payment links

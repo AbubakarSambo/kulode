@@ -317,6 +317,7 @@ export function PublicInvoicePage() {
 
   const outstanding = invoice.total - invoice.amountPaid
   const isPaid = invoice.status === 'PAID'
+  const isCancelled = invoice.status === 'CANCELLED'
   const nextUnpaidInstallment = invoice.installments?.find(inst => !inst.isPaid)
   const statusCfg = payerStatus[invoice.status]
   const StatusIcon = statusCfg.icon
@@ -360,7 +361,7 @@ export function PublicInvoicePage() {
                 {isPaid ? 'Receipt' : 'PDF'}
               </button>
 
-              {invoice.paymentUrl && !isPaid && !hasInstallments && (
+              {invoice.paymentUrl && !isPaid && !isCancelled && !hasInstallments && (
                 <button
                   type="button"
                   onClick={() => handlePayNow()}
@@ -374,7 +375,7 @@ export function PublicInvoicePage() {
               )}
 
               {/* DEV-ONLY: stripped from production builds by Vite */}
-              {import.meta.env.DEV && !isPaid && invoice.paystackReference && !hasInstallments && (
+              {import.meta.env.DEV && !isPaid && !isCancelled && invoice.paystackReference && !hasInstallments && (
                 <button
                   type="button"
                   onClick={() => simulatePayment()}
@@ -628,6 +629,10 @@ export function PublicInvoicePage() {
                           <HugeiconsIcon icon={CheckmarkCircle02Icon} className="h-3 w-3" />
                           Paid
                         </span>
+                      ) : isCancelled ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-500 text-[10px] font-bold uppercase tracking-wider">
+                          Cancelled
+                        </span>
                       ) : (
                         <div className="flex items-center gap-2">
                           <button
@@ -660,7 +665,7 @@ export function PublicInvoicePage() {
           )}
 
           {/* ── Online Payment ────────────────────────────────────────── */}
-          {!isPaid && !hasInstallments && invoice.paymentUrl && (
+          {!isPaid && !isCancelled && !hasInstallments && invoice.paymentUrl && (
             <div className="bg-white rounded-2xl border border-slate-200/60 overflow-hidden" style={{ boxShadow: '0px 8px 24px rgba(0,55,176,0.05)' }}>
               <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100">
                 <HugeiconsIcon icon={CreditCardIcon} className="h-4 w-4 text-[#0037b0]" />
@@ -703,7 +708,7 @@ export function PublicInvoicePage() {
           )}
 
           {/* ── Direct Bank Transfer ─────────────────────────────────── */}
-          {invoice.organization.bankAccountNumber && !isPaid && (
+          {invoice.organization.bankAccountNumber && !isPaid && !isCancelled && (
             <div className="bg-white rounded-2xl border border-slate-200/60 overflow-hidden" style={{ boxShadow: '0px 8px 24px rgba(0,55,176,0.05)' }}>
               <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100">
                 <HugeiconsIcon icon={BankIcon} className="h-4 w-4 text-[#006c49]" />
@@ -770,7 +775,7 @@ export function PublicInvoicePage() {
           )}
 
           {/* ── Full-width Pay Now CTA (non-installment) ─────────────── */}
-          {invoice.paymentUrl && !isPaid && !hasInstallments && (
+          {invoice.paymentUrl && !isPaid && !isCancelled && !hasInstallments && (
             <div className="text-center">
               <button
                 type="button"

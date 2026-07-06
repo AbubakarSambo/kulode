@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { InvoicesService } from './invoices.service';
 import { InvoicesController, ServiceItemsController } from './invoices.controller';
 import { InvoicePdfService } from './invoice-pdf.service';
+import { InvoicesCron } from './invoices.cron';
 import { PaystackModule } from '../paystack/paystack.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { EmailModule } from '../email/email.module';
@@ -9,7 +10,7 @@ import { EmailModule } from '../email/email.module';
 @Module({
   imports: [forwardRef(() => PaystackModule), InventoryModule, EmailModule],
   controllers: [InvoicesController, ServiceItemsController],
-  providers: [InvoicesService, InvoicePdfService],
+  providers: [InvoicesService, InvoicePdfService, InvoicesCron],
   exports: [InvoicesService],
 })
 export class InvoicesModule {}

@@ -67,8 +67,8 @@ export const invoicesApi = {
     await apiClient.delete(`/invoices/${id}`)
   },
 
-  send: async (id: string): Promise<Invoice> => {
-    const response = await apiClient.post<ApiResponse<Invoice>>(`/invoices/${id}/send`)
+  send: async (id: string): Promise<Invoice & { paymentLinkWarning?: string | null }> => {
+    const response = await apiClient.post<ApiResponse<Invoice & { paymentLinkWarning?: string | null }>>(`/invoices/${id}/send`)
     return response.data.data
   },
 

@@ -529,7 +529,16 @@ export class EmailService {
     total: string,
     dueDate: string,
     paymentUrl: string | null,
+    viewUrl?: string | null,
   ): Promise<void> {
+    const ctaUrl = paymentUrl || viewUrl || undefined;
+    const ctaText = paymentUrl ? 'Pay Invoice' : viewUrl ? 'View Invoice' : undefined;
+    const footerNote = paymentUrl
+      ? 'You can complete your payment securely online via Paystack.'
+      : viewUrl
+        ? 'View the invoice and available payment options online.'
+        : undefined;
+
     const html = this.buildEmailHtml({
       contextLabel: 'Invoice Delivery',
       headline: `New Invoice ${invoiceNumber} from ${orgName}`,
@@ -554,9 +563,9 @@ export class EmailService {
         </div>
         <p>Please review and pay by the due date. Thank you for your business!</p>
       `,
-      ctaText: paymentUrl ? 'Pay Invoice' : undefined,
-      ctaUrl: paymentUrl || undefined,
-      footerNote: paymentUrl ? 'You can complete your payment securely online via Paystack.' : undefined,
+      ctaText,
+      ctaUrl,
+      footerNote,
     });
 
     await this.sendEmail({

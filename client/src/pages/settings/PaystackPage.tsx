@@ -158,7 +158,7 @@ export function PaystackPage() {
     setSecurityAction(action)
     try {
       const response = await apiClient.post('/auth/verify-password', {})
-      setIsSSO(response.data.isSSO)
+      setIsSSO(response.data.data.isSSO)
       setSecurityModalOpen(true)
     } catch (err) {
       const error = err as AxiosError<{ message?: string }>
@@ -188,7 +188,7 @@ export function PaystackPage() {
           return
         }
         const response = await apiClient.post('/auth/verify-password', { password: securityPassword })
-        if (!response.data.valid) {
+        if (!response.data.data.valid) {
           setSecurityError('Invalid password. Please try again.')
           setSecurityLoading(false)
           return

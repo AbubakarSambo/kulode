@@ -274,13 +274,28 @@ export class PaystackService {
       throw new BadRequestException('Paystack subaccount not set up');
     }
 
-    // Get invoice
-    const invoice = await this.prisma.invoice.findUnique({
-      where: { id: invoiceId },
+    // Get invoice (scoped to the caller's organization)
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, organizationId },
+      include: {
+        client: { select: { name: true, email: true } },
+        organization: { select: { name: true } },
+        installments: { select: { id: true } },
+      },
     });
 
     if (!invoice) {
       throw new BadRequestException('Invoice not found');
+    }
+
+    if (invoice.status === 'PAID' || invoice.status === 'CANCELLED') {
+      throw new BadRequestException(`Cannot generate a payment link for a ${invoice.status.toLowerCase()} invoice`);
+    }
+
+    if (invoice.installments.length > 0) {
+      throw new BadRequestException(
+        'This invoice uses a payment schedule. Generate payment links for individual installments instead of the whole invoice.',
+      );
     }
 
     // Generate unique reference
@@ -316,6 +331,7 @@ export class PaystackService {
     }
 
     // Update invoice with payment link and transition DRAFT → SENT
+    const wasDraft = invoice.status === 'DRAFT';
     await this.prisma.invoice.update({
       where: { id: invoiceId },
       data: {
@@ -323,9 +339,28 @@ export class PaystackService {
         paystackAccessCode: access_code,
         paymentUrl: authorization_url,
         paystackTokenGeneratedAt: new Date(),
-        ...(invoice.status === 'DRAFT' && { status: 'SENT' }),
+        ...(wasDraft && { status: 'SENT' }),
       },
     });
+
+    if (wasDraft && invoice.client.email) {
+      const dueDate = invoice.dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+      const total = Number(invoice.total).toLocaleString('en-NG', { style: 'currency', currency: 'NGN' });
+
+      try {
+        await this.emailService.sendInvoiceEmail(
+          invoice.client.email,
+          invoice.client.name,
+          invoice.invoiceNumber,
+          invoice.organization.name,
+          total,
+          dueDate,
+          authorization_url,
+        );
+      } catch (err) {
+        this.logger.error(`Failed to send invoice email for ${invoice.invoiceNumber}: ${err.message}`);
+      }
+    }
 
     return {
       paymentUrl: authorization_url,
@@ -350,18 +385,22 @@ export class PaystackService {
       throw new BadRequestException('Paystack subaccount not set up');
     }
 
-    // Get invoice
-    const invoice = await this.prisma.invoice.findUnique({
-      where: { id: invoiceId },
+    // Get invoice (scoped to the caller's organization)
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, organizationId },
     });
 
     if (!invoice) {
       throw new BadRequestException('Invoice not found');
     }
 
-    // Get installment
-    const installment = await this.prisma.paymentInstallment.findUnique({
-      where: { id: installmentId },
+    if (invoice.status === 'PAID' || invoice.status === 'CANCELLED') {
+      throw new BadRequestException(`Cannot generate a payment link for a ${invoice.status.toLowerCase()} invoice`);
+    }
+
+    // Get installment (scoped to the invoice above)
+    const installment = await this.prisma.paymentInstallment.findFirst({
+      where: { id: installmentId, invoiceId },
     });
 
     if (!installment) {
