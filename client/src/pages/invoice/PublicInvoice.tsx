@@ -178,9 +178,10 @@ export function PublicInvoicePage() {
     },
   })
 
-  const handlePayNow = async (accessCode?: string) => {
+  const handlePayNow = async (accessCode?: string, reference?: string) => {
     if (!invoice) return
     const code = accessCode || invoice.paystackAccessCode
+    const ref = reference || invoice.paystackReference
     setIsPaying(true)
     posthog.capture('public_invoice_pay_now_clicked', { invoice_number: invoice.invoiceNumber })
 
@@ -215,13 +216,22 @@ export function PublicInvoicePage() {
         }
       }).PaystackPop()
       paystack.resumeTransaction(code, {
-        onSuccess: () => {
+        onSuccess: async () => {
           posthog.capture('public_invoice_payment_completed', {
             invoice_number: invoice.invoiceNumber,
             amount: invoice.total - invoice.amountPaid,
             method: 'paystack_online',
           })
           toast.success('Payment received! Updating invoice status...')
+
+          // Don't rely solely on the webhook — verify directly in case it's delayed or dropped.
+          if (ref) {
+            try {
+              await apiClient.get(`/paystack/verify/${ref}`)
+            } catch (verifyErr) {
+              console.error('Payment verification error:', verifyErr)
+            }
+          }
           queryClient.invalidateQueries({ queryKey: ['public-invoice', token] })
         },
         onCancel: () => {
@@ -637,7 +647,7 @@ export function PublicInvoicePage() {
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => handlePayNow(inst.paystackAccessCode)}
+                            onClick={() => handlePayNow(inst.paystackAccessCode, inst.paystackReference)}
                             disabled={isPaying}
                             className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-[11px] font-semibold text-white cursor-pointer transition-all disabled:opacity-60"
                             style={{ background: 'linear-gradient(135deg, #0037b0 0%, #1d4ed8 100%)' }}

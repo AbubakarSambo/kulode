@@ -10,6 +10,7 @@ import {
   Req,
   ParseUUIDPipe,
   BadRequestException,
+  InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
@@ -92,10 +93,14 @@ export class PaystackController {
 
     // Verify signature
     if (!this.paystackService.verifyWebhookSignature(rawBody, signature)) {
+      this.logger.warn(
+        `Rejected Paystack webhook with invalid signature (event: ${req.body?.event ?? 'unknown'}, reference: ${req.body?.data?.reference ?? 'unknown'})`,
+      );
       throw new BadRequestException('Invalid signature');
     }
 
     const { event, data } = req.body;
+    this.logger.log(`Received Paystack webhook: event=${event}, reference=${data?.reference ?? 'unknown'}`);
     const result = await this.paystackService.handleWebhookEvent(event, data);
 
     // Route subscription webhooks to SubscriptionService
@@ -114,6 +119,14 @@ export class PaystackController {
           result.authorization?.last4,
         );
       }
+    }
+
+    // If reconciliation failed (e.g. invoice not found for reference), respond with a
+    // non-2xx so Paystack treats delivery as failed and retries the webhook later.
+    if (result.success === false) {
+      const message = `Failed to reconcile Paystack payment for reference "${data?.reference}": ${result.reason ?? 'unknown reason'}`;
+      this.logger.error(message);
+      throw new InternalServerErrorException(message);
     }
 
     return { received: true };

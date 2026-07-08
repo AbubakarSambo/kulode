@@ -667,7 +667,11 @@ export class PaystackService {
     });
 
     if (!invoice) {
-      this.logger.warn(`Invoice not found for reference: ${reference}`);
+      this.logger.error(
+        `Paystack payment reconciliation failed: no invoice/installment found for reference "${reference}" ` +
+          `(metadata.invoice_id: ${data.metadata?.invoice_id ?? 'none'}). ` +
+          `Payment was likely successful on Paystack but could not be applied to any invoice.`,
+      );
       return { success: false, reason: 'Invoice not found' };
     }
 
@@ -838,7 +842,7 @@ export class PaystackService {
     }
 
     // Delegate to unified reconciliation method
-    await this.reconcilePayment(reference, data);
-    return { received: true };
+    const result = await this.reconcilePayment(reference, data);
+    return { received: true, success: result.success, reason: (result as { reason?: string }).reason };
   }
 }

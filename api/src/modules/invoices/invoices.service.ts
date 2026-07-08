@@ -511,9 +511,11 @@ export class InvoicesService {
     let paymentLinkWarning: string | null = null;
 
     if (invoice.organization.paystackSubaccountCode) {
-      if (!invoice.client.email) {
+      const paymentEmail = await this.resolvePaymentEmail(invoice.client.email, organizationId);
+
+      if (!paymentEmail) {
         paymentLinkWarning =
-          'Online payment link could not be created because this client has no email address on file. Add one, then reopen this invoice to generate it.';
+          'Online payment link could not be created because this client has no email address on file and no account owner email was found. Add a client email, then reopen this invoice to generate it.';
       } else if (invoice.installments.length > 0) {
         const failedLabels: string[] = [];
         for (const installment of invoice.installments.filter((inst) => !inst.isPaid && !inst.paymentUrl)) {
@@ -522,7 +524,7 @@ export class InvoicesService {
               organizationId,
               id,
               installment.id,
-              invoice.client.email,
+              paymentEmail,
               Number(installment.amount),
             );
           } catch (err) {
@@ -538,7 +540,7 @@ export class InvoicesService {
       } else {
         try {
           const outstanding = Number(invoice.total) - Number(invoice.amountPaid);
-          await this.paystackService.initializeTransaction(organizationId, id, invoice.client.email, outstanding);
+          await this.paystackService.initializeTransaction(organizationId, id, paymentEmail, outstanding);
         } catch (err) {
           this.logger.error(`Failed to auto-generate payment link for ${invoice.invoiceNumber}: ${err.message}`);
           paymentLinkWarning = 'Online payment link could not be created. Check your Paystack setup and try again.';
@@ -847,7 +849,10 @@ export class InvoicesService {
 
     // Auto-generate payment link and transaction reference if missing or expired (older than 20 mins)
     const balanceDue = Number(invoice.total) - Number(invoice.amountPaid);
-    if (balanceDue > 0 && invoice.client.email && invoice.organization.paystackSubaccountCode) {
+    const paymentEmail = balanceDue > 0 && invoice.organization.paystackSubaccountCode
+      ? await this.resolvePaymentEmail(invoice.client.email, invoice.organizationId)
+      : null;
+    if (balanceDue > 0 && paymentEmail && invoice.organization.paystackSubaccountCode) {
       try {
         let updated = false;
         const TOKEN_EXPIRY_MS = 20 * 60 * 1000; // 20 minutes
@@ -891,7 +896,7 @@ export class InvoicesService {
                 invoice.organizationId,
                 invoice.id,
                 inst.id,
-                invoice.client.email,
+                paymentEmail,
                 Number(inst.amount),
               );
               updated = true;
@@ -906,7 +911,7 @@ export class InvoicesService {
             await this.paystackService.initializeTransaction(
               invoice.organizationId,
               invoice.id,
-              invoice.client.email,
+              paymentEmail,
               balanceDue,
             );
             updated = true;
@@ -1007,6 +1012,21 @@ export class InvoicesService {
         paystackAccessCode: inst.paystackAccessCode,
       })),
     };
+  }
+
+  /**
+   * Falls back to the organization owner's email when the client has none on file,
+   * so a payment link can still be generated (Paystack requires a customer email).
+   */
+  private async resolvePaymentEmail(clientEmail: string | null, organizationId: string): Promise<string | null> {
+    if (clientEmail) {
+      return clientEmail;
+    }
+    const owner = await this.prisma.user.findFirst({
+      where: { organizationId, role: 'SUPER_ADMIN', isActive: true },
+      select: { email: true },
+    });
+    return owner?.email ?? null;
   }
 
   private async generateInvoiceNumber(organizationId: string, prefix: string): Promise<string> {
