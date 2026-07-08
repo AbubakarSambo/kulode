@@ -51,7 +51,7 @@ import apiClient from '@/api/client'
 import type { ApiResponse } from '@/types'
 import { formatCurrency, formatDate, cn, formatAmountInput, parseAmountInput, normalizePhoneForWhatsApp } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
-import type { InvoiceStatus, PaymentMethod } from '@/types'
+import type { InvoiceStatus, PaymentMethod, WhatsappMessageStatus } from '@/types'
 import { useAuthStore } from '@/stores/auth'
 import { useSubscription } from '@/hooks/useSubscription'
 
@@ -88,6 +88,26 @@ const renderStatusPill = (status: InvoiceStatus) => {
       text: 'text-slate-550',
       label: 'Cancelled',
     },
+  }
+
+  const config = configs[status]
+  return (
+    <div className="flex items-center gap-1.5 select-none justify-start">
+      <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", config.dot)} />
+      <span className={cn("text-xs font-semibold tracking-wide", config.text)}>
+        {config.label}
+      </span>
+    </div>
+  )
+}
+
+const renderWhatsappStatusPill = (status: WhatsappMessageStatus) => {
+  const configs: Record<WhatsappMessageStatus, { dot: string; text: string; label: string }> = {
+    PENDING: { dot: 'bg-slate-400', text: 'text-slate-550', label: 'Pending' },
+    SENT: { dot: 'bg-blue-500', text: 'text-blue-700', label: 'Sent' },
+    DELIVERED: { dot: 'bg-indigo-500', text: 'text-indigo-700', label: 'Delivered' },
+    READ: { dot: 'bg-emerald-500', text: 'text-emerald-700', label: 'Read' },
+    FAILED: { dot: 'bg-rose-500', text: 'text-rose-700', label: 'Failed' },
   }
 
   const config = configs[status]
@@ -194,6 +214,7 @@ export function InvoiceDetailPage() {
   const whatsappReminderMutation = useMutation({
     mutationFn: () => invoicesApi.sendWhatsappReminder(id!),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices', id] })
       posthog.capture('invoice_reminder_sent_whatsapp', { invoice_id: id })
       toast.success('WhatsApp reminder sent', { description: 'Payment reminder has been sent to the client via WhatsApp' })
     },
@@ -1064,6 +1085,16 @@ export function InvoiceDetailPage() {
                   </div>
                   {renderStatusPill(invoice.status)}
                 </div>
+
+                {invoice.whatsappMessages && invoice.whatsappMessages.length > 0 && (
+                  <div className="flex justify-between items-center px-1 pt-1">
+                    <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
+                      <WhatsAppIcon className="h-3 w-3 text-emerald-600" />
+                      WhatsApp Reminder
+                    </span>
+                    {renderWhatsappStatusPill(invoice.whatsappMessages[0].status)}
+                  </div>
+                )}
               </div>
 
               {/* Payments Ledger Card */}

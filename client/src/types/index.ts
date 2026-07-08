@@ -220,6 +220,17 @@ export interface Invoice {
     lastName: string
   }
   createdAt: string
+  whatsappMessages?: WhatsappMessage[]
+}
+
+export type WhatsappMessageStatus = 'PENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED'
+
+export interface WhatsappMessage {
+  id: string
+  status: WhatsappMessageStatus
+  errorMessage?: string | null
+  sentAt?: string | null
+  createdAt: string
 }
 
 // Payment types

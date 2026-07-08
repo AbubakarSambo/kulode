@@ -107,6 +107,10 @@ export class InvoicesService {
         installments: {
           orderBy: { sequence: 'asc' },
         },
+        whatsappMessages: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
       },
     });
 
