@@ -27,6 +27,7 @@ export class WhatsappService {
   private readonly apiVersion: string;
   private readonly reminderTemplateName: string;
   private readonly templateLanguage: string;
+  private readonly webhookVerifyToken: string;
 
   constructor(
     private configService: ConfigService,
@@ -37,6 +38,7 @@ export class WhatsappService {
     this.apiVersion = this.configService.get<string>('whatsapp.apiVersion') || 'v21.0';
     this.reminderTemplateName = this.configService.get<string>('whatsapp.reminderTemplateName') || 'payment_reminder';
     this.templateLanguage = this.configService.get<string>('whatsapp.templateLanguage') || 'en';
+    this.webhookVerifyToken = this.configService.get<string>('whatsapp.webhookVerifyToken') || '';
   }
 
   private get isMockMode(): boolean {
@@ -157,6 +159,67 @@ export class WhatsappService {
         },
       });
       throw error;
+    }
+  }
+
+  isValidVerifyToken(token: string | undefined): boolean {
+    return !!this.webhookVerifyToken && token === this.webhookVerifyToken;
+  }
+
+  async handleWebhookEvent(payload: any): Promise<void> {
+    const entries = payload?.entry || [];
+
+    for (const entry of entries) {
+      for (const change of entry?.changes || []) {
+        const value = change?.value;
+        if (!value) continue;
+
+        for (const status of value.statuses || []) {
+          await this.applyStatusUpdate(status);
+        }
+
+        for (const message of value.messages || []) {
+          // Inbound replies aren't acted on yet - just recorded for visibility.
+          this.logger.log(`[WHATSAPP INBOUND] from ${message.from}: ${JSON.stringify(message)}`);
+        }
+      }
+    }
+  }
+
+  private async applyStatusUpdate(status: any): Promise<void> {
+    const providerMessageId = status?.id;
+    const mappedStatus = this.mapMetaStatus(status?.status);
+    if (!providerMessageId || !mappedStatus) return;
+
+    const error = status.errors?.[0];
+
+    const result = await this.prisma.whatsappMessage.updateMany({
+      where: { providerMessageId },
+      data: {
+        status: mappedStatus,
+        ...(error
+          ? { errorCode: String(error.code), errorMessage: error.title || error.message }
+          : {}),
+      },
+    });
+
+    if (result.count === 0) {
+      this.logger.warn(`Received WhatsApp status update for unknown message ${providerMessageId}`);
+    }
+  }
+
+  private mapMetaStatus(status: string): 'SENT' | 'DELIVERED' | 'READ' | 'FAILED' | null {
+    switch (status) {
+      case 'sent':
+        return 'SENT';
+      case 'delivered':
+        return 'DELIVERED';
+      case 'read':
+        return 'READ';
+      case 'failed':
+        return 'FAILED';
+      default:
+        return null;
     }
   }
 }

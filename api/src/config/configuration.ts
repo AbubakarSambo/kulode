@@ -49,4 +49,5 @@ export const whatsappConfig = registerAs("whatsapp", () => ({
   reminderTemplateName:
     process.env.WHATSAPP_REMINDER_TEMPLATE_NAME || "payment_reminder",
   templateLanguage: process.env.WHATSAPP_TEMPLATE_LANGUAGE || "en",
+  webhookVerifyToken: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "",
 }));
