@@ -39,4 +39,9 @@ export class UpdateClientDto {
   @IsString()
   @MaxLength(50)
   clientType?: string;
+
+  @ApiPropertyOptional({ description: 'Client has agreed to receive invoice and payment messages via WhatsApp' })
+  @IsOptional()
+  @IsBoolean()
+  whatsappOptIn?: boolean;
 }

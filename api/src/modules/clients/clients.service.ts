@@ -86,6 +86,8 @@ export class ClientsService {
       data: {
         organizationId,
         ...dto,
+        // Server-stamped consent timestamp, not trusting a client-supplied value
+        whatsappOptInAt: dto.whatsappOptIn ? new Date() : undefined,
       },
     });
 
@@ -103,7 +105,11 @@ export class ClientsService {
 
     const updated = await this.prisma.client.update({
       where: { id },
-      data: dto,
+      data: {
+        ...dto,
+        // Stamp consent timestamp only on the false -> true transition
+        ...(dto.whatsappOptIn && !client.whatsappOptIn ? { whatsappOptInAt: new Date() } : {}),
+      },
     });
 
     return updated;

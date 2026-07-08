@@ -41,3 +41,13 @@ export const paystackConfig = registerAs("paystack", () => ({
     "http://localhost:5173/payment/callback",
   // Production: https://app.tarione.com/payment/callback
 }));
+
+export const whatsappConfig = registerAs("whatsapp", () => ({
+  phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
+  accessToken: process.env.WHATSAPP_ACCESS_TOKEN,
+  apiVersion: process.env.WHATSAPP_GRAPH_API_VERSION || "v21.0",
+  reminderTemplateName:
+    process.env.WHATSAPP_REMINDER_TEMPLATE_NAME || "payment_reminder",
+  templateLanguage: process.env.WHATSAPP_TEMPLATE_LANGUAGE || "en",
+  webhookVerifyToken: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "",
+}));

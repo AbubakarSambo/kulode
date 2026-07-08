@@ -21,6 +21,7 @@ import { paginate, PLAN_LIMITS } from '../../common';
 import { InventoryService } from '../inventory/inventory.service';
 import { PaystackService } from '../paystack/paystack.service';
 import { EmailService } from '../email/email.service';
+import { WhatsappService } from '../whatsapp/whatsapp.service';
 
 @Injectable()
 export class InvoicesService {
@@ -32,6 +33,7 @@ export class InvoicesService {
     private inventoryService: InventoryService,
     private paystackService: PaystackService,
     private emailService: EmailService,
+    private whatsappService: WhatsappService,
     private configService: ConfigService,
   ) {}
 
@@ -678,6 +680,44 @@ export class InvoicesService {
     );
 
     return { message: 'Reminder sent successfully' };
+  }
+
+  async sendWhatsappReminder(id: string, organizationId: string) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id, organizationId, deletedAt: null },
+      include: {
+        client: { select: { id: true, name: true, phone: true, whatsappOptIn: true } },
+      },
+    });
+
+    if (!invoice) {
+      throw new NotFoundException('Invoice not found');
+    }
+
+    if (invoice.status !== 'SENT' && invoice.status !== 'OVERDUE') {
+      throw new BadRequestException('Reminders can only be sent for SENT or OVERDUE invoices');
+    }
+
+    if (!invoice.client.phone || !invoice.client.whatsappOptIn) {
+      throw new BadRequestException('Client has not opted in to WhatsApp messages');
+    }
+
+    const dueDate = invoice.dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    const outstanding = (Number(invoice.total) - Number(invoice.amountPaid)).toLocaleString('en-NG', { style: 'currency', currency: 'NGN' });
+
+    await this.whatsappService.sendInvoiceReminderTemplate({
+      organizationId,
+      invoiceId: invoice.id,
+      clientId: invoice.client.id,
+      toPhone: invoice.client.phone,
+      clientName: invoice.client.name,
+      invoiceNumber: invoice.invoiceNumber,
+      amountDue: outstanding,
+      dueDate,
+      shareToken: invoice.shareToken,
+    });
+
+    return { message: 'WhatsApp reminder sent successfully' };
   }
 
   async markOverdueInvoices() {

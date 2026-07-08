@@ -27,6 +27,7 @@ const clientSchema = z.object({
   address: z.string().optional(),
   notes: z.string().optional(),
   clientType: z.enum(['business', 'individual']),
+  whatsappOptIn: z.boolean().optional(),
 })
 
 type ClientForm = z.infer<typeof clientSchema>
@@ -57,6 +58,7 @@ export function ClientFormPage({ mode = 'create', initialData }: ClientFormPageP
       address: '',
       notes: '',
       clientType: 'business',
+      whatsappOptIn: false,
     },
   })
 
@@ -194,6 +196,19 @@ export function ClientFormPage({ mode = 'create', initialData }: ClientFormPageP
                   {errors.phone?.message && (
                     <p className="text-xs text-red-500">{errors.phone.message}</p>
                   )}
+                  {watch('phone') && (
+                    <label className="flex items-center gap-2 mt-1.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={watch('whatsappOptIn') || false}
+                        onChange={(e) => setValue('whatsappOptIn', e.target.checked)}
+                        className="w-3.5 h-3.5 rounded text-[#0037b0] border-[#c4c5d7]/60 focus:ring-[#0037b0]"
+                      />
+                      <span className="text-[10px] text-slate-500 font-semibold">
+                        This client has agreed to receive invoice and payment messages via WhatsApp
+                      </span>
+                    </label>
+                  )}
                 </div>
               </div>
 
@@ -281,6 +296,7 @@ export function EditClientPage() {
         address: client.address || '',
         notes: client.notes || '',
         clientType: (client.clientType === 'individual' || client.clientType === 'business') ? client.clientType : 'business',
+        whatsappOptIn: client.whatsappOptIn || false,
       }}
     />
   )

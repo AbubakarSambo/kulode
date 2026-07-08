@@ -191,6 +191,18 @@ export function InvoiceDetailPage() {
     },
   })
 
+  const whatsappReminderMutation = useMutation({
+    mutationFn: () => invoicesApi.sendWhatsappReminder(id!),
+    onSuccess: () => {
+      posthog.capture('invoice_reminder_sent_whatsapp', { invoice_id: id })
+      toast.success('WhatsApp reminder sent', { description: 'Payment reminder has been sent to the client via WhatsApp' })
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onError: (error: any) => {
+      toast.error('Failed to send WhatsApp reminder', { description: error.response?.data?.message || 'Please try again' })
+    },
+  })
+
   const duplicateMutation = useMutation({
     mutationFn: () => invoicesApi.duplicate(id!),
     onSuccess: (newInvoice) => {
@@ -750,6 +762,23 @@ export function InvoiceDetailPage() {
                   </button>
                 )}
 
+                {!isExpired && (invoice.status === 'SENT' || invoice.status === 'OVERDUE') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!invoice.client?.whatsappOptIn) return
+                      setIsMoreDropdownOpen(false)
+                      whatsappReminderMutation.mutate()
+                    }}
+                    disabled={whatsappReminderMutation.isPending || !invoice.client?.whatsappOptIn}
+                    title={!invoice.client?.whatsappOptIn ? "Client hasn't opted in to WhatsApp messages — edit client to enable" : undefined}
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                  >
+                    <WhatsAppIcon className="w-3.5 h-3.5" />
+                    Send Reminder via WhatsApp
+                  </button>
+                )}
+
                 {!isExpired && (
                   <button
                     type="button"
@@ -864,6 +893,23 @@ export function InvoiceDetailPage() {
                   >
                     <HugeiconsIcon icon={Notification03Icon} size={14} strokeWidth={1.5} />
                     Send Reminder
+                  </button>
+                )}
+
+                {!isExpired && (invoice.status === 'SENT' || invoice.status === 'OVERDUE') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!invoice.client?.whatsappOptIn) return
+                      setIsMoreDropdownOpen(false)
+                      whatsappReminderMutation.mutate()
+                    }}
+                    disabled={whatsappReminderMutation.isPending || !invoice.client?.whatsappOptIn}
+                    title={!invoice.client?.whatsappOptIn ? "Client hasn't opted in to WhatsApp messages — edit client to enable" : undefined}
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                  >
+                    <WhatsAppIcon className="w-3.5 h-3.5" />
+                    Send Reminder via WhatsApp
                   </button>
                 )}
 

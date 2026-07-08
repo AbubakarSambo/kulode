@@ -113,7 +113,7 @@ export function Step2ClientDetails() {
                 className="w-3.5 h-3.5 rounded text-[#0037b0] border-[#c4c5d7]/60 focus:ring-[#0037b0]"
               />
               <span className="text-[10px] text-slate-400 font-semibold">
-                This is a WhatsApp number (enables direct sharing)
+                This client has agreed to receive invoice and payment messages from us via WhatsApp
               </span>
             </label>
           )}

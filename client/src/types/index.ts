@@ -156,6 +156,8 @@ export interface Client {
   notes?: string
   isActive: boolean
   clientType?: 'individual' | 'business' | string
+  whatsappOptIn?: boolean
+  whatsappOptInAt?: string
   createdAt: string
   _count?: {
     invoices: number

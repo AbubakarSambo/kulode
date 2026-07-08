@@ -1,0 +1,3 @@
+-- AlterEnum
+ALTER TYPE "WhatsappMessageStatus" ADD VALUE 'DELIVERED' BEFORE 'FAILED';
+ALTER TYPE "WhatsappMessageStatus" ADD VALUE 'READ' BEFORE 'FAILED';
