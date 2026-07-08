@@ -16,7 +16,7 @@ export interface SendInvoiceReminderParams {
   invoiceNumber: string;
   amountDue: string;
   dueDate: string;
-  paymentUrl?: string | null;
+  shareToken?: string | null;
 }
 
 @Injectable()
@@ -86,6 +86,29 @@ export class WhatsappService {
   async sendInvoiceReminderTemplate(params: SendInvoiceReminderParams): Promise<{ providerMessageId: string | null }> {
     const toPhone = this.normalizePhone(params.toPhone);
 
+    const components: Record<string, unknown>[] = [
+      {
+        type: 'body',
+        parameters: [
+          { type: 'text', text: params.clientName },
+          { type: 'text', text: params.invoiceNumber },
+          { type: 'text', text: params.amountDue },
+          { type: 'text', text: params.dueDate },
+        ],
+      },
+    ];
+
+    // Populates the template's dynamic "View Invoice" URL button - the button's
+    // base URL is fixed in the approved template, this only supplies the suffix.
+    if (params.shareToken) {
+      components.push({
+        type: 'button',
+        sub_type: 'url',
+        index: '0',
+        parameters: [{ type: 'text', text: params.shareToken }],
+      });
+    }
+
     const payload = {
       messaging_product: 'whatsapp',
       to: toPhone,
@@ -93,17 +116,7 @@ export class WhatsappService {
       template: {
         name: this.reminderTemplateName,
         language: { code: this.templateLanguage },
-        components: [
-          {
-            type: 'body',
-            parameters: [
-              { type: 'text', text: params.clientName },
-              { type: 'text', text: params.invoiceNumber },
-              { type: 'text', text: params.amountDue },
-              { type: 'text', text: params.dueDate },
-            ],
-          },
-        ],
+        components,
       },
     };
 

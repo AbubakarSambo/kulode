@@ -714,7 +714,7 @@ export class InvoicesService {
       invoiceNumber: invoice.invoiceNumber,
       amountDue: outstanding,
       dueDate,
-      paymentUrl: invoice.paymentUrl,
+      shareToken: invoice.shareToken,
     });
 
     return { message: 'WhatsApp reminder sent successfully' };
