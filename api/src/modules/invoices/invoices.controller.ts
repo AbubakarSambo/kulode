@@ -101,6 +101,17 @@ export class InvoicesController {
     return this.invoicesService.sendReminder(id, organizationId);
   }
 
+  @Post(':id/send-whatsapp-reminder')
+  @ApiOperation({ summary: 'Send payment reminder to client via WhatsApp' })
+  @ApiResponse({ status: 200, description: 'WhatsApp reminder sent' })
+  @ApiResponse({ status: 400, description: 'Invoice not in a remindable state or client has not opted in to WhatsApp' })
+  async sendWhatsappReminder(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.invoicesService.sendWhatsappReminder(id, organizationId);
+  }
+
   @Post(':id/duplicate')
   @ApiOperation({ summary: 'Duplicate an invoice as a new draft' })
   @ApiResponse({ status: 201, description: 'Duplicated invoice' })

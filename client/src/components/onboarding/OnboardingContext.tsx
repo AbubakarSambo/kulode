@@ -901,6 +901,7 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
         phone: clientPhone || undefined,
         address: clientAddress.trim() || undefined,
         notes: `Type: ${clientType === "business" ? "Business" : "Individual"}`,
+        whatsappOptIn: isWhatsapp,
       });
       posthog.capture("onboarding_client_created");
 

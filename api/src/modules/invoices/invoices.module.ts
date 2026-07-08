@@ -6,9 +6,10 @@ import { InvoicesCron } from './invoices.cron';
 import { PaystackModule } from '../paystack/paystack.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { EmailModule } from '../email/email.module';
+import { WhatsappModule } from '../whatsapp/whatsapp.module';
 
 @Module({
-  imports: [forwardRef(() => PaystackModule), InventoryModule, EmailModule],
+  imports: [forwardRef(() => PaystackModule), InventoryModule, EmailModule, WhatsappModule],
   controllers: [InvoicesController, ServiceItemsController],
   providers: [InvoicesService, InvoicePdfService, InvoicesCron],
   exports: [InvoicesService],

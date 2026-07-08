@@ -32,6 +32,12 @@ enum PaymentMethod {
   OTHER
 }
 
+enum WhatsappMessageStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
 enum TokenType {
   EMAIL_VERIFICATION
   PASSWORD_SETUP
@@ -144,6 +150,7 @@ model Organization {
   subscriptionPayments SubscriptionPayment[]
   taxReportLogs        TaxReportLog[]
   chatSessions         ChatSession[]
+  whatsappMessages     WhatsappMessage[]
 
   @@map("organizations")
 }
@@ -208,12 +215,17 @@ model Client {
   isActive       Boolean @default(true) @map("is_active")
   clientType     String? @default("business") @map("client_type")
 
+  // WhatsApp Business API consent (self-attested by the org, required before API-driven messaging)
+  whatsappOptIn   Boolean   @default(false) @map("whatsapp_opt_in")
+  whatsappOptInAt DateTime? @map("whatsapp_opt_in_at")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  invoices     Invoice[]
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoices         Invoice[]
+  whatsappMessages WhatsappMessage[]
 
   @@index([organizationId])
   @@map("clients")
@@ -262,12 +274,13 @@ model Invoice {
   deletedAt DateTime? @map("deleted_at")
 
   // Relations
-  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  client       Client        @relation(fields: [clientId], references: [id])
-  createdBy    User          @relation("CreatedByUser", fields: [createdById], references: [id])
-  items        InvoiceItem[]
-  payments     Payment[]
-  installments PaymentInstallment[]
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client           Client               @relation(fields: [clientId], references: [id])
+  createdBy        User                 @relation("CreatedByUser", fields: [createdById], references: [id])
+  items            InvoiceItem[]
+  payments         Payment[]
+  installments     PaymentInstallment[]
+  whatsappMessages WhatsappMessage[]
 
   @@unique([organizationId, invoiceNumber])
   @@index([organizationId])
@@ -598,6 +611,31 @@ model ChatMessage {
 
   @@index([sessionId])
   @@map("chat_messages")
+}
+
+// Outbound WhatsApp Business API messages (invoice reminders, etc.)
+model WhatsappMessage {
+  id                String                @id @default(uuid())
+  organizationId    String                @map("organization_id")
+  invoiceId         String?               @map("invoice_id")
+  clientId          String?               @map("client_id")
+  templateName      String                @map("template_name")
+  toPhone           String                @map("to_phone")
+  status            WhatsappMessageStatus @default(PENDING)
+  providerMessageId String?               @unique @map("provider_message_id")
+  errorMessage      String?               @map("error_message")
+  errorCode         String?               @map("error_code")
+  sentAt            DateTime?             @map("sent_at")
+  createdAt         DateTime              @default(now()) @map("created_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice      Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  client       Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([invoiceId])
+  @@map("whatsapp_messages")
 }
 
 

@@ -81,6 +81,10 @@ export const invoicesApi = {
     await apiClient.post(`/invoices/${id}/send-reminder`)
   },
 
+  sendWhatsappReminder: async (id: string): Promise<void> => {
+    await apiClient.post(`/invoices/${id}/send-whatsapp-reminder`)
+  },
+
   duplicate: async (id: string): Promise<Invoice> => {
     const response = await apiClient.post<ApiResponse<Invoice>>(`/invoices/${id}/duplicate`)
     return response.data.data

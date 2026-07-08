@@ -14,6 +14,8 @@ export interface CreateClientData {
   phone?: string
   address?: string
   notes?: string
+  clientType?: string
+  whatsappOptIn?: boolean
 }
 
 export const clientsApi = {

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsEmail, IsOptional, MaxLength } from 'class-validator';
+import { IsNotEmpty, IsString, IsEmail, IsOptional, IsBoolean, MaxLength } from 'class-validator';
 
 export class CreateClientDto {
   @ApiProperty({ example: 'ABC Corporation' })
@@ -34,4 +34,9 @@ export class CreateClientDto {
   @IsString()
   @MaxLength(50)
   clientType?: string;
+
+  @ApiPropertyOptional({ description: 'Client has agreed to receive invoice and payment messages via WhatsApp' })
+  @IsOptional()
+  @IsBoolean()
+  whatsappOptIn?: boolean;
 }
