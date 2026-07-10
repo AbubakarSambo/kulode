@@ -40,7 +40,7 @@ const directorsApi = {
 }
 
 const directorSchema = z.object({
-  forenames: z.string().min(1, 'Forenames are required'),
+  forenames: z.string().min(1, 'First name is required'),
   surname: z.string().min(1, 'Surname is required'),
   formerName: z.string().optional(),
   isNonNigerian: z.boolean().optional(),
@@ -252,7 +252,7 @@ export function DirectorsPage() {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="forenames" required>Forenames</Label>
+              <Label htmlFor="forenames" required>First Name</Label>
               <Input
                 id="forenames"
                 placeholder="e.g., John A."
