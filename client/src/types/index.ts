@@ -128,6 +128,7 @@ export interface Organization {
   settlementBank?: string
   businessType?: string
   organizationSize?: string
+  rcNumber?: string
 }
 
 // Onboarding

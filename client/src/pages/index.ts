@@ -57,6 +57,7 @@ export { PaystackPage } from './settings/PaystackPage'
 export { CategoriesPage } from './settings/CategoriesPage'
 export { ServiceItemsPage } from './settings/ServiceItemsPage'
 export { OrganizationPage } from './settings/OrganizationPage'
+export { DirectorsPage } from './settings/DirectorsPage'
 export { BillingPage } from './settings/BillingPage'
 export { ChangelogPage } from './settings/ChangelogPage'
 

@@ -5,6 +5,8 @@ import {
   Post,
   Delete,
   Body,
+  Param,
+  ParseUUIDPipe,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
@@ -13,7 +15,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { OrganizationsService } from './organizations.service';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
-import { UpdateOrganizationDto } from './dto';
+import { UpdateOrganizationDto, CreateDirectorDto, UpdateDirectorDto } from './dto';
 import { CurrentUser, Roles, Role } from '../../common';
 
 @ApiTags('Organizations')
@@ -92,5 +94,48 @@ export class OrganizationsController {
   @ApiResponse({ status: 200, description: 'Paystack status' })
   async getPaystackStatus(@CurrentUser('organizationId') organizationId: string) {
     return this.organizationsService.getPaystackStatus(organizationId);
+  }
+
+  @Get('current/directors')
+  @ApiOperation({ summary: 'List organization directors' })
+  @ApiResponse({ status: 200, description: 'List of directors' })
+  async listDirectors(@CurrentUser('organizationId') organizationId: string) {
+    return this.organizationsService.listDirectors(organizationId);
+  }
+
+  @Post('current/directors')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Add an organization director' })
+  @ApiResponse({ status: 201, description: 'Director created' })
+  async createDirector(
+    @Body() dto: CreateDirectorDto,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.organizationsService.createDirector(organizationId, dto);
+  }
+
+  @Patch('current/directors/:directorId')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Update an organization director' })
+  @ApiResponse({ status: 200, description: 'Director updated' })
+  @ApiResponse({ status: 404, description: 'Director not found' })
+  async updateDirector(
+    @Param('directorId', ParseUUIDPipe) directorId: string,
+    @Body() dto: UpdateDirectorDto,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.organizationsService.updateDirector(organizationId, directorId, dto);
+  }
+
+  @Delete('current/directors/:directorId')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Remove an organization director' })
+  @ApiResponse({ status: 200, description: 'Director removed' })
+  @ApiResponse({ status: 404, description: 'Director not found' })
+  async deleteDirector(
+    @Param('directorId', ParseUUIDPipe) directorId: string,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.organizationsService.deleteDirector(organizationId, directorId);
   }
 }

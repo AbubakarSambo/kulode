@@ -132,9 +132,21 @@ export class InvoicesService {
             phone: true,
             address: true,
             logo: true,
+            rcNumber: true,
             planTier: true,
             subscriptionStatus: true,
             showQrCode: true,
+            directors: {
+              where: { isActive: true },
+              orderBy: { sortOrder: 'asc' },
+              select: {
+                forenames: true,
+                surname: true,
+                formerName: true,
+                isNonNigerian: true,
+                nationality: true,
+              },
+            },
           },
         },
         client: {
@@ -855,6 +867,7 @@ export class InvoicesService {
             phone: true,
             address: true,
             logo: true,
+            rcNumber: true,
             planTier: true,
             subscriptionStatus: true,
             showQrCode: true,
@@ -862,6 +875,17 @@ export class InvoicesService {
             bankAccountNumber: true,
             bankAccountName: true,
             settlementBank: true,
+            directors: {
+              where: { isActive: true },
+              orderBy: { sortOrder: 'asc' },
+              select: {
+                forenames: true,
+                surname: true,
+                formerName: true,
+                isNonNigerian: true,
+                nationality: true,
+              },
+            },
           },
         },
         client: {
@@ -974,6 +998,7 @@ export class InvoicesService {
                   phone: true,
                   address: true,
                   logo: true,
+                  rcNumber: true,
                   planTier: true,
                   subscriptionStatus: true,
                   showQrCode: true,
@@ -981,6 +1006,17 @@ export class InvoicesService {
                   bankAccountNumber: true,
                   bankAccountName: true,
                   settlementBank: true,
+                  directors: {
+                    where: { isActive: true },
+                    orderBy: { sortOrder: 'asc' },
+                    select: {
+                      forenames: true,
+                      surname: true,
+                      formerName: true,
+                      isNonNigerian: true,
+                      nationality: true,
+                    },
+                  },
                 },
               },
               client: {

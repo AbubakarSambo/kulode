@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { UpdateOrganizationDto } from './dto';
+import { UpdateOrganizationDto, CreateDirectorDto, UpdateDirectorDto } from './dto';
 
 @Injectable()
 export class OrganizationsService {
@@ -17,6 +17,7 @@ export class OrganizationsService {
         phone: true,
         address: true,
         logo: true,
+        rcNumber: true,
         invoicePrefix: true,
         currency: true,
         taxRate: true,
@@ -66,6 +67,7 @@ export class OrganizationsService {
         ...('logo' in dto && { logo: dto.logo }),
         ...(dto.businessType !== undefined && { businessType: dto.businessType }),
         ...(dto.organizationSize !== undefined && { organizationSize: dto.organizationSize }),
+        ...(dto.rcNumber !== undefined && { rcNumber: dto.rcNumber }),
       },
       select: {
         id: true,
@@ -75,6 +77,7 @@ export class OrganizationsService {
         phone: true,
         address: true,
         logo: true,
+        rcNumber: true,
         invoicePrefix: true,
         currency: true,
         taxRate: true,
@@ -91,6 +94,48 @@ export class OrganizationsService {
     });
 
     return updated;
+  }
+
+  async listDirectors(organizationId: string) {
+    return this.prisma.organizationDirector.findMany({
+      where: { organizationId, isActive: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+  }
+
+  async createDirector(organizationId: string, dto: CreateDirectorDto) {
+    return this.prisma.organizationDirector.create({
+      data: { organizationId, ...dto },
+    });
+  }
+
+  async updateDirector(organizationId: string, directorId: string, dto: UpdateDirectorDto) {
+    const director = await this.prisma.organizationDirector.findFirst({
+      where: { id: directorId, organizationId },
+    });
+
+    if (!director) {
+      throw new NotFoundException('Director not found');
+    }
+
+    return this.prisma.organizationDirector.update({
+      where: { id: directorId },
+      data: dto,
+    });
+  }
+
+  async deleteDirector(organizationId: string, directorId: string) {
+    const director = await this.prisma.organizationDirector.findFirst({
+      where: { id: directorId, organizationId },
+    });
+
+    if (!director) {
+      throw new NotFoundException('Director not found');
+    }
+
+    await this.prisma.organizationDirector.delete({ where: { id: directorId } });
+
+    return { success: true };
   }
 
   async getOnboardingStatus(organizationId: string) {

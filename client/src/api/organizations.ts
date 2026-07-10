@@ -14,6 +14,7 @@ export interface UpdateOrganizationData {
   defaultNotes?: string
   businessType?: string
   organizationSize?: string
+  rcNumber?: string
 }
 
 export const organizationsApi = {

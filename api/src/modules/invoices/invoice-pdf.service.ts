@@ -43,6 +43,14 @@ interface InvoiceData {
     planTier?: string | null;
     subscriptionStatus?: string | null;
     showQrCode?: boolean | null;
+    rcNumber?: string | null;
+    directors?: Array<{
+      forenames: string;
+      surname: string;
+      formerName?: string | null;
+      isNonNigerian: boolean;
+      nationality?: string | null;
+    }>;
   };
   client: {
     name: string;
@@ -144,6 +152,10 @@ export class InvoicePdfService {
         const addrHeight = doc.heightOfString(invoice.organization.address, { width: 220 });
         doc.text(invoice.organization.address, 50, orgY, { width: 220 });
         orgY += addrHeight;
+      }
+      if (invoice.organization.rcNumber) {
+        doc.text(`RC: ${invoice.organization.rcNumber}`, 50, orgY, { width: 220 });
+        orgY += 13;
       }
 
       // Invoice title and number (right side — always anchored to top)
@@ -513,6 +525,7 @@ export class InvoicePdfService {
         }
 
         // Notes section
+        let notesTermsBottom = Math.max(currentY + 25, 540);
         if (invoice.notes) {
           const notesY = Math.max(currentY + 25, 540);
           doc
@@ -526,6 +539,9 @@ export class InvoicePdfService {
             .fontSize(9)
             .font('Helvetica')
             .text(invoice.notes, 50, notesY + 13, { width: 240 });
+
+          const notesHeight = doc.heightOfString(invoice.notes, { width: 240 });
+          notesTermsBottom = Math.max(notesTermsBottom, notesY + 13 + notesHeight);
         }
 
         // Terms section
@@ -542,6 +558,27 @@ export class InvoicePdfService {
             .fontSize(9)
             .font('Helvetica')
             .text(invoice.terms, 310, termsY + 13, { width: 235 });
+
+          const termsHeight = doc.heightOfString(invoice.terms, { width: 235 });
+          notesTermsBottom = Math.max(notesTermsBottom, termsY + 13 + termsHeight);
+        }
+
+        // Directors line (CAC/CAMA 2020 s.304 compliance) — full-width, above the footer divider
+        if (invoice.organization.directors && invoice.organization.directors.length > 0) {
+          const directorsText = invoice.organization.directors
+            .map(d => {
+              let s = `${d.forenames} ${d.surname}`;
+              if (d.formerName) s += ` (formerly ${d.formerName})`;
+              if (d.isNonNigerian && d.nationality) s += ` [${d.nationality}]`;
+              return s;
+            })
+            .join(', ');
+          const directorsY = Math.max(notesTermsBottom + 15, 570);
+          doc
+            .fillColor(mutedColor)
+            .fontSize(7.5)
+            .font('Helvetica')
+            .text(`Directors: ${directorsText}`, 50, directorsY, { width: 495 });
         }
 
         // Footer — Tari1 Logo + Branding

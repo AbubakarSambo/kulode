@@ -96,7 +96,8 @@ model Organization {
   phone     String?
   address   String?
   logo      String?
-  
+  rcNumber  String?  @map("rc_number")
+
   // Paystack integration
   paystackSubaccountCode String?  @map("paystack_subaccount_code")
   bankCode               String?  @map("bank_code")
@@ -153,6 +154,7 @@ model Organization {
   taxReportLogs        TaxReportLog[]
   chatSessions         ChatSession[]
   whatsappMessages     WhatsappMessage[]
+  directors            OrganizationDirector[]
 
   @@map("organizations")
 }
@@ -231,6 +233,29 @@ model Client {
 
   @@index([organizationId])
   @@map("clients")
+}
+
+// CAC-registered directors (CAMA 2020 s.304 compliance) — shown on invoices, no app login required
+model OrganizationDirector {
+  id             String  @id @default(uuid())
+  organizationId String  @map("organization_id")
+
+  forenames     String
+  surname       String
+  formerName    String?  @map("former_name")
+  isNonNigerian Boolean  @default(false) @map("is_non_nigerian")
+  nationality   String?
+  sortOrder     Int      @default(0) @map("sort_order")
+  isActive      Boolean  @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("organization_directors")
 }
 
 // Invoices

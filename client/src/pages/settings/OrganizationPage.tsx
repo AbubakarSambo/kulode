@@ -17,6 +17,7 @@ const organizationSchema = z.object({
   email: z.string().email('Invalid email').or(z.literal('')).optional(),
   phone: z.string().max(50).optional(),
   address: z.string().optional(),
+  rcNumber: z.string().max(50).optional(),
   invoicePrefix: z.string().max(10).optional(),
   vatEnabled: z.boolean().optional(),
   showQrCode: z.boolean().optional(),
@@ -74,6 +75,7 @@ export function OrganizationPage() {
       email: '',
       phone: '',
       address: '',
+      rcNumber: '',
       invoicePrefix: '',
       vatEnabled: false,
       showQrCode: false,
@@ -90,6 +92,7 @@ export function OrganizationPage() {
         email: organization.email || '',
         phone: organization.phone || '',
         address: organization.address || '',
+        rcNumber: organization.rcNumber || '',
         invoicePrefix: organization.invoicePrefix,
         vatEnabled: organization.vatEnabled,
         showQrCode: organization.showQrCode ?? false,
@@ -256,6 +259,19 @@ export function OrganizationPage() {
                   id="address"
                   {...register('address')}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="rcNumber">CAC RC Number</Label>
+                <Input
+                  id="rcNumber"
+                  placeholder="e.g., RC1234567"
+                  {...register('rcNumber')}
+                  error={errors.rcNumber?.message}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Shown on invoice PDFs to comply with CAC/CAMA 2020 business-letter requirements.
+                </p>
               </div>
             </CardContent>
           </Card>

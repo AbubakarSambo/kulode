@@ -84,4 +84,10 @@ export class UpdateOrganizationDto {
   @IsString()
   @MaxLength(50)
   organizationSize?: string;
+
+  @ApiPropertyOptional({ example: 'RC1234567', description: 'CAC registration number' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  rcNumber?: string;
 }

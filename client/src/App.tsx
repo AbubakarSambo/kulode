@@ -44,6 +44,7 @@ import {
   CategoriesPage,
   ServiceItemsPage,
   OrganizationPage,
+  DirectorsPage,
   PaymentCallbackPage,
   PublicInvoicePage,
   ShortLinkRedirectPage,
@@ -196,6 +197,7 @@ function App() {
               {/* Settings */}
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/settings/organization" element={<OrganizationPage />} />
+              <Route path="/settings/directors" element={<DirectorsPage />} />
               <Route path="/settings/users" element={<UsersPage />} />
               <Route path="/settings/billing" element={<BillingPage />} />
               <Route path="/settings/paystack" element={<PaystackPage />} />

@@ -1,7 +1,7 @@
 import { Header } from '@/components/layout'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui'
 import { Link } from 'react-router-dom'
-import { Building, Users, CreditCard, Tags, Sparkles } from 'lucide-react'
+import { Building, Users, CreditCard, Tags, Sparkles, UserCog } from 'lucide-react'
 import { useSubscription } from '@/hooks/useSubscription'
 import { useOverscrollBounce } from '@/hooks'
 
@@ -15,6 +15,12 @@ export function SettingsPage() {
       description: 'Update your business information',
       icon: Building,
       href: '/settings/organization',
+    },
+    {
+      title: 'Directors',
+      description: 'Manage CAC-registered directors for invoices',
+      icon: UserCog,
+      href: '/settings/directors',
     },
     {
       title: 'Users',
