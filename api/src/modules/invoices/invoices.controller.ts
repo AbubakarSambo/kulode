@@ -207,6 +207,62 @@ export class InvoicesController {
     res.send(pdfBuffer);
   }
 
+  @Get(':id/png')
+  @ApiOperation({ summary: 'Download invoice as PNG' })
+  @ApiResponse({ status: 200, description: 'PNG file' })
+  @ApiResponse({ status: 404, description: 'Invoice not found' })
+  @ApiProduces('image/png')
+  async downloadPng(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('organizationId') organizationId: string,
+    @Res() res: Response,
+  ) {
+    let invoice = await this.invoicesService.findOneWithOrganization(id, organizationId);
+
+    // Generate payment links for unpaid installments. Skipped for DRAFT invoices —
+    // downloading a preview shouldn't have the side effect of sending the invoice
+    // (auto-generating a link on a DRAFT invoice transitions it to SENT and emails the client).
+    const balanceDue = invoice.total - invoice.amountPaid;
+    if (invoice.status !== 'DRAFT' && balanceDue > 0 && invoice.client.email) {
+      try {
+        if (invoice.installments && invoice.installments.length > 0) {
+          for (const inst of invoice.installments) {
+            if (!inst.isPaid && !inst.paymentUrl) {
+              await this.paystackService.initializeInstallmentTransaction(
+                organizationId,
+                id,
+                inst.id,
+                invoice.client.email,
+                inst.amount,
+              );
+            }
+          }
+          invoice = await this.invoicesService.findOneWithOrganization(id, organizationId);
+        } else if (!invoice.paymentUrl) {
+          await this.paystackService.initializeTransaction(
+            organizationId,
+            id,
+            invoice.client.email,
+            balanceDue,
+          );
+          invoice = await this.invoicesService.findOneWithOrganization(id, organizationId);
+        }
+      } catch (error) {
+        console.error('Failed to generate payment link for PNG:', error);
+      }
+    }
+
+    const pngBuffer = await this.invoicePdfService.generatePng(invoice as any);
+
+    res.set({
+      'Content-Type': 'image/png',
+      'Content-Disposition': `attachment; filename="${invoice.invoiceNumber}.png"`,
+      'Content-Length': pngBuffer.length,
+    });
+
+    res.send(pngBuffer);
+  }
+
   @Post(':id/share')
   @ApiOperation({ summary: 'Generate or get share token for invoice' })
   @ApiResponse({ status: 200, description: 'Share token' })
@@ -317,6 +373,60 @@ export class InvoicesController {
     });
 
     res.send(pdfBuffer);
+  }
+
+  @Get('public/:token/png')
+  @Public()
+  @ApiOperation({ summary: 'Download invoice PNG by share token' })
+  @ApiResponse({ status: 200, description: 'PNG file' })
+  @ApiResponse({ status: 404, description: 'Invoice not found' })
+  @ApiProduces('image/png')
+  async downloadPublicPng(
+    @Param('token') token: string,
+    @Res() res: Response,
+  ) {
+    let invoice = await this.invoicesService.findByShareToken(token);
+
+    // Generate payment links for unpaid installments
+    const balanceDue = invoice.total - invoice.amountPaid;
+    if (balanceDue > 0 && invoice.client.email) {
+      try {
+        if (invoice.installments && invoice.installments.length > 0) {
+          for (const inst of invoice.installments) {
+            if (!inst.isPaid && !inst.paymentUrl) {
+              await this.paystackService.initializeInstallmentTransaction(
+                invoice.organizationId,
+                invoice.id,
+                inst.id,
+                invoice.client.email,
+                inst.amount,
+              );
+            }
+          }
+          invoice = await this.invoicesService.findByShareToken(token);
+        } else if (!invoice.paymentUrl) {
+          await this.paystackService.initializeTransaction(
+            invoice.organizationId,
+            invoice.id,
+            invoice.client.email,
+            balanceDue,
+          );
+          invoice = await this.invoicesService.findByShareToken(token);
+        }
+      } catch (error) {
+        console.error('Failed to generate payment link for public PNG:', error);
+      }
+    }
+
+    const pngBuffer = await this.invoicePdfService.generatePng(invoice as any);
+
+    res.set({
+      'Content-Type': 'image/png',
+      'Content-Disposition': `attachment; filename="${invoice.invoiceNumber}.png"`,
+      'Content-Length': pngBuffer.length,
+    });
+
+    res.send(pngBuffer);
   }
 }
 
