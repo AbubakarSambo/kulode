@@ -24,7 +24,7 @@ async function bootstrap() {
   app.enableCors({
     origin: !allowedOrigins
       ? true
-      : (origin, callback) => {
+      : (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
           if (!origin || staticOrigins.includes(origin) || vercelPreviewPattern.test(origin)) {
             return callback(null, true);
           }
