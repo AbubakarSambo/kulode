@@ -375,23 +375,23 @@ export function InvoiceDetailPage() {
   const canGenerateLink = invoice.status !== 'CANCELLED' && invoice.status !== 'PAID' && !hasInstallments
   const hasPaymentLink = !!invoice.paymentUrl || hasInstallments
 
-  const downloadPdf = async () => {
+  const downloadInvoiceFile = async (format: 'pdf' | 'png') => {
     try {
-      const response = await apiClient.get(`/invoices/${id}/pdf`, {
+      const response = await apiClient.get(`/invoices/${id}/${format}`, {
         responseType: 'blob',
       })
-      const blob = new Blob([response.data], { type: 'application/pdf' })
+      const blob = new Blob([response.data], { type: format === 'pdf' ? 'application/pdf' : 'image/png' })
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `${invoice.invoiceNumber}.pdf`
+      link.download = `${invoice.invoiceNumber}.${format}`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
-      posthog.capture('invoice_pdf_downloaded', { invoice_id: id })
+      posthog.capture(`invoice_${format}_downloaded`, { invoice_id: id })
     } catch {
-      toast.error('Failed to download PDF')
+      toast.error(`Failed to download ${format.toUpperCase()}`)
     }
   }
 
@@ -705,13 +705,21 @@ export function InvoiceDetailPage() {
                 Record Payment
               </Button>
             )}
-            <Button 
-              variant="outline" 
-              onClick={downloadPdf} 
+            <Button
+              variant="outline"
+              onClick={() => downloadInvoiceFile('pdf')}
               className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors text-xs font-semibold"
             >
               <HugeiconsIcon icon={Download02Icon} size={16} className="mr-2" strokeWidth={1.5} />
               PDF
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => downloadInvoiceFile('png')}
+              className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors text-xs font-semibold"
+            >
+              <HugeiconsIcon icon={Download02Icon} size={16} className="mr-2" strokeWidth={1.5} />
+              PNG
             </Button>
             {invoice.status !== 'DRAFT' && (
               <Button 
@@ -1220,13 +1228,30 @@ export function InvoiceDetailPage() {
             <span className="bg-slate-900/80 text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-sm">
               Download PDF
             </span>
-            <button 
+            <button
               onClick={() => {
                 setIsFabMenuOpen(false)
-                downloadPdf()
-              }} 
+                downloadInvoiceFile('pdf')
+              }}
               className="w-11 h-11 rounded-full bg-slate-800 text-white flex items-center justify-center shadow-md active:scale-95 transition-transform cursor-pointer border-0"
               aria-label="Download PDF"
+            >
+              <HugeiconsIcon icon={Download02Icon} size={16} strokeWidth={1.5} />
+            </button>
+          </div>
+
+          {/* Action: Download PNG */}
+          <div className="flex items-center gap-2.5">
+            <span className="bg-slate-900/80 text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-sm">
+              Download PNG
+            </span>
+            <button
+              onClick={() => {
+                setIsFabMenuOpen(false)
+                downloadInvoiceFile('png')
+              }}
+              className="w-11 h-11 rounded-full bg-slate-800 text-white flex items-center justify-center shadow-md active:scale-95 transition-transform cursor-pointer border-0"
+              aria-label="Download PNG"
             >
               <HugeiconsIcon icon={Download02Icon} size={16} strokeWidth={1.5} />
             </button>

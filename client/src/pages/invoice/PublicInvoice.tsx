@@ -264,23 +264,23 @@ export function PublicInvoicePage() {
     }
   }
 
-  const downloadPdf = async () => {
+  const downloadInvoiceFile = async (format: 'pdf' | 'png') => {
     try {
-      const response = await apiClient.get(`/invoices/public/${token}/pdf`, {
+      const response = await apiClient.get(`/invoices/public/${token}/${format}`, {
         responseType: 'blob',
       })
-      const blob = new Blob([response.data], { type: 'application/pdf' })
+      const blob = new Blob([response.data], { type: format === 'pdf' ? 'application/pdf' : 'image/png' })
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `${invoice?.invoiceNumber || 'invoice'}.pdf`
+      link.download = `${invoice?.invoiceNumber || 'invoice'}.${format}`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
-      posthog.capture('public_invoice_pdf_downloaded', { invoice_number: invoice?.invoiceNumber })
+      posthog.capture(`public_invoice_${format}_downloaded`, { invoice_number: invoice?.invoiceNumber })
     } catch (error) {
-      console.error('Failed to download PDF', error)
+      console.error(`Failed to download ${format.toUpperCase()}`, error)
     }
   }
 
@@ -364,11 +364,20 @@ export function PublicInvoicePage() {
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
               <button
                 type="button"
-                onClick={downloadPdf}
+                onClick={() => downloadInvoiceFile('pdf')}
                 className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-bold text-slate-600 bg-white hover:bg-slate-50 border border-slate-200 cursor-pointer transition-colors"
               >
                 <HugeiconsIcon icon={Download02Icon} className="h-3.5 w-3.5" />
                 {isPaid ? 'Receipt' : 'PDF'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => downloadInvoiceFile('png')}
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-bold text-slate-600 bg-white hover:bg-slate-50 border border-slate-200 cursor-pointer transition-colors"
+              >
+                <HugeiconsIcon icon={Download02Icon} className="h-3.5 w-3.5" />
+                PNG
               </button>
 
               {invoice.paymentUrl && !isPaid && !isCancelled && !hasInstallments && (
