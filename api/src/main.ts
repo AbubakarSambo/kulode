@@ -16,10 +16,20 @@ async function bootstrap() {
   // Global prefix
   app.setGlobalPrefix('api/v1');
 
-  // CORS - allow configured origins or all in development
+  // CORS - allow configured origins (plus this project's Vercel previews) or all in development
   const allowedOrigins = configService.get<string>('app.corsOrigins');
+  const staticOrigins = allowedOrigins ? allowedOrigins.split(',') : [];
+  const vercelPreviewPattern = /^https:\/\/kulode-sd1f-[a-z0-9-]+-abubakar-sambos-projects\.vercel\.app$/;
+
   app.enableCors({
-    origin: allowedOrigins ? allowedOrigins.split(',') : true,
+    origin: !allowedOrigins
+      ? true
+      : (origin, callback) => {
+          if (!origin || staticOrigins.includes(origin) || vercelPreviewPattern.test(origin)) {
+            return callback(null, true);
+          }
+          callback(new Error(`Origin ${origin} not allowed by CORS`));
+        },
     credentials: true,
   });
 
