@@ -65,13 +65,15 @@ export class PaystackService {
   private readonly callbackUrl: string;
   public readonly publicKey: string;
 
-  // Fixed platform split percentage for vendor payouts (Option B: subaccount + split).
-  // The vendor subaccount's percentage_charge is set to this value, and the amount charged
-  // to the paying customer is grossed up by the same percentage, so the vendor's share of
-  // the split still equals the exact requested payout amount. This margin must always be
-  // set to a genuine non-zero value: a 0% main-account split silently shifts Paystack's
-  // transaction fee onto the vendor's share instead of the platform's, regardless of the
-  // `bearer` setting passed at transaction/initialize time.
+  // Fallback platform split percentage set on the vendor subaccount at creation time.
+  // Real vendor payouts override this per-transaction via `transaction_charge` (see
+  // initializeVendorPayout), computed to exactly cover Paystack's actual fee for that
+  // specific amount — a fixed percentage alone isn't reliable, since Paystack's fee has a
+  // flat +₦100 component above ₦2,500 that a flat percentage margin can fall short of at
+  // realistic payout amounts. This constant only matters as a safety default for this
+  // subaccount if a charge is ever initialized without an explicit transaction_charge, and
+  // must stay non-zero: a 0% main-account split silently shifts Paystack's transaction fee
+  // onto the vendor's share instead of the platform's, regardless of `bearer`.
   private readonly VENDOR_PAYOUT_PLATFORM_SPLIT_PERCENT = 2;
 
   constructor(
@@ -364,17 +366,6 @@ export class PaystackService {
     return Math.round(gross * 100) / 100;
   }
 
-  /**
-   * Grosses up the amount charged to the paying customer for a vendor payout so that, after
-   * the vendor subaccount's split (VENDOR_PAYOUT_PLATFORM_SPLIT_PERCENT held back for the
-   * platform), the vendor's share of the settlement equals the exact requested payout amount.
-   */
-  calculateVendorPayoutGrossAmount(netAmount: number): number {
-    const platformShare = this.VENDOR_PAYOUT_PLATFORM_SPLIT_PERCENT / 100;
-    const gross = netAmount / (1 - platformShare);
-    return Math.round(gross * 100) / 100;
-  }
-
   async initializeTransaction(
     organizationId: string,
     invoiceId: string,
@@ -631,7 +622,17 @@ export class PaystackService {
     }
 
     const reference = `VNDPAY-${vendor.id.slice(0, 8)}-${Date.now()}`;
-    const grossAmount = this.calculateVendorPayoutGrossAmount(amount);
+
+    // Gross up using the exact same fee formula already proven correct for inbound invoice
+    // collection — solves for the gross amount such that Paystack's actual fee, once deducted,
+    // leaves precisely `amount` behind. A flat percentage margin isn't reliable here: Paystack's
+    // fee has a flat +₦100 component above ₦2,500 that a fixed percentage can fall short of at
+    // realistic payout amounts (confirmed in production — see 2026-07-14 incident).
+    const grossAmount = this.calculateGrossAmount(amount);
+    const feeAmount = grossAmount - amount;
+    // Small buffer against kobo-level rounding, so the main account's cut never rounds negative.
+    const FEE_BUFFER = 1;
+    const mainAccountChargeKobo = Math.round((feeAmount + FEE_BUFFER) * 100);
 
     let authorization_url = `http://localhost:5173/payment/callback?reference=${reference}`;
 
@@ -646,6 +647,10 @@ export class PaystackService {
         reference,
         callback_url: this.callbackUrl,
         subaccount: vendor.paystackSubaccountCode,
+        // Overrides the subaccount's default percentage_charge for this specific transaction,
+        // so the main account's split share is always exactly enough to cover the real fee for
+        // this amount, rather than a flat percentage that only works below the ₦2,500 threshold.
+        transaction_charge: mainAccountChargeKobo,
         bearer: 'account',
         channels: ['bank_transfer', 'bank'],
         metadata: {
