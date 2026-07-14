@@ -87,6 +87,12 @@ enum TaxCategory {
   UNCATEGORIZED
 }
 
+enum PaystackSubaccountStatus {
+  PENDING
+  ACTIVE
+  FAILED
+}
+
 // Organizations (tenants)
 model Organization {
   id        String   @id @default(uuid())
@@ -441,6 +447,12 @@ model Expense {
   taxCategory    TaxCategory   @default(UNCATEGORIZED) @map("tax_category")
   isDeductible   Boolean       @default(true) @map("is_deductible")
 
+  // Auto-recorded via vendor payout webhook
+  isAutoRecorded    Boolean  @default(false) @map("is_auto_recorded")
+  paystackReference String?  @unique @map("paystack_reference")
+  paystackFees      Decimal? @map("paystack_fees") @db.Decimal(12, 2)
+  netAmount         Decimal? @map("net_amount") @db.Decimal(12, 2)
+
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
@@ -541,6 +553,12 @@ model Vendor {
   bankAccountNumber String? @map("bank_account_number")
   bankName          String? @map("bank_name")
   isActive          Boolean @default(true) @map("is_active")
+
+  // Paystack payout integration
+  bankCode                 String?                   @map("bank_code")
+  isBankVerified           Boolean                   @default(false) @map("is_bank_verified")
+  paystackSubaccountCode   String?                   @map("paystack_subaccount_code")
+  paystackSubaccountStatus PaystackSubaccountStatus? @map("paystack_subaccount_status")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

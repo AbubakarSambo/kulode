@@ -65,5 +65,19 @@ export class PlatformController {
   ) {
     return this.platformService.updateOrganization(id, dto);
   }
+
+  @Get('vendor-payouts/pending')
+  @ApiOperation({ summary: 'List vendor subaccounts across all organizations awaiting manual Paystack review' })
+  @ApiResponse({ status: 200, description: 'Pending/failed vendor subaccounts' })
+  async getPendingVendorPayouts() {
+    return this.platformService.getPendingVendorPayouts();
+  }
+
+  @Patch('vendor-payouts/:vendorId/activate')
+  @ApiOperation({ summary: 'Mark a vendor subaccount ACTIVE after manually verifying it in the Paystack Dashboard' })
+  @ApiResponse({ status: 200, description: 'Vendor payout status updated' })
+  async activateVendorPayout(@Param('vendorId') vendorId: string) {
+    return this.platformService.activateVendorPayout(vendorId);
+  }
 }
 

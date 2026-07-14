@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Search, Lock } from 'lucide-react'
 import { Header } from '@/components/layout'
@@ -404,6 +404,15 @@ function ExpenseForm({ expenseId }: { expenseId?: string }) {
                       setValue('recipient', rec)
                     }}
                   />
+                  {vendorId && vendors.find((v) => v.id === vendorId)?.paystackSubaccountStatus === 'ACTIVE' && (
+                    <p className="text-xs text-muted-foreground">
+                      This vendor has payouts set up —{' '}
+                      <Link to={`/vendors/${vendorId}`} className="text-primary hover:underline">
+                        pay them directly from their vendor page
+                      </Link>{' '}
+                      instead of just recording an expense.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="reference">Reference</Label>

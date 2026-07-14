@@ -1,13 +1,16 @@
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import { CheckCircle } from 'lucide-react'
+import { AxiosError } from 'axios'
 import { Header } from '@/components/layout'
-import { Button, Input, Label, Textarea, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
+import { Button, Input, Label, Textarea, Card, CardContent, CardHeader, CardTitle, SearchableSelect } from '@/components/ui'
 import { PhoneInput } from '@/components/ui/phone-input'
-import { vendorsApi } from '@/api'
+import { vendorsApi, paystackApi } from '@/api'
 import { posthog } from '@/lib/posthog'
 import { useOverscrollBounce } from '@/hooks'
 
@@ -18,7 +21,7 @@ const vendorSchema = z.object({
   phone: z.string().optional(),
   email: z.string().email('Invalid email').optional().or(z.literal('')),
   bankAccountNumber: z.string().optional(),
-  bankName: z.string().optional(),
+  bankCode: z.string().optional(),
 })
 
 type VendorFormData = z.infer<typeof vendorSchema>
@@ -33,6 +36,8 @@ function VendorFormPage({ mode = 'create', initialData }: VendorFormPageProps) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const isEdit = mode === 'edit'
+
+  const [verifiedName, setVerifiedName] = useState<string | null>(null)
 
   const {
     register,
@@ -49,7 +54,30 @@ function VendorFormPage({ mode = 'create', initialData }: VendorFormPageProps) {
       phone: '',
       email: '',
       bankAccountNumber: '',
-      bankName: '',
+      bankCode: '',
+    },
+  })
+
+  const bankCode = watch('bankCode')
+  const bankAccountNumber = watch('bankAccountNumber') ?? ''
+
+  const { data: banks, isLoading: banksLoading } = useQuery({
+    queryKey: ['paystack-banks'],
+    queryFn: () => paystackApi.getBanks(),
+  })
+
+  const verifyMutation = useMutation({
+    mutationFn: () => paystackApi.verifyAccount({ accountNumber: bankAccountNumber, bankCode: bankCode! }),
+    onSuccess: (data) => {
+      setVerifiedName(data.account_name)
+      toast.success('Account verified', { description: data.account_name })
+    },
+    onError: (err) => {
+      const error = err as AxiosError<{ message?: string }>
+      setVerifiedName(null)
+      toast.error('Verification failed', {
+        description: error.response?.data?.message || 'Could not verify account',
+      })
     },
   })
 
@@ -61,7 +89,7 @@ function VendorFormPage({ mode = 'create', initialData }: VendorFormPageProps) {
       contactPerson: data.contactPerson || undefined,
       phone: data.phone || undefined,
       bankAccountNumber: data.bankAccountNumber || undefined,
-      bankName: data.bankName || undefined,
+      bankCode: data.bankCode || undefined,
     }),
     onSuccess: (vendor) => {
       queryClient.invalidateQueries({ queryKey: ['vendors'] })
@@ -84,7 +112,7 @@ function VendorFormPage({ mode = 'create', initialData }: VendorFormPageProps) {
       contactPerson: data.contactPerson || undefined,
       phone: data.phone || undefined,
       bankAccountNumber: data.bankAccountNumber || undefined,
-      bankName: data.bankName || undefined,
+      bankCode: data.bankCode || undefined,
     }),
     onSuccess: (vendor) => {
       queryClient.invalidateQueries({ queryKey: ['vendors'] })
@@ -193,28 +221,59 @@ function VendorFormPage({ mode = 'create', initialData }: VendorFormPageProps) {
           <Card>
             <CardHeader>
               <CardTitle>Bank Details</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Optional — add and verify a bank account to enable paying this vendor directly from the Expenses tab.
+              </p>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="bankName">Bank Name</Label>
-                  <Input
-                    id="bankName"
-                    placeholder="First Bank"
-                    {...register('bankName')}
-                    error={errors.bankName?.message}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="bankAccountNumber">Account Number</Label>
+              <div className="space-y-2">
+                <Label htmlFor="bankCode">Bank</Label>
+                <SearchableSelect
+                  id="bankCode"
+                  options={banks ? banks.map((b) => ({ id: b.code, label: b.name })) : []}
+                  value={bankCode ?? ''}
+                  onChange={(val) => {
+                    setValue('bankCode', val, { shouldValidate: true })
+                    setVerifiedName(null)
+                  }}
+                  placeholder="Choose a bank"
+                  disabled={banksLoading}
+                  error={errors.bankCode?.message}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bankAccountNumber">Account Number</Label>
+                <div className="flex gap-3">
                   <Input
                     id="bankAccountNumber"
-                    placeholder="0123456789"
-                    {...register('bankAccountNumber')}
+                    placeholder="0123456789 (10 digits)"
+                    maxLength={10}
+                    {...register('bankAccountNumber', {
+                      onChange: () => setVerifiedName(null),
+                    })}
                     error={errors.bankAccountNumber?.message}
                   />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => verifyMutation.mutate()}
+                    disabled={!bankCode || bankAccountNumber.length !== 10}
+                    isLoading={verifyMutation.isPending}
+                  >
+                    Verify
+                  </Button>
                 </div>
               </div>
+
+              {verifiedName && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                  <p className="flex items-center gap-2 text-sm text-emerald-700 font-medium">
+                    <CheckCircle className="h-4 w-4 shrink-0" />
+                    Account Verified: {verifiedName}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -272,7 +331,7 @@ export function EditVendorPage() {
         phone: vendor.phone || '',
         email: vendor.email || '',
         bankAccountNumber: vendor.bankAccountNumber || '',
-        bankName: vendor.bankName || '',
+        bankCode: vendor.bankCode || '',
       }}
     />
   )

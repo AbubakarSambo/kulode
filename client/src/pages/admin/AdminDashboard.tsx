@@ -199,7 +199,7 @@ export function AdminDashboardPage() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'organizations' | 'revenue'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'organizations' | 'revenue' | 'vendorPayouts'>('overview')
   const [periodFilter, setPeriodFilter] = useState<'current_month' | 'last_30_days' | 'last_90_days' | 'ytd'>('current_month')
 
   const getComparisonLabel = (filter: typeof periodFilter) => {
@@ -315,9 +315,30 @@ export function AdminDashboardPage() {
     enabled: !!user?.isPlatformAdmin && activeTab === 'revenue',
   })
 
+  // Pending Vendor Payouts Query (Paystack subaccounts awaiting manual review)
+  const queryClient = useQueryClient()
+  const { data: pendingVendorPayouts, isLoading: isLoadingVendorPayouts } = useQuery({
+    queryKey: ['platform', 'vendor-payouts', 'pending'],
+    queryFn: () => platformApi.getPendingVendorPayouts(),
+    enabled: !!user?.isPlatformAdmin && activeTab === 'vendorPayouts',
+  })
+
+  const activateVendorPayoutMutation = useMutation({
+    mutationFn: (vendorId: string) => platformApi.activateVendorPayout(vendorId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['platform', 'vendor-payouts', 'pending'] })
+      toast.success('Vendor payout activated', { description: 'Payouts resume starting the next day.' })
+    },
+    onError: (error: any) => {
+      toast.error('Failed to activate vendor payout', {
+        description: error.response?.data?.message || 'Please try again',
+      })
+    },
+  })
+
   if (!user?.isPlatformAdmin) return null
 
-  const handleTabChange = (tab: 'overview' | 'organizations' | 'revenue') => {
+  const handleTabChange = (tab: 'overview' | 'organizations' | 'revenue' | 'vendorPayouts') => {
     setActiveTab(tab)
   }
 
@@ -350,7 +371,7 @@ export function AdminDashboardPage() {
       {/* Tabs Navigation */}
       <div className="px-6 border-b border-slate-200/50 bg-white">
         <div className="flex gap-6">
-          {(['overview', 'organizations', 'revenue'] as const).map((tab) => (
+          {(['overview', 'organizations', 'revenue', 'vendorPayouts'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => handleTabChange(tab)}
@@ -363,6 +384,7 @@ export function AdminDashboardPage() {
               {tab === 'overview' && 'Overview'}
               {tab === 'organizations' && 'Organizations'}
               {tab === 'revenue' && 'Revenue & Billing'}
+              {tab === 'vendorPayouts' && 'Vendor Payouts'}
               {activeTab === tab && (
                 <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0037b0] rounded-full" />
               )}
@@ -1267,6 +1289,84 @@ export function AdminDashboardPage() {
               </div>
             ) : null}
           </>
+        )}
+
+        {/* VENDOR PAYOUTS TAB */}
+        {activeTab === 'vendorPayouts' && (
+          <div className="space-y-6">
+            <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.02)] rounded-3xl bg-[#fffbeb] border border-amber-200/60">
+              <CardContent className="p-4 sm:p-6">
+                <p className="text-xs font-semibold text-amber-800">
+                  Paystack holds a new vendor subaccount's first payout indefinitely pending manual review — there's no webhook or API field for when that clears.
+                  Verify each one below in the Paystack Dashboard, then mark it active here. Payouts only resume starting the next day after verification.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.02)] rounded-3xl bg-white overflow-hidden">
+              <CardContent className="p-0">
+                {isLoadingVendorPayouts ? (
+                  <div className="flex items-center justify-center py-20">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#0037b0] border-t-transparent" />
+                      <p className="text-xs text-slate-500 font-semibold">Loading pending vendor payouts...</p>
+                    </div>
+                  </div>
+                ) : pendingVendorPayouts && pendingVendorPayouts.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-[#f8f9ff]/80 text-[10px] font-semibold uppercase tracking-wider text-[#434655]">
+                          <th className="px-6 py-4">Vendor</th>
+                          <th className="px-6 py-4">Organization</th>
+                          <th className="px-6 py-4">Bank Details</th>
+                          <th className="px-6 py-4">Subaccount Code</th>
+                          <th className="px-6 py-4">Status</th>
+                          <th className="px-6 py-4">Added</th>
+                          <th className="px-6 py-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pendingVendorPayouts.map((vendor) => (
+                          <tr key={vendor.id} className="border-t border-slate-100">
+                            <td className="px-6 py-4 text-sm font-semibold text-[#121c28]">{vendor.name}</td>
+                            <td className="px-6 py-4 text-sm text-slate-600">{vendor.organization.name}</td>
+                            <td className="px-6 py-4 text-xs text-slate-500">
+                              {vendor.bankName} — {vendor.bankAccountNumber}
+                            </td>
+                            <td className="px-6 py-4 text-xs font-mono text-slate-500">{vendor.paystackSubaccountCode}</td>
+                            <td className="px-6 py-4">
+                              <Badge variant={vendor.paystackSubaccountStatus === 'FAILED' ? 'destructive' : 'secondary'} className="text-[9px] px-2 py-0.5">
+                                {vendor.paystackSubaccountStatus}
+                              </Badge>
+                            </td>
+                            <td className="px-6 py-4 text-xs text-slate-500">
+                              {new Date(vendor.createdAt).toLocaleDateString()}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => activateVendorPayoutMutation.mutate(vendor.id)}
+                                isLoading={activateVendorPayoutMutation.isPending}
+                                className="min-h-[36px]"
+                              >
+                                Mark Active
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center py-20">
+                    <p className="text-xs text-slate-500 font-semibold">No vendor subaccounts pending review</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         )}
       </div>
 

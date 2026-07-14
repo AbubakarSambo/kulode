@@ -42,6 +42,9 @@ export interface PaystackTransaction {
     organization_id?: string;
     plan_tier?: string;
     billing_period?: string;
+    vendor_id?: string;
+    user_id?: string;
+    requested_amount?: number;
   };
   authorization?: {
     authorization_code: string;
@@ -61,6 +64,15 @@ export class PaystackService {
   private readonly secretKey: string;
   private readonly callbackUrl: string;
   public readonly publicKey: string;
+
+  // Fixed platform split percentage for vendor payouts (Option B: subaccount + split).
+  // The vendor subaccount's percentage_charge is set to this value, and the amount charged
+  // to the paying customer is grossed up by the same percentage, so the vendor's share of
+  // the split still equals the exact requested payout amount. This margin must always be
+  // set to a genuine non-zero value: a 0% main-account split silently shifts Paystack's
+  // transaction fee onto the vendor's share instead of the platform's, regardless of the
+  // `bearer` setting passed at transaction/initialize time.
+  private readonly VENDOR_PAYOUT_PLATFORM_SPLIT_PERCENT = 2;
 
   constructor(
     private configService: ConfigService,
@@ -238,6 +250,99 @@ export class PaystackService {
     return { success: true };
   }
 
+  /**
+   * Provisions a Paystack subaccount for a vendor so vendor payouts can be routed to it via
+   * transaction split (Option B: subaccount + split, not a debit-then-transfer pass-through).
+   * `percentage_charge` is intentionally non-zero — see VENDOR_PAYOUT_PLATFORM_SPLIT_PERCENT.
+   */
+  async createVendorSubaccount(vendorId: string, organizationId: string) {
+    const vendor = await this.prisma.vendor.findFirst({
+      where: { id: vendorId, organizationId },
+    });
+
+    if (!vendor) {
+      throw new BadRequestException('Vendor not found');
+    }
+
+    if (!vendor.bankCode || !vendor.bankAccountNumber) {
+      throw new BadRequestException('Vendor is missing bank details');
+    }
+
+    // Verify the account before provisioning a subaccount for it
+    const verification = await this.verifyBankAccount({
+      accountNumber: vendor.bankAccountNumber,
+      bankCode: vendor.bankCode,
+    });
+
+    let subaccountCode = vendor.paystackSubaccountCode;
+    let status: 'PENDING' | 'ACTIVE' | 'FAILED' = 'PENDING';
+    const isNewSubaccount = !subaccountCode;
+
+    if (this.isMockMode) {
+      if (!subaccountCode) {
+        subaccountCode = 'ACCT_VND_MOCK_' + Math.random().toString(36).substring(7).toUpperCase();
+      }
+      // In mock mode there's no real dashboard-approval gate to wait on
+      status = 'ACTIVE';
+    } else {
+      if (subaccountCode) {
+        await this.makeRequest<any>(`/subaccount/${subaccountCode}`, 'PUT', {
+          settlement_bank: vendor.bankCode,
+          account_number: vendor.bankAccountNumber,
+          percentage_charge: this.VENDOR_PAYOUT_PLATFORM_SPLIT_PERCENT,
+        });
+      } else {
+        const subaccount = await this.makeRequest<PaystackSubaccount>('/subaccount', 'POST', {
+          business_name: vendor.name,
+          bank_code: vendor.bankCode,
+          account_number: vendor.bankAccountNumber,
+          percentage_charge: this.VENDOR_PAYOUT_PLATFORM_SPLIT_PERCENT,
+        });
+        subaccountCode = subaccount.subaccount_code;
+      }
+    }
+
+    await this.prisma.vendor.update({
+      where: { id: vendorId },
+      data: {
+        bankAccountNumber: vendor.bankAccountNumber,
+        bankName: verification.account_name,
+        isBankVerified: true,
+        paystackSubaccountCode: subaccountCode,
+        paystackSubaccountStatus: status,
+      },
+    });
+
+    if (!this.isMockMode) {
+      this.logger.warn(
+        `[ACTION REQUIRED] New Paystack subaccount created (${subaccountCode}) for vendor "${vendor.name}". ` +
+        `A brand-new subaccount's first payout is held by Paystack pending manual review — confirm activation in the ` +
+        `Paystack Dashboard before relying on same-day payouts to this vendor.`,
+      );
+
+      if (isNewSubaccount) {
+        const opsEmail = this.configService.get<string>('app.platformOpsEmail');
+        if (opsEmail) {
+          const organization = await this.prisma.organization.findUnique({
+            where: { id: organizationId },
+            select: { name: true },
+          });
+          this.emailService
+            .sendVendorPayoutReviewNeededEmail(opsEmail, vendor.name, organization?.name ?? organizationId, subaccountCode!)
+            .catch((err) => this.logger.error(`Failed to send vendor payout review email: ${err.message}`));
+        } else {
+          this.logger.warn('PLATFORM_OPS_EMAIL is not set — no ops notification sent for this new vendor subaccount.');
+        }
+      }
+    }
+
+    return {
+      subaccountCode,
+      accountName: verification.account_name,
+      status,
+    };
+  }
+
   calculateGrossAmount(netAmount: number): number {
     // Paystack local fee: 1.5% + NGN 100.
     // NGN 100 flat fee is waived if the gross amount is under NGN 2,500.
@@ -256,6 +361,17 @@ export class PaystackService {
     if (fee > 2000) {
       gross = netAmount + 2000;
     }
+    return Math.round(gross * 100) / 100;
+  }
+
+  /**
+   * Grosses up the amount charged to the paying customer for a vendor payout so that, after
+   * the vendor subaccount's split (VENDOR_PAYOUT_PLATFORM_SPLIT_PERCENT held back for the
+   * platform), the vendor's share of the settlement equals the exact requested payout amount.
+   */
+  calculateVendorPayoutGrossAmount(netAmount: number): number {
+    const platformShare = this.VENDOR_PAYOUT_PLATFORM_SPLIT_PERCENT / 100;
+    const gross = netAmount / (1 - platformShare);
     return Math.round(gross * 100) / 100;
   }
 
@@ -482,6 +598,71 @@ export class PaystackService {
       this.logger.error(`chargeAuthorization failed for ref ${reference}`, error);
       return { success: false, reference };
     }
+  }
+
+  /**
+   * Initializes a vendor payout (Option B: subaccount + split). The paying organization
+   * authorizes a fresh per-transaction checkout (bank transfer / pay-with-bank) — there is no
+   * stored mandate — and the split routes the vendor's exact requested amount straight to
+   * their subaccount via Paystack's own settlement, so the principal never lands in Kulode's
+   * balance.
+   */
+  async initializeVendorPayout(
+    organizationId: string,
+    vendorId: string,
+    amount: number,
+    userId: string,
+    userEmail: string,
+  ): Promise<{ paymentUrl: string; reference: string }> {
+    const vendor = await this.prisma.vendor.findFirst({
+      where: { id: vendorId, organizationId },
+    });
+
+    if (!vendor) {
+      throw new BadRequestException('Vendor not found');
+    }
+
+    if (!vendor.paystackSubaccountCode || vendor.paystackSubaccountStatus !== 'ACTIVE') {
+      throw new BadRequestException('Vendor is not yet set up for payouts');
+    }
+
+    if (amount <= 0) {
+      throw new BadRequestException('Amount must be greater than 0');
+    }
+
+    const reference = `VNDPAY-${vendor.id.slice(0, 8)}-${Date.now()}`;
+    const grossAmount = this.calculateVendorPayoutGrossAmount(amount);
+
+    let authorization_url = `http://localhost:5173/payment/callback?reference=${reference}`;
+
+    if (!this.isMockMode) {
+      const result = await this.makeRequest<{
+        authorization_url: string;
+        access_code: string;
+        reference: string;
+      }>('/transaction/initialize', 'POST', {
+        email: userEmail,
+        amount: Math.round(grossAmount * 100), // Convert to kobo
+        reference,
+        callback_url: this.callbackUrl,
+        subaccount: vendor.paystackSubaccountCode,
+        bearer: 'account',
+        channels: ['bank_transfer', 'bank'],
+        metadata: {
+          type: 'vendor_payout',
+          vendor_id: vendorId,
+          organization_id: organizationId,
+          user_id: userId,
+          requested_amount: amount,
+        },
+      });
+      authorization_url = result.authorization_url;
+    }
+
+    return {
+      paymentUrl: authorization_url,
+      reference,
+    };
   }
 
   verifyWebhookSignature(payload: string, signature: string): boolean {
@@ -815,6 +996,74 @@ export class PaystackService {
     }
   }
 
+  /**
+   * Reconciles a vendor payout (Option B) on `charge.success` by creating the corresponding
+   * Expense row directly — there is no separate transfer step to wait on, since the split
+   * routed the vendor's share via Paystack's own settlement as part of this same transaction.
+   */
+  async reconcileVendorPayout(reference: string, data: {
+    amount: number;
+    paid_at: string;
+    fees: number;
+    metadata?: PaystackTransaction['metadata'];
+  }) {
+    const existing = await this.prisma.expense.findFirst({
+      where: { paystackReference: reference },
+    });
+
+    if (existing) {
+      this.logger.log(`Vendor payout for reference ${reference} already reconciled, skipping.`);
+      return { success: true, alreadyProcessed: true };
+    }
+
+    const { vendor_id, organization_id, user_id, requested_amount } = data.metadata ?? {};
+
+    if (!vendor_id || !organization_id || !user_id) {
+      this.logger.error(`Vendor payout webhook missing required metadata for reference ${reference}`);
+      return { success: false, reason: 'Missing vendor payout metadata' };
+    }
+
+    const vendor = await this.prisma.vendor.findFirst({
+      where: { id: vendor_id, organizationId: organization_id },
+    });
+
+    if (!vendor) {
+      this.logger.error(`Vendor payout reconciliation failed: vendor ${vendor_id} not found for reference ${reference}`);
+      return { success: false, reason: 'Vendor not found' };
+    }
+
+    const netAmount = requested_amount ?? data.amount / 100;
+    const paystackFees = data.fees / 100;
+
+    await this.prisma.$transaction(async (tx) => {
+      const doubleCheck = await tx.expense.findFirst({
+        where: { paystackReference: reference },
+      });
+      if (doubleCheck) return;
+
+      await tx.expense.create({
+        data: {
+          organizationId: organization_id,
+          vendorId: vendor_id,
+          recordedById: user_id,
+          description: `Payment to ${vendor.name}`,
+          amount: netAmount,
+          expenseDate: new Date(data.paid_at),
+          recipient: vendor.name,
+          paymentMethod: 'PAYSTACK',
+          reference,
+          isAutoRecorded: true,
+          paystackReference: reference,
+          paystackFees,
+          netAmount,
+        },
+      });
+    });
+
+    this.logger.log(`Vendor payout recorded as expense for vendor "${vendor.name}" (ref ${reference})`);
+    return { success: true };
+  }
+
   async handleWebhookEvent(event: string, data: PaystackTransaction) {
     if (event !== 'charge.success') {
       return { received: true };
@@ -834,6 +1083,13 @@ export class PaystackService {
         authorization: data.authorization,
         customerEmail: data.customer?.email,
       };
+    }
+
+    // Vendor payouts (Option B: subaccount + split) reconcile straight to an Expense row —
+    // no separate transfer step to wait on.
+    if (metadata?.type === 'vendor_payout') {
+      const result = await this.reconcileVendorPayout(reference, data);
+      return { received: true, success: result.success, reason: (result as { reason?: string }).reason };
     }
 
     if (!metadata?.invoice_id) {
