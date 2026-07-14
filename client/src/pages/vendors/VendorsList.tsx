@@ -26,6 +26,15 @@ import { toast } from 'sonner'
 import { useSubscription } from '@/hooks/useSubscription'
 
 
+const PAYOUT_STATUS_STYLES: Record<string, { label: string; dot: string; text: string }> = {
+  ACTIVE: { label: 'Payouts Active', dot: 'bg-emerald-500', text: 'text-emerald-700' },
+  PENDING: { label: 'Pending Review', dot: 'bg-amber-500', text: 'text-amber-700' },
+  FAILED: { label: 'Setup Failed', dot: 'bg-rose-500', text: 'text-rose-700' },
+}
+
+const getPayoutStatusDisplay = (status?: string | null) =>
+  (status && PAYOUT_STATUS_STYLES[status]) || { label: 'Not Set Up', dot: 'bg-slate-400', text: 'text-slate-500' }
+
 const getInitials = (name: string) => {
   const cleanName = name.replace(/^(Mrs\.|Mr\.|Dr\.|Prof\.)\s+/i, '').trim();
   const parts = cleanName.split(/\s+/).filter(Boolean);
@@ -157,7 +166,7 @@ export function VendorsListPage() {
                           <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-extrabold uppercase tracking-widest text-slate-400 select-none">Contact Person</th>
                           <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-extrabold uppercase tracking-widest text-slate-400 select-none">Email</th>
                           <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-extrabold uppercase tracking-widest text-slate-400 select-none">Phone</th>
-                          <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-extrabold uppercase tracking-widest text-slate-400 select-none">Status</th>
+                          <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-left text-[10px] font-extrabold uppercase tracking-widest text-slate-400 select-none">Payout Status</th>
                           <th className="sticky top-0 z-10 bg-white border-b border-[#eef4ff]/30 px-6 py-4 text-right text-[10px] font-extrabold uppercase tracking-widest text-slate-400 select-none">Actions</th>
                         </tr>
                       </thead>
@@ -205,15 +214,9 @@ export function VendorsListPage() {
                             </td>
                             <td className="px-6 py-4 text-left">
                               <div className="flex items-center gap-2 select-none justify-start">
-                                <span className={cn(
-                                  "h-1.5 w-1.5 rounded-full shrink-0",
-                                  vendor.isActive !== false ? "bg-emerald-500" : "bg-slate-400"
-                                )} />
-                                <span className={cn(
-                                  "text-xs font-semibold tracking-wide",
-                                  vendor.isActive !== false ? "text-emerald-700" : "text-slate-500"
-                                )}>
-                                  {vendor.isActive !== false ? 'Active' : 'Inactive'}
+                                <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", getPayoutStatusDisplay(vendor.paystackSubaccountStatus).dot)} />
+                                <span className={cn("text-xs font-semibold tracking-wide", getPayoutStatusDisplay(vendor.paystackSubaccountStatus).text)}>
+                                  {getPayoutStatusDisplay(vendor.paystackSubaccountStatus).label}
                                 </span>
                               </div>
                             </td>
@@ -387,15 +390,9 @@ export function VendorsListPage() {
 
                     <div className="flex items-center justify-between mt-1 pt-3 border-t border-[#eef4ff]/50">
                       <div className="flex items-center gap-1.5 select-none">
-                        <span className={cn(
-                          "h-1.5 w-1.5 rounded-full shrink-0",
-                          vendor.isActive !== false ? "bg-emerald-500" : "bg-slate-400"
-                        )} />
-                        <span className={cn(
-                          "text-xs font-semibold tracking-wide",
-                          vendor.isActive !== false ? "text-emerald-700" : "text-slate-500"
-                        )}>
-                          {vendor.isActive !== false ? 'Active' : 'Inactive'}
+                        <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", getPayoutStatusDisplay(vendor.paystackSubaccountStatus).dot)} />
+                        <span className={cn("text-xs font-semibold tracking-wide", getPayoutStatusDisplay(vendor.paystackSubaccountStatus).text)}>
+                          {getPayoutStatusDisplay(vendor.paystackSubaccountStatus).label}
                         </span>
                       </div>
                     </div>
