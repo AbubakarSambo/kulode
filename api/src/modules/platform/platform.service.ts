@@ -78,6 +78,10 @@ export class PlatformService {
       lastMonthPaidGmvResult,
       cancelledOrgsCount,
       orgsPlanStatusGroup,
+      // Genuinely paying orgs — ACTIVE and not grandfathered (grandfathered orgs are
+      // exempt from billing, so they shouldn't count as "paying" in revenue-facing metrics)
+      nonGrandfatheredActivePayingCount,
+      payingByPlanGroup,
     ] = await Promise.all([
       // Total organizations
       this.prisma.organization.count(),
@@ -326,6 +330,18 @@ export class PlatformService {
         by: ['planTier', 'subscriptionStatus'],
         _count: { id: true },
       }),
+
+      // Genuinely paying orgs — ACTIVE and not grandfathered
+      this.prisma.organization.count({
+        where: { subscriptionStatus: 'ACTIVE', isGrandfathered: false },
+      }),
+
+      // Same, grouped by plan tier, for the Plan Distribution "paying" sub-label
+      this.prisma.organization.groupBy({
+        by: ['planTier'],
+        where: { subscriptionStatus: 'ACTIVE', isGrandfathered: false },
+        _count: { id: true },
+      }),
     ]);
 
     // topOrganizations is already sorted by volume from the DB
@@ -347,6 +363,15 @@ export class PlatformService {
     for (const item of orgsByPlan) {
       if (item.planTier in byPlan) {
         byPlan[item.planTier as keyof typeof byPlan] = item._count.id;
+      }
+    }
+
+    // Genuinely paying orgs per plan (ACTIVE, excluding grandfathered) — for revenue-facing
+    // "paying" labels, distinct from byPlanStatus[plan].ACTIVE which includes grandfathered orgs
+    const payingByPlan = { FREE: 0, STARTER: 0, PRO: 0, BUSINESS: 0 };
+    for (const item of payingByPlanGroup) {
+      if (item.planTier in payingByPlan) {
+        payingByPlan[item.planTier as keyof typeof payingByPlan] = item._count.id;
       }
     }
 
@@ -400,7 +425,8 @@ export class PlatformService {
     const subsMoMChange = this.calculateMoMChange(curMonthSubs, prevMonthSubs);
 
     // Health metric computations
-    const activePayingOrgs = byStatus.ACTIVE;
+    // Excludes grandfathered orgs — they're exempt from billing, so shouldn't count as "paying"
+    const activePayingOrgs = nonGrandfatheredActivePayingCount;
     const trialConversionRate = totalOrgs > 0
       ? Number(((activePayingOrgs / totalOrgs) * 100).toFixed(1))
       : 0;
@@ -490,6 +516,7 @@ export class PlatformService {
       invoices: invoiceStatusBreakdown,
       subscriptions: {
         byPlan,
+        payingByPlan,
         byStatus,
         byPlanStatus,
         grandfathered: grandfatheredCount,

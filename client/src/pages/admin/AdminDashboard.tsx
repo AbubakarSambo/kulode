@@ -439,7 +439,7 @@ export function AdminDashboardPage() {
                         <div className="flex-1 min-w-0">
                           <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655] flex items-center gap-1">
                             Trial → Paid Conversion
-                            <MetricTooltip content="Conversion Rate: Percentage of all registered organizations that are on an active paid plan (Pro/Business)." />
+                            <MetricTooltip content="Conversion Rate: Percentage of all registered organizations that are on an active paid plan (Pro/Business), excluding grandfathered orgs since they aren't actually paying." />
                           </p>
                           <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28]">
                             {dashboardData.health.trialConversionRate}%
@@ -1104,7 +1104,7 @@ export function AdminDashboardPage() {
                                 </Badge>
                                 {plan !== 'FREE' && (
                                   <span className="text-[10px] text-[#434655] font-semibold">
-                                    {dashboardData.subscriptions.byPlanStatus[plan]?.ACTIVE || 0} paying &middot;{' '}
+                                    {dashboardData.subscriptions.payingByPlan[plan as keyof typeof dashboardData.subscriptions.payingByPlan] || 0} paying &middot;{' '}
                                     {dashboardData.subscriptions.byPlanStatus[plan]?.TRIALING || 0} trialing
                                   </span>
                                 )}

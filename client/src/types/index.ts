@@ -524,6 +524,7 @@ export interface PlatformDashboard {
   }
   subscriptions: {
     byPlan: { FREE: number; STARTER: number; PRO: number; BUSINESS: number }
+    payingByPlan: { FREE: number; STARTER: number; PRO: number; BUSINESS: number }
     byStatus: { TRIALING: number; ACTIVE: number; CANCELLED: number; EXPIRED: number }
     byPlanStatus: Record<string, { TRIALING: number; ACTIVE: number; CANCELLED: number; EXPIRED: number }>
     grandfathered: number

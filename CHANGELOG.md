@@ -15,6 +15,7 @@ All notable changes to this project are documented here, newest first.
 
 ### Fixed
 - **Vendor payout reconciliation gap** — the payment-callback verification path (`GET /paystack/verify/:reference`, hit when the browser returns from checkout) wasn't routing vendor payouts to the vendor-payout reconciler, unlike the webhook path — it fell through to the invoice reconciler and logged a spurious "no invoice found" error. The webhook path itself was unaffected, but this closes the gap so verification-triggered reconciliation works for vendor payouts too.
+- **Grandfathered orgs no longer count as "paying" in Platform Admin metrics** — the Revenue & Billing tab's Plan Distribution "X paying" label and the Overview tab's Trial → Paid Conversion rate were both counting grandfathered organizations (exempt from billing) as active paying customers, since both were computed purely from `subscriptionStatus` with no `isGrandfathered` exclusion. Added a dedicated paying-orgs count/breakdown that excludes them.
 
 ## 2026-07-11
 
