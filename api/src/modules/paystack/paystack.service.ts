@@ -693,19 +693,26 @@ export class PaystackService {
         fees?: number;
         channel?: string;
         paid_at?: string;
-        metadata?: {
-          invoice_number?: string;
-        };
+        metadata?: PaystackTransaction['metadata'] & { invoice_number?: string };
       }>(`/transaction/verify/${reference}`);
 
       if (data.status === 'success') {
-        await this.reconcilePayment(reference, {
-          amount: data.amount,
-          channel: data.channel || 'card',
-          paid_at: data.paid_at || new Date().toISOString(),
-          fees: data.fees || 0,
-          metadata: data.metadata,
-        });
+        if (data.metadata?.type === 'vendor_payout') {
+          await this.reconcileVendorPayout(reference, {
+            amount: data.amount,
+            paid_at: data.paid_at || new Date().toISOString(),
+            fees: data.fees || 0,
+            metadata: data.metadata,
+          });
+        } else {
+          await this.reconcilePayment(reference, {
+            amount: data.amount,
+            channel: data.channel || 'card',
+            paid_at: data.paid_at || new Date().toISOString(),
+            fees: data.fees || 0,
+            metadata: data.metadata,
+          });
+        }
       }
 
       return {

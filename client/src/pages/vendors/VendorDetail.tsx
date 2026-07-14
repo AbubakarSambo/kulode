@@ -11,6 +11,20 @@ import { posthog } from '@/lib/posthog'
 import { useAuthStore } from '@/stores/auth'
 import { useOverscrollBounce } from '@/hooks'
 
+const PAYOUT_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'Payouts Active',
+  PENDING: 'Pending Review',
+  FAILED: 'Setup Failed',
+}
+
+const getPayoutStatusLabel = (status?: string | null) => (status && PAYOUT_STATUS_LABELS[status]) || 'Not Set Up'
+
+const getPayoutStatusBadgeVariant = (status?: string | null): 'default' | 'secondary' | 'destructive' => {
+  if (status === 'ACTIVE') return 'default'
+  if (status === 'FAILED') return 'destructive'
+  return 'secondary'
+}
+
 export function VendorDetailPage() {
   const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
   const { id } = useParams<{ id: string }>()
@@ -103,7 +117,7 @@ export function VendorDetailPage() {
     <div className="flex flex-1 flex-col overflow-hidden">
       <Header
         title={vendor.name}
-        description={vendor.isActive ? 'Active vendor' : 'Inactive vendor'}
+        description={getPayoutStatusLabel(vendor.paystackSubaccountStatus)}
         action={
           isSuperAdmin ? (
             <div className="flex gap-2">
@@ -246,9 +260,9 @@ export function VendorDetailPage() {
           <Card className="lg:col-span-2">
             <CardContent className="flex items-center gap-6 p-4">
               <div>
-                <p className="text-sm text-muted-foreground">Status</p>
-                <Badge variant={vendor.isActive ? 'default' : 'secondary'}>
-                  {vendor.isActive ? 'Active' : 'Inactive'}
+                <p className="text-sm text-muted-foreground">Payout Status</p>
+                <Badge variant={getPayoutStatusBadgeVariant(vendor.paystackSubaccountStatus)}>
+                  {getPayoutStatusLabel(vendor.paystackSubaccountStatus)}
                 </Badge>
               </div>
               <div>
