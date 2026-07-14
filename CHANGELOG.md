@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here, newest first.
 
+## 2026-07-14
+
+### Added
+- **Vendor payouts (Expenses tab)** — customers can now pay a vendor directly from their own bank account via Paystack, without Kulode ever holding the funds (Subaccount + Transaction Split, not a debit-then-transfer pattern). Adding a vendor with verified bank details now provisions a live Paystack subaccount; paying a vendor opens Paystack checkout and auto-records the resulting payment as an Expense once the webhook confirms it.
+- **Vendor bank verification** — the "Add Vendor" form now resolves the account name via Paystack before saving, matching the existing organization Paystack-setup flow, instead of accepting free-text bank details.
+- **Platform-admin vendor-payout queue** — new "Vendor Payouts" tab in the internal Admin Dashboard listing every vendor subaccount awaiting Paystack's manual first-payout review across all organizations, with a "Mark Active" action. Paystack confirmed there's no API/webhook for this review status, so it's a manual queue by necessity.
+- **Ops notification on new vendor subaccount** — an internal email (`PLATFORM_OPS_EMAIL`) now fires whenever a new vendor payout subaccount is created, so staff know to check Paystack's dashboard instead of relying solely on Paystack's own notification.
+
+### Changed
+- **Vendors list "Status" column now shows payout readiness** (Payouts Active / Pending Review / Setup Failed / Not Set Up) instead of the `isActive` flag, which had no UI to ever toggle it and wasn't used anywhere else in the app.
+
+### Fixed
+- **Vendor payout reconciliation gap** — the payment-callback verification path (`GET /paystack/verify/:reference`, hit when the browser returns from checkout) wasn't routing vendor payouts to the vendor-payout reconciler, unlike the webhook path — it fell through to the invoice reconciler and logged a spurious "no invoice found" error. The webhook path itself was unaffected, but this closes the gap so verification-triggered reconciliation works for vendor payouts too.
+
 ## 2026-07-11
 
 ### Added
