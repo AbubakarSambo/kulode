@@ -5,6 +5,7 @@ import type {
   PlatformOrganizationsResponse,
   PlatformOrganizationDetails,
   PlatformOrganization,
+  PendingVendorPayout,
 } from '@/types'
 
 export const platformApi = {
@@ -44,6 +45,16 @@ export const platformApi = {
     }
   ): Promise<PlatformOrganization> => {
     const response = await apiClient.patch<ApiResponse<PlatformOrganization>>(`/platform/organizations/${id}`, data)
+    return response.data.data
+  },
+
+  getPendingVendorPayouts: async (): Promise<PendingVendorPayout[]> => {
+    const response = await apiClient.get<ApiResponse<PendingVendorPayout[]>>('/platform/vendor-payouts/pending')
+    return response.data.data
+  },
+
+  activateVendorPayout: async (vendorId: string): Promise<PendingVendorPayout> => {
+    const response = await apiClient.patch<ApiResponse<PendingVendorPayout>>(`/platform/vendor-payouts/${vendorId}/activate`)
     return response.data.data
   },
 }

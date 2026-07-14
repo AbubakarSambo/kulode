@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PlanTier, SubscriptionStatus } from '@prisma/client';
 
@@ -740,5 +740,51 @@ export class PlatformService {
       ...updated,
       platformFeePercent: Number(updated.platformFeePercent),
     };
+  }
+
+  /**
+   * Vendor subaccounts stuck in PENDING/FAILED across all organizations — Paystack has no
+   * webhook or API field for when a new subaccount clears its first-payout review, so this
+   * is the queue platform staff work through manually after checking the Paystack dashboard.
+   */
+  async getPendingVendorPayouts() {
+    const vendors = await this.prisma.vendor.findMany({
+      where: { paystackSubaccountStatus: { in: ['PENDING', 'FAILED'] } },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        bankName: true,
+        bankAccountNumber: true,
+        paystackSubaccountCode: true,
+        paystackSubaccountStatus: true,
+        createdAt: true,
+        organization: { select: { id: true, name: true, slug: true } },
+      },
+    });
+
+    return vendors;
+  }
+
+  /**
+   * Marks a vendor's subaccount ACTIVE after platform staff have manually verified it in
+   * the Paystack Dashboard. Note Paystack's own confirmed behavior: payouts only resume
+   * "starting the next day" after verification, even once this is marked active here.
+   */
+  async activateVendorPayout(vendorId: string) {
+    const vendor = await this.prisma.vendor.findUnique({ where: { id: vendorId } });
+
+    if (!vendor) {
+      throw new NotFoundException('Vendor not found');
+    }
+
+    if (!vendor.paystackSubaccountCode) {
+      throw new BadRequestException('Vendor has no Paystack subaccount to activate');
+    }
+
+    return this.prisma.vendor.update({
+      where: { id: vendorId },
+      data: { paystackSubaccountStatus: 'ACTIVE' },
+    });
   }
 }

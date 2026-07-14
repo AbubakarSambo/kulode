@@ -685,4 +685,48 @@ export class EmailService {
       html,
     });
   }
+
+  /**
+   * Internal ops notification — Paystack holds a new subaccount's first payout indefinitely
+   * pending manual review in their Dashboard, with no webhook or API field to detect when
+   * that review clears. This is the only automated signal Kulode has that one is waiting.
+   */
+  async sendVendorPayoutReviewNeededEmail(
+    opsEmail: string,
+    vendorName: string,
+    organizationName: string,
+    subaccountCode: string,
+  ): Promise<void> {
+    const html = this.buildEmailHtml({
+      accentColor: '#b45309',
+      contextLabel: 'Ops Action Required',
+      headline: 'New vendor subaccount awaiting Paystack review',
+      bodyHtml: `
+        <p>A new vendor payout subaccount was just created and needs manual verification in the Paystack Dashboard before its first payout can go through.</p>
+        <div class="receipt-box" style="margin: 24px 0; padding: 20px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 14px; line-height: 1.6;">
+            <tr>
+              <td class="receipt-label" style="padding-bottom: 8px;">Vendor</td>
+              <td align="right" class="receipt-value" style="padding-bottom: 8px;">${vendorName}</td>
+            </tr>
+            <tr>
+              <td class="receipt-label" style="padding-bottom: 8px;">Organization</td>
+              <td align="right" class="receipt-value" style="padding-bottom: 8px;">${organizationName}</td>
+            </tr>
+            <tr>
+              <td class="receipt-label">Subaccount Code</td>
+              <td align="right" class="receipt-value">${subaccountCode}</td>
+            </tr>
+          </table>
+        </div>
+        <p>Verify this subaccount in the Paystack Dashboard, then mark it active in the platform admin vendor-payouts queue. Note: payouts only resume starting the next day after verification.</p>
+      `,
+    });
+
+    await this.sendEmail({
+      to: opsEmail,
+      subject: `Vendor payout review needed: ${vendorName} (${organizationName})`,
+      html,
+    });
+  }
 }

@@ -15,6 +15,7 @@ export interface CreateVendorData {
   email?: string
   bankAccountNumber?: string
   bankName?: string
+  bankCode?: string
 }
 
 export const vendorsApi = {
@@ -45,5 +46,10 @@ export const vendorsApi = {
 
   delete: async (id: string): Promise<void> => {
     await apiClient.delete(`/vendors/${id}`)
+  },
+
+  pay: async (id: string, amount: number): Promise<{ paymentUrl: string; reference: string }> => {
+    const response = await apiClient.post<ApiResponse<{ paymentUrl: string; reference: string }>>(`/vendors/${id}/pay`, { amount })
+    return response.data.data
   },
 }

@@ -9,6 +9,7 @@ import { CheckCircle, Landmark, X } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle, CardDescription, SearchableSelect } from '@/components/ui'
 import apiClient from '@/api/client'
+import { paystackApi as sharedPaystackApi } from '@/api/paystack'
 import { posthog } from '@/lib/posthog'
 import { useAuthStore } from '@/stores/auth'
 import type { ApiResponse } from '@/types'
@@ -21,22 +22,10 @@ interface PaystackStatus {
   settlementBank?: string
 }
 
-interface Bank {
-  name: string
-  code: string
-}
-
 const paystackApi = {
+  ...sharedPaystackApi,
   getStatus: async (): Promise<PaystackStatus> => {
     const response = await apiClient.get<ApiResponse<PaystackStatus>>('/organizations/paystack-status')
-    return response.data.data
-  },
-  getBanks: async (): Promise<Bank[]> => {
-    const response = await apiClient.get<ApiResponse<Bank[]>>('/paystack/banks')
-    return response.data.data
-  },
-  verifyAccount: async (data: { accountNumber: string; bankCode: string }) => {
-    const response = await apiClient.post<ApiResponse<{ account_name: string }>>('/paystack/verify-account', data)
     return response.data.data
   },
   setup: async (data: { bankCode: string; accountNumber: string }) => {

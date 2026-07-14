@@ -1,11 +1,12 @@
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Edit, Trash2, Mail, Phone, User, Building2, CreditCard, FileText } from 'lucide-react'
+import { Edit, Trash2, Mail, Phone, User, Building2, CreditCard, FileText, Send, Clock, AlertTriangle } from 'lucide-react'
 import { Header } from '@/components/layout'
-import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui'
+import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Input } from '@/components/ui'
 import { vendorsApi, expensesApi } from '@/api'
-import { formatDate, formatCurrency } from '@/lib/utils'
+import { formatDate, formatCurrency, formatAmountInput, parseAmountInput } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
 import { useAuthStore } from '@/stores/auth'
 import { useOverscrollBounce } from '@/hooks'
@@ -33,6 +34,30 @@ export function VendorDetailPage() {
 
   const expenses = expensesPage?.data ?? []
   const totalSpent = expenses.reduce((sum, e) => sum + Number(e.amount), 0)
+
+  const [payAmountStr, setPayAmountStr] = useState('')
+
+  const payMutation = useMutation({
+    mutationFn: (amount: number) => vendorsApi.pay(id!, amount),
+    onSuccess: (data) => {
+      posthog.capture('vendor_payout_initiated', { vendor_id: id })
+      toast.success('Redirecting to checkout', { description: 'Complete the payment in the new tab to authorize it from your bank.' })
+      setPayAmountStr('')
+      window.open(data.paymentUrl, '_blank')
+    },
+    onError: (error: any) => {
+      toast.error('Failed to start payout', {
+        description: error.response?.data?.message || 'Please try again',
+      })
+    },
+  })
+
+  const handlePay = () => {
+    const amount = parseAmountInput(payAmountStr)
+    if (amount > 0) {
+      payMutation.mutate(amount)
+    }
+  }
 
   const deleteMutation = useMutation({
     mutationFn: () => vendorsApi.delete(id!),
@@ -171,6 +196,48 @@ export function VendorDetailPage() {
               )}
               {!vendor.bankName && !vendor.bankAccountNumber && (
                 <p className="text-sm text-muted-foreground">No bank details</p>
+              )}
+
+              {vendor.paystackSubaccountStatus === 'ACTIVE' && (
+                <div className="space-y-3 border-t pt-4">
+                  <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-700">
+                    <Send className="h-4 w-4" /> Payouts active
+                  </p>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="0.00"
+                      value={payAmountStr}
+                      onChange={(e) => setPayAmountStr(formatAmountInput(e.target.value))}
+                    />
+                    <Button
+                      type="button"
+                      onClick={handlePay}
+                      isLoading={payMutation.isPending}
+                      disabled={parseAmountInput(payAmountStr) <= 0}
+                    >
+                      Pay Vendor
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    You'll authorize this payment from your own bank account. It settles to {vendor.name} the next business day and is recorded as an expense automatically once confirmed.
+                  </p>
+                </div>
+              )}
+
+              {vendor.paystackSubaccountStatus === 'PENDING' && (
+                <div className="flex items-start gap-1.5 text-sm text-amber-700 border-t pt-4">
+                  <Clock className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>
+                    Payouts to this vendor are on hold until manually verified — there's no fixed timeline for this, and payouts only resume the day after verification completes. Check back here for an updated status.
+                  </span>
+                </div>
+              )}
+
+              {vendor.paystackSubaccountStatus === 'FAILED' && (
+                <div className="flex items-start gap-1.5 text-sm text-rose-700 border-t pt-4">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>Payout setup failed — check the bank details and save again.</span>
+                </div>
               )}
             </CardContent>
           </Card>

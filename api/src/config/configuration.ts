@@ -5,6 +5,9 @@ export const appConfig = registerAs("app", () => ({
   nodeEnv: process.env.NODE_ENV || "development",
   platformFeePercent: parseFloat(process.env.PLATFORM_FEE_PERCENT || "0"),
   corsOrigins: process.env.CORS_ORIGINS, // comma-separated list of allowed origins
+  // Internal ops inbox — notified when something needs manual attention in a 3rd-party dashboard
+  // (e.g. a new vendor payout subaccount awaiting Paystack's manual review)
+  platformOpsEmail: process.env.PLATFORM_OPS_EMAIL,
 }));
 
 export const databaseConfig = registerAs("database", () => ({

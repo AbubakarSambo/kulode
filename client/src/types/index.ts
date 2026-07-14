@@ -266,6 +266,8 @@ export interface Payment {
 }
 
 // Vendor types
+export type PaystackSubaccountStatus = 'PENDING' | 'ACTIVE' | 'FAILED'
+
 export interface Vendor {
   id: string
   name: string
@@ -275,6 +277,10 @@ export interface Vendor {
   email?: string
   bankAccountNumber?: string
   bankName?: string
+  bankCode?: string
+  isBankVerified?: boolean
+  paystackSubaccountCode?: string
+  paystackSubaccountStatus?: PaystackSubaccountStatus
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -610,6 +616,21 @@ export interface PlatformOrganizationsResponse {
     page: number
     limit: number
     totalPages: number
+  }
+}
+
+export interface PendingVendorPayout {
+  id: string
+  name: string
+  bankName: string | null
+  bankAccountNumber: string | null
+  paystackSubaccountCode: string | null
+  paystackSubaccountStatus: PaystackSubaccountStatus
+  createdAt: string
+  organization: {
+    id: string
+    name: string
+    slug: string
   }
 }
 

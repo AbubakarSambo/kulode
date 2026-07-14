@@ -40,6 +40,12 @@ export class UpdateVendorDto {
   @IsString()
   bankName?: string;
 
+  @ApiPropertyOptional({ example: '058', description: 'Bank code from Paystack — required to enable payouts to this vendor' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  bankCode?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
