@@ -16,7 +16,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           className={cn(
             // Design system: h-11 touch target, xl radius (1.5rem), ghost border at 40% opacity
             // surface-container-lowest bg (#ffffff), on-surface text (#121c28), medium weight
-            'flex h-11 w-full appearance-none rounded-xl border border-[rgba(196,197,215,0.4)] bg-white pl-4 pr-10 py-2 text-sm font-medium text-[#121c28] transition-all',
+            'flex h-11 w-full appearance-none rounded-xl border border-[rgba(196,197,215,0.4)] bg-white pl-4 pr-10 py-2 text-[16px] sm:text-sm font-medium text-[#121c28] transition-all',
             // Focus: primary ring, primary border — no box-shadow pollution
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0037b0]/10 focus-visible:border-[#0037b0]',
             // Disabled state

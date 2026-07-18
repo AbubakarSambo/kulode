@@ -870,7 +870,7 @@ export function ReportsPage() {
                           setCurrentPage(1)
                           setExpandedRows({})
                         }}
-                        className="h-11 w-full pl-10 pr-4 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 placeholder-slate-400 focus:outline-none focus:border-[#0037b0] transition-all min-h-[44px]"
+                        className="h-11 w-full pl-10 pr-4 rounded-xl border border-slate-200 bg-white text-[16px] sm:text-xs font-semibold text-slate-700 placeholder-slate-400 focus:outline-none focus:border-[#0037b0] transition-all min-h-[44px]"
                       />
                       {searchQuery && (
                         <button 

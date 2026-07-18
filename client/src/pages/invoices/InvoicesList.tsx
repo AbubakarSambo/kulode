@@ -196,14 +196,14 @@ export function InvoicesListPage() {
                   type="date"
                   value={startDate}
                   onChange={(e) => { setStartDate(e.target.value); setPage(1) }}
-                  className="h-10 rounded-xl text-xs w-36 bg-white border border-border"
+                  className="h-10 rounded-xl text-[16px] sm:text-xs w-36 bg-white border border-border"
                 />
                 <span className="text-xs text-slate-400">–</span>
                 <Input
                   type="date"
                   value={endDate}
                   onChange={(e) => { setEndDate(e.target.value); setPage(1) }}
-                  className="h-10 rounded-xl text-xs w-36 bg-white border border-border"
+                  className="h-10 rounded-xl text-[16px] sm:text-xs w-36 bg-white border border-border"
                 />
                 {(startDate || endDate) && (
                   <button

@@ -231,7 +231,7 @@ export function Step3BillingItems() {
                           pattern="[0-9]*"
                           value={item.quantity || ""}
                           onChange={(e) => handleUpdateItem(index, "quantity", Math.max(1, Number(e.target.value)))}
-                          className="w-6 text-center font-bold text-slate-700 bg-transparent border-0 outline-none p-0 focus:ring-0 text-[14px] sm:text-xs min-w-0"
+                          className="w-6 text-center font-bold text-slate-700 bg-transparent border-0 outline-none p-0 focus:ring-0 text-[16px] sm:text-xs min-w-0"
                         />
                         <button
                           type="button"
@@ -422,7 +422,7 @@ export function Step3BillingItems() {
                             newInst[index].label = e.target.value;
                             setInstallments(newInst);
                           }}
-                          className="flex-1 min-w-0 h-8 px-2.5 text-[15px] sm:text-xs bg-white rounded-lg border border-[#c4c5d7]/40 outline-none font-semibold text-slate-700 focus:border-[#0037b0]"
+                          className="flex-1 min-w-0 h-8 px-2.5 text-[16px] sm:text-xs bg-white rounded-lg border border-[#c4c5d7]/40 outline-none font-semibold text-slate-700 focus:border-[#0037b0]"
                         />
                         {installments.length > 1 && (
                           <button
@@ -451,7 +451,7 @@ export function Step3BillingItems() {
                               newInst[index].percentage = Number(e.target.value);
                               setInstallments(newInst);
                             }}
-                            className="w-full min-w-0 text-[15px] sm:text-xs font-bold text-[#0037b0] text-center outline-none border-0 p-0 bg-transparent"
+                            className="w-full min-w-0 text-[16px] sm:text-xs font-bold text-[#0037b0] text-center outline-none border-0 p-0 bg-transparent"
                           />
                           <span className="text-[10px] font-bold text-slate-400 select-none">%</span>
                         </div>

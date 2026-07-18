@@ -70,7 +70,7 @@ export function VerifyEmailPage() {
                 placeholder="Enter your email to resend"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-[16px] sm:text-sm"
               />
               <Button
                 variant="outline"

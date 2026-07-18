@@ -77,7 +77,7 @@ function VendorCombobox({
           onChange={handleInputChange}
           onFocus={() => setOpen(true)}
           placeholder="Vendor or recipient name"
-          className="flex h-9 w-full bg-transparent px-3 py-1 text-sm outline-none placeholder:text-muted-foreground"
+          className="flex h-9 w-full bg-transparent px-3 py-1 text-[16px] sm:text-sm outline-none placeholder:text-muted-foreground"
         />
         {selectedVendor && (
           <span className="mr-3 shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">

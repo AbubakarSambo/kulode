@@ -136,7 +136,7 @@ export function ChatSidebar({
               onBlur={() => saveRename(session.id)}
               onKeyDown={(e) => handleKeyDown(e, session.id)}
               autoFocus
-              className="w-full bg-white border border-[#0037b0]/30 rounded px-2 py-0.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0037b0]"
+              className="w-full bg-white border border-[#0037b0]/30 rounded px-2 py-0.5 text-[16px] sm:text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0037b0]"
             />
           ) : (
             <span className="truncate leading-relaxed">{session.title}</span>
@@ -218,7 +218,7 @@ export function ChatSidebar({
           placeholder="Search conversations..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0037b0]/20 focus:border-[#0037b0]/40 transition-all min-h-[40px]"
+          className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-[16px] sm:text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0037b0]/20 focus:border-[#0037b0]/40 transition-all min-h-[40px]"
         />
       </div>
 

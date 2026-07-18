@@ -299,7 +299,7 @@ export function AiChatPage() {
               placeholder="Ask anything about your business..."
               rows={1}
               disabled={loading}
-              className="flex-1 resize-none rounded-xl border border-border bg-white px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0037b0]/20 focus:border-[#0037b0]/40 disabled:opacity-50 min-h-[46px] max-h-32"
+              className="flex-1 resize-none rounded-xl border border-border bg-white px-4 py-3 text-[16px] sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0037b0]/20 focus:border-[#0037b0]/40 disabled:opacity-50 min-h-[46px] max-h-32"
               style={{ overflowY: input.split('\n').length > 3 ? 'auto' : 'hidden' }}
             />
             <button

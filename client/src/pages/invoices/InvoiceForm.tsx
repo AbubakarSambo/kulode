@@ -756,7 +756,7 @@ function ClientCombobox({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search clients..."
-              className="flex h-11 w-full bg-transparent py-2 text-sm outline-none placeholder:text-muted-foreground"
+              className="flex h-11 w-full bg-transparent py-2 text-[16px] sm:text-sm outline-none placeholder:text-muted-foreground"
             />
           </div>
           <div className="max-h-64 overflow-y-auto p-1.5 space-y-0.5">
@@ -881,7 +881,7 @@ function ItemCombobox({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search items..."
-              className="flex h-11 w-full bg-transparent py-2 text-sm outline-none placeholder:text-muted-foreground"
+              className="flex h-11 w-full bg-transparent py-2 text-[16px] sm:text-sm outline-none placeholder:text-muted-foreground"
             />
           </div>
           <div className="max-h-64 overflow-y-auto p-1.5 space-y-0.5">
