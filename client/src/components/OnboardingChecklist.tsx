@@ -215,7 +215,7 @@ export function OnboardingChecklist({ onStartInvoiceWizard }: { onStartInvoiceWi
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <p className={cn(
                       "text-xs font-bold text-slate-800 tracking-tight",
-                      completed && "line-through text-slate-400"
+                      completed && "text-slate-500"
                     )}>
                       {step.label}
                     </p>

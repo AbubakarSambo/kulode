@@ -15,6 +15,7 @@ export interface UpdateOrganizationData {
   businessType?: string
   organizationSize?: string
   rcNumber?: string
+  tin?: string
 }
 
 export const organizationsApi = {

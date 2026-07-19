@@ -18,6 +18,7 @@ export class OrganizationsService {
         address: true,
         logo: true,
         rcNumber: true,
+        tin: true,
         invoicePrefix: true,
         currency: true,
         taxRate: true,
@@ -68,6 +69,7 @@ export class OrganizationsService {
         ...(dto.businessType !== undefined && { businessType: dto.businessType }),
         ...(dto.organizationSize !== undefined && { organizationSize: dto.organizationSize }),
         ...(dto.rcNumber !== undefined && { rcNumber: dto.rcNumber }),
+        ...(dto.tin !== undefined && { tin: dto.tin }),
       },
       select: {
         id: true,
@@ -78,6 +80,7 @@ export class OrganizationsService {
         address: true,
         logo: true,
         rcNumber: true,
+        tin: true,
         invoicePrefix: true,
         currency: true,
         taxRate: true,

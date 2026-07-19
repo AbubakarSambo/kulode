@@ -204,6 +204,35 @@ describe('AuthService — register', () => {
     } as any)).rejects.toThrow(ConflictException);
   });
 
+  it('persists the registrant email as the organization contact email', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+    prisma.organization.findUnique.mockResolvedValue(null);
+    const tx = {
+      organization: { create: jest.fn().mockResolvedValue(mockOrg) },
+      user: { create: jest.fn().mockResolvedValue(mockUser) },
+      expenseCategory: { createMany: jest.fn().mockResolvedValue({ count: 7 }) },
+      emailVerificationToken: { create: jest.fn().mockResolvedValue({}) },
+    };
+    prisma.$transaction.mockImplementation(async (cb: any) => cb(tx));
+
+    await service.register({
+      email: 'Owner@NewBiz.com',
+      password: 'pass',
+      firstName: 'Ada',
+      lastName: 'Obi',
+      organizationName: 'New Biz Ltd',
+    } as any);
+
+    expect(tx.organization.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          name: 'New Biz Ltd',
+          email: 'owner@newbiz.com',
+        }),
+      }),
+    );
+  });
+
   it('throws ConflictException when organization slug already exists', async () => {
     prisma.user.findUnique.mockResolvedValue(null); // no email conflict
     prisma.organization.findUnique.mockResolvedValue(mockOrg); // slug conflict

@@ -69,6 +69,8 @@ export interface User {
     vatEnabled?: boolean
     taxRate?: number
     logo?: string
+    email?: string
+    phone?: string
     address?: string
     paymentTerms?: string
     defaultNotes?: string
@@ -129,6 +131,7 @@ export interface Organization {
   businessType?: string
   organizationSize?: string
   rcNumber?: string
+  tin?: string
 }
 
 // Onboarding

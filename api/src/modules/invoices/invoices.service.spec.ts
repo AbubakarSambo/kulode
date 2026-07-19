@@ -3,9 +3,11 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { InvoicesService } from './invoices.service';
 import { PrismaService } from '../prisma/prisma.service';
 
+import { ConfigService } from '@nestjs/config';
 import { InventoryService } from '../inventory/inventory.service';
 import { PaystackService } from '../paystack/paystack.service';
 import { EmailService } from '../email/email.service';
+import { WhatsappService } from '../whatsapp/whatsapp.service';
 
 // ─── Mock helpers ────────────────────────────────────────────────────────────
 
@@ -140,6 +142,18 @@ describe('InvoicesService — invoice limit enforcement', () => {
             sendInvoiceEmail: jest.fn(),
             sendPaymentReceiptEmail: jest.fn(),
             sendMerchantPaymentAlertEmail: jest.fn(),
+          },
+        },
+        {
+          provide: WhatsappService,
+          useValue: {
+            sendInvoiceReminderTemplate: jest.fn(),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn().mockReturnValue('http://localhost:5173'),
           },
         },
       ],

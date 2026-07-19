@@ -18,6 +18,7 @@ const organizationSchema = z.object({
   phone: z.string().max(50).optional(),
   address: z.string().optional(),
   rcNumber: z.string().max(50).optional(),
+  tin: z.string().max(50).optional(),
   invoicePrefix: z.string().max(10).optional(),
   vatEnabled: z.boolean().optional(),
   showQrCode: z.boolean().optional(),
@@ -76,6 +77,7 @@ export function OrganizationPage() {
       phone: '',
       address: '',
       rcNumber: '',
+      tin: '',
       invoicePrefix: '',
       vatEnabled: false,
       showQrCode: false,
@@ -93,6 +95,7 @@ export function OrganizationPage() {
         phone: organization.phone || '',
         address: organization.address || '',
         rcNumber: organization.rcNumber || '',
+        tin: organization.tin || '',
         invoicePrefix: organization.invoicePrefix,
         vatEnabled: organization.vatEnabled,
         showQrCode: organization.showQrCode ?? false,
@@ -273,6 +276,19 @@ export function OrganizationPage() {
                   Shown on invoice PDFs to comply with CAC/CAMA 2020 business-letter requirements.
                 </p>
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="tin">Tax Identification Number (TIN)</Label>
+                <Input
+                  id="tin"
+                  placeholder="e.g., 12345678-0001"
+                  {...register('tin')}
+                  error={errors.tin?.message}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Shown on invoice PDFs and used by the Tax compliance checklist.
+                </p>
+              </div>
             </CardContent>
           </Card>
 
@@ -308,7 +324,8 @@ export function OrganizationPage() {
                   <span className="text-sm font-medium">Enable VAT on invoices</span>
                 </label>
                 <p className="text-xs text-muted-foreground">
-                  When enabled, VAT will be applied to all new invoices at the rate specified below.
+                  This is your default for new invoices — it applies VAT at the rate below.
+                  The same default is shown (and can be saved) in the onboarding invoice setup.
                 </p>
                 {watch('vatEnabled') && (
                   <div className="space-y-2">

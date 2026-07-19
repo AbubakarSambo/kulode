@@ -67,17 +67,41 @@ export function AppLayout() {
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
   const canViewReports = isAdmin || user?.role === 'ACCOUNTANT'
 
-  const moreItems = [
-    { name: 'Vendors', href: '/vendors', icon: VendorsIcon, requiresPlan: 'PRO' as PlanTier, visible: user?.role !== 'STAFF' },
-    { name: 'Expenses', href: '/expenses', icon: ExpensesIcon, requiresPlan: 'PRO' as PlanTier, visible: user?.role !== 'STAFF' },
-    { name: 'Product Inventory', href: '/inventory', icon: InventoryIcon, requiresPlan: 'PRO' as PlanTier },
-    { name: 'Services', href: '/settings/services', icon: ServicesIcon },
-    { name: 'Reports', href: '/reports', icon: ReportsIcon, requiresPlan: 'PRO' as PlanTier, visible: canViewReports },
-    { name: 'AI Chat', href: '/ai-chat', icon: AiChatIcon, requiresPlan: 'PRO' as PlanTier, visible: canViewReports },
-    { name: 'Tax', href: '/tax', icon: TaxIcon, requiresPlan: 'PRO' as PlanTier, visible: user?.role !== 'STAFF' },
-    { name: 'Settings', href: '/settings', icon: SettingsIcon, visible: isAdmin },
-    { name: 'Billing & Plans', href: '/settings/billing', icon: PaymentsIcon, visible: isAdmin },
-  ].filter((item) => item.visible !== false) as Array<{ name: string; href: string; icon: React.ComponentType<{ className?: string }>; requiresPlan?: PlanTier; visible?: boolean }>
+  type MoreItem = { name: string; href: string; icon: React.ComponentType<{ className?: string }>; requiresPlan?: PlanTier; visible?: boolean }
+
+  const moreGroups: Array<{ label: string; items: MoreItem[] }> = [
+    {
+      label: 'Money',
+      items: [
+        { name: 'Expenses', href: '/expenses', icon: ExpensesIcon, requiresPlan: 'PRO' as PlanTier, visible: user?.role !== 'STAFF' },
+        { name: 'Vendors', href: '/vendors', icon: VendorsIcon, requiresPlan: 'PRO' as PlanTier, visible: user?.role !== 'STAFF' },
+        { name: 'Tax', href: '/tax', icon: TaxIcon, requiresPlan: 'PRO' as PlanTier, visible: user?.role !== 'STAFF' },
+      ] as MoreItem[],
+    },
+    {
+      label: 'Catalog',
+      items: [
+        { name: 'Product Inventory', href: '/inventory', icon: InventoryIcon, requiresPlan: 'PRO' as PlanTier },
+        { name: 'Services', href: '/settings/services', icon: ServicesIcon },
+      ] as MoreItem[],
+    },
+    {
+      label: 'Insights',
+      items: [
+        { name: 'Reports', href: '/reports', icon: ReportsIcon, requiresPlan: 'PRO' as PlanTier, visible: canViewReports },
+        { name: 'AI Chat', href: '/ai-chat', icon: AiChatIcon, requiresPlan: 'PRO' as PlanTier, visible: canViewReports },
+      ] as MoreItem[],
+    },
+    {
+      label: 'Account',
+      items: [
+        { name: 'Settings', href: '/settings', icon: SettingsIcon, visible: isAdmin },
+        { name: 'Billing & Plans', href: '/settings/billing', icon: PaymentsIcon, visible: isAdmin },
+      ] as MoreItem[],
+    },
+  ]
+    .map((group) => ({ ...group, items: group.items.filter((item) => item.visible !== false) }))
+    .filter((group) => group.items.length > 0)
 
   const isHideMobileNav = location.pathname.includes('/new') || 
     (location.pathname.startsWith('/invoices/') && location.pathname !== '/invoices') ||
@@ -101,7 +125,7 @@ export function AppLayout() {
           </div>
         </div>
 
-        {location.pathname.startsWith('/payments') && <TrialBanner />}
+        <TrialBanner />
 
         <div className={cn("flex-1 overflow-hidden flex flex-col", isHideMobileNav ? "pb-0" : "pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-0")}>
           <Outlet />
@@ -166,35 +190,44 @@ export function AppLayout() {
                 </button>
               </div>
 
-              {/* Grid of operations */}
-              <div className="grid grid-cols-3 gap-4 mb-8">
-                {moreItems.map((item) => {
-                  const isActive = location.pathname.startsWith(item.href)
-                  const isLocked = item.requiresPlan && !hasRequiredPlan(item.requiresPlan)
-                  return (
-                    <Link
-                      key={item.name}
-                      to={item.href}
-                      onClick={() => setMoreOpen(false)}
-                      className={cn(
-                        "flex flex-col items-center justify-center p-3 rounded-2xl transition-all duration-200 gap-2 border border-border/40",
-                        isActive 
-                          ? "bg-[#0037b0]/5 text-[#0037b0] font-bold border-[#0037b0]/10 shadow-[0_4px_12px_rgba(0,55,176,0.02)]" 
-                          : "bg-muted hover:bg-accent text-foreground"
-                      )}
-                    >
-                      <div className="relative">
-                        <item.icon className="h-6 w-6 shrink-0" />
-                        {isLocked && (
-                          <div className="absolute -top-1 -right-1 bg-amber-500 text-white rounded-full p-0.5 shadow-sm">
-                            <LockIcon className="h-2 w-2" />
-                          </div>
-                        )}
-                      </div>
-                      <span className="text-xs font-semibold text-center truncate w-full">{item.name}</span>
-                    </Link>
-                  )
-                })}
+              {/* Grouped operations */}
+              <div className="space-y-6 mb-8">
+                {moreGroups.map((group) => (
+                  <div key={group.label}>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-3">
+                      {group.label}
+                    </span>
+                    <div className="grid grid-cols-3 gap-4">
+                      {group.items.map((item) => {
+                        const isActive = location.pathname.startsWith(item.href)
+                        const isLocked = item.requiresPlan && !hasRequiredPlan(item.requiresPlan)
+                        return (
+                          <Link
+                            key={item.name}
+                            to={item.href}
+                            onClick={() => setMoreOpen(false)}
+                            className={cn(
+                              "flex flex-col items-center justify-center p-3 rounded-2xl transition-all duration-200 gap-2 border border-border/40",
+                              isActive
+                                ? "bg-[#0037b0]/5 text-[#0037b0] font-bold border-[#0037b0]/10 shadow-[0_4px_12px_rgba(0,55,176,0.02)]"
+                                : "bg-muted hover:bg-accent text-foreground"
+                            )}
+                          >
+                            <div className="relative">
+                              <item.icon className="h-6 w-6 shrink-0" />
+                              {isLocked && (
+                                <div className="absolute -top-1 -right-1 bg-amber-500 text-white rounded-full p-0.5 shadow-sm">
+                                  <LockIcon className="h-2 w-2" />
+                                </div>
+                              )}
+                            </div>
+                            <span className="text-xs font-semibold text-center truncate w-full">{item.name}</span>
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
 
               {/* Account, Support & Logout section */}

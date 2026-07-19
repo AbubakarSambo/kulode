@@ -45,6 +45,7 @@ interface InvoiceData {
     subscriptionStatus?: string | null;
     showQrCode?: boolean | null;
     rcNumber?: string | null;
+    tin?: string | null;
     directors?: Array<{
       forenames: string;
       surname: string;
@@ -218,6 +219,7 @@ export class InvoicePdfService {
         phone: invoice.organization.phone,
         address: invoice.organization.address,
         rcNumber: invoice.organization.rcNumber,
+        tin: invoice.organization.tin,
         logoDataUri,
       },
       client: {

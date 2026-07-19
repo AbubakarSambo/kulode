@@ -332,7 +332,9 @@ export function PaymentsListPage() {
           <EmptyState
             icon={CreditCardIcon}
             title="No payments recorded yet"
-            description="All client invoice payments (Paystack, bank transfers, cash) will appear here."
+            description="All client invoice payments (Paystack, bank transfers, cash) will appear here. Open an invoice to record a payment against it."
+            actionLabel={isExpired ? undefined : "Record a payment"}
+            actionHref={isExpired ? undefined : "/invoices"}
           />
         ) : filteredPayments.length === 0 ? (
           <EmptyState

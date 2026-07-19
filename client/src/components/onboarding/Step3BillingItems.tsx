@@ -314,32 +314,37 @@ export function Step3BillingItems() {
         {showAdvanced && (
           <div className="space-y-4 pt-3 animate-in fade-in slide-in-from-top-2 duration-200">
             {/* VAT Configuration Toggle */}
-            <div className="p-3.5 bg-slate-50 border border-slate-200/40 rounded-xl flex items-center justify-between mt-0 text-left">
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="vatEnabledCheckbox"
-                  checked={vatEnabled}
-                  onChange={(e) => setVatEnabled(e.target.checked)}
-                  className="w-4 h-4 rounded text-[#0037b0] border-[#c4c5d7]/60 focus:ring-[#0037b0] cursor-pointer"
-                />
-                <label htmlFor="vatEnabledCheckbox" className="text-xs font-bold text-slate-800 cursor-pointer select-none">
-                  Apply VAT (7.5%) to this invoice & save as default
-                </label>
-              </div>
-              {vatEnabled && (
-                <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold animate-in fade-in duration-200">
-                  <span>Rate:</span>
+            <div className="p-3.5 bg-slate-50 border border-slate-200/40 rounded-xl mt-0 text-left">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
                   <input
-                    type="number"
-                    value={taxRate}
-                    inputMode="decimal"
-                    onChange={(e) => setTaxRate(Number(e.target.value))}
-                    className="w-12 h-7 px-1.5 text-center bg-white border border-[#c4c5d7]/40 rounded-md font-bold text-[#0037b0]"
+                    type="checkbox"
+                    id="vatEnabledCheckbox"
+                    checked={vatEnabled}
+                    onChange={(e) => setVatEnabled(e.target.checked)}
+                    className="w-4 h-4 rounded text-[#0037b0] border-[#c4c5d7]/60 focus:ring-[#0037b0] cursor-pointer"
                   />
-                  <span>%</span>
+                  <label htmlFor="vatEnabledCheckbox" className="text-xs font-bold text-slate-800 cursor-pointer select-none">
+                    Apply VAT (7.5%) to this invoice & save as default
+                  </label>
                 </div>
-              )}
+                {vatEnabled && (
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold animate-in fade-in duration-200">
+                    <span>Rate:</span>
+                    <input
+                      type="number"
+                      value={taxRate}
+                      inputMode="decimal"
+                      onChange={(e) => setTaxRate(Number(e.target.value))}
+                      className="w-12 h-7 px-1.5 text-center bg-white border border-[#c4c5d7]/40 rounded-md font-bold text-[#0037b0]"
+                    />
+                    <span>%</span>
+                  </div>
+                )}
+              </div>
+              <p className="text-[10px] text-slate-450 font-semibold mt-2 pl-7">
+                This becomes your default for new invoices. Change it anytime in Settings → Invoice Defaults.
+              </p>
             </div>
 
             {/* Discount Configuration */}

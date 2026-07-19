@@ -27,6 +27,7 @@ import {
 import { reportsApi, type ReportPeriod } from "@/api/reports";
 import { taxApi } from "@/api";
 import { formatCurrency, cn } from "@/lib/utils";
+import { getInvoiceStatusConfig } from "@/lib/invoiceStatus";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useOverscrollBounce } from "@/hooks";
 
@@ -407,7 +408,16 @@ export function DashboardPage() {
             <CardHeader className="p-6 pb-2">
               <CardTitle className="text-base font-bold text-slate-900 flex items-center justify-between">
                 <span>Revenue Trend</span>
-                <span className="text-xs font-semibold text-slate-400">{activeOption?.label}</span>
+                <span className="flex items-center gap-3">
+                  <span className="text-xs font-semibold text-slate-400">{activeOption?.label}</span>
+                  <Link
+                    to="/reports"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-[#0037b0] hover:underline"
+                  >
+                    View full reports
+                    <span className="text-sm">→</span>
+                  </Link>
+                </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6 pt-2">
@@ -437,6 +447,30 @@ export function DashboardPage() {
           </Card>
         )}
 
+        {/* Quick links to key modules (always visible, even with no data yet) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+          <Link
+            to="/tax"
+            className="flex items-center justify-between p-5 rounded-[20px] bg-white border border-slate-200/50 shadow-[0_4px_12px_rgba(0,55,176,0.02)] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,55,176,0.06)] hover:border-[#0037b0]/15 transition-all duration-300 group"
+          >
+            <div>
+              <p className="text-sm font-bold text-slate-800">Tax filing pack</p>
+              <p className="text-xs text-slate-400 font-medium mt-0.5">VAT, deductibles & FIRS-ready schedules</p>
+            </div>
+            <span className="text-[#0037b0] text-lg group-hover:translate-x-0.5 transition-transform">→</span>
+          </Link>
+          <Link
+            to="/reports"
+            className="flex items-center justify-between p-5 rounded-[20px] bg-white border border-slate-200/50 shadow-[0_4px_12px_rgba(0,55,176,0.02)] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,55,176,0.06)] hover:border-[#0037b0]/15 transition-all duration-300 group"
+          >
+            <div>
+              <p className="text-sm font-bold text-slate-800">Reports</p>
+              <p className="text-xs text-slate-400 font-medium mt-0.5">Revenue, cashflow & client insights</p>
+            </div>
+            <span className="text-[#0037b0] text-lg group-hover:translate-x-0.5 transition-transform">→</span>
+          </Link>
+        </div>
+
         {/* Main Dashboard Details */}
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Invoice Status Card */}
@@ -451,20 +485,15 @@ export function DashboardPage() {
               <div className="space-y-4">
                 {Object.entries(summary?.invoices ?? {}).map(
                   ([status, data]) => {
-                    const badgeVariants: Record<string, string> = {
-                      paid: "bg-emerald-50 text-emerald-700",
-                      overdue: "bg-rose-50 text-rose-700",
-                      draft: "bg-slate-100 text-slate-600",
-                    };
-                    const statusClass = badgeVariants[status] || "bg-blue-50 text-blue-700";
+                    const statusConfig = getInvoiceStatusConfig(status);
                     return (
                       <div
                         key={status}
                         className="flex items-center justify-between p-3 rounded-2xl bg-slate-50/50 hover:bg-[#eef4ff]/30 transition-all"
                       >
                         <div className="flex items-center gap-2.5">
-                          <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded-md ${statusClass}`}>
-                            {status.replace("_", " ")}
+                          <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded-md ${statusConfig.badge}`}>
+                            {statusConfig.label}
                           </span>
                           <span className="text-xs text-slate-400">
                             {data.count} invoice{data.count !== 1 ? "s" : ""}

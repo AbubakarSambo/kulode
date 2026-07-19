@@ -23,6 +23,7 @@ export interface RenderableInvoice {
     phone?: string | null;
     address?: string | null;
     rcNumber?: string | null;
+    tin?: string | null;
     logoDataUri?: string | null;
   };
   client: {
@@ -250,6 +251,7 @@ export function buildInvoiceHtml(invoice: RenderableInvoice): string {
           invoice.organization.phone,
           invoice.organization.address,
           invoice.organization.rcNumber ? `RC: ${invoice.organization.rcNumber}` : null,
+          invoice.organization.tin ? `TIN: ${invoice.organization.tin}` : null,
         ])}
       </div>
       <div class="invoice-meta">

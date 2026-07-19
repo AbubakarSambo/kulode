@@ -146,7 +146,7 @@ export class TaxService {
     const [tinCheck, numberedCheck, receiptsCheck, outstandingCheck] = await Promise.all([
       this.prisma.organization.findUnique({
         where: { id: organizationId },
-        select: { phone: true, email: true },
+        select: { tin: true },
       }),
       this.checkInvoicesNumbered(invoices),
       this.checkReceiptsUploaded(expenses),
@@ -157,8 +157,10 @@ export class TaxService {
       {
         id: 'tin',
         label: 'TIN on file',
-        status: (tinCheck?.phone || tinCheck?.email) ? 'ok' : 'warn',
-        hint: 'Ensure your Tax Identification Number is recorded in your business profile',
+        status: tinCheck?.tin ? 'ok' : 'warn',
+        hint: tinCheck?.tin
+          ? 'Your Tax Identification Number is recorded in your business profile'
+          : 'Record your Tax Identification Number in Settings → Organization',
       },
       {
         id: 'invoice_numbers',

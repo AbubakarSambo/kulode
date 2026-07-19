@@ -6,6 +6,8 @@ export function Step1BusinessProfile() {
   const {
     businessName,
     setBusinessName,
+    businessPhone,
+    setBusinessPhone,
     companyAddress,
     setCompanyAddress,
     logoPreviewUrl,
@@ -93,6 +95,21 @@ export function Step1BusinessProfile() {
             />
           </div>
         )}
+      </div>
+
+      {/* Business Phone input */}
+      <div className="space-y-2 text-left">
+        <label htmlFor="businessPhoneInput" className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+          Business Phone
+        </label>
+        <input
+          id="businessPhoneInput"
+          type="tel"
+          placeholder="e.g. 0803 123 4567"
+          value={businessPhone}
+          onChange={(e) => setBusinessPhone(e.target.value)}
+          className="w-full h-11 px-4 text-[16px] sm:text-xs bg-white rounded-xl border border-[#c4c5d7]/40 focus:border-[#0037b0] outline-none font-semibold text-slate-700 focus:ring-1 focus:ring-[#0037b0]"
+        />
       </div>
 
       {/* Company Address block */}

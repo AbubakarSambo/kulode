@@ -54,43 +54,11 @@ import { posthog } from '@/lib/posthog'
 import type { InvoiceStatus, PaymentMethod, WhatsappMessageStatus } from '@/types'
 import { useAuthStore } from '@/stores/auth'
 import { useSubscription } from '@/hooks/useSubscription'
+import { getInvoiceStatusConfig } from '@/lib/invoiceStatus'
 
 
 const renderStatusPill = (status: InvoiceStatus) => {
-  const configs: Record<InvoiceStatus, { dot: string; text: string; label: string }> = {
-    PAID: {
-      dot: 'bg-emerald-500',
-      text: 'text-emerald-700',
-      label: 'Paid',
-    },
-    OVERDUE: {
-      dot: 'bg-rose-500',
-      text: 'text-rose-700',
-      label: 'Overdue',
-    },
-    PARTIALLY_PAID: {
-      dot: 'bg-amber-500',
-      text: 'text-amber-700',
-      label: 'Part Paid',
-    },
-    SENT: {
-      dot: 'bg-blue-500',
-      text: 'text-blue-700',
-      label: 'Sent',
-    },
-    DRAFT: {
-      dot: 'bg-slate-400',
-      text: 'text-slate-550',
-      label: 'Draft',
-    },
-    CANCELLED: {
-      dot: 'bg-slate-400',
-      text: 'text-slate-550',
-      label: 'Cancelled',
-    },
-  }
-
-  const config = configs[status]
+  const config = getInvoiceStatusConfig(status)
   return (
     <div className="flex items-center gap-1.5 select-none justify-start">
       <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", config.dot)} />
@@ -559,8 +527,12 @@ export function InvoiceDetailPage() {
         </div>
         <div className="bg-background/50 p-4.5 rounded-2xl border border-[#eef4ff]/30 sm:text-right flex flex-col justify-between gap-3">
           <div>
-            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 block mb-0.5">Issue Date</span>
-            <span className="text-xs font-bold text-slate-750">{formatDate(invoice.issueDate)}</span>
+            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 block mb-0.5">
+              {invoice.status === 'DRAFT' ? 'Created On' : 'Issue Date'}
+            </span>
+            <span className="text-xs font-bold text-slate-750">
+              {formatDate(invoice.status === 'DRAFT' ? invoice.createdAt : invoice.issueDate)}
+            </span>
           </div>
           <div>
             <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 block mb-0.5">Due Date</span>
