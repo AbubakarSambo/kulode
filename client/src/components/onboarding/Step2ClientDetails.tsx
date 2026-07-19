@@ -2,8 +2,6 @@ import { PhoneInput } from "@/components/ui/phone-input";
 import { cn } from "@/lib/utils";
 import { useOnboarding } from "./OnboardingContext";
 
-const IS_DEV = import.meta.env.DEV;
-
 export function Step2ClientDetails() {
   const {
     clientType,
@@ -26,11 +24,6 @@ export function Step2ClientDetails() {
         <p className="text-xs text-slate-500 font-semibold leading-relaxed">
           Enter your client's details. Tari1 will register this contact and generate the invoice for them.
         </p>
-        {IS_DEV && (
-          <span className="inline-block mt-2 text-[9px] font-bold text-[#0037b0] bg-[#0037b0]/5 px-2 py-0.5 rounded-full uppercase tracking-wider">
-            ⚡ Local Test: Dummy data pre-filled
-          </span>
-        )}
       </div>
 
       {/* Client Type Selector */}

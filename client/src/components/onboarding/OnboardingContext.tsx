@@ -13,8 +13,6 @@ import apiClient from "@/api/client";
 import { toast } from "sonner";
 import { posthog } from "@/lib/posthog";
 
-const IS_DEV = import.meta.env.DEV;
-
 // Onboarding draft keys are global in localStorage; this key records which user
 // wrote them so another account's stale draft is never shown (e.g. junk business names).
 export const ONBOARDING_OWNER_KEY = "tari1-onboarding-owner";
@@ -366,10 +364,10 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
     (localStorage.getItem("tari1-onboarding-clientType") as "individual" | "business") || "business"
   );
   const [clientName, setClientName] = useState(() => {
-    return localStorage.getItem("tari1-onboarding-clientName") || (IS_DEV ? "Adebayo Technology Solutions" : "");
+    return localStorage.getItem("tari1-onboarding-clientName") || "";
   });
   const [clientEmail, setClientEmail] = useState(() => {
-    return localStorage.getItem("tari1-onboarding-clientEmail") || (IS_DEV ? "billing@adebayotech.ng" : "");
+    return localStorage.getItem("tari1-onboarding-clientEmail") || "";
   });
   const [clientPhone, setClientPhone] = useState(() => {
     return localStorage.getItem("tari1-onboarding-clientPhone") || "";
@@ -434,9 +432,9 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
     return [
       {
         id: "1",
-        description: IS_DEV ? "Enterprise Cloud Security Assessment & Compliance Audit" : "",
+        description: "",
         quantity: 1,
-        unitPrice: IS_DEV ? 450000 : 0,
+        unitPrice: 0,
         type: "service",
       },
     ];
