@@ -292,28 +292,29 @@ function WelcomeStepperContent() {
               <HugeiconsIcon icon={Briefcase02Icon} size={22} strokeWidth={1.5} className="text-amber-600" />
             </div>
             <div className="space-y-1.5 text-center">
-              <h4 className="text-sm font-bold text-slate-900 leading-snug">Send without online payments?</h4>
+              <h4 className="text-sm font-bold text-slate-900 leading-snug">How would you like to send this invoice?</h4>
               <p className="text-[11px] text-[#434655] font-semibold leading-relaxed">
-                You haven't linked a settlement bank account. Your customer will receive a static invoice and won't have a direct button to pay online.
+                Without a linked payout bank, your customer receives a static invoice and pays you directly.
+                You can connect a bank now, or anytime later from your dashboard.
               </p>
             </div>
             <div className="flex flex-col gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => handleFinishSend(true)}
+                className="w-full h-11 bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white rounded-xl font-bold text-xs shadow-md transition-all active:scale-98 cursor-pointer border-0"
+              >
+                Publish Invoice
+              </button>
               <button
                 type="button"
                 onClick={() => {
                   setShowConfirmOffline(false);
                   setStep(4);
                 }}
-                className="w-full h-11 bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white rounded-xl font-bold text-xs shadow-md transition-all active:scale-98 cursor-pointer border-0"
+                className="w-full h-11 bg-white text-[#0037b0] rounded-xl font-bold text-xs border border-[#0037b0]/30 hover:bg-[#eef4ff]/60 transition-all active:scale-98 cursor-pointer"
               >
-                Connect Payout Bank (Recommended)
-              </button>
-              <button
-                type="button"
-                onClick={() => handleFinishSend(true)}
-                className="w-full h-11 text-slate-455 hover:text-[#0037b0] text-xs font-bold transition-all cursor-pointer bg-transparent border-0"
-              >
-                Publish Offline / Static Invoice
+                Connect Payout Bank First
               </button>
             </div>
           </div>
