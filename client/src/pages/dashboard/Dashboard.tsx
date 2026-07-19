@@ -408,7 +408,16 @@ export function DashboardPage() {
             <CardHeader className="p-6 pb-2">
               <CardTitle className="text-base font-bold text-slate-900 flex items-center justify-between">
                 <span>Revenue Trend</span>
-                <span className="text-xs font-semibold text-slate-400">{activeOption?.label}</span>
+                <span className="flex items-center gap-3">
+                  <span className="text-xs font-semibold text-slate-400">{activeOption?.label}</span>
+                  <Link
+                    to="/reports"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-[#0037b0] hover:underline"
+                  >
+                    View full reports
+                    <span className="text-sm">→</span>
+                  </Link>
+                </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6 pt-2">
