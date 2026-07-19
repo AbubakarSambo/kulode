@@ -90,4 +90,10 @@ export class UpdateOrganizationDto {
   @IsString()
   @MaxLength(50)
   rcNumber?: string;
+
+  @ApiPropertyOptional({ example: '12345678-0001', description: 'Tax Identification Number (TIN)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  tin?: string;
 }

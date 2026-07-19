@@ -103,6 +103,7 @@ model Organization {
   address   String?
   logo      String?
   rcNumber  String?  @map("rc_number")
+  tin       String?  @map("tin")
 
   // Paystack integration
   paystackSubaccountCode String?  @map("paystack_subaccount_code")

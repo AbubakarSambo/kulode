@@ -193,15 +193,15 @@ describe('TaxService — getFilingPackPreview: tax calculations', () => {
     expect(expenseCall.where.organizationId).toBe(ORG_ID);
   });
 
-  it('compliance: TIN check is ok when org has a phone on file', async () => {
-    setupMocks({ orgOverrides: { phone: '09011223344', email: null } });
+  it('compliance: TIN check is ok when org has a TIN on file', async () => {
+    setupMocks({ orgOverrides: { tin: '12345678-0001' } });
     const result = await service.getFilingPackPreview(ORG_ID, START, END);
     const tinItem = result.compliance.find((c) => c.id === 'tin');
     expect(tinItem?.status).toBe('ok');
   });
 
-  it('compliance: TIN check warns when org has neither phone nor email', async () => {
-    setupMocks({ orgOverrides: { phone: null, email: null } });
+  it('compliance: TIN check warns when org has no TIN, even with phone and email', async () => {
+    setupMocks({ orgOverrides: { tin: null, phone: '09011223344', email: 'a@b.com' } });
     const result = await service.getFilingPackPreview(ORG_ID, START, END);
     const tinItem = result.compliance.find((c) => c.id === 'tin');
     expect(tinItem?.status).toBe('warn');

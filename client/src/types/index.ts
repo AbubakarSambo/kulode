@@ -129,6 +129,7 @@ export interface Organization {
   businessType?: string
   organizationSize?: string
   rcNumber?: string
+  tin?: string
 }
 
 // Onboarding
