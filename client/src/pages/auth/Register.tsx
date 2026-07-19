@@ -324,7 +324,7 @@ export function RegisterPage() {
               </a>
             </div>
             <CardTitle className="text-2xl font-semibold text-slate-900 tracking-tight">Create your account</CardTitle>
-            <CardDescription className="text-xs text-slate-500 mt-1">Start professionalizing your freelance business today.</CardDescription>
+            <CardDescription className="text-xs text-slate-500 mt-1">Professional invoicing, payments, and compliance for Nigerian small businesses, freelancers, and DNFBPs.</CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-4">
