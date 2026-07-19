@@ -324,7 +324,8 @@ export function OrganizationPage() {
                   <span className="text-sm font-medium">Enable VAT on invoices</span>
                 </label>
                 <p className="text-xs text-muted-foreground">
-                  When enabled, VAT will be applied to all new invoices at the rate specified below.
+                  This is your default for new invoices — it applies VAT at the rate below.
+                  The same default is shown (and can be saved) in the onboarding invoice setup.
                 </p>
                 {watch('vatEnabled') && (
                   <div className="space-y-2">

@@ -379,14 +379,21 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
     const saved = localStorage.getItem("tari1-onboarding-isWhatsapp");
     return saved !== null ? saved === "true" : true;
   });
+  // VAT defaults live on the organization (same field Settings → Invoice
+  // Defaults edits); the draft only carries in-progress edits, and finishing
+  // onboarding writes back to the org so both UIs share one source of truth.
   const [vatEnabled, setVatEnabled] = useState(() => {
     const saved = localStorage.getItem("tari1-onboarding-vatEnabled");
-    return saved !== null ? saved === "true" : true;
+    if (saved !== null) return saved === "true";
+    const org = useAuthStore.getState().user?.organization;
+    return org?.vatEnabled ?? true;
   });
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [taxRate, setTaxRate] = useState(() => {
     const saved = localStorage.getItem("tari1-onboarding-taxRate");
-    return saved !== null ? Number(saved) : 7.5;
+    if (saved !== null) return Number(saved);
+    const org = useAuthStore.getState().user?.organization;
+    return org?.taxRate != null ? Number(org.taxRate) : 7.5;
   });
   const [discountType, setDiscountType] = useState<"PERCENTAGE" | "FIXED">((localStorage.getItem("tari1-onboarding-discountType") as "PERCENTAGE" | "FIXED") || "PERCENTAGE");
   const [discountPercent, setDiscountPercent] = useState<number>(() => {
