@@ -69,6 +69,8 @@ export interface User {
     vatEnabled?: boolean
     taxRate?: number
     logo?: string
+    email?: string
+    phone?: string
     address?: string
     paymentTerms?: string
     defaultNotes?: string

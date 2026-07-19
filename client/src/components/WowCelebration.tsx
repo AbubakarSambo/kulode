@@ -320,7 +320,7 @@ export function WowCelebration({
             {/* Invoice Info Panel (No 1px solid borders, bg shifts) */}
             <div className="bg-[#f8f9ff] rounded-2xl p-4.5 text-left mb-6 flex flex-col gap-2">
               <div className="flex justify-between items-center text-xs text-slate-400 font-bold uppercase tracking-wider">
-                <span>Invoice Issued</span>
+                <span>Draft Invoice Created</span>
                 <span className="text-emerald-700 font-black">
                   {invoiceNumber}
                 </span>

@@ -27,6 +27,7 @@ import {
 import { reportsApi, type ReportPeriod } from "@/api/reports";
 import { taxApi } from "@/api";
 import { formatCurrency, cn } from "@/lib/utils";
+import { getInvoiceStatusConfig } from "@/lib/invoiceStatus";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useOverscrollBounce } from "@/hooks";
 
@@ -451,20 +452,15 @@ export function DashboardPage() {
               <div className="space-y-4">
                 {Object.entries(summary?.invoices ?? {}).map(
                   ([status, data]) => {
-                    const badgeVariants: Record<string, string> = {
-                      paid: "bg-emerald-50 text-emerald-700",
-                      overdue: "bg-rose-50 text-rose-700",
-                      draft: "bg-slate-100 text-slate-600",
-                    };
-                    const statusClass = badgeVariants[status] || "bg-blue-50 text-blue-700";
+                    const statusConfig = getInvoiceStatusConfig(status);
                     return (
                       <div
                         key={status}
                         className="flex items-center justify-between p-3 rounded-2xl bg-slate-50/50 hover:bg-[#eef4ff]/30 transition-all"
                       >
                         <div className="flex items-center gap-2.5">
-                          <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded-md ${statusClass}`}>
-                            {status.replace("_", " ")}
+                          <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded-md ${statusConfig.badge}`}>
+                            {statusConfig.label}
                           </span>
                           <span className="text-xs text-slate-400">
                             {data.count} invoice{data.count !== 1 ? "s" : ""}

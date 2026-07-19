@@ -16,6 +16,7 @@ import { Button, Input, Card, CardContent, EmptyState, DropdownPanel } from '@/c
 import { BottomSheet } from '@/components/shared'
 import { invoicesApi } from '@/api'
 import { formatCurrency, formatDate, cn } from '@/lib/utils'
+import { getInvoiceStatusConfig, getIssueDateLabel } from '@/lib/invoiceStatus'
 import type { InvoiceStatus } from '@/types'
 import { InvoicesIcon } from '@/components/ui/CustomIcons'
 import { useOverscrollBounce } from '@/hooks'
@@ -24,40 +25,7 @@ import { useSubscription } from '@/hooks/useSubscription'
 
 
 const renderStatusPill = (status: InvoiceStatus) => {
-  const configs: Record<InvoiceStatus, { dot: string; text: string; label: string }> = {
-    PAID: {
-      dot: 'bg-emerald-500',
-      text: 'text-emerald-700',
-      label: 'Paid',
-    },
-    OVERDUE: {
-      dot: 'bg-rose-500',
-      text: 'text-rose-700',
-      label: 'Overdue',
-    },
-    PARTIALLY_PAID: {
-      dot: 'bg-amber-500',
-      text: 'text-amber-700',
-      label: 'Part Paid',
-    },
-    SENT: {
-      dot: 'bg-blue-500',
-      text: 'text-blue-700',
-      label: 'Sent',
-    },
-    DRAFT: {
-      dot: 'bg-slate-400',
-      text: 'text-slate-500',
-      label: 'Draft',
-    },
-    CANCELLED: {
-      dot: 'bg-slate-400',
-      text: 'text-slate-550',
-      label: 'Cancelled',
-    },
-  }
-
-  const config = configs[status]
+  const config = getInvoiceStatusConfig(status)
   return (
     <div className="flex items-center gap-2 select-none justify-start">
       <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", config.dot)} />
@@ -461,7 +429,7 @@ export function InvoicesListPage() {
 
                   <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#eef4ff]/50">
                     <span className="text-xs text-slate-400 font-medium">
-                      Issued: {formatDate(invoice.issueDate)}
+                      {getIssueDateLabel(invoice.status)}: {formatDate(invoice.status === 'DRAFT' ? invoice.createdAt || invoice.issueDate : invoice.issueDate)}
                     </span>
                     {renderStatusPill(invoice.status)}
                   </div>
