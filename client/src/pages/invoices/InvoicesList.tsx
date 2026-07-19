@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   PlusSignIcon,
@@ -92,6 +92,16 @@ export function InvoicesListPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const queryClient = useQueryClient()
   const { isReadOnlyMode } = useSubscription()
+  const navigate = useNavigate()
+
+  const openInvoice = (id: string) => navigate(`/invoices/${id}`)
+
+  const handleRowKeyDown = (e: React.KeyboardEvent, id: string) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      openInvoice(id)
+    }
+  }
 
   const openMobileFilters = () => {
     setTempStatus(status)
@@ -364,12 +374,17 @@ export function InvoicesListPage() {
                       {filteredInvoices.map((invoice, index) => (
                         <tr
                           key={invoice.id}
+                          role="link"
+                          tabIndex={0}
+                          aria-label={`Open invoice ${invoice.invoiceNumber}`}
+                          onClick={() => openInvoice(invoice.id)}
+                          onKeyDown={(e) => handleRowKeyDown(e, invoice.id)}
                           className={cn(
-                            "transition-all duration-150 hover:bg-[#eef4ff]/20",
+                            "cursor-pointer transition-all duration-150 hover:bg-[#eef4ff]/20 focus-visible:outline-2 focus-visible:outline-[#0037b0]/40",
                             selectedIds.has(invoice.id) ? "bg-[#0037b0]/[0.03]" : index % 2 === 0 ? "bg-transparent" : "bg-background/40"
                           )}
                         >
-                          <td className="px-4 py-4">
+                          <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                             <input
                               type="checkbox"
                               className="h-4 w-4 rounded border-slate-300 accent-[#0037b0] cursor-pointer"
@@ -380,6 +395,7 @@ export function InvoicesListPage() {
                           <td className="px-6 py-4">
                             <Link
                               to={`/invoices/${invoice.id}`}
+                              onClick={(e) => e.stopPropagation()}
                               className="font-semibold text-[#0037b0] hover:text-[#002e90] transition-colors text-sm"
                             >
                               {invoice.invoiceNumber}
@@ -413,9 +429,14 @@ export function InvoicesListPage() {
             {/* Mobile Card-Based List View */}
             <div className="flex flex-col gap-4 md:hidden">
               {filteredInvoices.map((invoice) => (
-                <div 
+                <div
                   key={invoice.id}
-                  className="bg-white rounded-[24px] p-5 shadow-[0px_8px_24px_rgba(0,55,176,0.08)] border-0 transition-all duration-300 hover:shadow-[0px_12px_32px_rgba(0,55,176,0.12)] relative"
+                  role="link"
+                  tabIndex={0}
+                  aria-label={`Open invoice ${invoice.invoiceNumber}`}
+                  onClick={() => openInvoice(invoice.id)}
+                  onKeyDown={(e) => handleRowKeyDown(e, invoice.id)}
+                  className="bg-white rounded-[24px] p-5 shadow-[0px_8px_24px_rgba(0,55,176,0.08)] border-0 transition-all duration-300 hover:shadow-[0px_12px_32px_rgba(0,55,176,0.12)] relative cursor-pointer focus-visible:outline-2 focus-visible:outline-[#0037b0]/40"
                 >
                   <div className="flex items-center justify-between gap-3 mb-4">
                     <div className="flex items-center gap-3">
@@ -423,8 +444,9 @@ export function InvoicesListPage() {
                         {getInitials(invoice.client.name)}
                       </div>
                       <div>
-                        <Link 
-                          to={`/invoices/${invoice.id}`} 
+                        <Link
+                          to={`/invoices/${invoice.id}`}
+                          onClick={(e) => e.stopPropagation()}
                           className="font-semibold text-[#0037b0] hover:underline text-sm block"
                         >
                           {invoice.invoiceNumber}
