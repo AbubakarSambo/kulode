@@ -75,6 +75,8 @@ export class AuthService {
           subscriptionStatus: 'TRIALING',
           trialStartDate: now,
           trialEndDate: trialEnd,
+          vatEnabled: true,
+          taxRate: 7.5,
         },
       });
 
@@ -172,6 +174,8 @@ export class AuthService {
           subscriptionStatus: 'TRIALING',
           trialStartDate: now,
           trialEndDate: trialEnd,
+          vatEnabled: true,
+          taxRate: 7.5,
         },
       });
 
@@ -706,6 +710,8 @@ export class AuthService {
               subscriptionStatus: 'TRIALING',
               trialStartDate: now,
               trialEndDate: trialEnd,
+              vatEnabled: true,
+              taxRate: 7.5,
             },
           });
 

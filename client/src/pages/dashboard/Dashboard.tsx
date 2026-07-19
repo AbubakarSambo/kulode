@@ -447,6 +447,30 @@ export function DashboardPage() {
           </Card>
         )}
 
+        {/* Quick links to key modules (always visible, even with no data yet) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+          <Link
+            to="/tax"
+            className="flex items-center justify-between p-5 rounded-[20px] bg-white border border-slate-200/50 shadow-[0_4px_12px_rgba(0,55,176,0.02)] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,55,176,0.06)] hover:border-[#0037b0]/15 transition-all duration-300 group"
+          >
+            <div>
+              <p className="text-sm font-bold text-slate-800">Tax filing pack</p>
+              <p className="text-xs text-slate-400 font-medium mt-0.5">VAT, deductibles & FIRS-ready schedules</p>
+            </div>
+            <span className="text-[#0037b0] text-lg group-hover:translate-x-0.5 transition-transform">→</span>
+          </Link>
+          <Link
+            to="/reports"
+            className="flex items-center justify-between p-5 rounded-[20px] bg-white border border-slate-200/50 shadow-[0_4px_12px_rgba(0,55,176,0.02)] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,55,176,0.06)] hover:border-[#0037b0]/15 transition-all duration-300 group"
+          >
+            <div>
+              <p className="text-sm font-bold text-slate-800">Reports</p>
+              <p className="text-xs text-slate-400 font-medium mt-0.5">Revenue, cashflow & client insights</p>
+            </div>
+            <span className="text-[#0037b0] text-lg group-hover:translate-x-0.5 transition-transform">→</span>
+          </Link>
+        </div>
+
         {/* Main Dashboard Details */}
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Invoice Status Card */}
