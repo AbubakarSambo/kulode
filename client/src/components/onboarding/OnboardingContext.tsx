@@ -15,6 +15,50 @@ import { posthog } from "@/lib/posthog";
 
 const IS_DEV = import.meta.env.DEV;
 
+// Onboarding draft keys are global in localStorage; this key records which user
+// wrote them so another account's stale draft is never shown (e.g. junk business names).
+export const ONBOARDING_OWNER_KEY = "tari1-onboarding-owner";
+
+const ONBOARDING_STORAGE_KEYS = [
+  "tari1-onboarding-step",
+  "tari1-onboarding-businessName",
+  "tari1-onboarding-businessPhone",
+  "tari1-onboarding-companyAddress",
+  "tari1-onboarding-clientType",
+  "tari1-onboarding-clientName",
+  "tari1-onboarding-clientEmail",
+  "tari1-onboarding-clientPhone",
+  "tari1-onboarding-clientAddress",
+  "tari1-onboarding-isWhatsapp",
+  "tari1-onboarding-vatEnabled",
+  "tari1-onboarding-taxRate",
+  "tari1-onboarding-discountType",
+  "tari1-onboarding-discountPercent",
+  "tari1-onboarding-enableInstallments",
+  "tari1-onboarding-installments",
+  "tari1-onboarding-billingItems",
+  "tari1-onboarding-paymentTerms",
+  "tari1-onboarding-invoiceNotes",
+  "tari1-onboarding-bankCode",
+  "tari1-onboarding-accountNumber",
+  "tari1-onboarding-verifiedAccountName",
+  "tari1-onboarding-isBankConnected",
+  "tari1-onboarding-completedSteps",
+];
+
+export const clearOnboardingLocalStorage = () => {
+  ONBOARDING_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+};
+
+export const claimOnboardingDraftForUser = (userId: string | undefined) => {
+  if (typeof window === "undefined" || !userId) return;
+  const owner = localStorage.getItem(ONBOARDING_OWNER_KEY);
+  if (owner !== userId) {
+    clearOnboardingLocalStorage();
+    localStorage.setItem(ONBOARDING_OWNER_KEY, userId);
+  }
+};
+
 export interface Bank {
   name: string;
   code: string;
@@ -125,6 +169,8 @@ interface OnboardingContextProps {
   // Form States - Step 1: Branding
   businessName: string;
   setBusinessName: React.Dispatch<React.SetStateAction<string>>;
+  businessPhone: string;
+  setBusinessPhone: React.Dispatch<React.SetStateAction<string>>;
   companyAddress: string;
   setCompanyAddress: React.Dispatch<React.SetStateAction<string>>;
   logoFile: File | null;
@@ -232,6 +278,10 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
   const { user, updateUser } = useAuthStore();
   const { isOpen, startAtStep, closeOnboarding, openOnboarding } = useOnboardingStore();
 
+  // Must run before the state initializers below read the draft from localStorage,
+  // so a previous account's draft never leaks into this user's onboarding.
+  claimOnboardingDraftForUser(user?.id);
+
   const [step, setStep] = useState(1);
   const [isMobile, setIsMobile] = useState(typeof window !== "undefined" ? window.innerWidth < 640 : false);
 
@@ -268,6 +318,9 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
   // New persistent state hooks
   const [businessName, setBusinessName] = useState(() => {
     return localStorage.getItem("tari1-onboarding-businessName") || "";
+  });
+  const [businessPhone, setBusinessPhone] = useState(() => {
+    return localStorage.getItem("tari1-onboarding-businessPhone") || "";
   });
   const [companyAddress, setCompanyAddress] = useState(() => {
     return localStorage.getItem("tari1-onboarding-companyAddress") || "";
@@ -392,6 +445,7 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
   // Persistent state updates effect
   useEffect(() => {
     localStorage.setItem("tari1-onboarding-businessName", businessName);
+    localStorage.setItem("tari1-onboarding-businessPhone", businessPhone);
     localStorage.setItem("tari1-onboarding-companyAddress", companyAddress);
     localStorage.setItem("tari1-onboarding-clientType", clientType);
     localStorage.setItem("tari1-onboarding-clientName", clientName);
@@ -418,6 +472,7 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem("tari1-onboarding-isBankConnected", String(isBankConnected));
   }, [
     businessName,
+    businessPhone,
     companyAddress,
     clientType,
     clientName,
@@ -456,32 +511,6 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [installments.length]);
-
-  const clearOnboardingLocalStorage = () => {
-    localStorage.removeItem("tari1-onboarding-step");
-    localStorage.removeItem("tari1-onboarding-businessName");
-    localStorage.removeItem("tari1-onboarding-companyAddress");
-    localStorage.removeItem("tari1-onboarding-clientType");
-    localStorage.removeItem("tari1-onboarding-clientName");
-    localStorage.removeItem("tari1-onboarding-clientEmail");
-    localStorage.removeItem("tari1-onboarding-clientPhone");
-    localStorage.removeItem("tari1-onboarding-clientAddress");
-    localStorage.removeItem("tari1-onboarding-isWhatsapp");
-    localStorage.removeItem("tari1-onboarding-vatEnabled");
-    localStorage.removeItem("tari1-onboarding-taxRate");
-    localStorage.removeItem("tari1-onboarding-discountType");
-    localStorage.removeItem("tari1-onboarding-discountPercent");
-    localStorage.removeItem("tari1-onboarding-enableInstallments");
-    localStorage.removeItem("tari1-onboarding-installments");
-    localStorage.removeItem("tari1-onboarding-billingItems");
-    localStorage.removeItem("tari1-onboarding-paymentTerms");
-    localStorage.removeItem("tari1-onboarding-invoiceNotes");
-    localStorage.removeItem("tari1-onboarding-bankCode");
-    localStorage.removeItem("tari1-onboarding-accountNumber");
-    localStorage.removeItem("tari1-onboarding-verifiedAccountName");
-    localStorage.removeItem("tari1-onboarding-isBankConnected");
-    localStorage.removeItem("tari1-onboarding-completedSteps");
-  };
 
   // Revoke object URL on cleanup
   useEffect(() => {
@@ -572,6 +601,9 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
         if (org.name && !businessName && !localStorage.getItem("tari1-onboarding-businessName")) {
           setBusinessName(org.name);
         }
+        if (org.phone && !businessPhone && !localStorage.getItem("tari1-onboarding-businessPhone")) {
+          setBusinessPhone(org.phone);
+        }
         if (org.address && !companyAddress && !localStorage.getItem("tari1-onboarding-companyAddress")) {
           setCompanyAddress(org.address);
         }
@@ -586,7 +618,7 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
         }
       }
     }
-  }, [user, role, businessType, orgSize, businessName, companyAddress, logoPreviewUrl, logoFile, paymentTerms, invoiceNotes]);
+  }, [user, role, businessType, orgSize, businessName, businessPhone, companyAddress, logoPreviewUrl, logoFile, paymentTerms, invoiceNotes]);
 
   const handleLogoFile = (file: File) => {
     if (file.size > 2 * 1024 * 1024) {
@@ -694,8 +726,15 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
         const payload: UpdateOrganizationData = {
           name: businessName.trim(),
         };
+        if (businessPhone.trim()) {
+          payload.phone = businessPhone.trim();
+        }
         if (companyAddress.trim()) {
           payload.address = companyAddress.trim();
+        }
+        // Backfill the org contact email from the account email for orgs created before it was set at registration
+        if (!user?.organization?.email && user?.email) {
+          payload.email = user.email;
         }
         await organizationsApi.updateCurrent(payload);
         if (logoFile) {
@@ -862,8 +901,14 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
         orgUpdateData.businessType = finalBusinessType;
         orgUpdateData.organizationSize = orgSize;
       }
+      if (businessPhone.trim()) {
+        orgUpdateData.phone = businessPhone.trim();
+      }
       if (companyAddress.trim()) {
         orgUpdateData.address = companyAddress.trim();
+      }
+      if (!user?.organization?.email && user?.email) {
+        orgUpdateData.email = user.email;
       }
 
       if (Object.keys(orgUpdateData).length > 0) {
@@ -1075,6 +1120,8 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
 
         businessName,
         setBusinessName,
+        businessPhone,
+        setBusinessPhone,
         companyAddress,
         setCompanyAddress,
         logoFile,
