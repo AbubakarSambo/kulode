@@ -280,6 +280,30 @@ export function TaxFilingPackPage() {
           </CardContent>
         </Card>
 
+        {/* Idle zero-state: guide user to the next action */}
+        {!submitted && (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12 text-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-[#0037b0]/5 text-[#0037b0] flex items-center justify-center">
+                <FileText className="h-6 w-6" strokeWidth={1.5} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-800">Your tax filing pack will appear here</p>
+                <p className="text-xs text-slate-500 mt-1 max-w-sm">
+                  Pick a period above and generate a preview of revenue, VAT, deductible expenses, and your compliance checklist for FIRS filing.
+                </p>
+              </div>
+              <Button
+                onClick={() => setSubmitted(true)}
+                disabled={!startDate || !endDate}
+                className="mt-1 h-10 cursor-pointer"
+              >
+                Generate Preview
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Loading */}
         {submitted && isLoading && (
           <div className="flex items-center justify-center py-16">
