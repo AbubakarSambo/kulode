@@ -13,7 +13,14 @@ const {
   ogImage = '/og-default.png',
 } = Astro.props
 
-const canonicalUrl = new URL(Astro.url.pathname, Astro.site).href
+// build.format:'file' makes Astro.url.pathname end in ".html" (e.g. "/pricing.html")
+// for every route except "/". Vercel's cleanUrls strips that suffix when serving,
+// so a canonical tag that includes it points at a URL that 308s before resolving —
+// strip it here so canonical always matches the URL that actually returns 200.
+const cleanPathname = Astro.url.pathname
+  .replace(/\/index\.html$/, '/')
+  .replace(/\.html$/, '')
+const canonicalUrl = new URL(cleanPathname || '/', Astro.site).href
 const posthogKey = import.meta.env.PUBLIC_POSTHOG_KEY ?? ''
 const posthogHost = import.meta.env.PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com'
 ---
