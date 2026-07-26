@@ -61,6 +61,13 @@ export { DirectorsPage } from './settings/DirectorsPage'
 export { BillingPage } from './settings/BillingPage'
 export { ChangelogPage } from './settings/ChangelogPage'
 
+// Restaurant POS
+export { MenuManagementPage } from './pos/MenuManagementPage'
+export { TablesFloorPage } from './pos/TablesFloorPage'
+export { OrderTakingPage } from './pos/OrderTakingPage'
+export { OrderDetailPage } from './pos/OrderDetailPage'
+export { ShiftPage } from './pos/ShiftPage'
+
 // Admin
 export { AdminDashboardPage } from './admin/AdminDashboard'
 

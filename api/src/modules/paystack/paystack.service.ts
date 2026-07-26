@@ -565,6 +565,161 @@ export class PaystackService {
     };
   }
 
+  /**
+   * Initializes a Paystack checkout for a restaurant order close-out. Mirrors
+   * initializeTransaction (invoices) but targets an Order instead — see OrdersController, which
+   * calls this directly rather than routing through OrdersService, the same split invoices use.
+   */
+  async initializeOrderTransaction(
+    organizationId: string,
+    orderId: string,
+    email: string,
+    amount: number,
+  ) {
+    const organization = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+    });
+
+    if (!organization?.paystackSubaccountCode) {
+      throw new BadRequestException('Paystack subaccount not set up');
+    }
+
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, organizationId },
+    });
+
+    if (!order) {
+      throw new BadRequestException('Order not found');
+    }
+
+    if (order.status === 'CLOSED_PAID' || order.status === 'CANCELLED') {
+      throw new BadRequestException(`Cannot generate a payment link for a ${order.status.toLowerCase()} order`);
+    }
+
+    const reference = `ORD-${order.id.slice(0, 8)}-${Date.now()}`;
+    const grossAmount = this.calculateGrossAmount(amount);
+
+    let authorization_url = `http://localhost:5173/payment/callback?reference=${reference}`;
+    let access_code = 'MOCK_ACCESS_CODE';
+
+    if (!this.isMockMode) {
+      const result = await this.makeRequest<{
+        authorization_url: string;
+        access_code: string;
+        reference: string;
+      }>('/transaction/initialize', 'POST', {
+        email,
+        amount: Math.round(grossAmount * 100),
+        reference,
+        callback_url: this.callbackUrl,
+        subaccount: organization.paystackSubaccountCode,
+        bearer: 'subaccount',
+        channels: ['bank_transfer', 'card', 'bank', 'ussd', 'qr', 'mobile_money'],
+        metadata: {
+          type: 'order',
+          order_id: orderId,
+          organization_id: organizationId,
+        },
+      });
+      authorization_url = result.authorization_url;
+      access_code = result.access_code;
+    }
+
+    return {
+      paymentUrl: authorization_url,
+      reference,
+      accessCode: access_code,
+    };
+  }
+
+  async reconcileOrderPayment(reference: string, data: {
+    amount: number;
+    channel: string;
+    paid_at: string;
+    fees: number;
+    metadata?: any;
+  }) {
+    const existingPayment = await this.prisma.payment.findFirst({
+      where: { paystackReference: reference },
+    });
+    if (existingPayment) {
+      this.logger.log(`Order payment for reference ${reference} already reconciled, skipping.`);
+      return { success: true, alreadyProcessed: true };
+    }
+
+    const orderId = data.metadata?.order_id;
+    if (!orderId) {
+      this.logger.error(`Order payment webhook missing order_id for reference ${reference}`);
+      return { success: false, reason: 'Missing order_id metadata' };
+    }
+
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) {
+      this.logger.error(`Order payment reconciliation failed: order ${orderId} not found for reference ${reference}`);
+      return { success: false, reason: 'Order not found' };
+    }
+
+    if (order.status === 'CLOSED_PAID') {
+      this.logger.log(`Order ${orderId} already closed, skipping reconciliation for ${reference}`);
+      return { success: true, alreadyProcessed: true };
+    }
+
+    const amountInNaira = data.amount / 100;
+    const paystackFees = data.fees / 100;
+    const platformFeePercent = await this.prisma.organization
+      .findUnique({ where: { id: order.organizationId } })
+      .then((org) => Number(org?.platformFeePercent ?? 0));
+    const platformFees = amountInNaira * (platformFeePercent / 100);
+    const netAmount = amountInNaira - paystackFees - platformFees;
+
+    await this.prisma.$transaction(async (tx) => {
+      const doubleCheck = await tx.payment.findFirst({ where: { paystackReference: reference } });
+      if (doubleCheck) return;
+
+      // Conditional update: only transition if the order wasn't closed/cancelled in the meantime
+      // (e.g. a cashier closed it with cash while this checkout link was still pending).
+      const result = await tx.order.updateMany({
+        where: { id: order.id, status: { in: ['OPEN', 'IN_KITCHEN', 'READY'] } },
+        data: { amountPaid: amountInNaira, status: 'CLOSED_PAID', closedAt: new Date(data.paid_at) },
+      });
+      if (result.count === 0) {
+        this.logger.warn(
+          `Order ${order.id} was already closed/cancelled by the time Paystack reference ${reference} confirmed — payment recorded but order left unchanged.`,
+        );
+      }
+
+      await tx.payment.create({
+        data: {
+          organizationId: order.organizationId,
+          orderId: order.id,
+          amount: amountInNaira,
+          paymentMethod: 'PAYSTACK',
+          paymentDate: new Date(data.paid_at),
+          paystackReference: reference,
+          paystackFees,
+          platformFees,
+          netAmount,
+          isAutoRecorded: true,
+          // Still recorded for reconciliation even if the order was already closed some other
+          // way — this money genuinely arrived and must be tracked, but it must NOT double-deduct
+          // inventory or re-touch the table below.
+          notes: result.count === 0 ? 'Received after order was already closed/cancelled — needs manual review' : undefined,
+        },
+      });
+
+      if (result.count === 0) return;
+
+      await this.inventoryService.deductForOrder(tx, order.id, order.organizationId);
+
+      if (order.tableId) {
+        await tx.restaurantTable.update({ where: { id: order.tableId }, data: { status: 'NEEDS_CLEANING' } });
+      }
+    });
+
+    this.logger.log(`Order payment recorded for order ${order.id}`);
+    return { success: true };
+  }
+
   async chargeAuthorization(
     email: string,
     amountInKobo: number,
@@ -705,6 +860,14 @@ export class PaystackService {
         if (data.metadata?.type === 'vendor_payout') {
           await this.reconcileVendorPayout(reference, {
             amount: data.amount,
+            paid_at: data.paid_at || new Date().toISOString(),
+            fees: data.fees || 0,
+            metadata: data.metadata,
+          });
+        } else if (data.metadata?.type === 'order') {
+          await this.reconcileOrderPayment(reference, {
+            amount: data.amount,
+            channel: data.channel || 'card',
             paid_at: data.paid_at || new Date().toISOString(),
             fees: data.fees || 0,
             metadata: data.metadata,
@@ -1101,6 +1264,17 @@ export class PaystackService {
     // no separate transfer step to wait on.
     if (metadata?.type === 'vendor_payout') {
       const result = await this.reconcileVendorPayout(reference, data);
+      return { received: true, success: result.success, reason: (result as { reason?: string }).reason };
+    }
+
+    if (metadata?.type === 'order') {
+      const result = await this.reconcileOrderPayment(reference, {
+        amount,
+        channel: data.channel,
+        paid_at,
+        fees: data.fees,
+        metadata,
+      });
       return { received: true, success: result.success, reason: (result as { reason?: string }).reason };
     }
 

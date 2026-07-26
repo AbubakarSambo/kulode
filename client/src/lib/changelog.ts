@@ -13,6 +13,34 @@ export interface ChangelogEntry {
 }
 
 export const changelogData: Record<string, ChangelogEntry> = {
+  '1.3.0': {
+    version: '1.3.0',
+    date: '2026-07-26',
+    title: 'Restaurant POS — Tables, Menu, Orders & Shifts',
+    type: 'minor',
+    features: [
+      {
+        title: 'Restaurant Point of Sale',
+        description: 'Take dine-in, takeaway, delivery, and third-party orders from a new Restaurant POS section — manage your menu and categories, seat and track tables in real time, and send orders straight to the kitchen.',
+        tag: 'New Feature',
+      },
+      {
+        title: 'Flexible Order Payments',
+        description: 'Close out an order with cash, bank transfer, card, or a Paystack checkout link, and print or download a receipt the moment it settles.',
+        tag: 'New Feature',
+      },
+      {
+        title: 'Works Through Connectivity Drops',
+        description: 'Orders taken while your connection is down are saved on the device and sent automatically the moment you\'re back online — no lost orders during a power or network outage.',
+        tag: 'New Feature',
+      },
+      {
+        title: 'Shift & Till Reconciliation',
+        description: 'Open a shift with a starting cash float and close it by counting the till — Tari1 shows you the expected cash total and flags any variance automatically.',
+        tag: 'New Feature',
+      },
+    ],
+  },
   '1.2.2': {
     version: '1.2.2',
     date: '2026-07-03',

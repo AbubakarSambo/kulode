@@ -312,6 +312,48 @@ export class InventoryService {
     }
   }
 
+  async deductForOrder(
+    tx: TransactionClient,
+    orderId: string,
+    organizationId: string,
+  ) {
+    const orderItems = await tx.orderItem.findMany({
+      where: { orderId },
+      include: { menuItem: { select: { inventoryItemId: true } } },
+    });
+
+    for (const orderItem of orderItems) {
+      const inventoryItemId = orderItem.menuItem.inventoryItemId;
+      if (!inventoryItemId) continue;
+
+      const inventoryItem = await tx.inventoryItem.findFirst({
+        where: { id: inventoryItemId, organizationId },
+      });
+      if (!inventoryItem) continue;
+
+      const deductQty = toNumber(orderItem.quantity);
+      const currentOnHand = toNumber(inventoryItem.onHandQuantity);
+      const newOnHand = currentOnHand - deductQty;
+
+      await tx.inventoryItem.update({
+        where: { id: inventoryItemId },
+        data: { onHandQuantity: newOnHand },
+      });
+
+      await tx.stockMovement.create({
+        data: {
+          organizationId,
+          inventoryItemId,
+          orderId,
+          type: 'ORDER_DEDUCTED',
+          quantity: -deductQty,
+          onHandBefore: currentOnHand,
+          onHandAfter: newOnHand,
+        },
+      });
+    }
+  }
+
   async reversePaymentDeduction(
     tx: TransactionClient,
     invoiceId: string,

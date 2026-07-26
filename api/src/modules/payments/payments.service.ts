@@ -181,6 +181,10 @@ export class PaymentsService {
       throw new NotFoundException('Payment not found');
     }
 
+    if (!payment.invoice) {
+      throw new BadRequestException('This payment is not linked to an invoice');
+    }
+
     // If amount is changing, update invoice transactionally
     if (dto.amount !== undefined && dto.amount !== Number(payment.amount)) {
       const oldAmount = Number(payment.amount);
@@ -260,29 +264,35 @@ export class PaymentsService {
       throw new NotFoundException('Payment not found');
     }
 
+    if (!payment.invoice || !payment.invoiceId) {
+      throw new BadRequestException('This payment is not linked to an invoice');
+    }
+    const invoiceId = payment.invoiceId;
+    const invoice = payment.invoice;
+
     // Update invoice and delete payment in transaction
     await this.prisma.$transaction(async (tx) => {
       // Update invoice amount paid
-      const newAmountPaid = Number(payment.invoice.amountPaid) - Number(payment.amount);
-      let newStatus = payment.invoice.status;
+      const newAmountPaid = Number(invoice.amountPaid) - Number(payment.amount);
+      let newStatus = invoice.status;
 
       if (newAmountPaid <= 0) {
         newStatus = 'SENT';
-      } else if (newAmountPaid < Number(payment.invoice.total)) {
+      } else if (newAmountPaid < Number(invoice.total)) {
         newStatus = 'PARTIALLY_PAID';
       }
 
       // If invoice was PAID and is no longer PAID, reverse inventory deduction and re-reserve
-      if (payment.invoice.status === 'PAID' && newStatus !== 'PAID') {
+      if (invoice.status === 'PAID' && newStatus !== 'PAID') {
         await this.inventoryService.reversePaymentDeduction(
           tx,
-          payment.invoiceId,
-          payment.invoice.organizationId,
+          invoiceId,
+          invoice.organizationId,
         );
       }
 
       await tx.invoice.update({
-        where: { id: payment.invoiceId },
+        where: { id: invoiceId },
         data: {
           amountPaid: Math.max(0, newAmountPaid),
           status: newStatus,
@@ -325,6 +335,10 @@ export class PaymentsService {
 
     if (!payment) {
       throw new NotFoundException('Payment not found');
+    }
+
+    if (!payment.invoice) {
+      throw new BadRequestException('This payment is not linked to an invoice');
     }
 
     return {
