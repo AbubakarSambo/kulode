@@ -51,6 +51,11 @@ import {
   AdminDashboardPage,
   BillingPage,
   ChangelogPage,
+  MenuManagementPage,
+  TablesFloorPage,
+  OrderTakingPage,
+  OrderDetailPage,
+  ShiftPage,
 } from '@/pages'
 import { useVersionCheck } from '@/hooks/useVersionCheck'
 import { WhatsNewModal } from '@/components/changelog/WhatsNewModal'
@@ -189,6 +194,13 @@ function App() {
               <Route element={<PlanGatedRoute requiredPlan="PRO" />}>
                 <Route path="/inventory" element={<InventoryPage />} />
               </Route>
+
+              {/* Restaurant POS */}
+              <Route path="/pos/menu" element={<MenuManagementPage />} />
+              <Route path="/pos/tables" element={<TablesFloorPage />} />
+              <Route path="/pos/order/new" element={<OrderTakingPage />} />
+              <Route path="/pos/orders/:id" element={<OrderDetailPage />} />
+              <Route path="/pos/shift" element={<ShiftPage />} />
 
 
               {/* Platform Admin */}

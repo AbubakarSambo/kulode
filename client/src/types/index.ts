@@ -335,6 +335,94 @@ export interface StockMovement {
   createdAt: string
 }
 
+// Restaurant POS types
+export type TableStatus = 'AVAILABLE' | 'OCCUPIED' | 'RESERVED' | 'NEEDS_CLEANING'
+export type OrderSource = 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY' | 'THIRD_PARTY'
+export type OrderStatus = 'OPEN' | 'IN_KITCHEN' | 'READY' | 'CLOSED_PAID' | 'CLOSED_UNPAID' | 'CANCELLED'
+export type OrderItemStatus = 'PENDING' | 'PREPARING' | 'READY' | 'SERVED'
+export type ShiftStatus = 'OPEN' | 'CLOSED'
+
+export interface MenuCategory {
+  id: string
+  name: string
+  sortOrder: number
+  isActive: boolean
+}
+
+export interface MenuItem {
+  id: string
+  name: string
+  description?: string
+  price: number
+  categoryId?: string
+  category?: { id: string; name: string } | null
+  inventoryItemId?: string
+  imageUrl?: string
+  isAvailable: boolean
+}
+
+export interface RestaurantTable {
+  id: string
+  name: string
+  section?: string
+  capacity: number
+  status: TableStatus
+  isActive: boolean
+}
+
+export interface OrderItem {
+  id: string
+  menuItemId: string
+  menuItem: { id: string; name: string }
+  quantity: number
+  unitPrice: number
+  amount: number
+  notes?: string
+  status: OrderItemStatus
+}
+
+export interface OrderPayment {
+  id: string
+  amount: number
+  paymentMethod: string
+  paymentDate: string
+}
+
+export interface Order {
+  id: string
+  organizationId: string
+  tableId?: string
+  table?: { id: string; name: string; section?: string } | null
+  createdById: string
+  createdBy?: { id: string; firstName: string; lastName: string }
+  source: OrderSource
+  status: OrderStatus
+  subtotal: number
+  taxAmount: number
+  total: number
+  amountPaid: number
+  notes?: string
+  closedAt?: string
+  createdAt: string
+  updatedAt: string
+  items: OrderItem[]
+  payments: OrderPayment[]
+}
+
+export interface Shift {
+  id: string
+  status: ShiftStatus
+  openingFloat: number
+  expectedCash?: number
+  countedCash?: number
+  variance?: number
+  notes?: string
+  openedAt: string
+  closedAt?: string
+  openedBy?: { id: string; firstName: string; lastName: string }
+  closedBy?: { id: string; firstName: string; lastName: string }
+}
+
 // Tax types
 export type TaxCategory =
   | 'RENT'

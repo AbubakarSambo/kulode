@@ -1,8 +1,11 @@
 import { useState } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
-import { 
+import {
   MoreHorizontal,
   X,
+  UtensilsCrossed,
+  ChefHat,
+  Clock,
 } from 'lucide-react'
 import {
   DashboardIcon,
@@ -26,6 +29,7 @@ import { Sidebar } from './Sidebar'
 import { WelcomeStepper } from '@/components/WelcomeStepper'
 import { TrialBanner } from '../shared/TrialBanner'
 import { SubscriptionExpiredBanner } from '../shared/SubscriptionExpiredBanner'
+import { OfflineQueueBanner } from '../pos/OfflineQueueBanner'
 import { useAuthStore } from '@/stores/auth'
 import { useLogout } from '@/hooks'
 import { useSubscription } from '@/hooks/useSubscription'
@@ -51,6 +55,10 @@ export function AppLayout() {
     if (path.startsWith('/vendors')) return 'Vendors'
     if (path.startsWith('/expenses')) return 'Expenses'
     if (path.startsWith('/inventory')) return 'Product Inventory'
+    if (path.startsWith('/pos/tables')) return 'Tables'
+    if (path.startsWith('/pos/menu')) return 'Menu'
+    if (path.startsWith('/pos/shift')) return 'Shift'
+    if (path.startsWith('/pos/order')) return 'Order'
     if (path.startsWith('/reports')) return 'Reports'
     if (path.startsWith('/tax')) return 'Tax'
     if (path.startsWith('/settings')) return 'Settings'
@@ -83,6 +91,14 @@ export function AppLayout() {
       items: [
         { name: 'Product Inventory', href: '/inventory', icon: InventoryIcon, requiresPlan: 'PRO' as PlanTier },
         { name: 'Services', href: '/settings/services', icon: ServicesIcon },
+      ] as MoreItem[],
+    },
+    {
+      label: 'Restaurant POS',
+      items: [
+        { name: 'Tables', href: '/pos/tables', icon: UtensilsCrossed },
+        { name: 'Menu', href: '/pos/menu', icon: ChefHat },
+        { name: 'Shift', href: '/pos/shift', icon: Clock },
       ] as MoreItem[],
     },
     {
@@ -126,6 +142,7 @@ export function AppLayout() {
         </div>
 
         <TrialBanner />
+        <OfflineQueueBanner />
 
         <div className={cn("flex-1 overflow-hidden flex flex-col", isHideMobileNav ? "pb-0" : "pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-0")}>
           <Outlet />

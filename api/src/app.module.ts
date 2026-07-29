@@ -21,6 +21,10 @@ import { InventoryModule } from './modules/inventory';
 import { TaxModule } from './modules/tax';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { AiModule } from './modules/ai/ai.module';
+import { MenuModule } from './modules/menu';
+import { TablesModule } from './modules/tables';
+import { OrdersModule } from './modules/orders';
+import { ShiftsModule } from './modules/shifts';
 import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor, SubscriptionReadOnlyGuard } from './common';
 
 
@@ -48,6 +52,10 @@ import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor, 
     TaxModule,
     OnboardingModule,
     AiModule,
+    MenuModule,
+    TablesModule,
+    OrdersModule,
+    ShiftsModule,
   ],
   providers: [
     {

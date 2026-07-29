@@ -52,6 +52,7 @@ enum StockMovementType {
   INVOICE_RESERVED
   INVOICE_DEDUCTED
   RESERVATION_RELEASED
+  ORDER_DEDUCTED
 }
 
 enum PlanTier {
@@ -93,48 +94,83 @@ enum PaystackSubaccountStatus {
   FAILED
 }
 
+enum TableStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  NEEDS_CLEANING
+}
+
+enum OrderSource {
+  DINE_IN
+  TAKEAWAY
+  DELIVERY
+  THIRD_PARTY
+}
+
+enum OrderStatus {
+  OPEN
+  IN_KITCHEN
+  READY
+  CLOSED_PAID
+  CLOSED_UNPAID
+  CANCELLED
+}
+
+enum OrderItemStatus {
+  PENDING
+  PREPARING
+  READY
+  SERVED
+}
+
+enum ShiftStatus {
+  OPEN
+  CLOSED
+}
+
 // Organizations (tenants)
 model Organization {
-  id        String   @id @default(uuid())
-  name      String
-  slug      String   @unique
-  email     String?
-  phone     String?
-  address   String?
-  logo      String?
-  rcNumber  String?  @map("rc_number")
-  tin       String?  @map("tin")
+  id       String  @id @default(uuid())
+  name     String
+  slug     String  @unique
+  email    String?
+  phone    String?
+  address  String?
+  logo     String?
+  rcNumber String? @map("rc_number")
+  tin      String? @map("tin")
 
   // Paystack integration
-  paystackSubaccountCode String?  @map("paystack_subaccount_code")
-  bankCode               String?  @map("bank_code")
-  bankAccountNumber      String?  @map("bank_account_number")
-  bankAccountName        String?  @map("bank_account_name")
-  settlementBank         String?  @map("settlement_bank")
-  isPaystackVerified     Boolean  @default(false) @map("is_paystack_verified")
-  
+  paystackSubaccountCode String? @map("paystack_subaccount_code")
+  bankCode               String? @map("bank_code")
+  bankAccountNumber      String? @map("bank_account_number")
+  bankAccountName        String? @map("bank_account_name")
+  settlementBank         String? @map("settlement_bank")
+  isPaystackVerified     Boolean @default(false) @map("is_paystack_verified")
+
   // Platform settings
-  platformFeePercent     Decimal  @default(0.00) @map("platform_fee_percent") @db.Decimal(5, 2)
-  invoicePrefix          String   @default("INV") @map("invoice_prefix")
-  currency               String   @default("NGN")
-  taxRate                Decimal  @default(0) @map("tax_rate") @db.Decimal(5, 2)
-  vatEnabled             Boolean  @default(false) @map("vat_enabled")
-  showQrCode             Boolean  @default(false) @map("show_qr_code")
-  paymentTerms           String?  @map("payment_terms")
-  defaultNotes           String?  @map("default_notes")
-  businessType           String?  @map("business_type")
-  organizationSize       String?  @map("organization_size")
-  onboardingDismissedAt  DateTime? @map("onboarding_dismissed_at")
-  clientReminderSentAt   DateTime? @map("client_reminder_sent_at")
+  platformFeePercent    Decimal   @default(0.00) @map("platform_fee_percent") @db.Decimal(5, 2)
+  invoicePrefix         String    @default("INV") @map("invoice_prefix")
+  currency              String    @default("NGN")
+  taxRate               Decimal   @default(0) @map("tax_rate") @db.Decimal(5, 2)
+  vatEnabled            Boolean   @default(false) @map("vat_enabled")
+  showQrCode            Boolean   @default(false) @map("show_qr_code")
+  paymentTerms          String?   @map("payment_terms")
+  defaultNotes          String?   @map("default_notes")
+  businessType          String?   @map("business_type")
+  organizationSize      String?   @map("organization_size")
+  onboardingDismissedAt DateTime? @map("onboarding_dismissed_at")
+  clientReminderSentAt  DateTime? @map("client_reminder_sent_at")
 
   // Subscription
-  planTier              PlanTier           @default(FREE) @map("plan_tier")
-  subscriptionStatus    SubscriptionStatus @default(TRIALING) @map("subscription_status")
-  billingPeriod         BillingPeriod?     @map("billing_period")
-  trialStartDate        DateTime?          @map("trial_start_date")
-  trialEndDate          DateTime?          @map("trial_end_date")
-  subscriptionStartDate DateTime?          @map("subscription_start_date")
-  subscriptionEndDate   DateTime?          @map("subscription_end_date")
+  planTier                  PlanTier           @default(FREE) @map("plan_tier")
+  subscriptionStatus        SubscriptionStatus @default(TRIALING) @map("subscription_status")
+  billingPeriod             BillingPeriod?     @map("billing_period")
+  trialStartDate            DateTime?          @map("trial_start_date")
+  trialEndDate              DateTime?          @map("trial_end_date")
+  subscriptionStartDate     DateTime?          @map("subscription_start_date")
+  subscriptionEndDate       DateTime?          @map("subscription_end_date")
   paystackCustomerCode      String?            @map("paystack_customer_code")
   paystackAuthorizationCode String?            @map("paystack_authorization_code")
   paystackBillingEmail      String?            @map("paystack_billing_email")
@@ -163,6 +199,13 @@ model Organization {
   whatsappMessages     WhatsappMessage[]
   directors            OrganizationDirector[]
 
+  // Restaurant POS
+  restaurantTables RestaurantTable[]
+  menuCategories   MenuCategory[]
+  menuItems        MenuItem[]
+  orders           Order[]
+  shifts           Shift[]
+
   @@map("organizations")
 }
 
@@ -185,13 +228,16 @@ model User {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  organization       Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdInvoices    Invoice[]              @relation("CreatedByUser")
-  recordedPayments   Payment[]              @relation("RecordedByUser")
-  recordedExpenses   Expense[]              @relation("RecordedByUser")
+  organization       Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdInvoices    Invoice[]                @relation("CreatedByUser")
+  recordedPayments   Payment[]                @relation("RecordedByUser")
+  recordedExpenses   Expense[]                @relation("RecordedByUser")
   verificationTokens EmailVerificationToken[]
   taxReportLogs      TaxReportLog[]
   chatSessions       ChatSession[]
+  createdOrders      Order[]                  @relation("OrderCreatedByUser")
+  openedShifts       Shift[]                  @relation("ShiftOpenedByUser")
+  closedShifts       Shift[]                  @relation("ShiftClosedByUser")
 
   @@index([organizationId])
   @@map("users")
@@ -244,16 +290,16 @@ model Client {
 
 // CAC-registered directors (CAMA 2020 s.304 compliance) — shown on invoices, no app login required
 model OrganizationDirector {
-  id             String  @id @default(uuid())
-  organizationId String  @map("organization_id")
+  id             String @id @default(uuid())
+  organizationId String @map("organization_id")
 
   forenames     String
   surname       String
-  formerName    String?  @map("former_name")
-  isNonNigerian Boolean  @default(false) @map("is_non_nigerian")
+  formerName    String? @map("former_name")
+  isNonNigerian Boolean @default(false) @map("is_non_nigerian")
   nationality   String?
-  sortOrder     Int      @default(0) @map("sort_order")
-  isActive      Boolean  @default(true) @map("is_active")
+  sortOrder     Int     @default(0) @map("sort_order")
+  isActive      Boolean @default(true) @map("is_active")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -267,28 +313,28 @@ model OrganizationDirector {
 
 // Invoices
 model Invoice {
-  id              String        @id @default(uuid())
-  organizationId  String        @map("organization_id")
-  clientId        String        @map("client_id")
-  createdById     String        @map("created_by")
-  
-  invoiceNumber   String        @map("invoice_number")
-  status          InvoiceStatus @default(DRAFT)
-  issueDate       DateTime      @map("issue_date") @db.Date
-  dueDate         DateTime      @map("due_date") @db.Date
-  
-  subtotal        Decimal       @db.Decimal(12, 2)
-  discountType    String        @default("PERCENTAGE") @map("discount_type")
-  discountPercent Decimal       @default(0) @map("discount_percent") @db.Decimal(5, 2)
-  discountAmount  Decimal       @default(0) @map("discount_amount") @db.Decimal(12, 2)
-  taxRate         Decimal       @default(0) @map("tax_rate") @db.Decimal(5, 2)
-  taxAmount       Decimal       @default(0) @map("tax_amount") @db.Decimal(12, 2)
-  total           Decimal       @db.Decimal(12, 2)
-  amountPaid      Decimal       @default(0) @map("amount_paid") @db.Decimal(12, 2)
-  
-  notes           String?
-  terms           String?
-  
+  id             String @id @default(uuid())
+  organizationId String @map("organization_id")
+  clientId       String @map("client_id")
+  createdById    String @map("created_by")
+
+  invoiceNumber String        @map("invoice_number")
+  status        InvoiceStatus @default(DRAFT)
+  issueDate     DateTime      @map("issue_date") @db.Date
+  dueDate       DateTime      @map("due_date") @db.Date
+
+  subtotal        Decimal @db.Decimal(12, 2)
+  discountType    String  @default("PERCENTAGE") @map("discount_type")
+  discountPercent Decimal @default(0) @map("discount_percent") @db.Decimal(5, 2)
+  discountAmount  Decimal @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  taxRate         Decimal @default(0) @map("tax_rate") @db.Decimal(5, 2)
+  taxAmount       Decimal @default(0) @map("tax_amount") @db.Decimal(12, 2)
+  total           Decimal @db.Decimal(12, 2)
+  amountPaid      Decimal @default(0) @map("amount_paid") @db.Decimal(12, 2)
+
+  notes String?
+  terms String?
+
   // Paystack payment link
   paystackReference        String?   @unique @map("paystack_reference")
   paystackAccessCode       String?   @map("paystack_access_code")
@@ -296,13 +342,13 @@ model Invoice {
   paystackTokenGeneratedAt DateTime? @map("paystack_token_generated_at")
   paystackPaidAt           DateTime? @map("paystack_paid_at")
   paystackChannel          String?   @map("paystack_channel")
-  
+
   // Attached image (e.g. signed document, proof of work)
-  imageUrl           String?   @map("image_url")
+  imageUrl String? @map("image_url")
 
   // Public sharing
-  shareToken         String?   @unique @map("share_token")
-  
+  shareToken String? @unique @map("share_token")
+
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
@@ -325,30 +371,30 @@ model Invoice {
 
 // Payment installments for staged payments
 model PaymentInstallment {
-  id          String  @id @default(uuid())
-  invoiceId   String  @map("invoice_id")
-  
-  label       String  // e.g., "First Payment", "Final Payment"
-  sequence    Int     // Order of installment (1, 2, 3...)
-  percentage  Decimal? @db.Decimal(5, 2) // If percentage-based
-  amount      Decimal  @db.Decimal(12, 2) // Calculated or fixed amount
-  
+  id        String @id @default(uuid())
+  invoiceId String @map("invoice_id")
+
+  label      String // e.g., "First Payment", "Final Payment"
+  sequence   Int // Order of installment (1, 2, 3...)
+  percentage Decimal? @db.Decimal(5, 2) // If percentage-based
+  amount     Decimal  @db.Decimal(12, 2) // Calculated or fixed amount
+
   // Payment status
-  isPaid      Boolean  @default(false) @map("is_paid")
-  paidAt      DateTime? @map("paid_at")
-  
+  isPaid Boolean   @default(false) @map("is_paid")
+  paidAt DateTime? @map("paid_at")
+
   // Paystack payment link for this installment
   paystackReference        String?   @unique @map("paystack_reference")
   paystackAccessCode       String?   @map("paystack_access_code")
   paymentUrl               String?   @map("payment_url")
   paystackTokenGeneratedAt DateTime? @map("paystack_token_generated_at")
-  
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-  
+
   // Relations
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  
+
   @@index([invoiceId])
   @@map("payment_installments")
 }
@@ -380,17 +426,18 @@ model InvoiceItem {
 
 // Payments
 model Payment {
-  id             String        @id @default(uuid())
-  organizationId String        @map("organization_id")
-  invoiceId      String        @map("invoice_id")
-  recordedById   String?       @map("recorded_by")
-  
-  amount         Decimal       @db.Decimal(12, 2)
-  paymentMethod  PaymentMethod @map("payment_method")
-  paymentDate    DateTime      @map("payment_date") @db.Date
-  reference      String?
-  notes          String?
-  
+  id             String  @id @default(uuid())
+  organizationId String  @map("organization_id")
+  invoiceId      String? @map("invoice_id")
+  orderId        String? @map("order_id")
+  recordedById   String? @map("recorded_by")
+
+  amount        Decimal       @db.Decimal(12, 2)
+  paymentMethod PaymentMethod @map("payment_method")
+  paymentDate   DateTime      @map("payment_date") @db.Date
+  reference     String?
+  notes         String?
+
   // Auto-recorded via webhook
   isAutoRecorded    Boolean  @default(false) @map("is_auto_recorded")
   paystackReference String?  @map("paystack_reference")
@@ -402,11 +449,13 @@ model Payment {
 
   // Relations
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  invoice      Invoice      @relation(fields: [invoiceId], references: [id])
+  invoice      Invoice?     @relation(fields: [invoiceId], references: [id])
+  order        Order?       @relation(fields: [orderId], references: [id])
   recordedBy   User?        @relation("RecordedByUser", fields: [recordedById], references: [id])
 
   @@index([organizationId])
   @@index([invoiceId])
+  @@index([orderId])
   @@map("payments")
 }
 
@@ -432,21 +481,21 @@ model ExpenseCategory {
 
 // Expenses
 model Expense {
-  id             String        @id @default(uuid())
-  organizationId String        @map("organization_id")
-  categoryId     String?       @map("category_id")
-  vendorId       String?       @map("vendor_id")
-  recordedById   String        @map("recorded_by")
+  id             String  @id @default(uuid())
+  organizationId String  @map("organization_id")
+  categoryId     String? @map("category_id")
+  vendorId       String? @map("vendor_id")
+  recordedById   String  @map("recorded_by")
 
-  description    String
-  amount         Decimal       @db.Decimal(12, 2)
-  expenseDate    DateTime      @map("expense_date") @db.Date
-  recipient      String?
-  paymentMethod  PaymentMethod @map("payment_method")
-  reference      String?
-  notes          String?
-  taxCategory    TaxCategory   @default(UNCATEGORIZED) @map("tax_category")
-  isDeductible   Boolean       @default(true) @map("is_deductible")
+  description   String
+  amount        Decimal       @db.Decimal(12, 2)
+  expenseDate   DateTime      @map("expense_date") @db.Date
+  recipient     String?
+  paymentMethod PaymentMethod @map("payment_method")
+  reference     String?
+  notes         String?
+  taxCategory   TaxCategory   @default(UNCATEGORIZED) @map("tax_category")
+  isDeductible  Boolean       @default(true) @map("is_deductible")
 
   // Auto-recorded via vendor payout webhook
   isAutoRecorded    Boolean  @default(false) @map("is_auto_recorded")
@@ -484,7 +533,7 @@ model ServiceItem {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   invoiceItems InvoiceItem[]
 
   @@unique([organizationId, name])
@@ -512,6 +561,7 @@ model InventoryItem {
   organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   invoiceItems   InvoiceItem[]
   stockMovements StockMovement[]
+  menuItems      MenuItem[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -524,6 +574,7 @@ model StockMovement {
   organizationId  String            @map("organization_id")
   inventoryItemId String            @map("inventory_item_id")
   invoiceId       String?           @map("invoice_id")
+  orderId         String?           @map("order_id")
   type            StockMovementType
   quantity        Decimal           @db.Decimal(10, 2)
   onHandBefore    Decimal           @map("on_hand_before") @db.Decimal(10, 2)
@@ -536,24 +587,26 @@ model StockMovement {
   // Relations
   organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  order         Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
   @@index([inventoryItemId])
+  @@index([orderId])
   @@map("stock_movements")
 }
 
 // Vendors (external service providers/suppliers)
 model Vendor {
-  id                String  @id @default(uuid())
-  organizationId    String  @map("organization_id")
-  name              String
+  id                 String  @id @default(uuid())
+  organizationId     String  @map("organization_id")
+  name               String
   serviceDescription String? @map("service_description")
-  contactPerson     String? @map("contact_person")
-  phone             String?
-  email             String?
-  bankAccountNumber String? @map("bank_account_number")
-  bankName          String? @map("bank_name")
-  isActive          Boolean @default(true) @map("is_active")
+  contactPerson      String? @map("contact_person")
+  phone              String?
+  email              String?
+  bankAccountNumber  String? @map("bank_account_number")
+  bankName           String? @map("bank_name")
+  isActive           Boolean @default(true) @map("is_active")
 
   // Paystack payout integration
   bankCode                 String?                   @map("bank_code")
@@ -625,19 +678,19 @@ model ShortLink {
 }
 
 model ChatSession {
-  id             String        @id @default(uuid())
-  organizationId String        @map("organization_id")
-  userId         String        @map("user_id")
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  userId         String    @map("user_id")
   title          String
-  isPinned       Boolean       @default(false) @map("is_pinned")
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
-  deletedAt      DateTime?     @map("deleted_at")
+  isPinned       Boolean   @default(false) @map("is_pinned")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
 
   // Relations
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages       ChatMessage[]
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages     ChatMessage[]
 
   @@index([organizationId, userId])
   @@index([deletedAt])
@@ -645,15 +698,15 @@ model ChatSession {
 }
 
 model ChatMessage {
-  id             String      @id @default(uuid())
-  sessionId      String      @map("session_id")
-  role           String      // "user" | "assistant"
-  content        String
-  layout         Json?       // Optional JSON layout representing dynamic UI components
-  createdAt      DateTime    @default(now()) @map("created_at")
+  id        String   @id @default(uuid())
+  sessionId String   @map("session_id")
+  role      String // "user" | "assistant"
+  content   String
+  layout    Json? // Optional JSON layout representing dynamic UI components
+  createdAt DateTime @default(now()) @map("created_at")
 
   // Relations
-  session        ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
   @@map("chat_messages")
@@ -684,4 +737,150 @@ model WhatsappMessage {
   @@map("whatsapp_messages")
 }
 
+// ─── Restaurant POS ─────────────────────────────────────────────────────────
 
+model RestaurantTable {
+  id             String      @id @default(uuid())
+  organizationId String      @map("organization_id")
+  name           String
+  section        String?
+  capacity       Int         @default(2)
+  status         TableStatus @default(AVAILABLE)
+  isActive       Boolean     @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  orders       Order[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("restaurant_tables")
+}
+
+model MenuCategory {
+  id             String  @id @default(uuid())
+  organizationId String  @map("organization_id")
+  name           String
+  sortOrder      Int     @default(0) @map("sort_order")
+  isActive       Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  menuItems    MenuItem[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id              String  @id @default(uuid())
+  organizationId  String  @map("organization_id")
+  categoryId      String? @map("category_id")
+  inventoryItemId String? @map("inventory_item_id")
+  name            String
+  description     String?
+  price           Decimal @db.Decimal(12, 2)
+  imageUrl        String? @map("image_url")
+  isAvailable     Boolean @default(true) @map("is_available")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category      MenuCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  orderItems    OrderItem[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@index([categoryId])
+  @@map("menu_items")
+}
+
+model Order {
+  id             String      @id @default(uuid())
+  organizationId String      @map("organization_id")
+  tableId        String?     @map("table_id")
+  createdById    String      @map("created_by")
+  source         OrderSource @default(DINE_IN)
+  status         OrderStatus @default(OPEN)
+
+  subtotal   Decimal @db.Decimal(12, 2)
+  taxAmount  Decimal @default(0) @map("tax_amount") @db.Decimal(12, 2)
+  total      Decimal @db.Decimal(12, 2)
+  amountPaid Decimal @default(0) @map("amount_paid") @db.Decimal(12, 2)
+  notes      String?
+
+  closedAt  DateTime? @map("closed_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  table          RestaurantTable? @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  createdBy      User             @relation("OrderCreatedByUser", fields: [createdById], references: [id])
+  items          OrderItem[]
+  payments       Payment[]
+  stockMovements StockMovement[]
+
+  @@index([organizationId])
+  @@index([tableId])
+  @@index([status])
+  @@map("orders")
+}
+
+model Shift {
+  id             String      @id @default(uuid())
+  organizationId String      @map("organization_id")
+  openedById     String      @map("opened_by")
+  closedById     String?     @map("closed_by")
+  status         ShiftStatus @default(OPEN)
+
+  openingFloat Decimal  @default(0) @map("opening_float") @db.Decimal(12, 2)
+  expectedCash Decimal? @map("expected_cash") @db.Decimal(12, 2)
+  countedCash  Decimal? @map("counted_cash") @db.Decimal(12, 2)
+  variance     Decimal? @db.Decimal(12, 2)
+  notes        String?
+
+  openedAt DateTime  @default(now()) @map("opened_at")
+  closedAt DateTime? @map("closed_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  openedBy     User         @relation("ShiftOpenedByUser", fields: [openedById], references: [id])
+  closedBy     User?        @relation("ShiftClosedByUser", fields: [closedById], references: [id])
+
+  @@index([organizationId])
+  @@index([status])
+  @@map("shifts")
+}
+
+model OrderItem {
+  id         String          @id @default(uuid())
+  orderId    String          @map("order_id")
+  menuItemId String          @map("menu_item_id")
+  quantity   Decimal         @db.Decimal(10, 2)
+  unitPrice  Decimal         @map("unit_price") @db.Decimal(12, 2)
+  amount     Decimal         @db.Decimal(12, 2)
+  notes      String?
+  status     OrderItemStatus @default(PENDING)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
+
+  @@index([orderId])
+  @@index([menuItemId])
+  @@map("order_items")
+}
