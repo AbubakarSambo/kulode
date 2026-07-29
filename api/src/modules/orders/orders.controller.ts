@@ -19,6 +19,7 @@ import {
   CreateOrderDto,
   AddOrderItemsDto,
   UpdateOrderItemStatusDto,
+  UpdateOrderCustomerDto,
   CloseOrderDto,
   OrderFilterDto,
 } from './dto';
@@ -75,6 +76,15 @@ export class OrdersController {
     @Body() dto: UpdateOrderItemStatusDto,
   ) {
     return this.ordersService.updateItemStatus(organizationId, id, itemId, dto);
+  }
+
+  @Patch(':id/customer')
+  setCustomer(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateOrderCustomerDto,
+  ) {
+    return this.ordersService.setCustomer(organizationId, id, dto);
   }
 
   @Post(':id/cancel')

@@ -72,7 +72,7 @@ export function TablesFloorPage() {
     }
     setNavigatingTableId(table.id)
     try {
-      const orders = await queryClient.fetchQuery({
+      const { data: orders } = await queryClient.fetchQuery({
         queryKey: ['orders-for-table', table.id],
         queryFn: () => ordersApi.list({ tableId: table.id }),
       })

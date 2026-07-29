@@ -13,6 +13,24 @@ export interface ChangelogEntry {
 }
 
 export const changelogData: Record<string, ChangelogEntry> = {
+  '1.3.1': {
+    version: '1.3.1',
+    date: '2026-07-26',
+    title: 'Offline Support for Adding Items and Closing Orders',
+    type: 'patch',
+    features: [
+      {
+        title: 'Add Items or Close Out Even While Offline',
+        description: 'You can now add more items to an order or close it out with cash, bank transfer, card, or other offline-friendly methods even if your connection drops mid-order — everything queues on the device and syncs automatically once you\'re back online, the same way order creation already did.',
+        tag: 'Stability',
+      },
+      {
+        title: 'Safer Retries',
+        description: 'Orders and their updates can no longer be accidentally duplicated if a request is retried after a shaky connection — each action is now confirmed as a single, safe operation server-side.',
+        tag: 'Stability',
+      },
+    ],
+  },
   '1.3.0': {
     version: '1.3.0',
     date: '2026-07-26',

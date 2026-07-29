@@ -55,7 +55,10 @@ import {
   TablesFloorPage,
   OrderTakingPage,
   OrderDetailPage,
+  OrdersListPage,
   ShiftPage,
+  CustomersListPage,
+  CustomerDetailPage,
 } from '@/pages'
 import { useVersionCheck } from '@/hooks/useVersionCheck'
 import { WhatsNewModal } from '@/components/changelog/WhatsNewModal'
@@ -199,8 +202,11 @@ function App() {
               <Route path="/pos/menu" element={<MenuManagementPage />} />
               <Route path="/pos/tables" element={<TablesFloorPage />} />
               <Route path="/pos/order/new" element={<OrderTakingPage />} />
+              <Route path="/pos/orders" element={<OrdersListPage />} />
               <Route path="/pos/orders/:id" element={<OrderDetailPage />} />
               <Route path="/pos/shift" element={<ShiftPage />} />
+              <Route path="/pos/customers" element={<CustomersListPage />} />
+              <Route path="/pos/customers/:id" element={<CustomerDetailPage />} />
 
 
               {/* Platform Admin */}

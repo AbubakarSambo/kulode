@@ -25,6 +25,7 @@ import { MenuModule } from './modules/menu';
 import { TablesModule } from './modules/tables';
 import { OrdersModule } from './modules/orders';
 import { ShiftsModule } from './modules/shifts';
+import { CustomersModule } from './modules/customers';
 import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor, SubscriptionReadOnlyGuard } from './common';
 
 
@@ -40,6 +41,7 @@ import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor, 
     UsersModule,
     OrganizationsModule,
     ClientsModule,
+    CustomersModule,
     InvoicesModule,
     PaymentsModule,
     ExpensesModule,

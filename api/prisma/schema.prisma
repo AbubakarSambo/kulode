@@ -185,6 +185,7 @@ model Organization {
   // Relations
   users                User[]
   clients              Client[]
+  customers            Customer[]
   invoices             Invoice[]
   payments             Payment[]
   expenses             Expense[]
@@ -205,6 +206,7 @@ model Organization {
   menuItems        MenuItem[]
   orders           Order[]
   shifts           Shift[]
+  idempotencyKeys  IdempotencyKey[]
 
   @@map("organizations")
 }
@@ -286,6 +288,28 @@ model Client {
 
   @@index([organizationId])
   @@map("clients")
+}
+
+// Restaurant/POS diner profiles — distinct from Client (invoicing customers)
+model Customer {
+  id             String  @id @default(uuid())
+  organizationId String  @map("organization_id")
+  name           String
+  phone          String
+  email          String?
+  notes          String?
+  isActive       Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  orders       Order[]
+
+  @@unique([organizationId, phone])
+  @@index([organizationId])
+  @@map("customers")
 }
 
 // CAC-registered directors (CAMA 2020 s.304 compliance) — shown on invoices, no app login required
@@ -809,6 +833,7 @@ model Order {
   id             String      @id @default(uuid())
   organizationId String      @map("organization_id")
   tableId        String?     @map("table_id")
+  customerId     String?     @map("customer_id")
   createdById    String      @map("created_by")
   source         OrderSource @default(DINE_IN)
   status         OrderStatus @default(OPEN)
@@ -826,6 +851,7 @@ model Order {
   // Relations
   organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   table          RestaurantTable? @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  customer       Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
   createdBy      User             @relation("OrderCreatedByUser", fields: [createdById], references: [id])
   items          OrderItem[]
   payments       Payment[]
@@ -833,6 +859,7 @@ model Order {
 
   @@index([organizationId])
   @@index([tableId])
+  @@index([customerId])
   @@index([status])
   @@map("orders")
 }
@@ -861,6 +888,24 @@ model Shift {
   @@index([organizationId])
   @@index([status])
   @@map("shifts")
+}
+
+// Generic idempotency guard for client-retried POS mutations (offline queue flush, double-tap,
+// etc.) — one table for any action type rather than a bespoke unique column per mutation.
+model IdempotencyKey {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  action         String
+  key            String
+  resultSnapshot Json?    @map("result_snapshot")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, action, key])
+  @@index([organizationId])
+  @@map("idempotency_keys")
 }
 
 model OrderItem {

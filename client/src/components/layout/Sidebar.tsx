@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, X, CreditCard, UtensilsCrossed, ChefHat, Clock } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, CreditCard, UtensilsCrossed, ChefHat, Clock, Receipt, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { useLogout } from '@/hooks'
@@ -56,6 +56,8 @@ const navigationGroups = [
       { name: 'Tables', href: '/pos/tables', icon: UtensilsCrossed, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Menu', href: '/pos/menu', icon: ChefHat, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Shift', href: '/pos/shift', icon: Clock, requiresPlan: undefined as PlanTier | undefined },
+      { name: 'Orders', href: '/pos/orders', icon: Receipt, requiresPlan: undefined as PlanTier | undefined },
+      { name: 'Customers', href: '/pos/customers', icon: Users, requiresPlan: undefined as PlanTier | undefined },
     ]
   },
   {

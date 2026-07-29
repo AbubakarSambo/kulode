@@ -66,7 +66,10 @@ export { MenuManagementPage } from './pos/MenuManagementPage'
 export { TablesFloorPage } from './pos/TablesFloorPage'
 export { OrderTakingPage } from './pos/OrderTakingPage'
 export { OrderDetailPage } from './pos/OrderDetailPage'
+export { OrdersListPage } from './pos/OrdersListPage'
 export { ShiftPage } from './pos/ShiftPage'
+export { CustomersListPage } from './pos/CustomersListPage'
+export { CustomerDetailPage } from './pos/CustomerDetailPage'
 
 // Admin
 export { AdminDashboardPage } from './admin/AdminDashboard'

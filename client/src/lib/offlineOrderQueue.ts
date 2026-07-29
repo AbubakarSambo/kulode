@@ -1,40 +1,75 @@
 /**
- * Offline-first queue for order CREATION only (see scope note below).
+ * Offline-first queue for POS order mutations: CREATE_ORDER, ADD_ITEMS, CLOSE_ORDER.
  *
- * Scope cut: only `CREATE_ORDER` is queued offline. Adding items to an *already-synced* order,
- * updating item status, closing, or cancelling all require connectivity. This is deliberate —
- * CreateOrderDto already accepts the full item list up front, so a waiter can take an entire
- * order offline in one shot; only late additions to a table that's mid-outage-sync are blocked
- * until the connection returns. Queuing partial mutations against an order whose server-side
- * state this client hasn't confirmed yet is a much harder conflict problem, out of scope for v0.
+ * Idempotency is now server-enforced, not heuristic: every queued action carries a
+ * `clientRequestId` (UUID) sent to the API. The backend stores it in an IdempotencyKey table
+ * keyed on (organizationId, action, key) and returns the original result on a retried request
+ * instead of re-executing — see api/src/modules/orders/orders.service.ts `runIdempotent`. That
+ * closes the gap the previous version of this file flagged as a known follow-up (heuristic
+ * "does a plausible matching order already exist" reconciliation). We reuse the same
+ * clientRequestId across retries of the same queued action rather than generating a new one each
+ * attempt — that's what makes the guarantee hold.
  *
- * Idempotency limitation (honest, not hidden): a queued action is marked `attempted` right before
- * the network call fires and persisted synchronously, so if the tab dies mid-request we know to
- * reconcile on the next flush rather than blindly resubmit — we check for a plausible matching
- * order (same table, same subtotal, created after this action's timestamp) before resubmitting.
- * That covers the common "app closed/crashed mid-request" case. It does NOT fully close the rare
- * window where the server committed the order but the client never received the response *and*
- * no reconciling GET happens before some other action changes the table's order set enough to
- * make the match ambiguous. True idempotency would need a server-side idempotency key, which is
- * a backend change outside this pass — flagging as a known follow-up.
+ * Dependency chaining: an order taken offline only has a *local* id until its CREATE_ORDER action
+ * reaches the server. If the waiter adds items or closes that same order before reconnecting,
+ * those actions are queued referencing the local id (`local:<uuid>`), not a real server id. The
+ * queue is processed strictly in enqueue order (ascending row id), so a CREATE_ORDER action is
+ * always attempted before any action that depends on it — we don't need a general dependency
+ * graph, just "does this ref resolve yet." An `order-id-map` store records local-id → server-id
+ * once the create syncs, persisted across reloads (not just in-memory), so a dependent action
+ * queued in one browser session resolves correctly even if the app is closed and reopened before
+ * the parent create finishes syncing.
+ *
+ * Scope cuts (deliberate, not oversights):
+ * - CLOSE_ORDER is never queued for PAYSTACK — that path requires a live checkout redirect and
+ *   has its own reference-based idempotency already.
+ * - Order-item status updates (kitchen flow) stay online-only. They're frequent, low-stakes,
+ *   already-synced-order mutations where the kitchen display is usually near the router; queuing
+ *   them adds complexity for a use case that isn't the offline-critical path (taking/closing
+ *   orders is).
  */
 
 import apiClient from '@/api/client'
-import type { Order } from '@/types'
-import type { CreateOrderData } from '@/api/orders'
+import type { CreateOrderData, CreateOrderItemData, CloseOrderData } from '@/api/orders'
 
 const DB_NAME = 'kulode-pos-offline'
-const DB_VERSION = 1
-const STORE_NAME = 'pending-orders'
+const DB_VERSION = 2
+const ACTIONS_STORE = 'pending-actions'
+const ORDER_MAP_STORE = 'order-id-map'
 
-export interface QueuedOrderAction {
+export type QueuedActionType = 'CREATE_ORDER' | 'ADD_ITEMS' | 'CLOSE_ORDER'
+export type QueuedActionStatus = 'pending' | 'failed' | 'blocked'
+
+interface BaseQueuedAction {
   id: number
-  payload: CreateOrderData
+  clientRequestId: string
   createdAt: string
   attempted: boolean
-  status: 'pending' | 'failed'
+  status: QueuedActionStatus
   errorMessage?: string
 }
+
+export interface CreateOrderAction extends BaseQueuedAction {
+  type: 'CREATE_ORDER'
+  localOrderId: string
+  payload: CreateOrderData
+}
+
+export interface AddItemsAction extends BaseQueuedAction {
+  type: 'ADD_ITEMS'
+  orderRef: string
+  payload: { items: CreateOrderItemData[] }
+}
+
+export interface CloseOrderAction extends BaseQueuedAction {
+  type: 'CLOSE_ORDER'
+  orderRef: string
+  payload: CloseOrderData
+}
+
+export type QueuedAction = CreateOrderAction | AddItemsAction | CloseOrderAction
+
+export const LOCAL_ORDER_PREFIX = 'local:'
 
 type Listener = () => void
 const listeners = new Set<Listener>()
@@ -51,8 +86,11 @@ function openDb(): Promise<IDBDatabase> {
     const req = indexedDB.open(DB_NAME, DB_VERSION)
     req.onupgradeneeded = () => {
       const db = req.result
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true })
+      if (!db.objectStoreNames.contains(ACTIONS_STORE)) {
+        db.createObjectStore(ACTIONS_STORE, { keyPath: 'id', autoIncrement: true })
+      }
+      if (!db.objectStoreNames.contains(ORDER_MAP_STORE)) {
+        db.createObjectStore(ORDER_MAP_STORE, { keyPath: 'localOrderId' })
       }
     }
     req.onsuccess = () => resolve(req.result)
@@ -60,69 +98,161 @@ function openDb(): Promise<IDBDatabase> {
   })
 }
 
-async function withStore<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+async function withStore<T>(
+  storeName: string,
+  mode: IDBTransactionMode,
+  fn: (store: IDBObjectStore) => IDBRequest<T>,
+): Promise<T> {
   const db = await openDb()
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, mode)
-    const store = tx.objectStore(STORE_NAME)
+    const tx = db.transaction(storeName, mode)
+    const store = tx.objectStore(storeName)
     const request = fn(store)
     request.onsuccess = () => resolve(request.result)
     request.onerror = () => reject(request.error)
   })
 }
 
-export async function enqueueCreateOrder(payload: CreateOrderData): Promise<QueuedOrderAction> {
-  const entry: Omit<QueuedOrderAction, 'id'> = {
+function newClientRequestId(): string {
+  return crypto.randomUUID()
+}
+
+// ─── Order id map (local id → real server id, once known) ──────────────────
+
+interface OrderIdMapEntry {
+  localOrderId: string
+  serverOrderId?: string
+}
+
+async function getMapEntry(localOrderId: string): Promise<OrderIdMapEntry | undefined> {
+  return withStore(ORDER_MAP_STORE, 'readonly', (store) => store.get(localOrderId))
+}
+
+async function setMapEntry(entry: OrderIdMapEntry) {
+  await withStore(ORDER_MAP_STORE, 'readwrite', (store) => store.put(entry))
+}
+
+/** Resolves an order ref to a real server id, or null if it's a local id not yet synced. */
+async function resolveOrderRef(orderRef: string): Promise<string | null> {
+  if (!orderRef.startsWith(LOCAL_ORDER_PREFIX)) return orderRef
+  const entry = await getMapEntry(orderRef)
+  return entry?.serverOrderId ?? null
+}
+
+// ─── Enqueue ─────────────────────────────────────────────────────────────────
+
+export async function enqueueCreateOrder(payload: CreateOrderData): Promise<{ localOrderId: string }> {
+  const localOrderId = `${LOCAL_ORDER_PREFIX}${crypto.randomUUID()}`
+  const entry: Omit<CreateOrderAction, 'id'> = {
+    type: 'CREATE_ORDER',
+    clientRequestId: newClientRequestId(),
+    localOrderId,
     payload,
     createdAt: new Date().toISOString(),
     attempted: false,
     status: 'pending',
   }
-  const id = await withStore('readwrite', (store) => store.add(entry) as IDBRequest<number>)
+  await setMapEntry({ localOrderId })
+  await withStore(ACTIONS_STORE, 'readwrite', (store) => store.add(entry) as IDBRequest<number>)
   notify()
-  return { ...entry, id }
+  return { localOrderId }
 }
 
-export async function getQueue(): Promise<QueuedOrderAction[]> {
+export async function enqueueAddItems(orderRef: string, items: CreateOrderItemData[]): Promise<void> {
+  const entry: Omit<AddItemsAction, 'id'> = {
+    type: 'ADD_ITEMS',
+    clientRequestId: newClientRequestId(),
+    orderRef,
+    payload: { items },
+    createdAt: new Date().toISOString(),
+    attempted: false,
+    status: 'pending',
+  }
+  await withStore(ACTIONS_STORE, 'readwrite', (store) => store.add(entry) as IDBRequest<number>)
+  notify()
+}
+
+export async function enqueueCloseOrder(orderRef: string, payload: CloseOrderData): Promise<void> {
+  if (payload.paymentMethod === 'PAYSTACK') {
+    throw new Error('PAYSTACK closes cannot be queued offline — they require a live checkout redirect')
+  }
+  const entry: Omit<CloseOrderAction, 'id'> = {
+    type: 'CLOSE_ORDER',
+    clientRequestId: newClientRequestId(),
+    orderRef,
+    payload,
+    createdAt: new Date().toISOString(),
+    attempted: false,
+    status: 'pending',
+  }
+  await withStore(ACTIONS_STORE, 'readwrite', (store) => store.add(entry) as IDBRequest<number>)
+  notify()
+}
+
+// ─── Read / mutate queue rows ────────────────────────────────────────────────
+
+export async function getQueue(): Promise<QueuedAction[]> {
   try {
-    return await withStore('readonly', (store) => store.getAll() as IDBRequest<QueuedOrderAction[]>)
+    const rows = await withStore(ACTIONS_STORE, 'readonly', (store) => store.getAll() as IDBRequest<QueuedAction[]>)
+    return rows.sort((a, b) => a.id - b.id)
   } catch {
     return []
   }
 }
 
+/** Everything queued (in any state) referencing this local order — used to render a pending order's cart before it has synced. */
+export async function getQueuedActionsForLocalOrder(localOrderId: string): Promise<QueuedAction[]> {
+  const all = await getQueue()
+  return all.filter(
+    (a) =>
+      (a.type === 'CREATE_ORDER' && a.localOrderId === localOrderId) ||
+      (a.type !== 'CREATE_ORDER' && a.orderRef === localOrderId),
+  )
+}
+
 async function removeFromQueue(id: number) {
-  await withStore('readwrite', (store) => store.delete(id))
+  await withStore(ACTIONS_STORE, 'readwrite', (store) => store.delete(id))
   notify()
 }
 
-async function markAttempted(entry: QueuedOrderAction) {
-  await withStore('readwrite', (store) => store.put({ ...entry, attempted: true }))
+async function putAction(entry: QueuedAction) {
+  await withStore(ACTIONS_STORE, 'readwrite', (store) => store.put(entry))
   notify()
 }
 
-async function markFailed(entry: QueuedOrderAction, errorMessage: string) {
-  await withStore('readwrite', (store) => store.put({ ...entry, status: 'failed', errorMessage }))
-  notify()
-}
+/**
+ * Discards a failed action. If it's a CREATE_ORDER, cascades to fail any dependents — their
+ * dependency no longer exists, so leaving them queued would mean they retry forever against an
+ * order that will never resolve.
+ */
+export async function discardFailedAction(id: number) {
+  const queue = await getQueue()
+  const entry = queue.find((a) => a.id === id)
+  if (!entry) return
 
-/** Heuristic reconciliation for an action whose previous attempt's outcome is unknown. */
-async function alreadySynced(entry: QueuedOrderAction): Promise<boolean> {
-  if (!entry.payload.tableId) return false
-  try {
-    const response = await apiClient.get<{ data: Order[] }>('/orders', {
-      params: { tableId: entry.payload.tableId },
-    })
-    const candidateSubtotalMatch = response.data.data.some((order) => {
-      if (new Date(order.createdAt) < new Date(entry.createdAt)) return false
-      if (order.status === 'CANCELLED') return false
-      return order.items.length === entry.payload.items.length
-    })
-    return candidateSubtotalMatch
-  } catch {
-    return false
+  if (entry.type === 'CREATE_ORDER') {
+    const dependents = queue.filter((a) => a.type !== 'CREATE_ORDER' && a.orderRef === entry.localOrderId)
+    for (const dep of dependents) {
+      if (dep.status === 'pending' || dep.status === 'blocked') {
+        await putAction({ ...dep, status: 'failed', errorMessage: 'The order this depended on failed to sync' })
+      } else {
+        await removeFromQueue(dep.id)
+      }
+    }
   }
+
+  await removeFromQueue(id)
 }
+
+export async function retryFailedAction(id: number) {
+  const queue = await getQueue()
+  const entry = queue.find((a) => a.id === id)
+  if (!entry) return
+  await putAction({ ...entry, status: 'pending', errorMessage: undefined })
+  void flushOfflineQueue()
+}
+
+// ─── Flush ───────────────────────────────────────────────────────────────────
 
 let flushing = false
 
@@ -132,32 +262,95 @@ export async function flushOfflineQueue(): Promise<void> {
   flushing = true
   try {
     const queue = await getQueue()
-    for (const entry of queue.filter((e) => e.status === 'pending')) {
-      if (entry.attempted) {
-        const synced = await alreadySynced(entry)
-        if (synced) {
-          await removeFromQueue(entry.id)
-          continue
-        }
+
+    for (const entry of queue) {
+      if (entry.status === 'failed') continue
+
+      if (entry.type === 'CREATE_ORDER') {
+        const result = await sendCreateOrder(entry)
+        if (result === 'network-error') break // stop this pass; connection dropped again
+        continue
       }
 
-      await markAttempted(entry)
-      try {
-        await apiClient.post('/orders', entry.payload)
-        await removeFromQueue(entry.id)
-      } catch (err: unknown) {
-        const axiosErr = err as { response?: { status: number; data?: { message?: string } } }
-        if (axiosErr.response) {
-          // Server responded (validation/business error) — retrying won't help. Surface it.
-          await markFailed(entry, axiosErr.response.data?.message || 'Order was rejected by the server')
-        } else {
-          // No response — genuine connectivity issue. Leave it queued and stop this pass.
-          break
-        }
+      // ADD_ITEMS / CLOSE_ORDER — resolve dependency first.
+      const resolved = await resolveOrderRef(entry.orderRef)
+      if (resolved === null) {
+        // Dependency (a CREATE_ORDER earlier in this same queue) hasn't synced yet — either it
+        // just failed (handled via cascade in discardFailedAction) or is still ahead of us and
+        // will resolve on a later pass. Leave this one and move on.
+        if (entry.status !== 'blocked') await putAction({ ...entry, status: 'blocked' })
+        continue
       }
+      if (entry.status === 'blocked') {
+        await putAction({ ...entry, status: 'pending' })
+      }
+
+      const result =
+        entry.type === 'ADD_ITEMS' ? await sendAddItems(entry, resolved) : await sendCloseOrder(entry, resolved)
+      if (result === 'network-error') break
     }
   } finally {
     flushing = false
+  }
+}
+
+type SendResult = 'ok' | 'failed' | 'network-error'
+
+function extractErrorMessage(err: unknown): { hasResponse: boolean; message?: string } {
+  const axiosErr = err as { response?: { data?: { message?: string } } }
+  if (!axiosErr.response) return { hasResponse: false }
+  return { hasResponse: true, message: axiosErr.response.data?.message }
+}
+
+async function sendCreateOrder(entry: CreateOrderAction): Promise<SendResult> {
+  await putAction({ ...entry, attempted: true })
+  try {
+    const response = await apiClient.post<{ data: { id: string } }>('/orders', {
+      ...entry.payload,
+      clientRequestId: entry.clientRequestId,
+    })
+    await setMapEntry({ localOrderId: entry.localOrderId, serverOrderId: response.data.data.id })
+    await removeFromQueue(entry.id)
+    return 'ok'
+  } catch (err) {
+    const { hasResponse, message } = extractErrorMessage(err)
+    if (!hasResponse) return 'network-error'
+    await putAction({ ...entry, status: 'failed', errorMessage: message || 'Order was rejected by the server' })
+    return 'failed'
+  }
+}
+
+async function sendAddItems(entry: AddItemsAction, serverOrderId: string): Promise<SendResult> {
+  await putAction({ ...entry, attempted: true })
+  try {
+    await apiClient.post(`/orders/${serverOrderId}/items`, {
+      items: entry.payload.items,
+      clientRequestId: entry.clientRequestId,
+    })
+    await removeFromQueue(entry.id)
+    return 'ok'
+  } catch (err) {
+    const { hasResponse, message } = extractErrorMessage(err)
+    if (!hasResponse) return 'network-error'
+    await putAction({ ...entry, status: 'failed', errorMessage: message || 'Items were rejected by the server' })
+    return 'failed'
+  }
+}
+
+async function sendCloseOrder(entry: CloseOrderAction, serverOrderId: string): Promise<SendResult> {
+  await putAction({ ...entry, attempted: true })
+  try {
+    await apiClient.post(`/orders/${serverOrderId}/close`, {
+      ...entry.payload,
+      clientRequestId: entry.clientRequestId,
+    })
+    await removeFromQueue(entry.id)
+    return 'ok'
+  } catch (err) {
+    const { hasResponse, message } = extractErrorMessage(err)
+    if (!hasResponse) return 'network-error'
+    await putAction({ ...entry, status: 'failed', errorMessage: message || 'Close was rejected by the server' })
+    return 'failed'
   }
 }
 
@@ -168,17 +361,4 @@ export function startOfflineQueueSync() {
   window.addEventListener('online', () => void flushOfflineQueue())
   setInterval(() => void flushOfflineQueue(), 30_000)
   if (navigator.onLine) void flushOfflineQueue()
-}
-
-export async function discardFailedAction(id: number) {
-  await removeFromQueue(id)
-}
-
-export async function retryFailedAction(id: number) {
-  const queue = await getQueue()
-  const entry = queue.find((e) => e.id === id)
-  if (!entry) return
-  await withStore('readwrite', (store) => store.put({ ...entry, status: 'pending', errorMessage: undefined }))
-  notify()
-  void flushOfflineQueue()
 }
