@@ -168,6 +168,20 @@ export interface Client {
   }
 }
 
+// POS diner profiles — distinct from Client (invoicing customers)
+export interface Customer {
+  id: string
+  name: string
+  phone: string
+  email?: string
+  notes?: string
+  isActive: boolean
+  createdAt: string
+  _count?: {
+    orders: number
+  }
+}
+
 // Invoice types
 export type InvoiceStatus = 
   | 'DRAFT' 
@@ -393,6 +407,8 @@ export interface Order {
   organizationId: string
   tableId?: string
   table?: { id: string; name: string; section?: string } | null
+  customerId?: string
+  customer?: { id: string; name: string; phone: string } | null
   createdById: string
   createdBy?: { id: string; firstName: string; lastName: string }
   source: OrderSource

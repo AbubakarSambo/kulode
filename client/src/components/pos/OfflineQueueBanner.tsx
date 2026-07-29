@@ -1,6 +1,12 @@
 import { WifiOff, AlertTriangle } from 'lucide-react'
 import { useOfflineQueue } from '@/hooks/useOfflineQueue'
-import { discardFailedAction, retryFailedAction } from '@/lib/offlineOrderQueue'
+import { discardFailedAction, retryFailedAction, type QueuedAction } from '@/lib/offlineOrderQueue'
+
+const ACTION_LABEL: Record<QueuedAction['type'], string> = {
+  CREATE_ORDER: 'order',
+  ADD_ITEMS: 'item addition',
+  CLOSE_ORDER: 'order close',
+}
 
 export function OfflineQueueBanner() {
   const { pending, failed } = useOfflineQueue()
@@ -12,13 +18,18 @@ export function OfflineQueueBanner() {
       {pending.length > 0 && (
         <div className="flex items-center gap-2">
           <WifiOff className="h-3.5 w-3.5" />
-          <span>{pending.length} order{pending.length > 1 ? 's' : ''} waiting to sync — will send automatically once you're back online.</span>
+          <span>
+            {pending.length} action{pending.length > 1 ? 's' : ''} waiting to sync — will send automatically once
+            you're back online.
+          </span>
         </div>
       )}
       {failed.map((entry) => (
         <div key={entry.id} className="flex items-center gap-2 text-destructive">
           <AlertTriangle className="h-3.5 w-3.5" />
-          <span className="flex-1">Order failed to sync: {entry.errorMessage}</span>
+          <span className="flex-1">
+            {ACTION_LABEL[entry.type]} failed to sync: {entry.errorMessage}
+          </span>
           <button className="underline" onClick={() => retryFailedAction(entry.id)}>Retry</button>
           <button className="underline" onClick={() => discardFailedAction(entry.id)}>Discard</button>
         </div>

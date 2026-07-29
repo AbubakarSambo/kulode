@@ -38,6 +38,11 @@ export class CreateOrderDto {
   @IsUUID()
   tableId?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  customerId?: string;
+
   @ApiPropertyOptional({ enum: ORDER_SOURCES, default: 'DINE_IN' })
   @IsOptional()
   @IsIn(ORDER_SOURCES)
@@ -54,4 +59,9 @@ export class CreateOrderDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiProperty({ description: 'Client-generated UUID for idempotent retries (e.g. from the offline queue)' })
+  @IsNotEmpty()
+  @IsUUID()
+  clientRequestId: string;
 }

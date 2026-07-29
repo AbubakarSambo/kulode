@@ -1,14 +1,16 @@
-import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useMemo, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { ArrowLeft, Download, X } from 'lucide-react'
+import { ArrowLeft, Download, Plus, X, UserPlus, Pencil } from 'lucide-react'
 import { Header } from '@/components/layout'
-import { Button, Card, CardContent, Badge, Select, Input, Label } from '@/components/ui'
+import { Button, Card, CardContent, Badge, Select, Input, Label, SearchableSelect } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
-import { ordersApi } from '@/api'
+import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi } from '@/api'
+import { getQueuedActionsForLocalOrder, discardFailedAction, LOCAL_ORDER_PREFIX } from '@/lib/offlineOrderQueue'
 import { formatCurrency, cn } from '@/lib/utils'
-import type { OrderItemStatus } from '@/types'
+import type { OrderItemStatus, MenuItem } from '@/types'
+import type { CreateOrderItemData } from '@/api/orders'
 
 const ITEM_STATUS_FLOW: OrderItemStatus[] = ['PENDING', 'PREPARING', 'READY', 'SERVED']
 
@@ -20,30 +22,346 @@ const PAYMENT_METHODS = [
   { value: 'OTHER', label: 'Other' },
 ] as const
 
-export function OrderDetailPage() {
-  const { id } = useParams<{ id: string }>()
+const OFFLINE_PAYMENT_METHODS = PAYMENT_METHODS.filter((m) => m.value !== 'PAYSTACK')
+
+interface AddItemsModalProps {
+  isOpen: boolean
+  onClose: () => void
+  onSubmit: (items: CreateOrderItemData[]) => void
+  isSubmitting: boolean
+}
+
+function AddItemsModal({ isOpen, onClose, onSubmit, isSubmitting }: AddItemsModalProps) {
+  const [cart, setCart] = useState<Record<string, { menuItem: MenuItem; quantity: number }>>({})
+  const { data: categories } = useQuery({ queryKey: ['menu-categories'], queryFn: () => menuCategoriesApi.list(), enabled: isOpen })
+  const { data: items } = useQuery({ queryKey: ['menu-items'], queryFn: () => menuItemsApi.list(), enabled: isOpen })
+  const [activeCategory, setActiveCategory] = useState<string | 'all'>('all')
+
+  const visibleItems = useMemo(() => {
+    if (!items) return []
+    const available = items.filter((i) => i.isAvailable)
+    return activeCategory === 'all' ? available : available.filter((i) => i.categoryId === activeCategory)
+  }, [items, activeCategory])
+
+  const lines = Object.values(cart)
+  const total = lines.reduce((sum, l) => sum + l.menuItem.price * l.quantity, 0)
+
+  const addToCart = (menuItem: MenuItem) => {
+    setCart((prev) => ({
+      ...prev,
+      [menuItem.id]: { menuItem, quantity: (prev[menuItem.id]?.quantity ?? 0) + 1 },
+    }))
+  }
+
+  const updateQuantity = (menuItemId: string, delta: number) => {
+    setCart((prev) => {
+      const existing = prev[menuItemId]
+      if (!existing) return prev
+      const quantity = existing.quantity + delta
+      if (quantity <= 0) {
+        const rest = { ...prev }
+        delete rest[menuItemId]
+        return rest
+      }
+      return { ...prev, [menuItemId]: { ...existing, quantity } }
+    })
+  }
+
+  const handleSubmit = () => {
+    onSubmit(lines.map((l) => ({ menuItemId: l.menuItem.id, quantity: l.quantity })))
+    setCart({})
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Add Items">
+      <div className="max-h-[70vh] space-y-4 overflow-y-auto">
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          <button
+            onClick={() => setActiveCategory('all')}
+            className={cn(
+              'shrink-0 rounded-full px-3 py-1.5 text-xs font-medium',
+              activeCategory === 'all' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+            )}
+          >
+            All
+          </button>
+          {categories?.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setActiveCategory(cat.id)}
+              className={cn(
+                'shrink-0 rounded-full px-3 py-1.5 text-xs font-medium',
+                activeCategory === cat.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+              )}
+            >
+              {cat.name}
+            </button>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {visibleItems.map((item) => {
+            const inCart = cart[item.id]
+            return (
+              <button
+                key={item.id}
+                onClick={() => addToCart(item)}
+                className="rounded-xl border border-border bg-card p-3 text-left"
+              >
+                <div className="truncate text-sm font-semibold text-foreground">{item.name}</div>
+                <div className="mt-0.5 flex items-center justify-between text-xs">
+                  <span className="font-bold text-primary">{formatCurrency(item.price)}</span>
+                  {inCart && <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">{inCart.quantity}</span>}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+
+        {lines.length > 0 && (
+          <div className="space-y-2 rounded-xl bg-muted p-3">
+            {lines.map((l) => (
+              <div key={l.menuItem.id} className="flex items-center justify-between gap-2 text-sm">
+                <span className="min-w-0 flex-1 truncate">{l.menuItem.name}</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => updateQuantity(l.menuItem.id, -1)} className="flex h-6 w-6 items-center justify-center rounded bg-background">-</button>
+                  <span className="w-4 text-center font-semibold">{l.quantity}</span>
+                  <button onClick={() => updateQuantity(l.menuItem.id, 1)} className="flex h-6 w-6 items-center justify-center rounded bg-background">+</button>
+                </div>
+              </div>
+            ))}
+            <div className="flex justify-between border-t border-border pt-2 text-sm font-bold text-foreground">
+              <span>Total</span>
+              <span>{formatCurrency(total)}</span>
+            </div>
+          </div>
+        )}
+
+        <Button className="w-full" disabled={lines.length === 0} isLoading={isSubmitting} onClick={handleSubmit}>
+          Add {lines.length > 0 ? `${lines.reduce((n, l) => n + l.quantity, 0)} item(s)` : 'items'} to order
+        </Button>
+      </div>
+    </Modal>
+  )
+}
+
+/** A locally-queued order that hasn't reached the server yet — reconstructed from the offline queue. */
+function PendingOrderView({ localOrderId }: { localOrderId: string }) {
+  const navigate = useNavigate()
+  const [addItemsOpen, setAddItemsOpen] = useState(false)
+  const [closeModalOpen, setCloseModalOpen] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<(typeof OFFLINE_PAYMENT_METHODS)[number]['value']>('CASH')
+
+  const { data: queuedActions, refetch } = useQuery({
+    queryKey: ['offline-queue', localOrderId],
+    queryFn: () => getQueuedActionsForLocalOrder(localOrderId),
+    refetchInterval: 3_000,
+  })
+  const { data: menuItems } = useQuery({ queryKey: ['menu-items'], queryFn: () => menuItemsApi.list() })
+
+  const createAction = queuedActions?.find((a) => a.type === 'CREATE_ORDER')
+  const closeAction = queuedActions?.find((a) => a.type === 'CLOSE_ORDER')
+
+  const menuItemById = useMemo(() => new Map((menuItems ?? []).map((m) => [m.id, m])), [menuItems])
+
+  const allItems = useMemo(() => {
+    if (!queuedActions) return []
+    const fromCreate = queuedActions.find((a) => a.type === 'CREATE_ORDER')
+    const fromAdds = queuedActions.filter((a) => a.type === 'ADD_ITEMS')
+    return [
+      ...(fromCreate?.type === 'CREATE_ORDER' ? fromCreate.payload.items : []),
+      ...fromAdds.flatMap((a) => (a.type === 'ADD_ITEMS' ? a.payload.items : [])),
+    ]
+  }, [queuedActions])
+
+  const estimatedTotal = allItems.reduce((sum, i) => sum + (menuItemById.get(i.menuItemId)?.price ?? 0) * i.quantity, 0)
+
+  const addItems = useMutation({
+    mutationFn: (items: CreateOrderItemData[]) => ordersApi.addItems(localOrderId, items),
+    onSuccess: () => {
+      toast.success('Queued — will be added once this order syncs')
+      setAddItemsOpen(false)
+      void refetch()
+    },
+  })
+
+  const closeOrder = useMutation({
+    mutationFn: () => ordersApi.close(localOrderId, { paymentMethod }),
+    onSuccess: () => {
+      toast.success('Queued — order will close once it syncs')
+      navigate('/pos/tables')
+    },
+  })
+
+  const discardOrder = () => {
+    if (createAction) void discardFailedAction(createAction.id)
+    navigate('/pos/tables')
+  }
+
+  if (!createAction) {
+    // Already synced (or was discarded) since this view mounted — nothing left to show here.
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+        <p className="text-muted-foreground">This order has synced. Find it under Tables or Orders.</p>
+        <Button onClick={() => navigate('/pos/tables')}>Back to Tables</Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      <Header
+        title="Pending Sync"
+        description="This order hasn't reached the server yet — it will send automatically once you're back online"
+        action={
+          <Button variant="ghost" size="sm" onClick={() => navigate('/pos/tables')}>
+            <ArrowLeft className="mr-1.5 h-4 w-4" /> Back
+          </Button>
+        }
+      />
+
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <Badge variant="default">Waiting to sync</Badge>
+        {closeAction && <Badge variant="success" className="ml-2">Close queued</Badge>}
+
+        <div className="mt-4 space-y-3">
+          {allItems.map((item, idx) => (
+            <Card key={`${item.menuItemId}-${idx}`} className="p-4">
+              <CardContent className="flex items-center justify-between p-0">
+                <div className="font-semibold text-foreground">
+                  {item.quantity}x {menuItemById.get(item.menuItemId)?.name ?? 'Item'}
+                </div>
+                <div className="font-semibold text-foreground">
+                  {formatCurrency((menuItemById.get(item.menuItemId)?.price ?? 0) * item.quantity)}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <Card className="mt-6 p-4">
+          <CardContent className="flex items-center justify-between p-0">
+            <span className="font-semibold text-muted-foreground">Estimated Total</span>
+            <span className="text-xl font-bold text-foreground">{formatCurrency(estimatedTotal)}</span>
+          </CardContent>
+        </Card>
+        <p className="mt-1 text-xs text-muted-foreground">Final total (with tax) is confirmed once this order syncs.</p>
+
+        {!closeAction && (
+          <div className="mt-4 space-y-3">
+            <Button variant="outline" className="w-full" onClick={() => setAddItemsOpen(true)}>
+              <Plus className="mr-1.5 h-4 w-4" /> Add More Items
+            </Button>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={discardOrder}>
+                <X className="mr-1.5 h-4 w-4" /> Discard
+              </Button>
+              <Button className="flex-1" onClick={() => setCloseModalOpen(true)}>
+                Close & Pay
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <AddItemsModal
+        isOpen={addItemsOpen}
+        onClose={() => setAddItemsOpen(false)}
+        onSubmit={(items) => addItems.mutate(items)}
+        isSubmitting={addItems.isPending}
+      />
+
+      <Modal isOpen={closeModalOpen} onClose={() => setCloseModalOpen(false)} title="Close Order (Cash/Offline Only)">
+        <div className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Paystack checkout isn't available for an order that hasn't synced yet — choose an offline-friendly method.
+          </p>
+          <div>
+            <Label>Payment Method</Label>
+            <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}>
+              {OFFLINE_PAYMENT_METHODS.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </Select>
+          </div>
+          <div className="rounded-xl bg-muted p-4 text-center">
+            <div className="text-sm text-muted-foreground">Estimated Amount Due</div>
+            <div className="text-2xl font-bold text-foreground">{formatCurrency(estimatedTotal)}</div>
+          </div>
+          <Button className="w-full" isLoading={closeOrder.isPending} onClick={() => closeOrder.mutate()}>
+            Queue Close
+          </Button>
+        </div>
+      </Modal>
+    </div>
+  )
+}
+
+function SyncedOrderView({ id }: { id: string }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [addItemsOpen, setAddItemsOpen] = useState(false)
   const [closeModalOpen, setCloseModalOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<(typeof PAYMENT_METHODS)[number]['value']>('CASH')
   const [customerEmail, setCustomerEmail] = useState('')
+  const [customerModalOpen, setCustomerModalOpen] = useState(false)
+  const [selectedCustomerId, setSelectedCustomerId] = useState('')
 
   const { data: order, isLoading } = useQuery({
     queryKey: ['order', id],
-    queryFn: () => ordersApi.get(id!),
-    enabled: !!id,
+    queryFn: () => ordersApi.get(id),
     refetchInterval: 10_000,
+  })
+
+  const { data: customersPage } = useQuery({
+    queryKey: ['customers', { limit: 100 }],
+    queryFn: () => customersApi.list({ limit: 100 }),
+    enabled: customerModalOpen,
+  })
+  const customerOptions = useMemo(
+    () => (customersPage?.data ?? []).map((c) => ({ id: c.id, label: `${c.name} (${c.phone})` })),
+    [customersPage],
+  )
+
+  const setCustomer = useMutation({
+    mutationFn: (customerId: string | null) => ordersApi.setCustomer(id, customerId),
+    onSuccess: () => {
+      toast.success('Customer updated')
+      setCustomerModalOpen(false)
+      queryClient.invalidateQueries({ queryKey: ['order', id] })
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to update customer')
+    },
   })
 
   const updateItemStatus = useMutation({
     mutationFn: ({ itemId, status }: { itemId: string; status: OrderItemStatus }) =>
-      ordersApi.updateItemStatus(id!, itemId, status),
+      ordersApi.updateItemStatus(id, itemId, status),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['order', id] }),
     onError: () => toast.error('Failed to update item status'),
   })
 
+  const addItems = useMutation({
+    mutationFn: (items: CreateOrderItemData[]) => ordersApi.addItems(id, items),
+    onSuccess: (result) => {
+      if ('__offlinePending' in result) {
+        toast.success('No connection — items queued and will sync automatically')
+      } else {
+        toast.success('Items added')
+      }
+      setAddItemsOpen(false)
+      queryClient.invalidateQueries({ queryKey: ['order', id] })
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to add items')
+    },
+  })
+
   const cancelOrder = useMutation({
-    mutationFn: () => ordersApi.cancel(id!),
+    mutationFn: () => ordersApi.cancel(id),
     onSuccess: () => {
       toast.success('Order cancelled')
       navigate('/pos/tables')
@@ -57,15 +375,21 @@ export function OrderDetailPage() {
   const closeOrder = useMutation({
     mutationFn: async () => {
       if (paymentMethod === 'PAYSTACK') {
-        return ordersApi.paystackCheckout(id!, { paymentMethod, customerEmail })
+        return ordersApi.paystackCheckout(id, { paymentMethod, customerEmail })
       }
-      return ordersApi.close(id!, { paymentMethod })
+      return ordersApi.close(id, { paymentMethod })
     },
     onSuccess: (result) => {
       if ('paymentUrl' in result) {
         window.open(result.paymentUrl, '_blank')
         toast.success('Checkout link opened — order closes once payment confirms')
         setCloseModalOpen(false)
+        return
+      }
+      if ('__offlinePending' in result) {
+        toast.success('No connection — close queued and will sync automatically')
+        setCloseModalOpen(false)
+        navigate('/pos/tables')
         return
       }
       toast.success('Order closed')
@@ -79,7 +403,6 @@ export function OrderDetailPage() {
   })
 
   const downloadReceipt = async () => {
-    if (!id) return
     const blob = await ordersApi.downloadReceipt(id)
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -120,6 +443,34 @@ export function OrderDetailPage() {
             <Button variant="outline" size="sm" onClick={downloadReceipt}>
               <Download className="mr-1.5 h-4 w-4" /> Receipt
             </Button>
+          )}
+          {isOpenStatus && (
+            <Button variant="outline" size="sm" className="ml-auto" onClick={() => setAddItemsOpen(true)}>
+              <Plus className="mr-1.5 h-4 w-4" /> Add Items
+            </Button>
+          )}
+        </div>
+
+        <div className="mb-4 flex items-center justify-between rounded-xl border border-border p-3">
+          {order.customer ? (
+            <Link to={`/pos/customers/${order.customer.id}`} className="text-sm font-medium text-foreground hover:underline">
+              {order.customer.name} · {order.customer.phone}
+            </Link>
+          ) : (
+            <span className="text-sm text-muted-foreground">No customer attached</span>
+          )}
+          {isOpenStatus && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCustomerId(order.customerId ?? '')
+                setCustomerModalOpen(true)
+              }}
+              className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            >
+              {order.customer ? <Pencil className="h-3.5 w-3.5" /> : <UserPlus className="h-3.5 w-3.5" />}
+              {order.customer ? 'Change' : 'Attach'}
+            </button>
           )}
         </div>
 
@@ -188,6 +539,13 @@ export function OrderDetailPage() {
         )}
       </div>
 
+      <AddItemsModal
+        isOpen={addItemsOpen}
+        onClose={() => setAddItemsOpen(false)}
+        onSubmit={(items) => addItems.mutate(items)}
+        isSubmitting={addItems.isPending}
+      />
+
       <Modal isOpen={closeModalOpen} onClose={() => setCloseModalOpen(false)} title="Close Order">
         <div className="space-y-4">
           <div>
@@ -223,6 +581,49 @@ export function OrderDetailPage() {
           </Button>
         </div>
       </Modal>
+
+      <Modal isOpen={customerModalOpen} onClose={() => setCustomerModalOpen(false)} title="Attach Customer">
+        <div className="space-y-4">
+          <div>
+            <Label>Customer</Label>
+            <SearchableSelect
+              options={customerOptions}
+              value={selectedCustomerId}
+              onChange={setSelectedCustomerId}
+              placeholder="Search customers"
+            />
+          </div>
+          <div className="flex gap-3">
+            {order.customer && (
+              <Button
+                variant="outline"
+                className="flex-1"
+                isLoading={setCustomer.isPending}
+                onClick={() => setCustomer.mutate(null)}
+              >
+                Clear
+              </Button>
+            )}
+            <Button
+              className="flex-1"
+              disabled={!selectedCustomerId}
+              isLoading={setCustomer.isPending}
+              onClick={() => setCustomer.mutate(selectedCustomerId)}
+            >
+              Save
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
+}
+
+export function OrderDetailPage() {
+  const { id } = useParams<{ id: string }>()
+  if (!id) return null
+  if (id.startsWith(LOCAL_ORDER_PREFIX)) {
+    return <PendingOrderView localOrderId={id} />
+  }
+  return <SyncedOrderView id={id} />
 }

@@ -1,13 +1,25 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { toast } from 'sonner'
-import { Minus, Plus, ArrowLeft } from 'lucide-react'
+import { Minus, Plus, ArrowLeft, UserPlus, X } from 'lucide-react'
 import { Header } from '@/components/layout'
-import { Button, Card, CardContent, Select, Textarea, Label } from '@/components/ui'
-import { menuCategoriesApi, menuItemsApi, ordersApi } from '@/api'
+import { Button, Card, CardContent, Select, Textarea, Label, Input, SearchableSelect } from '@/components/ui'
+import { Modal } from '@/components/shared/Modal'
+import { menuCategoriesApi, menuItemsApi, ordersApi, customersApi } from '@/api'
 import { formatCurrency, cn } from '@/lib/utils'
 import type { OrderSource } from '@/types'
+
+const customerSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  phone: z.string().min(1, 'Phone is required'),
+  email: z.string().email('Invalid email').optional().or(z.literal('')),
+  notes: z.string().optional(),
+})
+type CustomerFormData = z.infer<typeof customerSchema>
 
 interface CartLine {
   menuItemId: string
@@ -30,13 +42,40 @@ export function OrderTakingPage() {
   const tableId = searchParams.get('tableId') || undefined
   const initialSource = (searchParams.get('source') as OrderSource) || (tableId ? 'DINE_IN' : 'TAKEAWAY')
 
+  const queryClient = useQueryClient()
   const [source, setSource] = useState<OrderSource>(initialSource)
   const [activeCategory, setActiveCategory] = useState<string | 'all'>('all')
   const [cart, setCart] = useState<CartLine[]>([])
   const [notes, setNotes] = useState('')
+  const [customerId, setCustomerId] = useState('')
+  const [newCustomerOpen, setNewCustomerOpen] = useState(false)
 
   const { data: categories } = useQuery({ queryKey: ['menu-categories'], queryFn: () => menuCategoriesApi.list() })
   const { data: items } = useQuery({ queryKey: ['menu-items'], queryFn: () => menuItemsApi.list() })
+  const { data: customersPage } = useQuery({
+    queryKey: ['customers', { limit: 100 }],
+    queryFn: () => customersApi.list({ limit: 100 }),
+  })
+  const customerOptions = useMemo(
+    () => (customersPage?.data ?? []).map((c) => ({ id: c.id, label: `${c.name} (${c.phone})` })),
+    [customersPage],
+  )
+
+  const customerForm = useForm<CustomerFormData>({ resolver: zodResolver(customerSchema) })
+  const createCustomer = useMutation({
+    mutationFn: (data: CustomerFormData) => customersApi.create({ ...data, email: data.email || undefined }),
+    onSuccess: (customer) => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      setCustomerId(customer.id)
+      setNewCustomerOpen(false)
+      customerForm.reset()
+      toast.success('Customer added')
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to add customer')
+    },
+  })
 
   const visibleItems = useMemo(() => {
     if (!items) return []
@@ -68,6 +107,7 @@ export function OrderTakingPage() {
     mutationFn: () =>
       ordersApi.create({
         tableId,
+        customerId: customerId || undefined,
         source,
         notes: notes || undefined,
         items: cart.map((l) => ({ menuItemId: l.menuItemId, quantity: l.quantity })),
@@ -75,7 +115,7 @@ export function OrderTakingPage() {
     onSuccess: (result) => {
       if ('__offlinePending' in result) {
         toast.success('No connection — order saved and will sync automatically', { duration: 4000 })
-        navigate('/pos/tables')
+        navigate(`/pos/orders/${result.localOrderId}`)
         return
       }
       toast.success('Order sent')
@@ -179,6 +219,39 @@ export function OrderTakingPage() {
           </div>
 
           <div className="mt-4">
+            <div className="flex items-center justify-between">
+              <Label>Customer (optional)</Label>
+              <button
+                type="button"
+                onClick={() => setNewCustomerOpen(true)}
+                className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+              >
+                <UserPlus className="h-3.5 w-3.5" /> New
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <SearchableSelect
+                  options={customerOptions}
+                  value={customerId}
+                  onChange={setCustomerId}
+                  placeholder="Attach a customer"
+                />
+              </div>
+              {customerId && (
+                <button
+                  type="button"
+                  onClick={() => setCustomerId('')}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted"
+                  aria-label="Clear customer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4">
             <Label>Notes (optional)</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any special requests" />
           </div>
@@ -200,6 +273,26 @@ export function OrderTakingPage() {
           </Button>
         </div>
       </div>
+
+      <Modal isOpen={newCustomerOpen} onClose={() => setNewCustomerOpen(false)} title="New Customer">
+        <form onSubmit={customerForm.handleSubmit((data) => createCustomer.mutate(data))} className="space-y-4">
+          <div>
+            <Label>Name</Label>
+            <Input {...customerForm.register('name')} placeholder="e.g. Tunde Bakare" />
+          </div>
+          <div>
+            <Label>Phone</Label>
+            <Input {...customerForm.register('phone')} placeholder="+234 123 456 7890" />
+          </div>
+          <div>
+            <Label>Email (optional)</Label>
+            <Input type="email" {...customerForm.register('email')} placeholder="tunde@example.com" />
+          </div>
+          <Button type="submit" className="w-full" isLoading={createCustomer.isPending}>
+            Add Customer
+          </Button>
+        </form>
+      </Modal>
     </div>
   )
 }

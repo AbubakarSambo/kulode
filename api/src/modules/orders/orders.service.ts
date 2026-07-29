@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, OrderStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
@@ -6,14 +6,21 @@ import {
   CreateOrderDto,
   AddOrderItemsDto,
   UpdateOrderItemStatusDto,
+  UpdateOrderCustomerDto,
   CloseOrderDto,
   OrderFilterDto,
 } from './dto';
+import { paginate } from '../../common';
 
 const OPEN_STATUSES: OrderStatus[] = [OrderStatus.OPEN, OrderStatus.IN_KITCHEN, OrderStatus.READY];
 
 function toNumber(val: Prisma.Decimal | number): number {
   return typeof val === 'number' ? val : Number(val);
+}
+
+/** Normalizes Decimal/Date-bearing Prisma results into a plain JSON value for storage. */
+function toJsonSnapshot(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value));
 }
 
 @Injectable()
@@ -25,6 +32,7 @@ export class OrdersService {
 
   private readonly orderInclude = {
     table: { select: { id: true, name: true, section: true } },
+    customer: { select: { id: true, name: true, phone: true } },
     createdBy: { select: { id: true, firstName: true, lastName: true } },
     items: {
       include: { menuItem: { select: { id: true, name: true } } },
@@ -32,16 +40,68 @@ export class OrdersService {
     payments: true,
   } as const;
 
+  /**
+   * Wraps a transactional mutation with idempotency-key enforcement so a retried request (e.g.
+   * an offline-queue flush after a flaky connection, or a cashier double-tapping a button) is
+   * provably a no-op rather than re-executed. The key row is created inside the same transaction
+   * as the mutation — the unique constraint on (organizationId, action, key) wins any concurrent
+   * race, not a check-then-act read. If a prior attempt inserted the key but crashed before
+   * storing a result snapshot, we surface a 409 rather than silently re-running the mutation.
+   */
+  private async runIdempotent<T>(
+    organizationId: string,
+    action: string,
+    key: string,
+    fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        await tx.idempotencyKey.create({ data: { organizationId, action, key } });
+        const result = await fn(tx);
+        await tx.idempotencyKey.update({
+          where: { organizationId_action_key: { organizationId, action, key } },
+          data: { resultSnapshot: toJsonSnapshot(result) },
+        });
+        return result;
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const existing = await this.prisma.idempotencyKey.findUnique({
+          where: { organizationId_action_key: { organizationId, action, key } },
+        });
+        if (existing?.resultSnapshot) {
+          return existing.resultSnapshot as T;
+        }
+        throw new ConflictException(
+          'A request with this clientRequestId is already being processed — retry shortly',
+        );
+      }
+      throw error;
+    }
+  }
+
   async findAll(organizationId: string, filter: OrderFilterDto) {
-    return this.prisma.order.findMany({
-      where: {
-        organizationId,
-        ...(filter.status && { status: filter.status }),
-        ...(filter.tableId && { tableId: filter.tableId }),
-      },
-      orderBy: { createdAt: 'desc' },
-      include: this.orderInclude,
-    });
+    const { page = 1, limit = 20, status, tableId, customerId } = filter;
+    const skip = (page - 1) * limit;
+    const where = {
+      organizationId,
+      ...(status && { status }),
+      ...(tableId && { tableId }),
+      ...(customerId && { customerId }),
+    };
+
+    const [orders, total] = await Promise.all([
+      this.prisma.order.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: this.orderInclude,
+      }),
+      this.prisma.order.count({ where }),
+    ]);
+
+    return paginate(orders, total, page, limit);
   }
 
   async findOne(organizationId: string, id: string) {
@@ -97,6 +157,13 @@ export class OrdersService {
       if (!table) throw new NotFoundException('Table not found');
     }
 
+    if (dto.customerId) {
+      const customer = await this.prisma.customer.findFirst({
+        where: { id: dto.customerId, organizationId },
+      });
+      if (!customer) throw new NotFoundException('Customer not found');
+    }
+
     const pricedItems = await this.priceItems(organizationId, dto.items);
     const subtotal = pricedItems.reduce((sum, i) => sum + i.amount, 0);
 
@@ -107,11 +174,12 @@ export class OrdersService {
     const taxAmount = Math.round(subtotal * (taxRate / 100) * 100) / 100;
     const total = subtotal + taxAmount;
 
-    const order = await this.prisma.$transaction(async (tx) => {
+    return this.runIdempotent(organizationId, 'ORDER_CREATE', dto.clientRequestId, async (tx) => {
       const created = await tx.order.create({
         data: {
           organizationId,
           tableId: dto.tableId,
+          customerId: dto.customerId,
           createdById: userId,
           source,
           subtotal,
@@ -132,8 +200,6 @@ export class OrdersService {
 
       return created;
     });
-
-    return order;
   }
 
   async addItems(organizationId: string, id: string, dto: AddOrderItemsDto) {
@@ -154,7 +220,7 @@ export class OrdersService {
     const newTaxAmount = Math.round(newSubtotal * (taxRate / 100) * 100) / 100;
     const newTotal = newSubtotal + newTaxAmount;
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.runIdempotent(organizationId, 'ORDER_ADD_ITEMS', dto.clientRequestId, async (tx) => {
       await tx.orderItem.createMany({
         data: pricedItems.map((i) => ({ ...i, orderId: id })),
       });
@@ -200,6 +266,27 @@ export class OrdersService {
     return this.findOne(organizationId, orderId);
   }
 
+  async setCustomer(organizationId: string, id: string, dto: UpdateOrderCustomerDto) {
+    const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
+    if (!order) throw new NotFoundException('Order not found');
+    if (!OPEN_STATUSES.includes(order.status)) {
+      throw new BadRequestException('Cannot change customer on a closed order');
+    }
+
+    if (dto.customerId) {
+      const customer = await this.prisma.customer.findFirst({
+        where: { id: dto.customerId, organizationId },
+      });
+      if (!customer) throw new NotFoundException('Customer not found');
+    }
+
+    return this.prisma.order.update({
+      where: { id },
+      data: { customerId: dto.customerId ?? null },
+      include: this.orderInclude,
+    });
+  }
+
   async cancel(organizationId: string, id: string) {
     const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
     if (!order) throw new NotFoundException('Order not found');
@@ -239,6 +326,10 @@ export class OrdersService {
     if (dto.paymentMethod === 'PAYSTACK') {
       throw new BadRequestException('Use the Paystack checkout endpoint to close an order with PAYSTACK');
     }
+    if (!dto.clientRequestId) {
+      throw new BadRequestException('clientRequestId is required to close an order');
+    }
+    const clientRequestId = dto.clientRequestId;
 
     const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
     if (!order) throw new NotFoundException('Order not found');
@@ -252,7 +343,7 @@ export class OrdersService {
       throw new BadRequestException('Partial payments are not yet supported — amount must cover the full order total');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.runIdempotent(organizationId, 'ORDER_CLOSE', clientRequestId, async (tx) => {
       // Conditional update guards against a concurrent close/cancel racing past the check above —
       // only an order still in an open status actually transitions, so double-submits (e.g. a
       // cashier double-tapping "close") can't create two Payment rows for the same order.
