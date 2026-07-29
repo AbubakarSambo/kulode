@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Receipt } from 'lucide-react'
+import { ReceiptTextIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Select, Card, CardContent, Badge, EmptyState, Button } from '@/components/ui'
 import { ordersApi, tablesApi } from '@/api'
@@ -85,7 +86,7 @@ export function OrdersListPage() {
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           </div>
         ) : !data || data.data.length === 0 ? (
-          <EmptyState icon={Receipt} title="No orders found" description="Try adjusting your filters" />
+          <EmptyState icon={ReceiptTextIcon} title="No orders found" description="Try adjusting your filters" />
         ) : (
           <>
             <Card className="hidden overflow-hidden md:block">

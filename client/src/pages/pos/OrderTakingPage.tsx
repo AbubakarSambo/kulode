@@ -119,6 +119,7 @@ export function OrderTakingPage() {
         return
       }
       toast.success('Order sent')
+      if (customerId) queryClient.invalidateQueries({ queryKey: ['customers'] })
       navigate(`/pos/orders/${result.id}`)
     },
     onError: () => toast.error('Failed to create order'),
