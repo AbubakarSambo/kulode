@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import { Plus, Users, Search } from 'lucide-react'
+import { UserGroupIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Card, CardContent, EmptyState } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
@@ -85,7 +86,7 @@ export function CustomersListPage() {
           </div>
         ) : !data || data.data.length === 0 ? (
           <EmptyState
-            icon={Users}
+            icon={UserGroupIcon}
             title="No customers yet"
             description="Add a customer profile to start tracking their order history"
             actionLabel="New Customer"

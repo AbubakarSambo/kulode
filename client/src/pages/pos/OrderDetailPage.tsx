@@ -329,6 +329,7 @@ function SyncedOrderView({ id }: { id: string }) {
       toast.success('Customer updated')
       setCustomerModalOpen(false)
       queryClient.invalidateQueries({ queryKey: ['order', id] })
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
     },
     onError: (err: unknown) => {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -393,6 +394,7 @@ function SyncedOrderView({ id }: { id: string }) {
         return
       }
       toast.success('Order closed')
+      if (order?.customerId) queryClient.invalidateQueries({ queryKey: ['customers'] })
       setCloseModalOpen(false)
       queryClient.invalidateQueries({ queryKey: ['order', id] })
     },
