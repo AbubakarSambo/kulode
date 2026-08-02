@@ -1,7 +1,9 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, OrderStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { WalletService } from '../wallet/wallet.service';
+import { SheetSyncService } from '../sheet-sync';
 import {
   CreateOrderDto,
   AddOrderItemsDto,
@@ -10,7 +12,7 @@ import {
   CloseOrderDto,
   OrderFilterDto,
 } from './dto';
-import { paginate } from '../../common';
+import { paginate, runIdempotent } from '../../common';
 
 const OPEN_STATUSES: OrderStatus[] = [OrderStatus.OPEN, OrderStatus.IN_KITCHEN, OrderStatus.READY];
 
@@ -18,16 +20,13 @@ function toNumber(val: Prisma.Decimal | number): number {
   return typeof val === 'number' ? val : Number(val);
 }
 
-/** Normalizes Decimal/Date-bearing Prisma results into a plain JSON value for storage. */
-function toJsonSnapshot(value: unknown): Prisma.InputJsonValue {
-  return JSON.parse(JSON.stringify(value));
-}
-
 @Injectable()
 export class OrdersService {
   constructor(
     private prisma: PrismaService,
     private inventoryService: InventoryService,
+    private walletService: WalletService,
+    private sheetSync: SheetSyncService,
   ) {}
 
   private readonly orderInclude = {
@@ -39,46 +38,6 @@ export class OrdersService {
     },
     payments: true,
   } as const;
-
-  /**
-   * Wraps a transactional mutation with idempotency-key enforcement so a retried request (e.g.
-   * an offline-queue flush after a flaky connection, or a cashier double-tapping a button) is
-   * provably a no-op rather than re-executed. The key row is created inside the same transaction
-   * as the mutation — the unique constraint on (organizationId, action, key) wins any concurrent
-   * race, not a check-then-act read. If a prior attempt inserted the key but crashed before
-   * storing a result snapshot, we surface a 409 rather than silently re-running the mutation.
-   */
-  private async runIdempotent<T>(
-    organizationId: string,
-    action: string,
-    key: string,
-    fn: (tx: Prisma.TransactionClient) => Promise<T>,
-  ): Promise<T> {
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        await tx.idempotencyKey.create({ data: { organizationId, action, key } });
-        const result = await fn(tx);
-        await tx.idempotencyKey.update({
-          where: { organizationId_action_key: { organizationId, action, key } },
-          data: { resultSnapshot: toJsonSnapshot(result) },
-        });
-        return result;
-      });
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        const existing = await this.prisma.idempotencyKey.findUnique({
-          where: { organizationId_action_key: { organizationId, action, key } },
-        });
-        if (existing?.resultSnapshot) {
-          return existing.resultSnapshot as T;
-        }
-        throw new ConflictException(
-          'A request with this clientRequestId is already being processed — retry shortly',
-        );
-      }
-      throw error;
-    }
-  }
 
   async findAll(organizationId: string, filter: OrderFilterDto) {
     const { page = 1, limit = 20, status, tableId, customerId } = filter;
@@ -174,7 +133,7 @@ export class OrdersService {
     const taxAmount = Math.round(subtotal * (taxRate / 100) * 100) / 100;
     const total = subtotal + taxAmount;
 
-    return this.runIdempotent(organizationId, 'ORDER_CREATE', dto.clientRequestId, async (tx) => {
+    return runIdempotent(this.prisma, organizationId, 'ORDER_CREATE', dto.clientRequestId, async (tx) => {
       const created = await tx.order.create({
         data: {
           organizationId,
@@ -220,7 +179,7 @@ export class OrdersService {
     const newTaxAmount = Math.round(newSubtotal * (taxRate / 100) * 100) / 100;
     const newTotal = newSubtotal + newTaxAmount;
 
-    return this.runIdempotent(organizationId, 'ORDER_ADD_ITEMS', dto.clientRequestId, async (tx) => {
+    return runIdempotent(this.prisma, organizationId, 'ORDER_ADD_ITEMS', dto.clientRequestId, async (tx) => {
       await tx.orderItem.createMany({
         data: pricedItems.map((i) => ({ ...i, orderId: id })),
       });
@@ -336,6 +295,9 @@ export class OrdersService {
     if (!OPEN_STATUSES.includes(order.status)) {
       throw new BadRequestException(`Cannot close a ${order.status.toLowerCase()} order`);
     }
+    if (dto.paymentMethod === 'WALLET' && !order.customerId) {
+      throw new BadRequestException('A customer must be attached to the order to pay from their wallet');
+    }
 
     const amount = dto.amount ?? toNumber(order.total);
     // v0 requires full settlement at close time; partial/split payments are a v1 feature.
@@ -343,7 +305,7 @@ export class OrdersService {
       throw new BadRequestException('Partial payments are not yet supported — amount must cover the full order total');
     }
 
-    return this.runIdempotent(organizationId, 'ORDER_CLOSE', clientRequestId, async (tx) => {
+    return runIdempotent(this.prisma, organizationId, 'ORDER_CLOSE', clientRequestId, async (tx) => {
       // Conditional update guards against a concurrent close/cancel racing past the check above —
       // only an order still in an open status actually transitions, so double-submits (e.g. a
       // cashier double-tapping "close") can't create two Payment rows for the same order.
@@ -355,7 +317,7 @@ export class OrdersService {
         throw new BadRequestException('Order was already closed or cancelled');
       }
 
-      await tx.payment.create({
+      const payment = await tx.payment.create({
         data: {
           organizationId,
           orderId: id,
@@ -368,10 +330,45 @@ export class OrdersService {
         },
       });
 
+      if (dto.paymentMethod === 'WALLET') {
+        // order.customerId presence was validated before entering runIdempotent.
+        await this.walletService.debit(tx, organizationId, order.customerId as string, userId, {
+          amount,
+          type: 'ORDER_DEBIT',
+          orderId: id,
+          paymentId: payment.id,
+        });
+      }
+
       const updated = await tx.order.findUniqueOrThrow({
         where: { id },
         include: this.orderInclude,
       });
+
+      await this.sheetSync.enqueue(tx, organizationId, 'ORDERS', [
+        updated.id,
+        (updated.closedAt as Date).toISOString(),
+        updated.source,
+        updated.table?.name ?? '',
+        updated.customer?.name ?? '',
+        toNumber(updated.subtotal),
+        toNumber(updated.taxAmount),
+        toNumber(updated.total),
+        dto.paymentMethod,
+      ]);
+      const recordedBy = await tx.user.findUnique({
+        where: { id: userId },
+        select: { firstName: true, lastName: true },
+      });
+      await this.sheetSync.enqueue(tx, organizationId, 'PAYMENTS', [
+        payment.id,
+        updated.id,
+        payment.paymentDate.toISOString(),
+        toNumber(payment.amount),
+        payment.paymentMethod,
+        recordedBy ? `${recordedBy.firstName} ${recordedBy.lastName}` : '',
+        payment.reference ?? '',
+      ]);
 
       await this.inventoryService.deductForOrder(tx, id, organizationId);
 

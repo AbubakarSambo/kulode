@@ -5,13 +5,14 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { ArrowLeft, Pencil, Trash2 } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, Wallet, PlusCircle, Settings2 } from 'lucide-react'
 import { Header } from '@/components/layout'
-import { Button, Input, Label, Card, CardContent, Badge, ConfirmDialog } from '@/components/ui'
+import { Button, Input, Label, Select, Card, CardContent, Badge, ConfirmDialog } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
-import { customersApi } from '@/api'
-import { formatCurrency, formatDate } from '@/lib/utils'
-import type { Customer, OrderStatus, OrderSource } from '@/types'
+import { customersApi, walletApi } from '@/api'
+import { formatCurrency, formatDate, cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth'
+import type { Customer, OrderStatus, OrderSource, WalletTransactionType } from '@/types'
 
 interface CustomerOrderSummary {
   id: string
@@ -31,6 +32,249 @@ const customerSchema = z.object({
   notes: z.string().optional(),
 })
 type CustomerFormData = z.infer<typeof customerSchema>
+
+const TOPUP_PAYMENT_METHODS = [
+  { value: 'CASH', label: 'Cash' },
+  { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
+  { value: 'CARD', label: 'Card' },
+  { value: 'OTHER', label: 'Other' },
+] as const
+
+const WALLET_TRANSACTION_LABELS: Record<WalletTransactionType, string> = {
+  TOPUP: 'Top Up',
+  ORDER_DEBIT: 'Order Payment',
+  REFUND: 'Refund',
+  ADJUSTMENT: 'Adjustment',
+}
+
+function errorMessage(err: unknown, fallback: string) {
+  return (err as { response?: { data?: { message?: string } } })?.response?.data?.message || fallback
+}
+
+function WalletSection({ customerId, balance }: { customerId: string; balance: number }) {
+  const queryClient = useQueryClient()
+  const user = useAuthStore((s) => s.user)
+  const canTopUp = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'ACCOUNTANT'
+  const canAdjust = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
+
+  const [topUpOpen, setTopUpOpen] = useState(false)
+  const [adjustOpen, setAdjustOpen] = useState(false)
+  const [page, setPage] = useState(1)
+
+  const [topUpAmount, setTopUpAmount] = useState('')
+  const [topUpMethod, setTopUpMethod] = useState<(typeof TOPUP_PAYMENT_METHODS)[number]['value']>('CASH')
+  const [topUpNotes, setTopUpNotes] = useState('')
+
+  const [adjustAmount, setAdjustAmount] = useState('')
+  const [adjustReason, setAdjustReason] = useState('')
+
+  const { data: transactions, isLoading } = useQuery({
+    queryKey: ['wallet-transactions', customerId, page],
+    queryFn: () => walletApi.listTransactions(customerId, { page, limit: 10 }),
+  })
+
+  const invalidateWallet = () => {
+    queryClient.invalidateQueries({ queryKey: ['customers', customerId] })
+    queryClient.invalidateQueries({ queryKey: ['customers'] })
+    queryClient.invalidateQueries({ queryKey: ['wallet-transactions', customerId] })
+    queryClient.invalidateQueries({ queryKey: ['wallet-balance', customerId] })
+  }
+
+  const topUp = useMutation({
+    mutationFn: () =>
+      walletApi.topUp(customerId, {
+        amount: Number(topUpAmount),
+        paymentMethod: topUpMethod,
+        notes: topUpNotes || undefined,
+        clientRequestId: crypto.randomUUID(),
+      }),
+    onSuccess: () => {
+      toast.success('Wallet topped up')
+      invalidateWallet()
+      setTopUpOpen(false)
+      setTopUpAmount('')
+      setTopUpNotes('')
+    },
+    onError: (err: unknown) => toast.error(errorMessage(err, 'Failed to top up wallet')),
+  })
+
+  const adjust = useMutation({
+    mutationFn: () =>
+      walletApi.adjust(customerId, {
+        amount: Number(adjustAmount),
+        reason: adjustReason,
+        clientRequestId: crypto.randomUUID(),
+      }),
+    onSuccess: () => {
+      toast.success('Wallet balance adjusted')
+      invalidateWallet()
+      setAdjustOpen(false)
+      setAdjustAmount('')
+      setAdjustReason('')
+    },
+    onError: (err: unknown) => toast.error(errorMessage(err, 'Failed to adjust wallet')),
+  })
+
+  return (
+    <Card className="mt-4 p-4">
+      <CardContent className="p-0">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Wallet className="h-4 w-4 text-muted-foreground" />
+            <h3 className="font-semibold text-foreground">Wallet</h3>
+          </div>
+          <div className="flex gap-2">
+            {canAdjust && (
+              <Button variant="outline" size="sm" onClick={() => setAdjustOpen(true)}>
+                <Settings2 className="mr-1.5 h-4 w-4" /> Adjust
+              </Button>
+            )}
+            {canTopUp && (
+              <Button size="sm" onClick={() => setTopUpOpen(true)}>
+                <PlusCircle className="mr-1.5 h-4 w-4" /> Top Up
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="mb-4 rounded-xl border border-border p-3">
+          <div className="text-xs text-muted-foreground">Current Balance</div>
+          <div className={cn('text-2xl font-bold', balance < 0 ? 'text-destructive' : 'text-foreground')}>
+            {formatCurrency(balance)}
+          </div>
+          {balance < 0 && (
+            <p className="mt-1 text-xs text-destructive">Customer is on account (owes this amount)</p>
+          )}
+        </div>
+
+        {isLoading ? (
+          <p className="py-4 text-center text-sm text-muted-foreground">Loading transactions…</p>
+        ) : !transactions || transactions.data.length === 0 ? (
+          <p className="py-4 text-center text-sm text-muted-foreground">No wallet activity yet</p>
+        ) : (
+          <div className="space-y-2">
+            {transactions.data.map((tx) => (
+              <div
+                key={tx.id}
+                className="flex items-center justify-between rounded-xl border border-border p-3"
+              >
+                <div>
+                  <div className="text-sm font-semibold text-foreground">
+                    {WALLET_TRANSACTION_LABELS[tx.type]}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {formatDate(tx.createdAt)}
+                    {tx.createdBy && ` · ${tx.createdBy.firstName} ${tx.createdBy.lastName}`}
+                    {tx.notes && ` · ${tx.notes}`}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className={cn('text-sm font-semibold', tx.amount < 0 ? 'text-destructive' : 'text-emerald-600')}>
+                    {tx.amount > 0 ? '+' : ''}
+                    {formatCurrency(tx.amount)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Bal: {formatCurrency(tx.balanceAfter)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {transactions && transactions.meta.totalPages > 1 && (
+          <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+            <button
+              disabled={page <= 1}
+              onClick={() => setPage((p) => p - 1)}
+              className="font-medium text-primary disabled:text-muted-foreground disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span>
+              Page {transactions.meta.page} of {transactions.meta.totalPages}
+            </span>
+            <button
+              disabled={page >= transactions.meta.totalPages}
+              onClick={() => setPage((p) => p + 1)}
+              className="font-medium text-primary disabled:text-muted-foreground disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        )}
+      </CardContent>
+
+      <Modal isOpen={topUpOpen} onClose={() => setTopUpOpen(false)} title="Top Up Wallet">
+        <div className="space-y-4">
+          <div>
+            <Label>Amount</Label>
+            <Input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={topUpAmount}
+              onChange={(e) => setTopUpAmount(e.target.value)}
+              placeholder="0.00"
+            />
+          </div>
+          <div>
+            <Label>Payment Method</Label>
+            <Select value={topUpMethod} onChange={(e) => setTopUpMethod(e.target.value as typeof topUpMethod)}>
+              {TOPUP_PAYMENT_METHODS.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label>Notes (optional)</Label>
+            <Input value={topUpNotes} onChange={(e) => setTopUpNotes(e.target.value)} />
+          </div>
+          <Button
+            className="w-full"
+            isLoading={topUp.isPending}
+            disabled={!topUpAmount || Number(topUpAmount) <= 0}
+            onClick={() => topUp.mutate()}
+          >
+            Confirm Top Up
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={adjustOpen} onClose={() => setAdjustOpen(false)} title="Adjust Wallet Balance">
+        <div className="space-y-4">
+          <div>
+            <Label>Signed Amount</Label>
+            <Input
+              type="number"
+              step="0.01"
+              value={adjustAmount}
+              onChange={(e) => setAdjustAmount(e.target.value)}
+              placeholder="e.g. -30 to debit, 30 to credit"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Positive credits the wallet, negative debits it (can take the balance negative).
+            </p>
+          </div>
+          <div>
+            <Label>Reason</Label>
+            <Input
+              value={adjustReason}
+              onChange={(e) => setAdjustReason(e.target.value)}
+              placeholder="Why is this manual override needed?"
+            />
+          </div>
+          <Button
+            className="w-full"
+            isLoading={adjust.isPending}
+            disabled={!adjustAmount || Number(adjustAmount) === 0 || !adjustReason}
+            onClick={() => adjust.mutate()}
+          >
+            Confirm Adjustment
+          </Button>
+        </div>
+      </Modal>
+    </Card>
+  )
+}
 
 export function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -194,6 +438,8 @@ export function CustomerDetailPage() {
             </CardContent>
           </Card>
         </div>
+
+        <WalletSection customerId={customer.id} balance={customer.walletBalance} />
       </div>
 
       <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title="Edit Customer">

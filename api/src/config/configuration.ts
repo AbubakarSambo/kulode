@@ -45,6 +45,13 @@ export const paystackConfig = registerAs("paystack", () => ({
   // Production: https://app.tarione.com/payment/callback
 }));
 
+export const googleSheetsConfig = registerAs("googleSheets", () => ({
+  // Service account JSON key, base64-encoded to survive .env quoting/newlines.
+  credentialsBase64: process.env.GOOGLE_SHEETS_CREDENTIALS_BASE64,
+  // Fallback spreadsheet used until an org-level Organization.googleSheetId exists.
+  testSpreadsheetId: process.env.GOOGLE_SHEETS_TEST_SPREADSHEET_ID,
+}));
+
 export const whatsappConfig = registerAs("whatsapp", () => ({
   phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
   accessToken: process.env.WHATSAPP_ACCESS_TOKEN,

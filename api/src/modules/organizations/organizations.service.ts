@@ -31,6 +31,7 @@ export class OrganizationsService {
         settlementBank: true,
         businessType: true,
         organizationSize: true,
+        googleSheetId: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -70,6 +71,7 @@ export class OrganizationsService {
         ...(dto.organizationSize !== undefined && { organizationSize: dto.organizationSize }),
         ...(dto.rcNumber !== undefined && { rcNumber: dto.rcNumber }),
         ...(dto.tin !== undefined && { tin: dto.tin }),
+        ...('googleSheetId' in dto && { googleSheetId: dto.googleSheetId }),
       },
       select: {
         id: true,
@@ -91,6 +93,7 @@ export class OrganizationsService {
         isPaystackVerified: true,
         businessType: true,
         organizationSize: true,
+        googleSheetId: true,
         createdAt: true,
         updatedAt: true,
       },

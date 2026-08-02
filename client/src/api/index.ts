@@ -22,3 +22,6 @@ export type { CreateOrderData, CloseOrderData, PendingOrder, OrderFilter } from 
 export { shiftsApi } from './shifts'
 export { customersApi } from './customers'
 export type { CreateCustomerData, CustomerFilters } from './customers'
+export { walletApi } from './wallet'
+export type { WalletBalance, WalletTransactionFilters, TopUpWalletData, AdjustWalletData } from './wallet'
+export { googleSheetsApi } from './google-sheets'

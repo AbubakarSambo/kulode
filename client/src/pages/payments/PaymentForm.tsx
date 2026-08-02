@@ -50,7 +50,7 @@ export function EditPaymentPage() {
     if (payment) {
       reset({
         amount: payment.amount,
-        paymentMethod: payment.paymentMethod,
+        paymentMethod: payment.paymentMethod as PaymentFormData['paymentMethod'],
         paymentDate: new Date(payment.paymentDate).toISOString().split('T')[0],
         reference: payment.reference ?? '',
         notes: payment.notes ?? '',

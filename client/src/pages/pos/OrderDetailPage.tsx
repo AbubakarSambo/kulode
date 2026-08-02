@@ -6,7 +6,7 @@ import { ArrowLeft, Download, Plus, X, UserPlus, Pencil } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Badge, Select, Input, Label, SearchableSelect } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
-import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi } from '@/api'
+import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi } from '@/api'
 import { getQueuedActionsForLocalOrder, discardFailedAction, LOCAL_ORDER_PREFIX } from '@/lib/offlineOrderQueue'
 import { formatCurrency, cn } from '@/lib/utils'
 import type { OrderItemStatus, MenuItem } from '@/types'
@@ -19,10 +19,13 @@ const PAYMENT_METHODS = [
   { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
   { value: 'CARD', label: 'Card' },
   { value: 'PAYSTACK', label: 'Paystack (checkout link)' },
+  { value: 'WALLET', label: 'Customer Wallet' },
   { value: 'OTHER', label: 'Other' },
 ] as const
 
-const OFFLINE_PAYMENT_METHODS = PAYMENT_METHODS.filter((m) => m.value !== 'PAYSTACK')
+const OFFLINE_PAYMENT_METHODS = PAYMENT_METHODS.filter(
+  (m) => m.value !== 'PAYSTACK' && m.value !== 'WALLET',
+)
 
 interface AddItemsModalProps {
   isOpen: boolean
@@ -313,6 +316,12 @@ function SyncedOrderView({ id }: { id: string }) {
     refetchInterval: 10_000,
   })
 
+  const { data: walletBalance } = useQuery({
+    queryKey: ['wallet-balance', order?.customer?.id],
+    queryFn: () => walletApi.getBalance(order!.customer!.id),
+    enabled: closeModalOpen && !!order?.customer,
+  })
+
   const { data: customersPage } = useQuery({
     queryKey: ['customers', { limit: 100 }],
     queryFn: () => customersApi.list({ limit: 100 }),
@@ -394,7 +403,11 @@ function SyncedOrderView({ id }: { id: string }) {
         return
       }
       toast.success('Order closed')
-      if (order?.customerId) queryClient.invalidateQueries({ queryKey: ['customers'] })
+      if (order?.customerId) {
+        queryClient.invalidateQueries({ queryKey: ['customers'] })
+        queryClient.invalidateQueries({ queryKey: ['wallet-balance', order.customerId] })
+        queryClient.invalidateQueries({ queryKey: ['wallet-transactions', order.customerId] })
+      }
       setCloseModalOpen(false)
       queryClient.invalidateQueries({ queryKey: ['order', id] })
     },
@@ -553,7 +566,7 @@ function SyncedOrderView({ id }: { id: string }) {
           <div>
             <Label>Payment Method</Label>
             <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}>
-              {PAYMENT_METHODS.map((m) => (
+              {(order.customer ? PAYMENT_METHODS : PAYMENT_METHODS.filter((m) => m.value !== 'WALLET')).map((m) => (
                 <option key={m.value} value={m.value}>{m.label}</option>
               ))}
             </Select>
@@ -567,6 +580,27 @@ function SyncedOrderView({ id }: { id: string }) {
                 onChange={(e) => setCustomerEmail(e.target.value)}
                 placeholder="customer@email.com"
               />
+            </div>
+          )}
+          {paymentMethod === 'WALLET' && (
+            <div className="rounded-xl border border-border p-3 text-sm">
+              <div className="flex justify-between text-muted-foreground">
+                <span>Current balance</span>
+                <span className={cn('font-semibold', (walletBalance?.balance ?? 0) < 0 ? 'text-destructive' : 'text-foreground')}>
+                  {walletBalance ? formatCurrency(walletBalance.balance) : '—'}
+                </span>
+              </div>
+              <div className="mt-1 flex justify-between text-muted-foreground">
+                <span>Balance after payment</span>
+                <span className={cn('font-semibold', walletBalance && walletBalance.balance - order.total < 0 ? 'text-destructive' : 'text-foreground')}>
+                  {walletBalance ? formatCurrency(walletBalance.balance - order.total) : '—'}
+                </span>
+              </div>
+              {walletBalance && walletBalance.balance - order.total < 0 && (
+                <p className="mt-2 text-xs text-destructive">
+                  This will put the customer on account (negative balance).
+                </p>
+              )}
             </div>
           )}
           <div className="rounded-xl bg-muted p-4 text-center">

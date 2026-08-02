@@ -96,4 +96,13 @@ export class UpdateOrganizationDto {
   @IsString()
   @MaxLength(50)
   tin?: string;
+
+  @ApiPropertyOptional({
+    example: '1yrBFrddzXGCuHWJF1X56-Y_wvZyO2JU-lK3yxCilibA',
+    description: 'ID of the Google Sheet shared with our service account, for the Sheets sync',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  googleSheetId?: string | null;
 }
