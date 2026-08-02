@@ -16,6 +16,7 @@ export interface UpdateOrganizationData {
   organizationSize?: string
   rcNumber?: string
   tin?: string
+  googleSheetId?: string | null
 }
 
 export const organizationsApi = {

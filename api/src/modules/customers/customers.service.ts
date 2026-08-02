@@ -34,6 +34,7 @@ export class CustomersService {
           phone: true,
           email: true,
           isActive: true,
+          walletBalance: true,
           createdAt: true,
           _count: { select: { orders: true } },
         },

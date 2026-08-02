@@ -132,6 +132,7 @@ export interface Organization {
   organizationSize?: string
   rcNumber?: string
   tin?: string
+  googleSheetId?: string
 }
 
 // Onboarding
@@ -176,9 +177,31 @@ export interface Customer {
   email?: string
   notes?: string
   isActive: boolean
+  walletBalance: number
   createdAt: string
   _count?: {
     orders: number
+  }
+}
+
+export type WalletTransactionType = 'TOPUP' | 'ORDER_DEBIT' | 'REFUND' | 'ADJUSTMENT'
+
+export interface WalletTransaction {
+  id: string
+  customerId: string
+  type: WalletTransactionType
+  amount: number
+  balanceBefore: number
+  balanceAfter: number
+  orderId?: string
+  paymentId?: string
+  reference?: string
+  notes?: string
+  createdAt: string
+  createdBy?: {
+    id: string
+    firstName: string
+    lastName: string
   }
 }
 
@@ -252,7 +275,7 @@ export interface WhatsappMessage {
 }
 
 // Payment types
-export type PaymentMethod = 'CASH' | 'BANK_TRANSFER' | 'CARD' | 'PAYSTACK' | 'OTHER'
+export type PaymentMethod = 'CASH' | 'BANK_TRANSFER' | 'CARD' | 'PAYSTACK' | 'WALLET' | 'OTHER'
 
 export interface Payment {
   id: string
