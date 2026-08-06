@@ -1,0 +1,169 @@
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { toast } from 'sonner'
+import { Plus, Pencil, Trash2, Tag } from 'lucide-react'
+import { Tag01Icon } from '@hugeicons/core-free-icons'
+import { Header } from '@/components/layout'
+import { Button, Input, Label, Card, CardContent, Badge, ConfirmDialog, EmptyState } from '@/components/ui'
+import { Modal } from '@/components/shared/Modal'
+import { menuCategoriesApi } from '@/api'
+import type { MenuCategory } from '@/types'
+
+const categorySchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  sortOrder: z.number().optional(),
+})
+
+type CategoryFormData = z.infer<typeof categorySchema>
+
+export function MenuCategoriesPage() {
+  const queryClient = useQueryClient()
+
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false)
+  const [editingCategory, setEditingCategory] = useState<MenuCategory | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
+
+  const { data: categories, isLoading } = useQuery({
+    queryKey: ['menu-categories'],
+    queryFn: () => menuCategoriesApi.list(),
+  })
+
+  const categoryForm = useForm<CategoryFormData>({ resolver: zodResolver(categorySchema) })
+
+  const saveCategory = useMutation({
+    mutationFn: (data: CategoryFormData) =>
+      editingCategory ? menuCategoriesApi.update(editingCategory.id, data) : menuCategoriesApi.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['menu-categories'] })
+      toast.success(editingCategory ? 'Category updated' : 'Category created')
+      setCategoryModalOpen(false)
+      setEditingCategory(null)
+      categoryForm.reset()
+    },
+    onError: () => toast.error('Failed to save category'),
+  })
+
+  const toggleActive = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => menuCategoriesApi.update(id, { isActive }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['menu-categories'] }),
+    onError: () => toast.error('Failed to update category'),
+  })
+
+  const deleteCategory = useMutation({
+    mutationFn: (id: string) => menuCategoriesApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['menu-categories'] })
+      toast.success('Category deleted')
+      setDeleteTarget(null)
+    },
+    onError: () => toast.error('Failed to delete category'),
+  })
+
+  const openNewCategory = () => {
+    setEditingCategory(null)
+    categoryForm.reset({ name: '', sortOrder: (categories?.length ?? 0) + 1 })
+    setCategoryModalOpen(true)
+  }
+
+  const openEditCategory = (category: MenuCategory) => {
+    setEditingCategory(category)
+    categoryForm.reset({ name: category.name, sortOrder: category.sortOrder })
+    setCategoryModalOpen(true)
+  }
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      <Header
+        title="Categories"
+        description="Organize your menu items into categories"
+        icon={Tag}
+        action={
+          <Button size="sm" onClick={openNewCategory}>
+            <Plus className="mr-1.5 h-4 w-4" /> Category
+          </Button>
+        }
+      />
+
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        {!isLoading && (!categories || categories.length === 0) ? (
+          <EmptyState
+            icon={Tag01Icon}
+            title="No categories yet"
+            description="Add your first category to start organizing your menu"
+            actionLabel="Add Category"
+            onAction={openNewCategory}
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {categories
+              ?.slice()
+              .sort((a, b) => a.sortOrder - b.sortOrder)
+              .map((category) => (
+                <Card key={category.id} className="p-4">
+                  <CardContent className="flex items-center justify-between p-0">
+                    <div>
+                      <h3 className="font-semibold text-foreground">{category.name}</h3>
+                      <p className="mt-1 text-xs text-muted-foreground">Order: {category.sortOrder}</p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => toggleActive.mutate({ id: category.id, isActive: !category.isActive })}>
+                        <Badge variant={category.isActive ? 'success' : 'secondary'}>
+                          {category.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </button>
+                      <button onClick={() => openEditCategory(category)} className="rounded-lg p-2 hover:bg-muted">
+                        <Pencil className="h-4 w-4 text-muted-foreground" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget({ id: category.id, name: category.name })}
+                        className="rounded-lg p-2 hover:bg-muted"
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+          </div>
+        )}
+      </div>
+
+      <Modal
+        isOpen={categoryModalOpen}
+        onClose={() => setCategoryModalOpen(false)}
+        title={editingCategory ? 'Edit Category' : 'New Category'}
+      >
+        <form onSubmit={categoryForm.handleSubmit((data) => saveCategory.mutate(data))} className="space-y-4">
+          <div>
+            <Label>Name</Label>
+            <Input {...categoryForm.register('name')} placeholder="e.g. Starters" />
+            {categoryForm.formState.errors.name && (
+              <p className="mt-1 text-xs text-destructive">{categoryForm.formState.errors.name.message}</p>
+            )}
+          </div>
+          <div>
+            <Label>Sort Order</Label>
+            <Input type="number" {...categoryForm.register('sortOrder', { valueAsNumber: true })} />
+          </div>
+          <Button type="submit" className="w-full" isLoading={saveCategory.isPending}>
+            {editingCategory ? 'Save Changes' : 'Create Category'}
+          </Button>
+        </form>
+      </Modal>
+
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && deleteCategory.mutate(deleteTarget.id)}
+        title={`Delete "${deleteTarget?.name}"?`}
+        description="This cannot be undone."
+        confirmText="Delete"
+        isDangerous
+        isLoading={deleteCategory.isPending}
+      />
+    </div>
+  )
+}

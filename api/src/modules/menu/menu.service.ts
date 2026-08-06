@@ -71,20 +71,38 @@ export class MenuService {
   // ─── Items ────────────────────────────────────────────────────────────────
 
   async findAllItems(organizationId: string, categoryId?: string) {
-    return this.prisma.menuItem.findMany({
-      where: { organizationId, ...(categoryId && { categoryId }) },
+    const items = await this.prisma.menuItem.findMany({
+      where: { organizationId, ...(categoryId && { categories: { some: { categoryId } } }) },
       orderBy: { name: 'asc' },
-      include: { category: { select: { id: true, name: true } } },
+      include: { categories: { include: { category: { select: { id: true, name: true } } } } },
     });
+    return items.map(this.flattenCategories);
   }
 
   async findOneItem(organizationId: string, id: string) {
     const item = await this.prisma.menuItem.findFirst({
       where: { id, organizationId },
-      include: { category: { select: { id: true, name: true } } },
+      include: { categories: { include: { category: { select: { id: true, name: true } } } } },
     });
     if (!item) throw new NotFoundException('Menu item not found');
-    return item;
+    return this.flattenCategories(item);
+  }
+
+  private flattenCategories<T extends { categories: { category: { id: string; name: string } }[] }>(
+    item: T,
+  ) {
+    const { categories, ...rest } = item;
+    return { ...rest, categories: categories.map((c) => c.category) };
+  }
+
+  private async validateCategoryIds(organizationId: string, categoryIds: string[]) {
+    if (categoryIds.length === 0) return;
+    const count = await this.prisma.menuCategory.count({
+      where: { id: { in: categoryIds }, organizationId },
+    });
+    if (count !== new Set(categoryIds).size) {
+      throw new NotFoundException('One or more menu categories not found');
+    }
   }
 
   async createItem(organizationId: string, dto: CreateMenuItemDto) {
@@ -95,24 +113,22 @@ export class MenuService {
       throw new ConflictException('A menu item with this name already exists');
     }
 
-    if (dto.categoryId) {
-      const category = await this.prisma.menuCategory.findFirst({
-        where: { id: dto.categoryId, organizationId },
-      });
-      if (!category) throw new NotFoundException('Menu category not found');
-    }
+    const categoryIds = dto.categoryIds ?? [];
+    await this.validateCategoryIds(organizationId, categoryIds);
 
-    return this.prisma.menuItem.create({
+    const item = await this.prisma.menuItem.create({
       data: {
         organizationId,
         name: dto.name,
         description: dto.description,
         price: dto.price,
-        categoryId: dto.categoryId,
         inventoryItemId: dto.inventoryItemId,
         imageUrl: dto.imageUrl,
+        categories: { create: categoryIds.map((categoryId) => ({ categoryId })) },
       },
+      include: { categories: { include: { category: { select: { id: true, name: true } } } } },
     });
+    return this.flattenCategories(item);
   }
 
   async updateItem(organizationId: string, id: string, dto: UpdateMenuItemDto) {
@@ -128,25 +144,29 @@ export class MenuService {
       }
     }
 
-    if (dto.categoryId) {
-      const category = await this.prisma.menuCategory.findFirst({
-        where: { id: dto.categoryId, organizationId },
-      });
-      if (!category) throw new NotFoundException('Menu category not found');
+    if (dto.categoryIds !== undefined) {
+      await this.validateCategoryIds(organizationId, dto.categoryIds);
     }
 
-    return this.prisma.menuItem.update({
+    const updated = await this.prisma.menuItem.update({
       where: { id },
       data: {
         ...(dto.name && { name: dto.name }),
         ...(dto.description !== undefined && { description: dto.description }),
         ...(dto.price !== undefined && { price: dto.price }),
-        ...(dto.categoryId !== undefined && { categoryId: dto.categoryId }),
         ...(dto.inventoryItemId !== undefined && { inventoryItemId: dto.inventoryItemId }),
         ...(dto.imageUrl !== undefined && { imageUrl: dto.imageUrl }),
         ...(dto.isAvailable !== undefined && { isAvailable: dto.isAvailable }),
+        ...(dto.categoryIds !== undefined && {
+          categories: {
+            deleteMany: {},
+            create: dto.categoryIds.map((categoryId) => ({ categoryId })),
+          },
+        }),
       },
+      include: { categories: { include: { category: { select: { id: true, name: true } } } } },
     });
+    return this.flattenCategories(updated);
   }
 
   async removeItem(organizationId: string, id: string) {

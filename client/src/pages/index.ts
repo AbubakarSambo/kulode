@@ -63,6 +63,8 @@ export { ChangelogPage } from './settings/ChangelogPage'
 
 // Restaurant POS
 export { MenuManagementPage } from './pos/MenuManagementPage'
+export { MenuCategoriesPage } from './pos/MenuCategoriesPage'
+export { WaitersPage } from './pos/WaitersPage'
 export { TablesFloorPage } from './pos/TablesFloorPage'
 export { OrderTakingPage } from './pos/OrderTakingPage'
 export { OrderDetailPage } from './pos/OrderDetailPage'

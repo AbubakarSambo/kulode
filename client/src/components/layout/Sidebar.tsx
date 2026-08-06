@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, X, CreditCard, UtensilsCrossed, ChefHat, Clock, Receipt, Users } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, CreditCard, UtensilsCrossed, ChefHat, Clock, Receipt, Users, ShoppingCart, Tag, UserRound } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { useLogout } from '@/hooks'
@@ -53,11 +53,14 @@ const navigationGroups = [
   {
     title: 'Restaurant POS',
     items: [
+      { name: 'Sell', href: '/pos/order/new', icon: ShoppingCart, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Tables', href: '/pos/tables', icon: UtensilsCrossed, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Menu', href: '/pos/menu', icon: ChefHat, requiresPlan: undefined as PlanTier | undefined },
+      { name: 'Categories', href: '/pos/categories', icon: Tag, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Shift', href: '/pos/shift', icon: Clock, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Orders', href: '/pos/orders', icon: Receipt, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Customers', href: '/pos/customers', icon: Users, requiresPlan: undefined as PlanTier | undefined },
+      { name: 'Waiters', href: '/pos/waiters', icon: UserRound, requiresPlan: undefined as PlanTier | undefined },
     ]
   },
   {

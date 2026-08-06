@@ -6,6 +6,8 @@ import {
   UtensilsCrossed,
   ChefHat,
   Clock,
+  Tag,
+  UserRound,
 } from 'lucide-react'
 import {
   DashboardIcon,
@@ -57,6 +59,8 @@ export function AppLayout() {
     if (path.startsWith('/inventory')) return 'Product Inventory'
     if (path.startsWith('/pos/tables')) return 'Tables'
     if (path.startsWith('/pos/menu')) return 'Menu'
+    if (path.startsWith('/pos/categories')) return 'Categories'
+    if (path.startsWith('/pos/waiters')) return 'Waiters'
     if (path.startsWith('/pos/shift')) return 'Shift'
     if (path.startsWith('/pos/order')) return 'Order'
     if (path.startsWith('/reports')) return 'Reports'
@@ -98,6 +102,8 @@ export function AppLayout() {
       items: [
         { name: 'Tables', href: '/pos/tables', icon: UtensilsCrossed },
         { name: 'Menu', href: '/pos/menu', icon: ChefHat },
+        { name: 'Categories', href: '/pos/categories', icon: Tag },
+        { name: 'Waiters', href: '/pos/waiters', icon: UserRound },
         { name: 'Shift', href: '/pos/shift', icon: Clock },
       ] as MoreItem[],
     },

@@ -391,11 +391,18 @@ export interface MenuItem {
   name: string
   description?: string
   price: number
-  categoryId?: string
-  category?: { id: string; name: string } | null
+  categories: { id: string; name: string }[]
   inventoryItemId?: string
   imageUrl?: string
   isAvailable: boolean
+}
+
+export interface Waiter {
+  id: string
+  name: string
+  phone?: string
+  notes?: string
+  isActive: boolean
 }
 
 export interface RestaurantTable {

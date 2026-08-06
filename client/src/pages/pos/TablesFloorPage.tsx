@@ -142,8 +142,12 @@ export function TablesFloorPage() {
             <Input {...form.register('section')} placeholder="e.g. Patio" />
           </div>
           <div>
-            <Label>Capacity</Label>
-            <Input type="number" {...form.register('capacity', { valueAsNumber: true })} placeholder="2" />
+            <Label>Capacity (optional)</Label>
+            <Input
+              type="number"
+              {...form.register('capacity', { setValueAs: (v) => (v === '' ? undefined : Number(v)) })}
+              placeholder="2"
+            />
           </div>
           <Button type="submit" className="w-full" isLoading={createTable.isPending}>
             Add Table
