@@ -4,11 +4,12 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Upload } from 'lucide-react'
 import { ChefHatIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, Badge, ConfirmDialog, EmptyState } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
+import { CsvImportModal, type CsvColumn } from '@/components/shared/CsvImportModal'
 import { menuCategoriesApi, menuItemsApi } from '@/api'
 import { formatCurrency, cn } from '@/lib/utils'
 import type { MenuItem } from '@/types'
@@ -23,10 +24,24 @@ const itemSchema = z.object({
 
 type ItemFormData = z.infer<typeof itemSchema>
 
+const CSV_COLUMNS: CsvColumn[] = [
+  { key: 'name', label: 'Name', required: true },
+  { key: 'description', label: 'Description' },
+  { key: 'price', label: 'Price', required: true },
+  { key: 'categories', label: 'Categories' },
+]
+const CSV_SAMPLE_ROWS = [
+  ['Name', 'Description', 'Price', 'Categories'],
+  ['Jollof Rice', 'Smoky party jollof with fried plantain', '2500', 'Mains'],
+  ['Chapman', '', '1500', 'Drinks'],
+  ['Suya Wrap', 'Grilled beef skewer, wrapped', '1800', 'Starters;Mains'],
+]
+
 export function MenuManagementPage() {
   const queryClient = useQueryClient()
 
   const [itemModalOpen, setItemModalOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
 
@@ -105,9 +120,14 @@ export function MenuManagementPage() {
         description="Manage menu items for your restaurant"
         icon={InventoryIcon}
         action={
-          <Button size="sm" onClick={openNewItem}>
-            <Plus className="mr-1.5 h-4 w-4" /> Menu Item
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+              <Upload className="mr-1.5 h-4 w-4" /> Import CSV
+            </Button>
+            <Button size="sm" onClick={openNewItem}>
+              <Plus className="mr-1.5 h-4 w-4" /> Menu Item
+            </Button>
+          </div>
         }
       />
 
@@ -224,6 +244,37 @@ export function MenuManagementPage() {
         confirmText="Delete"
         isDangerous
         isLoading={deleteItem.isPending}
+      />
+
+      <CsvImportModal
+        isOpen={importOpen}
+        onClose={() => setImportOpen(false)}
+        title="Import Menu Items"
+        columns={CSV_COLUMNS}
+        sampleFilename="menu-items-sample.csv"
+        sampleRows={CSV_SAMPLE_ROWS}
+        onImportRow={async (row) => {
+          const price = Number(row.price)
+          if (Number.isNaN(price)) throw new Error(`Invalid price "${row.price}"`)
+
+          const categoryNames = row.categories
+            .split(';')
+            .map((n) => n.trim())
+            .filter(Boolean)
+          const categoryIds = categoryNames.map((wantedName) => {
+            const match = categories?.find((c) => c.name.toLowerCase() === wantedName.toLowerCase())
+            if (!match) throw new Error(`Unknown category "${wantedName}" — create it first`)
+            return match.id
+          })
+
+          await menuItemsApi.create({
+            name: row.name,
+            description: row.description || undefined,
+            price,
+            categoryIds,
+          })
+        }}
+        onImported={() => queryClient.invalidateQueries({ queryKey: ['menu-items'] })}
       />
     </div>
   )

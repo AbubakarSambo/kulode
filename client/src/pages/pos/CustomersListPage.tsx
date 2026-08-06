@@ -5,13 +5,26 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, Users, Search } from 'lucide-react'
+import { Plus, Users, Search, Upload } from 'lucide-react'
 import { UserGroupIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Card, CardContent, EmptyState } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
+import { CsvImportModal, type CsvColumn } from '@/components/shared/CsvImportModal'
 import { customersApi } from '@/api'
 import { formatDate } from '@/lib/utils'
+
+const CSV_COLUMNS: CsvColumn[] = [
+  { key: 'name', label: 'Name', required: true },
+  { key: 'phone', label: 'Phone', required: true },
+  { key: 'email', label: 'Email' },
+  { key: 'notes', label: 'Notes' },
+]
+const CSV_SAMPLE_ROWS = [
+  ['Name', 'Phone', 'Email', 'Notes'],
+  ['Tunde Bakare', '+234 123 456 7890', 'tunde@example.com', 'Prefers window seating'],
+  ['Amaka Obi', '+234 987 654 3210', '', ''],
+]
 
 const customerSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -27,6 +40,7 @@ export function CustomersListPage() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [createOpen, setCreateOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const limit = 20
 
   const { data, isLoading } = useQuery({
@@ -60,9 +74,14 @@ export function CustomersListPage() {
         icon={Users}
         badgeText={data?.meta.total}
         action={
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-1.5 h-4 w-4" /> New Customer
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+              <Upload className="mr-1.5 h-4 w-4" /> Import CSV
+            </Button>
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus className="mr-1.5 h-4 w-4" /> New Customer
+            </Button>
+          </div>
         }
       />
 
@@ -196,6 +215,24 @@ export function CustomersListPage() {
           </Button>
         </form>
       </Modal>
+
+      <CsvImportModal
+        isOpen={importOpen}
+        onClose={() => setImportOpen(false)}
+        title="Import Customers"
+        columns={CSV_COLUMNS}
+        sampleFilename="customers-sample.csv"
+        sampleRows={CSV_SAMPLE_ROWS}
+        onImportRow={async (row) => {
+          await customersApi.create({
+            name: row.name,
+            phone: row.phone,
+            email: row.email || undefined,
+            notes: row.notes || undefined,
+          })
+        }}
+        onImported={() => queryClient.invalidateQueries({ queryKey: ['customers'] })}
+      />
     </div>
   )
 }

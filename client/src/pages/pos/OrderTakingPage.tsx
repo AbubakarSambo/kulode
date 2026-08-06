@@ -9,7 +9,7 @@ import { Minus, Plus, ArrowLeft, UserPlus, X, Search } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Select, Label, Input, SearchableSelect } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
-import { menuCategoriesApi, menuItemsApi, ordersApi, customersApi } from '@/api'
+import { menuCategoriesApi, menuItemsApi, ordersApi, customersApi, tablesApi } from '@/api'
 import { formatCurrency, cn } from '@/lib/utils'
 import type { OrderSource } from '@/types'
 
@@ -49,6 +49,15 @@ export function OrderTakingPage() {
   const [cart, setCart] = useState<CartLine[]>([])
   const [customerId, setCustomerId] = useState('')
   const [newCustomerOpen, setNewCustomerOpen] = useState(false)
+  const [selectedTableId, setSelectedTableId] = useState('')
+
+  const { data: tables } = useQuery({
+    queryKey: ['restaurant-tables'],
+    queryFn: () => tablesApi.list(),
+    enabled: !tableId,
+  })
+  const availableTables = useMemo(() => (tables ?? []).filter((t) => t.status === 'AVAILABLE'), [tables])
+  const effectiveTableId = tableId ?? (source === 'DINE_IN' ? selectedTableId || undefined : undefined)
 
   const { data: categories } = useQuery({ queryKey: ['menu-categories'], queryFn: () => menuCategoriesApi.list() })
   const { data: items } = useQuery({ queryKey: ['menu-items'], queryFn: () => menuItemsApi.list() })
@@ -113,7 +122,7 @@ export function OrderTakingPage() {
   const createOrder = useMutation({
     mutationFn: () =>
       ordersApi.create({
-        tableId,
+        tableId: effectiveTableId,
         customerId: customerId || undefined,
         source,
         items: cart.map((l) => ({ menuItemId: l.menuItemId, quantity: l.quantity, notes: l.notes || undefined })),
@@ -137,9 +146,11 @@ export function OrderTakingPage() {
         title={tableId ? 'New Order' : `New ${SOURCE_LABELS[source]} Order`}
         description={tableId ? undefined : 'Select order type and add items'}
         action={
-          <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
-            <ArrowLeft className="mr-1.5 h-4 w-4" /> Back
-          </Button>
+          tableId ? (
+            <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+              <ArrowLeft className="mr-1.5 h-4 w-4" /> Back
+            </Button>
+          ) : undefined
         }
       />
 
@@ -148,13 +159,34 @@ export function OrderTakingPage() {
           {!tableId && (
             <div className="mb-4">
               <Label>Order Type</Label>
-              <Select value={source} onChange={(e) => setSource(e.target.value as OrderSource)}>
-                {(Object.keys(SOURCE_LABELS) as OrderSource[])
-                  .filter((s) => s !== 'DINE_IN')
-                  .map((s) => (
-                    <option key={s} value={s}>{SOURCE_LABELS[s]}</option>
-                  ))}
+              <Select
+                value={source}
+                onChange={(e) => {
+                  setSource(e.target.value as OrderSource)
+                  setSelectedTableId('')
+                }}
+              >
+                {(Object.keys(SOURCE_LABELS) as OrderSource[]).map((s) => (
+                  <option key={s} value={s}>{SOURCE_LABELS[s]}</option>
+                ))}
               </Select>
+            </div>
+          )}
+
+          {!tableId && source === 'DINE_IN' && (
+            <div className="mb-4">
+              <Label>Table</Label>
+              <Select value={selectedTableId} onChange={(e) => setSelectedTableId(e.target.value)}>
+                <option value="">Select a table</option>
+                {availableTables.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}{t.section ? ` — ${t.section}` : ''}
+                  </option>
+                ))}
+              </Select>
+              {availableTables.length === 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">No available tables right now.</p>
+              )}
             </div>
           )}
 
@@ -289,7 +321,7 @@ export function OrderTakingPage() {
 
           <Button
             className="mt-4 h-14 text-base"
-            disabled={cart.length === 0}
+            disabled={cart.length === 0 || (source === 'DINE_IN' && !effectiveTableId)}
             isLoading={createOrder.isPending}
             onClick={() => createOrder.mutate()}
           >

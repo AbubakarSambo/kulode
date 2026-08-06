@@ -4,13 +4,25 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, UserRound } from 'lucide-react'
+import { Plus, Pencil, Trash2, UserRound, Upload } from 'lucide-react'
 import { WaiterIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, Badge, ConfirmDialog, EmptyState } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
+import { CsvImportModal, type CsvColumn } from '@/components/shared/CsvImportModal'
 import { waitersApi } from '@/api'
 import type { Waiter } from '@/types'
+
+const CSV_COLUMNS: CsvColumn[] = [
+  { key: 'name', label: 'Name', required: true },
+  { key: 'phone', label: 'Phone' },
+  { key: 'notes', label: 'Notes' },
+]
+const CSV_SAMPLE_ROWS = [
+  ['Name', 'Phone', 'Notes'],
+  ['Tunde Bakare', '+234 123 456 7890', 'Section A'],
+  ['Amaka Obi', '', ''],
+]
 
 const waiterSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -24,6 +36,7 @@ export function WaitersPage() {
   const queryClient = useQueryClient()
 
   const [waiterModalOpen, setWaiterModalOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [editingWaiter, setEditingWaiter] = useState<Waiter | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
 
@@ -82,9 +95,14 @@ export function WaitersPage() {
         description="Manage your restaurant's floor staff"
         icon={UserRound}
         action={
-          <Button size="sm" onClick={openNewWaiter}>
-            <Plus className="mr-1.5 h-4 w-4" /> Waiter
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+              <Upload className="mr-1.5 h-4 w-4" /> Import CSV
+            </Button>
+            <Button size="sm" onClick={openNewWaiter}>
+              <Plus className="mr-1.5 h-4 w-4" /> Waiter
+            </Button>
+          </div>
         }
       />
 
@@ -170,6 +188,23 @@ export function WaitersPage() {
         confirmText="Remove"
         isDangerous
         isLoading={deleteWaiter.isPending}
+      />
+
+      <CsvImportModal
+        isOpen={importOpen}
+        onClose={() => setImportOpen(false)}
+        title="Import Waiters"
+        columns={CSV_COLUMNS}
+        sampleFilename="waiters-sample.csv"
+        sampleRows={CSV_SAMPLE_ROWS}
+        onImportRow={async (row) => {
+          await waitersApi.create({
+            name: row.name,
+            phone: row.phone || undefined,
+            notes: row.notes || undefined,
+          })
+        }}
+        onImported={() => queryClient.invalidateQueries({ queryKey: ['waiters'] })}
       />
     </div>
   )
