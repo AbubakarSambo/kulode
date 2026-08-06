@@ -50,18 +50,31 @@ export class OrderReceiptPdfService {
       if (receipt.table) doc.text(`Table: ${receipt.table.name}`, { width });
       this.divider(doc, width);
 
+      const itemColX = 12;
+      const itemColW = width * 0.55;
+      const qtyColX = itemColX + itemColW;
+      const qtyColW = width * 0.15;
+      const amtColX = qtyColX + qtyColW;
+      const amtColW = width * 0.3;
+
       doc.font('Helvetica-Bold').fontSize(8);
-      doc.text('ITEM', 12, doc.y, { continued: true, width: width * 0.55 });
-      doc.text('QTY', { continued: true, width: width * 0.15, align: 'right' });
-      doc.text('AMT', { width: width * 0.3, align: 'right' });
+      let rowY = doc.y;
+      doc.text('ITEM', itemColX, rowY, { width: itemColW });
+      doc.text('QTY', qtyColX, rowY, { width: qtyColW, align: 'right' });
+      doc.text('AMT', amtColX, rowY, { width: amtColW, align: 'right' });
+      doc.y = rowY + doc.currentLineHeight();
       doc.font('Helvetica');
 
       for (const item of receipt.items) {
-        doc.text(item.name, 12, doc.y, { continued: true, width: width * 0.55 });
-        doc.text(String(item.quantity), { continued: true, width: width * 0.15, align: 'right' });
-        doc.text(this.formatCurrency(item.amount, receipt.organization.currency), { width: width * 0.3, align: 'right' });
+        rowY = doc.y;
+        const nameHeight = doc.heightOfString(item.name, { width: itemColW });
+        doc.text(item.name, itemColX, rowY, { width: itemColW });
+        doc.text(String(item.quantity), qtyColX, rowY, { width: qtyColW, align: 'right' });
+        doc.text(this.formatCurrency(item.amount, receipt.organization.currency), amtColX, rowY, { width: amtColW, align: 'right' });
+        doc.y = rowY + Math.max(nameHeight, doc.currentLineHeight());
+
         if (item.notes) {
-          doc.fontSize(7).fillColor('#555').text(`  ${item.notes}`, { width });
+          doc.fontSize(7).fillColor('#555').text(`  ${item.notes}`, itemColX, doc.y, { width });
           doc.fontSize(8).fillColor('#000');
         }
       }
