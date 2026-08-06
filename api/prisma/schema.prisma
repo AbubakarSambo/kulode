@@ -343,6 +343,7 @@ model Waiter {
 
   // Relations
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  orders       Order[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -940,6 +941,7 @@ model Order {
   organizationId String      @map("organization_id")
   tableId        String?     @map("table_id")
   customerId     String?     @map("customer_id")
+  waiterId       String?     @map("waiter_id")
   createdById    String      @map("created_by")
   source         OrderSource @default(DINE_IN)
   status         OrderStatus @default(OPEN)
@@ -958,6 +960,7 @@ model Order {
   organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   table              RestaurantTable?    @relation(fields: [tableId], references: [id], onDelete: SetNull)
   customer           Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  waiter             Waiter?             @relation(fields: [waiterId], references: [id], onDelete: SetNull)
   createdBy          User                @relation("OrderCreatedByUser", fields: [createdById], references: [id])
   items              OrderItem[]
   payments           Payment[]
@@ -967,6 +970,7 @@ model Order {
   @@index([organizationId])
   @@index([tableId])
   @@index([customerId])
+  @@index([waiterId])
   @@index([status])
   @@map("orders")
 }

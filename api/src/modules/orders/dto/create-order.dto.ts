@@ -43,6 +43,11 @@ export class CreateOrderDto {
   @IsUUID()
   customerId?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  waiterId?: string;
+
   @ApiPropertyOptional({ enum: ORDER_SOURCES, default: 'DINE_IN' })
   @IsOptional()
   @IsIn(ORDER_SOURCES)

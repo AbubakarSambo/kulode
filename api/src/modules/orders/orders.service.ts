@@ -9,6 +9,7 @@ import {
   AddOrderItemsDto,
   UpdateOrderItemStatusDto,
   UpdateOrderCustomerDto,
+  UpdateOrderWaiterDto,
   CloseOrderDto,
   OrderFilterDto,
 } from './dto';
@@ -32,6 +33,7 @@ export class OrdersService {
   private readonly orderInclude = {
     table: { select: { id: true, name: true, section: true } },
     customer: { select: { id: true, name: true, phone: true } },
+    waiter: { select: { id: true, name: true, phone: true } },
     createdBy: { select: { id: true, firstName: true, lastName: true } },
     items: {
       include: { menuItem: { select: { id: true, name: true } } },
@@ -40,13 +42,14 @@ export class OrdersService {
   } as const;
 
   async findAll(organizationId: string, filter: OrderFilterDto) {
-    const { page = 1, limit = 20, status, tableId, customerId } = filter;
+    const { page = 1, limit = 20, status, tableId, customerId, waiterId } = filter;
     const skip = (page - 1) * limit;
     const where = {
       organizationId,
       ...(status && { status }),
       ...(tableId && { tableId }),
       ...(customerId && { customerId }),
+      ...(waiterId && { waiterId }),
     };
 
     const [orders, total] = await Promise.all([
@@ -123,6 +126,13 @@ export class OrdersService {
       if (!customer) throw new NotFoundException('Customer not found');
     }
 
+    if (dto.waiterId) {
+      const waiter = await this.prisma.waiter.findFirst({
+        where: { id: dto.waiterId, organizationId, isActive: true },
+      });
+      if (!waiter) throw new NotFoundException('Waiter not found');
+    }
+
     const pricedItems = await this.priceItems(organizationId, dto.items);
     const subtotal = pricedItems.reduce((sum, i) => sum + i.amount, 0);
 
@@ -139,6 +149,7 @@ export class OrdersService {
           organizationId,
           tableId: dto.tableId,
           customerId: dto.customerId,
+          waiterId: dto.waiterId,
           createdById: userId,
           source,
           subtotal,
@@ -242,6 +253,27 @@ export class OrdersService {
     return this.prisma.order.update({
       where: { id },
       data: { customerId: dto.customerId ?? null },
+      include: this.orderInclude,
+    });
+  }
+
+  async setWaiter(organizationId: string, id: string, dto: UpdateOrderWaiterDto) {
+    const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
+    if (!order) throw new NotFoundException('Order not found');
+    if (!OPEN_STATUSES.includes(order.status)) {
+      throw new BadRequestException('Cannot change waiter on a closed order');
+    }
+
+    if (dto.waiterId) {
+      const waiter = await this.prisma.waiter.findFirst({
+        where: { id: dto.waiterId, organizationId, isActive: true },
+      });
+      if (!waiter) throw new NotFoundException('Waiter not found');
+    }
+
+    return this.prisma.order.update({
+      where: { id },
+      data: { waiterId: dto.waiterId ?? null },
       include: this.orderInclude,
     });
   }

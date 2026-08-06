@@ -6,7 +6,7 @@ import { ArrowLeft, Download, Plus, X, UserPlus, Pencil } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Badge, Select, Input, Label, SearchableSelect } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
-import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi } from '@/api'
+import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, waitersApi } from '@/api'
 import { getQueuedActionsForLocalOrder, discardFailedAction, LOCAL_ORDER_PREFIX } from '@/lib/offlineOrderQueue'
 import { formatCurrency, cn } from '@/lib/utils'
 import type { OrderItemStatus, MenuItem } from '@/types'
@@ -325,6 +325,8 @@ function SyncedOrderView({ id }: { id: string }) {
   const [customerEmail, setCustomerEmail] = useState('')
   const [customerModalOpen, setCustomerModalOpen] = useState(false)
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
+  const [waiterModalOpen, setWaiterModalOpen] = useState(false)
+  const [selectedWaiterId, setSelectedWaiterId] = useState('')
 
   const { data: order, isLoading } = useQuery({
     queryKey: ['order', id],
@@ -359,6 +361,29 @@ function SyncedOrderView({ id }: { id: string }) {
     onError: (err: unknown) => {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
       toast.error(message || 'Failed to update customer')
+    },
+  })
+
+  const { data: waiters } = useQuery({
+    queryKey: ['waiters'],
+    queryFn: () => waitersApi.list(),
+    enabled: waiterModalOpen,
+  })
+  const waiterOptions = useMemo(
+    () => (waiters ?? []).filter((w) => w.isActive).map((w) => ({ id: w.id, label: w.name })),
+    [waiters],
+  )
+
+  const setWaiter = useMutation({
+    mutationFn: (waiterId: string | null) => ordersApi.setWaiter(id, waiterId),
+    onSuccess: () => {
+      toast.success('Waiter updated')
+      setWaiterModalOpen(false)
+      queryClient.invalidateQueries({ queryKey: ['order', id] })
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to update waiter')
     },
   })
 
@@ -501,6 +526,27 @@ function SyncedOrderView({ id }: { id: string }) {
             >
               {order.customer ? <Pencil className="h-3.5 w-3.5" /> : <UserPlus className="h-3.5 w-3.5" />}
               {order.customer ? 'Change' : 'Attach'}
+            </button>
+          )}
+        </div>
+
+        <div className="mb-4 flex items-center justify-between rounded-xl border border-border p-3">
+          {order.waiter ? (
+            <span className="text-sm font-medium text-foreground">{order.waiter.name}</span>
+          ) : (
+            <span className="text-sm text-muted-foreground">No waiter assigned</span>
+          )}
+          {isOpenStatus && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedWaiterId(order.waiterId ?? '')
+                setWaiterModalOpen(true)
+              }}
+              className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            >
+              {order.waiter ? <Pencil className="h-3.5 w-3.5" /> : <UserPlus className="h-3.5 w-3.5" />}
+              {order.waiter ? 'Change' : 'Assign'}
             </button>
           )}
         </div>
@@ -661,6 +707,40 @@ function SyncedOrderView({ id }: { id: string }) {
               disabled={!selectedCustomerId}
               isLoading={setCustomer.isPending}
               onClick={() => setCustomer.mutate(selectedCustomerId)}
+            >
+              Save
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={waiterModalOpen} onClose={() => setWaiterModalOpen(false)} title="Assign Waiter">
+        <div className="space-y-4">
+          <div>
+            <Label>Waiter</Label>
+            <SearchableSelect
+              options={waiterOptions}
+              value={selectedWaiterId}
+              onChange={setSelectedWaiterId}
+              placeholder="Search waiters"
+            />
+          </div>
+          <div className="flex gap-3">
+            {order.waiter && (
+              <Button
+                variant="outline"
+                className="flex-1"
+                isLoading={setWaiter.isPending}
+                onClick={() => setWaiter.mutate(null)}
+              >
+                Clear
+              </Button>
+            )}
+            <Button
+              className="flex-1"
+              disabled={!selectedWaiterId}
+              isLoading={setWaiter.isPending}
+              onClick={() => setWaiter.mutate(selectedWaiterId)}
             >
               Save
             </Button>

@@ -17,6 +17,7 @@ export interface CreateOrderItemData {
 export interface CreateOrderData {
   tableId?: string
   customerId?: string
+  waiterId?: string
   source?: 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY' | 'THIRD_PARTY'
   items: CreateOrderItemData[]
   notes?: string
@@ -36,6 +37,7 @@ export interface OrderFilter {
   status?: OrderStatus
   tableId?: string
   customerId?: string
+  waiterId?: string
 }
 
 /** Marker so the UI can tell a locally-queued (not-yet-synced) order apart from a real one. */
@@ -120,6 +122,11 @@ export const ordersApi = {
 
   setCustomer: async (id: string, customerId: string | null): Promise<Order> => {
     const response = await apiClient.patch<ApiResponse<Order>>(`/orders/${id}/customer`, { customerId })
+    return response.data.data
+  },
+
+  setWaiter: async (id: string, waiterId: string | null): Promise<Order> => {
+    const response = await apiClient.patch<ApiResponse<Order>>(`/orders/${id}/waiter`, { waiterId })
     return response.data.data
   },
 

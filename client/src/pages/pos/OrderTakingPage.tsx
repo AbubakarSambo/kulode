@@ -9,7 +9,7 @@ import { Minus, Plus, ArrowLeft, UserPlus, X, Search } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Select, Label, Input, SearchableSelect } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
-import { menuCategoriesApi, menuItemsApi, ordersApi, customersApi, tablesApi } from '@/api'
+import { menuCategoriesApi, menuItemsApi, ordersApi, customersApi, tablesApi, waitersApi } from '@/api'
 import { formatCurrency, cn } from '@/lib/utils'
 import type { OrderSource } from '@/types'
 
@@ -50,6 +50,7 @@ export function OrderTakingPage() {
   const [customerId, setCustomerId] = useState('')
   const [newCustomerOpen, setNewCustomerOpen] = useState(false)
   const [selectedTableId, setSelectedTableId] = useState('')
+  const [waiterId, setWaiterId] = useState('')
 
   const { data: tables } = useQuery({
     queryKey: ['restaurant-tables'],
@@ -68,6 +69,11 @@ export function OrderTakingPage() {
   const customerOptions = useMemo(
     () => (customersPage?.data ?? []).map((c) => ({ id: c.id, label: `${c.name} (${c.phone})` })),
     [customersPage],
+  )
+  const { data: waiters } = useQuery({ queryKey: ['waiters'], queryFn: () => waitersApi.list() })
+  const waiterOptions = useMemo(
+    () => (waiters ?? []).filter((w) => w.isActive).map((w) => ({ id: w.id, label: w.name })),
+    [waiters],
   )
 
   const customerForm = useForm<CustomerFormData>({ resolver: zodResolver(customerSchema) })
@@ -124,6 +130,7 @@ export function OrderTakingPage() {
       ordersApi.create({
         tableId: effectiveTableId,
         customerId: customerId || undefined,
+        waiterId: waiterId || undefined,
         source,
         items: cart.map((l) => ({ menuItemId: l.menuItemId, quantity: l.quantity, notes: l.notes || undefined })),
       }),
@@ -305,6 +312,30 @@ export function OrderTakingPage() {
                   onClick={() => setCustomerId('')}
                   className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted"
                   aria-label="Clear customer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <Label>Waiter (optional)</Label>
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <SearchableSelect
+                  options={waiterOptions}
+                  value={waiterId}
+                  onChange={setWaiterId}
+                  placeholder="Assign a waiter"
+                />
+              </div>
+              {waiterId && (
+                <button
+                  type="button"
+                  onClick={() => setWaiterId('')}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted"
+                  aria-label="Clear waiter"
                 >
                   <X className="h-4 w-4" />
                 </button>

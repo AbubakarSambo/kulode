@@ -19,4 +19,9 @@ export class OrderFilterDto extends PaginationDto {
   @IsOptional()
   @IsUUID()
   customerId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  waiterId?: string;
 }

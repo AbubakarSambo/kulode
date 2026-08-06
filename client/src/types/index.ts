@@ -439,6 +439,8 @@ export interface Order {
   table?: { id: string; name: string; section?: string } | null
   customerId?: string
   customer?: { id: string; name: string; phone: string } | null
+  waiterId?: string
+  waiter?: { id: string; name: string; phone?: string } | null
   createdById: string
   createdBy?: { id: string; firstName: string; lastName: string }
   source: OrderSource
