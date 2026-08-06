@@ -52,6 +52,8 @@ import {
   BillingPage,
   ChangelogPage,
   MenuManagementPage,
+  MenuCategoriesPage,
+  WaitersPage,
   TablesFloorPage,
   OrderTakingPage,
   OrderDetailPage,
@@ -200,6 +202,8 @@ function App() {
 
               {/* Restaurant POS */}
               <Route path="/pos/menu" element={<MenuManagementPage />} />
+              <Route path="/pos/categories" element={<MenuCategoriesPage />} />
+              <Route path="/pos/waiters" element={<WaitersPage />} />
               <Route path="/pos/tables" element={<TablesFloorPage />} />
               <Route path="/pos/order/new" element={<OrderTakingPage />} />
               <Route path="/pos/orders" element={<OrdersListPage />} />

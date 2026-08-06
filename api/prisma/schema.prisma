@@ -217,6 +217,7 @@ model Organization {
   menuItems          MenuItem[]
   orders             Order[]
   shifts             Shift[]
+  waiters            Waiter[]
   idempotencyKeys    IdempotencyKey[]
   walletTransactions WalletTransaction[]
   sheetSyncQueue     SheetSyncQueueEntry[]
@@ -326,6 +327,26 @@ model Customer {
   @@unique([organizationId, phone])
   @@index([organizationId])
   @@map("customers")
+}
+
+// Restaurant/POS floor staff roster — lightweight, no login required
+model Waiter {
+  id             String  @id @default(uuid())
+  organizationId String  @map("organization_id")
+  name           String
+  phone          String?
+  notes          String?
+  isActive       Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("waiters")
 }
 
 // Append-only ledger backing Customer.walletBalance — every credit/debit is a row here, timestamped
@@ -868,8 +889,8 @@ model MenuCategory {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  menuItems    MenuItem[]
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  menuItems    MenuItemCategory[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -879,7 +900,6 @@ model MenuCategory {
 model MenuItem {
   id              String  @id @default(uuid())
   organizationId  String  @map("organization_id")
-  categoryId      String? @map("category_id")
   inventoryItemId String? @map("inventory_item_id")
   name            String
   description     String?
@@ -891,15 +911,28 @@ model MenuItem {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  category      MenuCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  organization  Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem?     @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
   orderItems    OrderItem[]
+  categories    MenuItemCategory[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
-  @@index([categoryId])
   @@map("menu_items")
+}
+
+model MenuItemCategory {
+  menuItemId String @map("menu_item_id")
+  categoryId String @map("category_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  menuItem MenuItem     @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  category MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([menuItemId, categoryId])
+  @@index([categoryId])
+  @@map("menu_item_categories")
 }
 
 model Order {

@@ -16,7 +16,7 @@ export interface CreateMenuItemData {
   name: string
   description?: string
   price: number
-  categoryId?: string
+  categoryIds?: string[]
   inventoryItemId?: string
   imageUrl?: string
 }
@@ -25,7 +25,7 @@ export interface UpdateMenuItemData {
   name?: string
   description?: string
   price?: number
-  categoryId?: string
+  categoryIds?: string[]
   inventoryItemId?: string
   imageUrl?: string
   isAvailable?: boolean

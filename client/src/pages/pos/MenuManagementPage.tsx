@@ -7,34 +7,28 @@ import { toast } from 'sonner'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { ChefHatIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
-import { Button, Input, Label, Textarea, Card, CardContent, Badge, ConfirmDialog, EmptyState, Select } from '@/components/ui'
+import { Button, Input, Label, Textarea, Card, CardContent, Badge, ConfirmDialog, EmptyState } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { menuCategoriesApi, menuItemsApi } from '@/api'
-import { formatCurrency } from '@/lib/utils'
-import type { MenuCategory, MenuItem } from '@/types'
+import { formatCurrency, cn } from '@/lib/utils'
+import type { MenuItem } from '@/types'
 import { InventoryIcon } from '@/components/ui/CustomIcons'
-
-const categorySchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-})
 
 const itemSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
   price: z.number().min(0, 'Price must be 0 or greater'),
-  categoryId: z.string().optional(),
+  categoryIds: z.array(z.string()),
 })
 
-type CategoryFormData = z.infer<typeof categorySchema>
 type ItemFormData = z.infer<typeof itemSchema>
 
 export function MenuManagementPage() {
   const queryClient = useQueryClient()
 
-  const [categoryModalOpen, setCategoryModalOpen] = useState(false)
   const [itemModalOpen, setItemModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<{ type: 'category' | 'item'; id: string; name: string } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
 
   const { data: categories, isLoading: categoriesLoading } = useQuery({
     queryKey: ['menu-categories'],
@@ -46,29 +40,8 @@ export function MenuManagementPage() {
     queryFn: () => menuItemsApi.list(),
   })
 
-  const categoryForm = useForm<CategoryFormData>({ resolver: zodResolver(categorySchema) })
   const itemForm = useForm<ItemFormData>({ resolver: zodResolver(itemSchema) })
-
-  const createCategory = useMutation({
-    mutationFn: (data: CategoryFormData) => menuCategoriesApi.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['menu-categories'] })
-      toast.success('Category created')
-      setCategoryModalOpen(false)
-      categoryForm.reset()
-    },
-    onError: () => toast.error('Failed to create category'),
-  })
-
-  const deleteCategory = useMutation({
-    mutationFn: (id: string) => menuCategoriesApi.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['menu-categories'] })
-      toast.success('Category deleted')
-      setDeleteTarget(null)
-    },
-    onError: () => toast.error('Failed to delete category'),
-  })
+  const selectedCategoryIds = itemForm.watch('categoryIds') ?? []
 
   const saveItem = useMutation({
     mutationFn: (data: ItemFormData) =>
@@ -102,31 +75,39 @@ export function MenuManagementPage() {
 
   const openNewItem = () => {
     setEditingItem(null)
-    itemForm.reset({ name: '', description: '', price: 0, categoryId: undefined })
+    itemForm.reset({ name: '', description: '', price: undefined, categoryIds: [] })
     setItemModalOpen(true)
   }
 
   const openEditItem = (item: MenuItem) => {
     setEditingItem(item)
-    itemForm.reset({ name: item.name, description: item.description, price: item.price, categoryId: item.categoryId })
+    itemForm.reset({
+      name: item.name,
+      description: item.description,
+      price: item.price,
+      categoryIds: item.categories.map((c) => c.id),
+    })
     setItemModalOpen(true)
+  }
+
+  const toggleCategory = (categoryId: string) => {
+    const current = itemForm.getValues('categoryIds')
+    itemForm.setValue(
+      'categoryIds',
+      current.includes(categoryId) ? current.filter((id) => id !== categoryId) : [...current, categoryId],
+    )
   }
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Header
         title="Menu"
-        description="Manage categories and menu items for your restaurant"
+        description="Manage menu items for your restaurant"
         icon={InventoryIcon}
         action={
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setCategoryModalOpen(true)}>
-              <Plus className="mr-1.5 h-4 w-4" /> Category
-            </Button>
-            <Button size="sm" onClick={openNewItem}>
-              <Plus className="mr-1.5 h-4 w-4" /> Menu Item
-            </Button>
-          </div>
+          <Button size="sm" onClick={openNewItem}>
+            <Plus className="mr-1.5 h-4 w-4" /> Menu Item
+          </Button>
         }
       />
 
@@ -142,13 +123,17 @@ export function MenuManagementPage() {
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {items?.map((item) => (
-              <Card key={item.id} className="p-4">
-                <CardContent className="p-0">
+              <Card key={item.id} className="flex h-full flex-col p-4">
+                <CardContent className="flex h-full flex-col p-0">
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="font-semibold text-foreground">{item.name}</h3>
-                      {item.category && (
-                        <Badge variant="secondary" className="mt-1">{item.category.name}</Badge>
+                      {item.categories.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {item.categories.map((cat) => (
+                            <Badge key={cat.id} variant="secondary">{cat.name}</Badge>
+                          ))}
+                        </div>
                       )}
                     </div>
                     <div className="flex gap-1">
@@ -156,7 +141,7 @@ export function MenuManagementPage() {
                         <Pencil className="h-4 w-4 text-muted-foreground" />
                       </button>
                       <button
-                        onClick={() => setDeleteTarget({ type: 'item', id: item.id, name: item.name })}
+                        onClick={() => setDeleteTarget({ id: item.id, name: item.name })}
                         className="rounded-lg p-2 hover:bg-muted"
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
@@ -164,7 +149,7 @@ export function MenuManagementPage() {
                     </div>
                   </div>
                   {item.description && <p className="mt-2 text-sm text-muted-foreground">{item.description}</p>}
-                  <div className="mt-3 flex items-center justify-between">
+                  <div className="mt-auto flex items-center justify-between pt-3">
                     <span className="text-lg font-bold text-foreground">{formatCurrency(item.price)}</span>
                     <button
                       onClick={() => toggleAvailability.mutate({ id: item.id, isAvailable: !item.isAvailable })}
@@ -179,38 +164,7 @@ export function MenuManagementPage() {
             ))}
           </div>
         )}
-
-        {categories && categories.length > 0 && (
-          <div className="mt-8">
-            <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Categories</h2>
-            <div className="flex flex-wrap gap-2">
-              {categories.map((cat) => (
-                <div key={cat.id} className="flex items-center gap-2 rounded-full bg-muted px-3 py-1.5">
-                  <span className="text-sm font-medium">{cat.name}</span>
-                  <button onClick={() => setDeleteTarget({ type: 'category', id: cat.id, name: cat.name })}>
-                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
-
-      <Modal isOpen={categoryModalOpen} onClose={() => setCategoryModalOpen(false)} title="New Category">
-        <form onSubmit={categoryForm.handleSubmit((data) => createCategory.mutate(data))} className="space-y-4">
-          <div>
-            <Label>Name</Label>
-            <Input {...categoryForm.register('name')} placeholder="e.g. Starters" />
-            {categoryForm.formState.errors.name && (
-              <p className="mt-1 text-xs text-destructive">{categoryForm.formState.errors.name.message}</p>
-            )}
-          </div>
-          <Button type="submit" className="w-full" isLoading={createCategory.isPending}>
-            Create Category
-          </Button>
-        </form>
-      </Modal>
 
       <Modal
         isOpen={itemModalOpen}
@@ -228,16 +182,32 @@ export function MenuManagementPage() {
           </div>
           <div>
             <Label>Price (NGN)</Label>
-            <Input type="number" step="0.01" {...itemForm.register('price', { valueAsNumber: true })} />
+            <Input type="number" step="0.01" placeholder="0.00" {...itemForm.register('price', { valueAsNumber: true })} />
           </div>
           <div>
-            <Label>Category</Label>
-            <Select {...itemForm.register('categoryId')}>
-              <option value="">No category</option>
-              {categories?.map((cat: MenuCategory) => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </Select>
+            <Label>Categories</Label>
+            {categories && categories.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {categories.map((cat) => {
+                  const selected = selectedCategoryIds.includes(cat.id)
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => toggleCategory(cat.id)}
+                      className={cn(
+                        'rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
+                        selected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                      )}
+                    >
+                      {cat.name}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No categories yet — add one from the Categories page.</p>
+            )}
           </div>
           <Button type="submit" className="w-full" isLoading={saveItem.isPending}>
             {editingItem ? 'Save Changes' : 'Create Item'}
@@ -248,16 +218,12 @@ export function MenuManagementPage() {
       <ConfirmDialog
         isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onConfirm={() => {
-          if (!deleteTarget) return
-          if (deleteTarget.type === 'category') deleteCategory.mutate(deleteTarget.id)
-          else deleteItem.mutate(deleteTarget.id)
-        }}
+        onConfirm={() => deleteTarget && deleteItem.mutate(deleteTarget.id)}
         title={`Delete "${deleteTarget?.name}"?`}
         description="This cannot be undone."
         confirmText="Delete"
         isDangerous
-        isLoading={deleteCategory.isPending || deleteItem.isPending}
+        isLoading={deleteItem.isPending}
       />
     </div>
   )

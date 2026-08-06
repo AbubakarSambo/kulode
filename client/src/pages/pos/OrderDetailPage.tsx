@@ -35,7 +35,7 @@ interface AddItemsModalProps {
 }
 
 function AddItemsModal({ isOpen, onClose, onSubmit, isSubmitting }: AddItemsModalProps) {
-  const [cart, setCart] = useState<Record<string, { menuItem: MenuItem; quantity: number }>>({})
+  const [cart, setCart] = useState<Record<string, { menuItem: MenuItem; quantity: number; notes?: string }>>({})
   const { data: categories } = useQuery({ queryKey: ['menu-categories'], queryFn: () => menuCategoriesApi.list(), enabled: isOpen })
   const { data: items } = useQuery({ queryKey: ['menu-items'], queryFn: () => menuItemsApi.list(), enabled: isOpen })
   const [activeCategory, setActiveCategory] = useState<string | 'all'>('all')
@@ -43,7 +43,7 @@ function AddItemsModal({ isOpen, onClose, onSubmit, isSubmitting }: AddItemsModa
   const visibleItems = useMemo(() => {
     if (!items) return []
     const available = items.filter((i) => i.isAvailable)
-    return activeCategory === 'all' ? available : available.filter((i) => i.categoryId === activeCategory)
+    return activeCategory === 'all' ? available : available.filter((i) => i.categories.some((c) => c.id === activeCategory))
   }, [items, activeCategory])
 
   const lines = Object.values(cart)
@@ -70,8 +70,16 @@ function AddItemsModal({ isOpen, onClose, onSubmit, isSubmitting }: AddItemsModa
     })
   }
 
+  const updateNotes = (menuItemId: string, notes: string) => {
+    setCart((prev) => {
+      const existing = prev[menuItemId]
+      if (!existing) return prev
+      return { ...prev, [menuItemId]: { ...existing, notes } }
+    })
+  }
+
   const handleSubmit = () => {
-    onSubmit(lines.map((l) => ({ menuItemId: l.menuItem.id, quantity: l.quantity })))
+    onSubmit(lines.map((l) => ({ menuItemId: l.menuItem.id, quantity: l.quantity, notes: l.notes || undefined })))
     setCart({})
   }
 
@@ -124,13 +132,21 @@ function AddItemsModal({ isOpen, onClose, onSubmit, isSubmitting }: AddItemsModa
         {lines.length > 0 && (
           <div className="space-y-2 rounded-xl bg-muted p-3">
             {lines.map((l) => (
-              <div key={l.menuItem.id} className="flex items-center justify-between gap-2 text-sm">
-                <span className="min-w-0 flex-1 truncate">{l.menuItem.name}</span>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => updateQuantity(l.menuItem.id, -1)} className="flex h-6 w-6 items-center justify-center rounded bg-background">-</button>
-                  <span className="w-4 text-center font-semibold">{l.quantity}</span>
-                  <button onClick={() => updateQuantity(l.menuItem.id, 1)} className="flex h-6 w-6 items-center justify-center rounded bg-background">+</button>
+              <div key={l.menuItem.id} className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="min-w-0 flex-1 truncate">{l.menuItem.name}</span>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => updateQuantity(l.menuItem.id, -1)} className="flex h-6 w-6 items-center justify-center rounded bg-background">-</button>
+                    <span className="w-4 text-center font-semibold">{l.quantity}</span>
+                    <button onClick={() => updateQuantity(l.menuItem.id, 1)} className="flex h-6 w-6 items-center justify-center rounded bg-background">+</button>
+                  </div>
                 </div>
+                <Input
+                  value={l.notes ?? ''}
+                  onChange={(e) => updateNotes(l.menuItem.id, e.target.value)}
+                  placeholder="Add a note (e.g. no onions)"
+                  className="h-7 bg-background text-xs"
+                />
               </div>
             ))}
             <div className="flex justify-between border-t border-border pt-2 text-sm font-bold text-foreground">

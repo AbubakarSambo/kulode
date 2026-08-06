@@ -1,6 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-import { IsBoolean, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { IsArray, IsBoolean, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 
 export class UpdateMenuItemDto {
   @ApiPropertyOptional()
@@ -20,11 +19,11 @@ export class UpdateMenuItemDto {
   @Min(0)
   price?: number;
 
-  @ApiPropertyOptional()
-  @Transform(({ value }) => (value === '' ? undefined : value))
+  @ApiPropertyOptional({ type: [String] })
   @IsOptional()
-  @IsUUID()
-  categoryId?: string;
+  @IsArray()
+  @IsUUID(undefined, { each: true })
+  categoryIds?: string[];
 
   @ApiPropertyOptional()
   @IsOptional()

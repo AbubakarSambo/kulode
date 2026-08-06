@@ -26,6 +26,7 @@ import { TablesModule } from './modules/tables';
 import { OrdersModule } from './modules/orders';
 import { ShiftsModule } from './modules/shifts';
 import { CustomersModule } from './modules/customers';
+import { WaitersModule } from './modules/waiters';
 import { WalletModule } from './modules/wallet';
 import { GoogleSheetsModule } from './modules/google-sheets';
 import { SheetSyncModule } from './modules/sheet-sync';
@@ -45,6 +46,7 @@ import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor, 
     OrganizationsModule,
     ClientsModule,
     CustomersModule,
+    WaitersModule,
     InvoicesModule,
     PaymentsModule,
     ExpensesModule,

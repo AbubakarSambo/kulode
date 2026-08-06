@@ -5,9 +5,9 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Minus, Plus, ArrowLeft, UserPlus, X } from 'lucide-react'
+import { Minus, Plus, ArrowLeft, UserPlus, X, Search } from 'lucide-react'
 import { Header } from '@/components/layout'
-import { Button, Card, CardContent, Select, Textarea, Label, Input, SearchableSelect } from '@/components/ui'
+import { Button, Card, CardContent, Select, Label, Input, SearchableSelect } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { menuCategoriesApi, menuItemsApi, ordersApi, customersApi } from '@/api'
 import { formatCurrency, cn } from '@/lib/utils'
@@ -45,8 +45,8 @@ export function OrderTakingPage() {
   const queryClient = useQueryClient()
   const [source, setSource] = useState<OrderSource>(initialSource)
   const [activeCategory, setActiveCategory] = useState<string | 'all'>('all')
+  const [search, setSearch] = useState('')
   const [cart, setCart] = useState<CartLine[]>([])
-  const [notes, setNotes] = useState('')
   const [customerId, setCustomerId] = useState('')
   const [newCustomerOpen, setNewCustomerOpen] = useState(false)
 
@@ -80,8 +80,11 @@ export function OrderTakingPage() {
   const visibleItems = useMemo(() => {
     if (!items) return []
     const available = items.filter((i) => i.isAvailable)
-    return activeCategory === 'all' ? available : available.filter((i) => i.categoryId === activeCategory)
-  }, [items, activeCategory])
+    const byCategory =
+      activeCategory === 'all' ? available : available.filter((i) => i.categories.some((c) => c.id === activeCategory))
+    const query = search.trim().toLowerCase()
+    return query ? byCategory.filter((i) => i.name.toLowerCase().includes(query)) : byCategory
+  }, [items, activeCategory, search])
 
   const total = cart.reduce((sum, line) => sum + line.price * line.quantity, 0)
 
@@ -103,14 +106,17 @@ export function OrderTakingPage() {
     )
   }
 
+  const updateLineNotes = (menuItemId: string, notes: string) => {
+    setCart((prev) => prev.map((l) => (l.menuItemId === menuItemId ? { ...l, notes } : l)))
+  }
+
   const createOrder = useMutation({
     mutationFn: () =>
       ordersApi.create({
         tableId,
         customerId: customerId || undefined,
         source,
-        notes: notes || undefined,
-        items: cart.map((l) => ({ menuItemId: l.menuItemId, quantity: l.quantity })),
+        items: cart.map((l) => ({ menuItemId: l.menuItemId, quantity: l.quantity, notes: l.notes || undefined })),
       }),
     onSuccess: (result) => {
       if ('__offlinePending' in result) {
@@ -152,6 +158,16 @@ export function OrderTakingPage() {
             </div>
           )}
 
+          <div className="relative mb-4">
+            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search menu items..."
+              className="pl-11"
+            />
+          </div>
+
           <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
             <button
               onClick={() => setActiveCategory('all')}
@@ -176,6 +192,10 @@ export function OrderTakingPage() {
             ))}
           </div>
 
+          {visibleItems.length === 0 && (
+            <p className="py-8 text-center text-sm text-muted-foreground">No menu items match your search.</p>
+          )}
+
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
             {visibleItems.map((item) => (
               <button
@@ -195,26 +215,34 @@ export function OrderTakingPage() {
           <div className="flex-1 space-y-3 overflow-y-auto">
             {cart.length === 0 && <p className="text-sm text-muted-foreground">No items added yet</p>}
             {cart.map((line) => (
-              <div key={line.menuItemId} className="flex items-center justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium text-foreground">{line.name}</div>
-                  <div className="text-xs text-muted-foreground">{formatCurrency(line.price)}</div>
+              <div key={line.menuItemId} className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-foreground">{line.name}</div>
+                    <div className="text-xs text-muted-foreground">{formatCurrency(line.price)}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => updateQuantity(line.menuItemId, -1)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted"
+                    >
+                      <Minus className="h-3.5 w-3.5" />
+                    </button>
+                    <span className="w-5 text-center text-sm font-semibold">{line.quantity}</span>
+                    <button
+                      onClick={() => updateQuantity(line.menuItemId, 1)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => updateQuantity(line.menuItemId, -1)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted"
-                  >
-                    <Minus className="h-3.5 w-3.5" />
-                  </button>
-                  <span className="w-5 text-center text-sm font-semibold">{line.quantity}</span>
-                  <button
-                    onClick={() => updateQuantity(line.menuItemId, 1)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                <Input
+                  value={line.notes ?? ''}
+                  onChange={(e) => updateLineNotes(line.menuItemId, e.target.value)}
+                  placeholder="Add a note (e.g. no onions)"
+                  className="h-8 text-xs"
+                />
               </div>
             ))}
           </div>
@@ -250,11 +278,6 @@ export function OrderTakingPage() {
                 </button>
               )}
             </div>
-          </div>
-
-          <div className="mt-4">
-            <Label>Notes (optional)</Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any special requests" />
           </div>
 
           <Card className="mt-4 p-4">
