@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import { Minus, Plus, ArrowLeft, UserPlus, X, Search } from 'lucide-react'
 import { Header } from '@/components/layout'
-import { Button, Card, CardContent, Select, Label, Input, SearchableSelect } from '@/components/ui'
+import { Button, Card, CardContent, Label, Input, SearchableSelect } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { menuCategoriesApi, menuItemsApi, ordersApi, customersApi, tablesApi, waitersApi } from '@/api'
 import { formatCurrency, cn } from '@/lib/utils'
@@ -189,14 +189,21 @@ export function OrderTakingPage() {
           {!tableId && source === 'DINE_IN' && (
             <div className="mb-4">
               <Label>Table</Label>
-              <Select value={selectedTableId} onChange={(e) => setSelectedTableId(e.target.value)}>
-                <option value="">Select a table</option>
+              <div className="mt-1 flex flex-wrap gap-2">
                 {availableTables.map((t) => (
-                  <option key={t.id} value={t.id}>
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setSelectedTableId(t.id)}
+                    className={cn(
+                      'shrink-0 cursor-pointer rounded-full px-4 py-2 text-sm font-medium',
+                      selectedTableId === t.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                    )}
+                  >
                     {t.name}{t.section ? ` — ${t.section}` : ''}
-                  </option>
+                  </button>
                 ))}
-              </Select>
+              </div>
               {availableTables.length === 0 && (
                 <p className="mt-1 text-xs text-muted-foreground">No available tables right now.</p>
               )}
