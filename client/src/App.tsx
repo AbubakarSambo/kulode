@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { AppLayout } from '@/components/layout'
-import { ProtectedRoute, GuestRoute, PlanGatedRoute, ReadOnlyGatedRoute } from '@/components/shared'
+import { ProtectedRoute, GuestRoute, PlanGatedRoute, ReadOnlyGatedRoute, ModuleGatedRoute } from '@/components/shared'
 
 
 import { useAuthStore } from '@/stores/auth'
@@ -147,16 +147,20 @@ function App() {
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/insights" element={<InsightsPage />} />
                 <Route path="/ai-chat" element={<AiChatPage />} />
-                <Route path="/tax" element={<TaxFilingPackPage />} />
+                <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/dashboard" />}>
+                  <Route path="/tax" element={<TaxFilingPackPage />} />
+                </Route>
               </Route>
 
-              {/* Clients (available to all plans) */}
-              <Route path="/clients" element={<ClientsListPage />} />
-              <Route element={<ReadOnlyGatedRoute redirectTo="/clients" />}>
-                <Route path="/clients/new" element={<NewClientPage />} />
-                <Route path="/clients/:id/edit" element={<EditClientPage />} />
+              {/* Clients (invoicing-only) */}
+              <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/dashboard" />}>
+                <Route path="/clients" element={<ClientsListPage />} />
+                <Route element={<ReadOnlyGatedRoute redirectTo="/clients" />}>
+                  <Route path="/clients/new" element={<NewClientPage />} />
+                  <Route path="/clients/:id/edit" element={<EditClientPage />} />
+                </Route>
+                <Route path="/clients/:id" element={<ClientDetailPage />} />
               </Route>
-              <Route path="/clients/:id" element={<ClientDetailPage />} />
 
               {/* Vendor create - SUPER_ADMIN and ADMIN + PRO plan */}
               <Route element={<PlanGatedRoute requiredPlan="PRO" />}>
@@ -170,12 +174,14 @@ function App() {
                 </Route>
               </Route>
 
-              {/* Invoices (available to all plans) */}
-              <Route path="/invoices" element={<InvoicesListPage />} />
-              <Route element={<ReadOnlyGatedRoute redirectTo="/invoices" />}>
-                <Route path="/invoices/new" element={<NewInvoicePage />} />
+              {/* Invoices (invoicing-only) */}
+              <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/dashboard" />}>
+                <Route path="/invoices" element={<InvoicesListPage />} />
+                <Route element={<ReadOnlyGatedRoute redirectTo="/invoices" />}>
+                  <Route path="/invoices/new" element={<NewInvoicePage />} />
+                </Route>
+                <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
               </Route>
-              <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
 
               {/* Payments (available to all plans) */}
               <Route path="/payments" element={<PaymentsListPage />} />
@@ -200,17 +206,19 @@ function App() {
                 <Route path="/inventory" element={<InventoryPage />} />
               </Route>
 
-              {/* Restaurant POS */}
-              <Route path="/pos/menu" element={<MenuManagementPage />} />
-              <Route path="/pos/categories" element={<MenuCategoriesPage />} />
-              <Route path="/pos/waiters" element={<WaitersPage />} />
-              <Route path="/pos/tables" element={<TablesFloorPage />} />
-              <Route path="/pos/order/new" element={<OrderTakingPage />} />
-              <Route path="/pos/orders" element={<OrdersListPage />} />
-              <Route path="/pos/orders/:id" element={<OrderDetailPage />} />
-              <Route path="/pos/shift" element={<ShiftPage />} />
-              <Route path="/pos/customers" element={<CustomersListPage />} />
-              <Route path="/pos/customers/:id" element={<CustomerDetailPage />} />
+              {/* Restaurant POS (POS-only) */}
+              <Route element={<ModuleGatedRoute requiredModule="POS" redirectTo="/invoices" />}>
+                <Route path="/pos/menu" element={<MenuManagementPage />} />
+                <Route path="/pos/categories" element={<MenuCategoriesPage />} />
+                <Route path="/pos/waiters" element={<WaitersPage />} />
+                <Route path="/pos/tables" element={<TablesFloorPage />} />
+                <Route path="/pos/order/new" element={<OrderTakingPage />} />
+                <Route path="/pos/orders" element={<OrdersListPage />} />
+                <Route path="/pos/orders/:id" element={<OrderDetailPage />} />
+                <Route path="/pos/shift" element={<ShiftPage />} />
+                <Route path="/pos/customers" element={<CustomersListPage />} />
+                <Route path="/pos/customers/:id" element={<CustomerDetailPage />} />
+              </Route>
 
 
               {/* Platform Admin */}

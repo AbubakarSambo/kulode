@@ -12,6 +12,7 @@ import {
   BUSINESS_CATEGORIES,
   ORG_SIZES,
   ROLES,
+  ORG_MODULES,
 } from "./OnboardingContext";
 
 export function PersonalizationSurvey() {
@@ -25,6 +26,8 @@ export function PersonalizationSurvey() {
     setOrgSize,
     role,
     setRole,
+    enabledModules,
+    setEnabledModules,
     isSavingStep,
     setIsSavingStep,
     orgName,
@@ -37,6 +40,7 @@ export function PersonalizationSurvey() {
     businessType?: string;
     orgSize?: string;
     role?: string;
+    enabledModules?: string;
   }>({});
 
   const queryClient = useQueryClient();
@@ -79,10 +83,13 @@ export function PersonalizationSurvey() {
           if (!role) {
             newErrors.role = "Please select your role";
           }
+          if (!enabledModules) {
+            newErrors.enabledModules = "Please tell us what you need Tari1 for";
+          }
 
           if (Object.keys(newErrors).length > 0) {
             setErrors(newErrors);
-            const firstErrorMsg = newErrors.businessType || newErrors.orgSize || newErrors.role;
+            const firstErrorMsg = newErrors.businessType || newErrors.orgSize || newErrors.role || newErrors.enabledModules;
             toast.error(firstErrorMsg);
             return;
           }
@@ -93,6 +100,7 @@ export function PersonalizationSurvey() {
             await organizationsApi.updateCurrent({
               businessType: finalBusinessType,
               organizationSize: orgSize,
+              enabledModules: enabledModules as "POS" | "INVOICING" | "BOTH",
             });
             if (role) {
               await authApi.updateProfile(user.id, { businessRole: role });
@@ -119,6 +127,40 @@ export function PersonalizationSurvey() {
           }
         }} className="w-full flex-1 flex flex-col gap-6 text-left">
           
+          {/* What do you need Tari1 for */}
+          <div className="space-y-2.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+              What do you need Tari1 for?
+            </label>
+            <div className={cn(
+              "flex flex-wrap gap-2 p-1.5 rounded-2xl transition-all duration-200",
+              errors.enabledModules && "ring-1 ring-rose-500 bg-rose-50/20"
+            )}>
+              {ORG_MODULES.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setEnabledModules(item.id);
+                    setErrors((prev) => ({ ...prev, enabledModules: undefined }));
+                  }}
+                  title={item.description}
+                  className={cn(
+                    "px-4 py-2 text-xs font-semibold rounded-xl border transition-all cursor-pointer select-none active:scale-95 duration-100",
+                    enabledModules === item.id
+                      ? "bg-[#0037b0]/5 border-[#0037b0] text-[#0037b0] ring-1 ring-[#0037b0]"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                  )}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            {errors.enabledModules && (
+              <p className="text-xs text-rose-600 font-semibold mt-1">{errors.enabledModules}</p>
+            )}
+          </div>
+
           {/* Business Category */}
           <div className="space-y-2">
             <label htmlFor="surveyBusiness" className="text-xs font-bold uppercase tracking-wider text-slate-500 block">

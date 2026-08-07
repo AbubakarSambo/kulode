@@ -98,6 +98,12 @@ export const BUSINESS_CATEGORIES = [
   },
 ];
 
+export const ORG_MODULES = [
+  { id: "POS", label: "Point of Sale", description: "Selling in person — tables, orders, shifts" },
+  { id: "INVOICING", label: "Invoicing & Billing", description: "Billing clients — invoices, payments" },
+  { id: "BOTH", label: "Both", description: "I need POS and invoicing" },
+];
+
 export const ORG_SIZES = [
   { id: "1", label: "Just me (Solo)" },
   { id: "2-10", label: "2 - 10 people" },
@@ -163,6 +169,8 @@ interface OnboardingContextProps {
   setOrgSize: React.Dispatch<React.SetStateAction<string>>;
   role: string;
   setRole: React.Dispatch<React.SetStateAction<string>>;
+  enabledModules: string;
+  setEnabledModules: React.Dispatch<React.SetStateAction<string>>;
 
   // Form States - Step 1: Branding
   businessName: string;
@@ -312,6 +320,7 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
   const [customBusinessType, setCustomBusinessType] = useState("");
   const [orgSize, setOrgSize] = useState("");
   const [role, setRole] = useState("");
+  const [enabledModules, setEnabledModules] = useState("");
 
   // New persistent state hooks
   const [businessName, setBusinessName] = useState(() => {
@@ -603,6 +612,9 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
         if (org.organizationSize && !orgSize) {
           setOrgSize(org.organizationSize);
         }
+        if (org.enabledModules && !enabledModules) {
+          setEnabledModules(org.enabledModules);
+        }
         if (org.name && !businessName && !localStorage.getItem("tari1-onboarding-businessName")) {
           setBusinessName(org.name);
         }
@@ -623,7 +635,7 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
         }
       }
     }
-  }, [user, role, businessType, orgSize, businessName, businessPhone, companyAddress, logoPreviewUrl, logoFile, paymentTerms, invoiceNotes]);
+  }, [user, role, businessType, orgSize, enabledModules, businessName, businessPhone, companyAddress, logoPreviewUrl, logoFile, paymentTerms, invoiceNotes]);
 
   const handleLogoFile = (file: File) => {
     if (file.size > 2 * 1024 * 1024) {
@@ -1120,6 +1132,8 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
         setCustomBusinessType,
         orgSize,
         setOrgSize,
+        enabledModules,
+        setEnabledModules,
         role,
         setRole,
 

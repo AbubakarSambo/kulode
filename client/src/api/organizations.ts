@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { Organization, OnboardingStatus, ApiResponse } from '@/types'
+import type { Organization, OnboardingStatus, ApiResponse, OrgModule } from '@/types'
 
 export interface UpdateOrganizationData {
   name?: string
@@ -14,6 +14,7 @@ export interface UpdateOrganizationData {
   defaultNotes?: string
   businessType?: string
   organizationSize?: string
+  enabledModules?: OrgModule
   rcNumber?: string
   tin?: string
   googleSheetId?: string | null

@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useLogout } from '@/hooks'
 import { Logo } from '@/components/shared'
 import { useSubscription } from '@/hooks/useSubscription'
+import { useOrgModules } from '@/hooks/useOrgModules'
 import type { PlanTier } from '@/types'
 import {
   DashboardIcon,
@@ -92,6 +93,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const user = useAuthStore((state) => state.user)
   const logout = useLogout()
   const { hasRequiredPlan } = useSubscription()
+  const { hasPos, hasInvoicing } = useOrgModules()
 
   const [collapsedPref, setCollapsedPref] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -124,11 +126,16 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
   const canViewReports = isAdmin || user?.role === 'ACCOUNTANT'
 
+  // Which invoicing-only nav items to hide from POS-only orgs
+  const INVOICING_ONLY_HREFS = ['/clients', '/invoices', '/tax']
+
   // Filter groups and items
   const filteredNavGroups = navigationGroups
+    .filter((group) => group.title !== 'Restaurant POS' || hasPos)
     .map((group) => ({
       ...group,
       items: group.items.filter((item) => {
+        if (INVOICING_ONLY_HREFS.includes(item.href) && !hasInvoicing) return false
         if ((item.href === '/reports' || item.href === '/ai-chat') && !canViewReports) return false
         if (
           (item.href === '/payments' ||
