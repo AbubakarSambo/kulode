@@ -6,9 +6,11 @@ import {
   MaxLength,
   IsNumber,
   IsBoolean,
+  IsEnum,
   Min,
   Max,
 } from 'class-validator';
+import { OrgModule } from '@prisma/client';
 
 export class UpdateOrganizationDto {
   @ApiPropertyOptional({ example: 'CleanTex' })
@@ -84,6 +86,15 @@ export class UpdateOrganizationDto {
   @IsString()
   @MaxLength(50)
   organizationSize?: string;
+
+  @ApiPropertyOptional({
+    enum: OrgModule,
+    example: 'INVOICING',
+    description: 'Which feature modules (POS, invoicing, or both) this org has access to',
+  })
+  @IsOptional()
+  @IsEnum(OrgModule)
+  enabledModules?: OrgModule;
 
   @ApiPropertyOptional({ example: 'RC1234567', description: 'CAC registration number' })
   @IsOptional()

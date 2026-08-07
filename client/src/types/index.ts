@@ -1,3 +1,8 @@
+// Which feature modules an organization has access to (distinct from
+// `businessType`, a free-text personalization category) — gates the POS
+// and Invoicing nav groups/routes.
+export type OrgModule = 'POS' | 'INVOICING' | 'BOTH'
+
 // Plan types
 export type PlanTier = 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS'
 export type SubscriptionStatus = 'TRIALING' | 'ACTIVE' | 'PAST_DUE' | 'CANCELLED' | 'EXPIRED'
@@ -66,6 +71,7 @@ export interface User {
     isPaystackVerified: boolean
     businessType?: string
     organizationSize?: string
+    enabledModules?: OrgModule
     vatEnabled?: boolean
     taxRate?: number
     logo?: string
@@ -130,6 +136,7 @@ export interface Organization {
   settlementBank?: string
   businessType?: string
   organizationSize?: string
+  enabledModules?: OrgModule
   rcNumber?: string
   tin?: string
   googleSheetId?: string

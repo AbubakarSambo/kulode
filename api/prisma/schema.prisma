@@ -15,6 +15,15 @@ enum UserRole {
   STAFF
 }
 
+// Which feature modules an organization has access to. Distinct from
+// `businessType` (a free-text personalization category) — this is the
+// switch that gates the POS and Invoicing nav groups/routes.
+enum OrgModule {
+  POS
+  INVOICING
+  BOTH
+}
+
 enum InvoiceStatus {
   DRAFT
   SENT
@@ -168,6 +177,7 @@ model Organization {
   defaultNotes          String?   @map("default_notes")
   businessType          String?   @map("business_type")
   organizationSize      String?   @map("organization_size")
+  enabledModules        OrgModule @default(INVOICING) @map("enabled_modules")
   onboardingDismissedAt DateTime? @map("onboarding_dismissed_at")
   clientReminderSentAt  DateTime? @map("client_reminder_sent_at")
 
