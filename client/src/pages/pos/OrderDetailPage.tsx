@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { ArrowLeft, Download, Plus, X, UserPlus, Pencil } from 'lucide-react'
 import { Header } from '@/components/layout'
-import { Button, Card, CardContent, Badge, Select, Input, Label, SearchableSelect } from '@/components/ui'
+import { Button, Card, CardContent, Badge, Input, Label, SearchableSelect } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, waitersApi } from '@/api'
 import { getQueuedActionsForLocalOrder, discardFailedAction, LOCAL_ORDER_PREFIX } from '@/lib/offlineOrderQueue'
@@ -297,11 +297,21 @@ function PendingOrderView({ localOrderId }: { localOrderId: string }) {
           </p>
           <div>
             <Label>Payment Method</Label>
-            <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}>
+            <div className="mt-1 flex flex-wrap gap-2">
               {OFFLINE_PAYMENT_METHODS.map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
+                <button
+                  key={m.value}
+                  type="button"
+                  onClick={() => setPaymentMethod(m.value)}
+                  className={cn(
+                    'shrink-0 cursor-pointer rounded-full px-4 py-2 text-sm font-medium',
+                    paymentMethod === m.value ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                  )}
+                >
+                  {m.label}
+                </button>
               ))}
-            </Select>
+            </div>
           </div>
           <div className="rounded-xl bg-muted p-4 text-center">
             <div className="text-sm text-muted-foreground">Estimated Amount Due</div>
@@ -627,11 +637,21 @@ function SyncedOrderView({ id }: { id: string }) {
         <div className="space-y-4">
           <div>
             <Label>Payment Method</Label>
-            <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}>
+            <div className="mt-1 flex flex-wrap gap-2">
               {(order.customer ? PAYMENT_METHODS : PAYMENT_METHODS.filter((m) => m.value !== 'WALLET')).map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
+                <button
+                  key={m.value}
+                  type="button"
+                  onClick={() => setPaymentMethod(m.value)}
+                  className={cn(
+                    'shrink-0 cursor-pointer rounded-full px-4 py-2 text-sm font-medium',
+                    paymentMethod === m.value ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                  )}
+                >
+                  {m.label}
+                </button>
               ))}
-            </Select>
+            </div>
           </div>
           {paymentMethod === 'PAYSTACK' && (
             <div>

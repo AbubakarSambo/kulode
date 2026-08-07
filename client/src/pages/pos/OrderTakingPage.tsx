@@ -166,17 +166,23 @@ export function OrderTakingPage() {
           {!tableId && (
             <div className="mb-4">
               <Label>Order Type</Label>
-              <Select
-                value={source}
-                onChange={(e) => {
-                  setSource(e.target.value as OrderSource)
-                  setSelectedTableId('')
-                }}
-              >
+              <div className="mt-1 flex gap-2 overflow-x-auto pb-1">
                 {(Object.keys(SOURCE_LABELS) as OrderSource[]).map((s) => (
-                  <option key={s} value={s}>{SOURCE_LABELS[s]}</option>
+                  <button
+                    key={s}
+                    onClick={() => {
+                      setSource(s)
+                      setSelectedTableId('')
+                    }}
+                    className={cn(
+                      'shrink-0 cursor-pointer rounded-full px-4 py-2 text-sm font-medium',
+                      source === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    {SOURCE_LABELS[s]}
+                  </button>
                 ))}
-              </Select>
+              </div>
             </div>
           )}
 
@@ -211,7 +217,7 @@ export function OrderTakingPage() {
             <button
               onClick={() => setActiveCategory('all')}
               className={cn(
-                'shrink-0 rounded-full px-4 py-2 text-sm font-medium',
+                'shrink-0 cursor-pointer rounded-full px-4 py-2 text-sm font-medium',
                 activeCategory === 'all' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
               )}
             >
@@ -222,7 +228,7 @@ export function OrderTakingPage() {
                 key={cat.id}
                 onClick={() => setActiveCategory(cat.id)}
                 className={cn(
-                  'shrink-0 rounded-full px-4 py-2 text-sm font-medium',
+                  'shrink-0 cursor-pointer rounded-full px-4 py-2 text-sm font-medium',
                   activeCategory === cat.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
                 )}
               >
@@ -240,7 +246,7 @@ export function OrderTakingPage() {
               <button
                 key={item.id}
                 onClick={() => addToCart(item.id, item.name, item.price)}
-                className="rounded-2xl border border-border bg-card p-4 text-left shadow-[0px_12px_32px_rgba(0,55,176,0.08)] transition-all active:scale-95"
+                className="cursor-pointer rounded-2xl border border-border bg-card p-4 text-left shadow-[0px_12px_32px_rgba(0,55,176,0.08)] transition-all active:scale-95"
               >
                 <div className="font-semibold text-foreground">{item.name}</div>
                 <div className="mt-1 text-sm font-bold text-primary">{formatCurrency(item.price)}</div>
