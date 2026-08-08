@@ -27,7 +27,7 @@ import { platformApi } from '@/api/platform'
 import { useAuthStore } from '@/stores/auth'
 import { formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
-import type { PlatformOrganizationDetails, PlatformOrganization } from '@/types'
+import type { PlatformOrganizationDetails, PlatformOrganization, OrgModule } from '@/types'
 import {
   ResponsiveContainer,
   AreaChart,
@@ -1412,6 +1412,7 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
   const [subscriptionStatus, setSubscriptionStatus] = useState<string>(org.subscriptionStatus)
   const [isGrandfathered, setIsGrandfathered] = useState<boolean>(org.isGrandfathered)
   const [platformFeePercent] = useState<number>(org.platformFeePercent)
+  const [enabledModules, setEnabledModules] = useState<string>(org.enabledModules)
 
   const updateMutation = useMutation({
     mutationFn: (data: {
@@ -1419,6 +1420,7 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
       subscriptionStatus?: string
       isGrandfathered?: boolean
       platformFeePercent?: number
+      enabledModules?: OrgModule
     }) => platformApi.updateOrganization(org.id, data),
     onSuccess: () => {
       toast.success('Organization config updated successfully')
@@ -1439,6 +1441,7 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
       subscriptionStatus,
       isGrandfathered,
       platformFeePercent: Number(platformFeePercent),
+      enabledModules: enabledModules as OrgModule,
     })
   }
 
@@ -1509,6 +1512,20 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
                     { value: 'PAST_DUE', label: 'Past Due' },
                     { value: 'CANCELLED', label: 'Cancelled' },
                     { value: 'EXPIRED', label: 'Expired' },
+                  ]}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="enabledModules" className="text-[11px] font-bold text-[#434655] uppercase tracking-wider">Enabled Modules</Label>
+                <FilterSelect
+                  id="enabledModules"
+                  value={enabledModules}
+                  onChange={(val) => setEnabledModules(val)}
+                  options={[
+                    { value: 'POS', label: 'POS' },
+                    { value: 'INVOICING', label: 'Invoicing' },
+                    { value: 'BOTH', label: 'Both' },
                   ]}
                 />
               </div>

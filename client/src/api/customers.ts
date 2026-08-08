@@ -40,6 +40,11 @@ export const customersApi = {
     return response.data.data
   },
 
+  updateCredit: async (id: string, creditLimit: number): Promise<Customer> => {
+    const response = await apiClient.patch<ApiResponse<Customer>>(`/customers/${id}/credit`, { creditLimit })
+    return response.data.data
+  },
+
   delete: async (id: string): Promise<void> => {
     await apiClient.delete(`/customers/${id}`)
   },

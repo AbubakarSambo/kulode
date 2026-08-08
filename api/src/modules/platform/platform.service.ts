@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { PlanTier, SubscriptionStatus } from '@prisma/client';
+import { PlanTier, SubscriptionStatus, OrgModule } from '@prisma/client';
 
 @Injectable()
 export class PlatformService {
@@ -620,6 +620,7 @@ export class PlatformService {
           subscriptionStatus: true,
           isGrandfathered: true,
           platformFeePercent: true,
+          enabledModules: true,
           trialStartDate: true,
           trialEndDate: true,
           subscriptionStartDate: true,
@@ -739,6 +740,7 @@ export class PlatformService {
     subscriptionStatus?: SubscriptionStatus;
     isGrandfathered?: boolean;
     platformFeePercent?: number;
+    enabledModules?: OrgModule;
   }) {
     const updateData: any = {};
 
@@ -756,6 +758,10 @@ export class PlatformService {
 
     if (data.platformFeePercent !== undefined) {
       updateData.platformFeePercent = data.platformFeePercent;
+    }
+
+    if (data.enabledModules !== undefined) {
+      updateData.enabledModules = data.enabledModules;
     }
 
     const updated = await this.prisma.organization.update({

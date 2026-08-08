@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { PlanTier, SubscriptionStatus } from '@prisma/client';
+import { PlanTier, SubscriptionStatus, OrgModule } from '@prisma/client';
 import {
   IsOptional,
   IsEnum,
@@ -31,4 +31,13 @@ export class UpdatePlatformOrgDto {
   @Min(0)
   @Max(100)
   platformFeePercent?: number;
+
+  @ApiPropertyOptional({
+    enum: OrgModule,
+    example: OrgModule.INVOICING,
+    description: 'Which feature modules (POS, invoicing, or both) this org has access to',
+  })
+  @IsOptional()
+  @IsEnum(OrgModule)
+  enabledModules?: OrgModule;
 }

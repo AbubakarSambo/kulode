@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Prisma, WalletTransactionType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { paginate, runIdempotent } from '../../common';
@@ -28,10 +28,14 @@ export class WalletService {
   async getBalance(organizationId: string, customerId: string) {
     const customer = await this.prisma.customer.findFirst({
       where: { id: customerId, organizationId },
-      select: { id: true, walletBalance: true },
+      select: { id: true, walletBalance: true, creditLimit: true },
     });
     if (!customer) throw new NotFoundException('Customer not found');
-    return { customerId: customer.id, balance: toNumber(customer.walletBalance) };
+    return {
+      customerId: customer.id,
+      balance: toNumber(customer.walletBalance),
+      creditLimit: toNumber(customer.creditLimit),
+    };
   }
 
   async listTransactions(
@@ -130,7 +134,12 @@ export class WalletService {
     return transaction;
   }
 
-  /** Debits a customer's wallet — allowed to go negative (on-account model). */
+  /**
+   * Debits a customer's wallet. Allowed to go negative, but only up to their
+   * admin-granted `creditLimit` — beyond that the payment is rejected. Any role can
+   * spend against an existing credit limit; only an ADMIN/SUPER_ADMIN can raise one
+   * (see CustomersController#updateCredit).
+   */
   async debit(
     tx: Prisma.TransactionClient,
     organizationId: string,
@@ -138,6 +147,19 @@ export class WalletService {
     userId: string,
     params: { amount: number; type: WalletTransactionType; orderId?: string; paymentId?: string; reference?: string; notes?: string },
   ) {
+    const customer = await tx.customer.findFirst({
+      where: { id: customerId, organizationId },
+      select: { walletBalance: true, creditLimit: true },
+    });
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    const balanceAfter = toNumber(customer.walletBalance) - Math.abs(params.amount);
+    if (balanceAfter < 0 && Math.abs(balanceAfter) > toNumber(customer.creditLimit)) {
+      throw new BadRequestException(
+        'This customer does not have enough wallet balance or approved credit to cover this payment',
+      );
+    }
+
     return this.applyMovement(tx, organizationId, customerId, userId, {
       ...params,
       signedDelta: -Math.abs(params.amount),
