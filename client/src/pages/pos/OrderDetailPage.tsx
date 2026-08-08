@@ -664,27 +664,33 @@ function SyncedOrderView({ id }: { id: string }) {
               />
             </div>
           )}
-          {paymentMethod === 'WALLET' && (
-            <div className="rounded-xl border border-border p-3 text-sm">
-              <div className="flex justify-between text-muted-foreground">
-                <span>Current balance</span>
-                <span className={cn('font-semibold', (walletBalance?.balance ?? 0) < 0 ? 'text-destructive' : 'text-foreground')}>
-                  {walletBalance ? formatCurrency(walletBalance.balance) : '—'}
-                </span>
+          {paymentMethod === 'WALLET' && (() => {
+            const balanceAfter = walletBalance ? walletBalance.balance - order.total : undefined
+            const exceedsCredit = balanceAfter !== undefined && balanceAfter < -(walletBalance?.creditLimit ?? 0)
+            return (
+              <div className="rounded-xl border border-border p-3 text-sm">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Current balance</span>
+                  <span className={cn('font-semibold', (walletBalance?.balance ?? 0) < 0 ? 'text-destructive' : 'text-foreground')}>
+                    {walletBalance ? formatCurrency(walletBalance.balance) : '—'}
+                  </span>
+                </div>
+                <div className="mt-1 flex justify-between text-muted-foreground">
+                  <span>Balance after payment</span>
+                  <span className={cn('font-semibold', balanceAfter !== undefined && balanceAfter < 0 ? 'text-destructive' : 'text-foreground')}>
+                    {balanceAfter !== undefined ? formatCurrency(balanceAfter) : '—'}
+                  </span>
+                </div>
+                {balanceAfter !== undefined && balanceAfter < 0 && (
+                  <p className={cn('mt-2 text-xs', exceedsCredit ? 'text-destructive' : 'text-muted-foreground')}>
+                    {exceedsCredit
+                      ? `This exceeds the customer's approved credit limit of ${formatCurrency(walletBalance?.creditLimit ?? 0)}.`
+                      : 'This will put the customer on account (approved credit).'}
+                  </p>
+                )}
               </div>
-              <div className="mt-1 flex justify-between text-muted-foreground">
-                <span>Balance after payment</span>
-                <span className={cn('font-semibold', walletBalance && walletBalance.balance - order.total < 0 ? 'text-destructive' : 'text-foreground')}>
-                  {walletBalance ? formatCurrency(walletBalance.balance - order.total) : '—'}
-                </span>
-              </div>
-              {walletBalance && walletBalance.balance - order.total < 0 && (
-                <p className="mt-2 text-xs text-destructive">
-                  This will put the customer on account (negative balance).
-                </p>
-              )}
-            </div>
-          )}
+            )
+          })()}
           <div className="rounded-xl bg-muted p-4 text-center">
             <div className="text-sm text-muted-foreground">Amount Due</div>
             <div className="text-2xl font-bold text-foreground">{formatCurrency(order.total)}</div>
@@ -692,7 +698,12 @@ function SyncedOrderView({ id }: { id: string }) {
           <Button
             className="w-full"
             isLoading={closeOrder.isPending}
-            disabled={paymentMethod === 'PAYSTACK' && !customerEmail}
+            disabled={
+              (paymentMethod === 'PAYSTACK' && !customerEmail) ||
+              (paymentMethod === 'WALLET' &&
+                !!walletBalance &&
+                walletBalance.balance - order.total < -walletBalance.creditLimit)
+            }
             onClick={() => closeOrder.mutate()}
           >
             {paymentMethod === 'PAYSTACK' ? 'Generate Checkout Link' : 'Confirm Payment & Close'}

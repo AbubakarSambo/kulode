@@ -6,6 +6,7 @@ import type {
   PlatformOrganizationDetails,
   PlatformOrganization,
   PendingVendorPayout,
+  OrgModule,
 } from '@/types'
 
 export const platformApi = {
@@ -42,6 +43,7 @@ export const platformApi = {
       subscriptionStatus?: string
       isGrandfathered?: boolean
       platformFeePercent?: number
+      enabledModules?: OrgModule
     }
   ): Promise<PlatformOrganization> => {
     const response = await apiClient.patch<ApiResponse<PlatformOrganization>>(`/platform/organizations/${id}`, data)

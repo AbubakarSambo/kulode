@@ -11,8 +11,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { CustomersService } from './customers.service';
-import { CreateCustomerDto, UpdateCustomerDto, CustomerFilterDto } from './dto';
-import { CurrentUser } from '../../common';
+import { CreateCustomerDto, UpdateCustomerDto, UpdateCustomerCreditDto, CustomerFilterDto } from './dto';
+import { CurrentUser, Roles, Role } from '../../common';
 
 @ApiTags('Customers')
 @ApiBearerAuth()
@@ -61,6 +61,19 @@ export class CustomersController {
     @CurrentUser('organizationId') organizationId: string,
   ) {
     return this.customersService.update(id, organizationId, dto);
+  }
+
+  @Patch(':id/credit')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'Set a customer credit limit (how far their wallet may go negative)' })
+  @ApiResponse({ status: 200, description: 'Credit limit updated' })
+  @ApiResponse({ status: 404, description: 'Customer not found' })
+  async updateCredit(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateCustomerCreditDto,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.customersService.updateCreditLimit(id, organizationId, dto);
   }
 
   @Delete(':id')

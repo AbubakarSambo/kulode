@@ -185,6 +185,7 @@ export interface Customer {
   notes?: string
   isActive: boolean
   walletBalance: number
+  creditLimit: number
   createdAt: string
   _count?: {
     orders: number
@@ -745,6 +746,7 @@ export interface PlatformOrganization {
   subscriptionStatus: SubscriptionStatus
   isGrandfathered: boolean
   platformFeePercent: number
+  enabledModules: OrgModule
   createdAt: string
   userCount: number
   invoiceCount: number

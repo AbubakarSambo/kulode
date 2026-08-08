@@ -1,4 +1,4 @@
-import { NotFoundException, ConflictException } from '@nestjs/common';
+import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { WalletService } from './wallet.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -36,8 +36,8 @@ const ORG_ID = 'org-1';
 const USER_ID = 'user-1';
 const CUSTOMER_ID = 'customer-1';
 
-function mockCustomer(walletBalance: string) {
-  return { id: CUSTOMER_ID, organizationId: ORG_ID, walletBalance };
+function mockCustomer(walletBalance: string, creditLimit = '0') {
+  return { id: CUSTOMER_ID, organizationId: ORG_ID, walletBalance, creditLimit };
 }
 
 describe('WalletService', () => {
@@ -132,8 +132,8 @@ describe('WalletService', () => {
   });
 
   describe('debit (order settlement path)', () => {
-    it('debits without a floor, allowing an on-account balance to go negative', async () => {
-      prisma.customer.findFirst.mockResolvedValue(mockCustomer('10'));
+    it('debits within an approved credit limit, allowing the balance to go negative', async () => {
+      prisma.customer.findFirst.mockResolvedValue(mockCustomer('10', '50'));
 
       const result = await service.debit(prisma, ORG_ID, CUSTOMER_ID, USER_ID, {
         amount: 45,
@@ -152,6 +152,23 @@ describe('WalletService', () => {
       });
     });
 
+    it('rejects a payment that would exceed the customer\'s credit limit', async () => {
+      prisma.customer.findFirst.mockResolvedValue(mockCustomer('10', '20'));
+
+      await expect(
+        service.debit(prisma, ORG_ID, CUSTOMER_ID, USER_ID, { amount: 45, type: 'ORDER_DEBIT' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.customer.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects a payment that goes negative with no credit limit approved', async () => {
+      prisma.customer.findFirst.mockResolvedValue(mockCustomer('10'));
+
+      await expect(
+        service.debit(prisma, ORG_ID, CUSTOMER_ID, USER_ID, { amount: 45, type: 'ORDER_DEBIT' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
     it('throws NotFoundException when the customer does not belong to the organization', async () => {
       prisma.customer.findFirst.mockResolvedValue(null);
 
@@ -162,12 +179,12 @@ describe('WalletService', () => {
   });
 
   describe('getBalance', () => {
-    it('returns the numeric balance for an existing customer', async () => {
-      prisma.customer.findFirst.mockResolvedValue(mockCustomer('75.50'));
+    it('returns the numeric balance and credit limit for an existing customer', async () => {
+      prisma.customer.findFirst.mockResolvedValue(mockCustomer('75.50', '20'));
 
       const result = await service.getBalance(ORG_ID, CUSTOMER_ID);
 
-      expect(result).toEqual({ customerId: CUSTOMER_ID, balance: 75.5 });
+      expect(result).toEqual({ customerId: CUSTOMER_ID, balance: 75.5, creditLimit: 20 });
     });
 
     it('throws NotFoundException for an unknown customer', async () => {

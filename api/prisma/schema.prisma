@@ -325,6 +325,9 @@ model Customer {
   notes          String?
   isActive       Boolean @default(true) @map("is_active")
   walletBalance  Decimal @default(0) @map("wallet_balance") @db.Decimal(12, 2)
+  // Max the wallet may go negative by (on-account credit). 0 = no credit approved.
+  // Only an ADMIN/SUPER_ADMIN can raise this; any role can then spend against it.
+  creditLimit    Decimal @default(0) @map("credit_limit") @db.Decimal(12, 2)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

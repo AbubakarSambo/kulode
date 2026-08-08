@@ -4,6 +4,7 @@ import type { WalletTransaction, PaginatedResponse, ApiResponse } from '@/types'
 export interface WalletBalance {
   customerId: string
   balance: number
+  creditLimit: number
 }
 
 export interface WalletTransactionFilters {

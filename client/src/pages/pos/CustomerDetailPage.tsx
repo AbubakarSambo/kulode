@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { ArrowLeft, Pencil, Trash2, Wallet, PlusCircle, Settings2 } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, Wallet, PlusCircle, Settings2, ShieldCheck } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Select, Card, CardContent, Badge, ConfirmDialog } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
@@ -51,14 +51,16 @@ function errorMessage(err: unknown, fallback: string) {
   return (err as { response?: { data?: { message?: string } } })?.response?.data?.message || fallback
 }
 
-function WalletSection({ customerId, balance }: { customerId: string; balance: number }) {
+function WalletSection({ customerId, balance, creditLimit }: { customerId: string; balance: number; creditLimit: number }) {
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const canTopUp = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'ACCOUNTANT'
   const canAdjust = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
+  const canGrantCredit = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
 
   const [topUpOpen, setTopUpOpen] = useState(false)
   const [adjustOpen, setAdjustOpen] = useState(false)
+  const [creditOpen, setCreditOpen] = useState(false)
   const [page, setPage] = useState(1)
 
   const [topUpAmount, setTopUpAmount] = useState('')
@@ -67,6 +69,8 @@ function WalletSection({ customerId, balance }: { customerId: string; balance: n
 
   const [adjustAmount, setAdjustAmount] = useState('')
   const [adjustReason, setAdjustReason] = useState('')
+
+  const [creditLimitInput, setCreditLimitInput] = useState(String(creditLimit))
 
   const { data: transactions, isLoading } = useQuery({
     queryKey: ['wallet-transactions', customerId, page],
@@ -115,6 +119,16 @@ function WalletSection({ customerId, balance }: { customerId: string; balance: n
     onError: (err: unknown) => toast.error(errorMessage(err, 'Failed to adjust wallet')),
   })
 
+  const setCredit = useMutation({
+    mutationFn: () => customersApi.updateCredit(customerId, Number(creditLimitInput)),
+    onSuccess: () => {
+      toast.success('Credit limit updated')
+      invalidateWallet()
+      setCreditOpen(false)
+    },
+    onError: (err: unknown) => toast.error(errorMessage(err, 'Failed to update credit limit')),
+  })
+
   return (
     <Card className="mt-4 p-4">
       <CardContent className="p-0">
@@ -124,6 +138,11 @@ function WalletSection({ customerId, balance }: { customerId: string; balance: n
             <h3 className="font-semibold text-foreground">Wallet</h3>
           </div>
           <div className="flex gap-2">
+            {canGrantCredit && (
+              <Button variant="outline" size="sm" onClick={() => setCreditOpen(true)}>
+                <ShieldCheck className="mr-1.5 h-4 w-4" /> Credit
+              </Button>
+            )}
             {canAdjust && (
               <Button variant="outline" size="sm" onClick={() => setAdjustOpen(true)}>
                 <Settings2 className="mr-1.5 h-4 w-4" /> Adjust
@@ -145,6 +164,12 @@ function WalletSection({ customerId, balance }: { customerId: string; balance: n
           {balance < 0 && (
             <p className="mt-1 text-xs text-destructive">Customer is on account (owes this amount)</p>
           )}
+          <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            {creditLimit > 0
+              ? `Approved for up to ${formatCurrency(creditLimit)} in credit purchases`
+              : 'Not approved for credit purchases'}
+          </div>
         </div>
 
         {isLoading ? (
@@ -269,6 +294,33 @@ function WalletSection({ customerId, balance }: { customerId: string; balance: n
             onClick={() => adjust.mutate()}
           >
             Confirm Adjustment
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={creditOpen} onClose={() => setCreditOpen(false)} title="Credit Approval">
+        <div className="space-y-4">
+          <div>
+            <Label>Credit Limit</Label>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={creditLimitInput}
+              onChange={(e) => setCreditLimitInput(e.target.value)}
+              placeholder="0.00"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              How far this customer's wallet may go negative on a purchase. Set to 0 to revoke credit.
+            </p>
+          </div>
+          <Button
+            className="w-full"
+            isLoading={setCredit.isPending}
+            disabled={creditLimitInput === '' || Number(creditLimitInput) < 0}
+            onClick={() => setCredit.mutate()}
+          >
+            Save Credit Limit
           </Button>
         </div>
       </Modal>
@@ -439,7 +491,7 @@ export function CustomerDetailPage() {
           </Card>
         </div>
 
-        <WalletSection customerId={customer.id} balance={customer.walletBalance} />
+        <WalletSection customerId={customer.id} balance={customer.walletBalance} creditLimit={customer.creditLimit} />
       </div>
 
       <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title="Edit Customer">

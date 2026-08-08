@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateCustomerDto, UpdateCustomerDto, CustomerFilterDto } from './dto';
+import { CreateCustomerDto, UpdateCustomerDto, UpdateCustomerCreditDto, CustomerFilterDto } from './dto';
 import { paginate } from '../../common';
 
 @Injectable()
@@ -35,6 +35,7 @@ export class CustomersService {
           email: true,
           isActive: true,
           walletBalance: true,
+          creditLimit: true,
           createdAt: true,
           _count: { select: { orders: true } },
         },
@@ -104,6 +105,21 @@ export class CustomersService {
       }
       throw error;
     }
+  }
+
+  async updateCreditLimit(id: string, organizationId: string, dto: UpdateCustomerCreditDto) {
+    const customer = await this.prisma.customer.findFirst({
+      where: { id, organizationId },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    return this.prisma.customer.update({
+      where: { id },
+      data: { creditLimit: dto.creditLimit },
+    });
   }
 
   async remove(id: string, organizationId: string) {
