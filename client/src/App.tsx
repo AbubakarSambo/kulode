@@ -6,6 +6,7 @@ import { ProtectedRoute, GuestRoute, PlanGatedRoute, ReadOnlyGatedRoute, ModuleG
 
 
 import { useAuthStore } from '@/stores/auth'
+import { useOrgModules } from '@/hooks/useOrgModules'
 import {
   LoginPage,
   RegisterPage,
@@ -52,6 +53,7 @@ import {
   BillingPage,
   ChangelogPage,
   MenuManagementPage,
+  PosDashboardPage,
   MenuCategoriesPage,
   WaitersPage,
   TablesFloorPage,
@@ -70,6 +72,7 @@ import { queryClient } from '@/lib/queryClient'
 
 function HomeRedirect() {
   const { isAuthenticated, _hasHydrated } = useAuthStore()
+  const { hasInvoicing } = useOrgModules()
 
   if (!_hasHydrated) {
     return (
@@ -80,7 +83,7 @@ function HomeRedirect() {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to={hasInvoicing ? '/dashboard' : '/pos/dashboard'} replace />
   }
 
   if (import.meta.env.DEV) {
@@ -147,13 +150,13 @@ function App() {
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/insights" element={<InsightsPage />} />
                 <Route path="/ai-chat" element={<AiChatPage />} />
-                <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/dashboard" />}>
+                <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/pos/dashboard" />}>
                   <Route path="/tax" element={<TaxFilingPackPage />} />
                 </Route>
               </Route>
 
               {/* Clients (invoicing-only) */}
-              <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/dashboard" />}>
+              <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/pos/dashboard" />}>
                 <Route path="/clients" element={<ClientsListPage />} />
                 <Route element={<ReadOnlyGatedRoute redirectTo="/clients" />}>
                   <Route path="/clients/new" element={<NewClientPage />} />
@@ -175,7 +178,7 @@ function App() {
               </Route>
 
               {/* Invoices (invoicing-only) */}
-              <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/dashboard" />}>
+              <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/pos/dashboard" />}>
                 <Route path="/invoices" element={<InvoicesListPage />} />
                 <Route element={<ReadOnlyGatedRoute redirectTo="/invoices" />}>
                   <Route path="/invoices/new" element={<NewInvoicePage />} />
@@ -208,6 +211,7 @@ function App() {
 
               {/* Restaurant POS (POS-only) */}
               <Route element={<ModuleGatedRoute requiredModule="POS" redirectTo="/invoices" />}>
+                <Route path="/pos/dashboard" element={<PosDashboardPage />} />
                 <Route path="/pos/menu" element={<MenuManagementPage />} />
                 <Route path="/pos/categories" element={<MenuCategoriesPage />} />
                 <Route path="/pos/waiters" element={<WaitersPage />} />

@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/auth'
+import { useOrgModules } from '@/hooks/useOrgModules'
 import type { UserRole } from '@/types'
 
 interface ProtectedRouteProps {
@@ -17,6 +18,7 @@ function AuthLoadingFallback() {
 export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
   const location = useLocation()
   const { isAuthenticated, user, _hasHydrated } = useAuthStore()
+  const { hasInvoicing } = useOrgModules()
 
   if (!_hasHydrated) {
     return <AuthLoadingFallback />
@@ -27,7 +29,7 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
   }
 
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to={hasInvoicing ? '/dashboard' : '/pos/dashboard'} replace />
   }
 
   return <Outlet />
@@ -36,13 +38,14 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
 // Redirects authenticated users away from guest-only routes (login, register)
 export function GuestRoute() {
   const { isAuthenticated, _hasHydrated } = useAuthStore()
+  const { hasInvoicing } = useOrgModules()
 
   if (!_hasHydrated) {
     return <AuthLoadingFallback />
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to={hasInvoicing ? '/dashboard' : '/pos/dashboard'} replace />
   }
 
   return <Outlet />

@@ -1,0 +1,160 @@
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { ReportFilterDto, ReportPeriod } from '../reports/dto';
+
+@Injectable()
+export class PosDashboardService {
+  constructor(private prisma: PrismaService) {}
+
+  private getDateRange(filter: ReportFilterDto): { startDate: Date; endDate: Date } {
+    const now = new Date();
+    let startDate: Date;
+    let endDate: Date = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+
+    switch (filter.period) {
+      case ReportPeriod.LAST_MONTH:
+        startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+        break;
+      case ReportPeriod.THIS_QUARTER: {
+        const currentQuarter = Math.floor(now.getMonth() / 3);
+        startDate = new Date(now.getFullYear(), currentQuarter * 3, 1);
+        break;
+      }
+      case ReportPeriod.LAST_QUARTER: {
+        const lastQuarter = Math.floor(now.getMonth() / 3) - 1;
+        const year = lastQuarter < 0 ? now.getFullYear() - 1 : now.getFullYear();
+        const quarter = lastQuarter < 0 ? 3 : lastQuarter;
+        startDate = new Date(year, quarter * 3, 1);
+        endDate = new Date(year, (quarter + 1) * 3, 0, 23, 59, 59);
+        break;
+      }
+      case ReportPeriod.THIS_YEAR:
+        startDate = new Date(now.getFullYear(), 0, 1);
+        break;
+      case ReportPeriod.LAST_YEAR:
+        startDate = new Date(now.getFullYear() - 1, 0, 1);
+        endDate = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59);
+        break;
+      case ReportPeriod.CUSTOM:
+        startDate = filter.startDate || new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        endDate = filter.endDate || now;
+        break;
+      case ReportPeriod.THIS_MONTH:
+      default:
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    }
+
+    return { startDate, endDate };
+  }
+
+  private getPreviousDateRange(startDate: Date, endDate: Date): { startDate: Date; endDate: Date } {
+    const diffTime = endDate.getTime() - startDate.getTime();
+    return {
+      startDate: new Date(startDate.getTime() - diffTime),
+      endDate: new Date(startDate.getTime() - 1),
+    };
+  }
+
+  private calculatePercentageChange(current: number, previous: number): number {
+    if (previous === 0) return current > 0 ? 100 : 0;
+    return Number((((current - previous) / previous) * 100).toFixed(2));
+  }
+
+  async getSummary(organizationId: string, filter: ReportFilterDto) {
+    const { startDate, endDate } = this.getDateRange(filter);
+    const prevRange = this.getPreviousDateRange(startDate, endDate);
+
+    const [sales, prevSales, orderCount, byMethod, topItems] = await Promise.all([
+      this.prisma.payment.aggregate({
+        where: { organizationId, orderId: { not: null }, paymentDate: { gte: startDate, lte: endDate } },
+        _sum: { amount: true },
+        _count: true,
+      }),
+      this.prisma.payment.aggregate({
+        where: { organizationId, orderId: { not: null }, paymentDate: { gte: prevRange.startDate, lte: prevRange.endDate } },
+        _sum: { amount: true },
+      }),
+      this.prisma.order.count({
+        where: {
+          organizationId,
+          status: { in: ['CLOSED_PAID', 'CLOSED_UNPAID'] },
+          closedAt: { gte: startDate, lte: endDate },
+        },
+      }),
+      this.prisma.payment.groupBy({
+        by: ['paymentMethod'],
+        where: { organizationId, orderId: { not: null }, paymentDate: { gte: startDate, lte: endDate } },
+        _sum: { amount: true },
+        _count: true,
+      }),
+      this.prisma.$queryRaw<{ id: string; name: string; quantity: number; revenue: number; orders: number }[]>`
+        SELECT
+          oi.menu_item_id as id,
+          mi.name as name,
+          SUM(oi.quantity)::numeric as quantity,
+          SUM(oi.amount)::numeric as revenue,
+          COUNT(DISTINCT oi.order_id)::integer as orders
+        FROM order_items oi
+        JOIN orders o ON oi.order_id = o.id
+        JOIN menu_items mi ON oi.menu_item_id = mi.id
+        WHERE o.organization_id = ${organizationId}
+          AND o.status IN ('CLOSED_PAID', 'CLOSED_UNPAID')
+          AND o.closed_at >= ${startDate}
+          AND o.closed_at <= ${endDate}
+        GROUP BY oi.menu_item_id, mi.name
+        ORDER BY revenue DESC
+        LIMIT 5
+      `,
+    ]);
+
+    const totalSales = Number(sales._sum.amount || 0);
+    const prevTotalSales = Number(prevSales._sum.amount || 0);
+
+    return {
+      period: { startDate, endDate },
+      sales: {
+        total: totalSales,
+        change: this.calculatePercentageChange(totalSales, prevTotalSales),
+        paymentCount: sales._count,
+      },
+      orderCount,
+      avgOrderValue: orderCount > 0 ? totalSales / orderCount : 0,
+      byPaymentMethod: byMethod.map((m) => ({
+        method: m.paymentMethod,
+        total: Number(m._sum.amount || 0),
+        count: m._count,
+      })),
+      topItems: topItems.map((i) => ({
+        id: i.id,
+        name: i.name,
+        quantity: Number(i.quantity),
+        revenue: Number(i.revenue),
+        orders: Number(i.orders),
+      })),
+    };
+  }
+
+  async getTrend(organizationId: string, filter: ReportFilterDto) {
+    const { startDate, endDate } = this.getDateRange(filter);
+
+    const daily = await this.prisma.$queryRaw<{ day: string; total: number; count: number }[]>`
+      SELECT
+        TO_CHAR(payment_date, 'YYYY-MM-DD') as day,
+        SUM(amount)::numeric as total,
+        COUNT(*)::integer as count
+      FROM payments
+      WHERE organization_id = ${organizationId}
+        AND order_id IS NOT NULL
+        AND payment_date >= ${startDate}
+        AND payment_date <= ${endDate}
+      GROUP BY TO_CHAR(payment_date, 'YYYY-MM-DD')
+      ORDER BY day
+    `;
+
+    return {
+      period: { startDate, endDate },
+      daily: daily.map((d) => ({ day: d.day, total: Number(d.total), count: Number(d.count) })),
+    };
+  }
+}

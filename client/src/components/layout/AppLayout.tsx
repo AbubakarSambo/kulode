@@ -8,6 +8,8 @@ import {
   Clock,
   Tag,
   UserRound,
+  ShoppingCart,
+  Receipt,
 } from 'lucide-react'
 import {
   DashboardIcon,
@@ -35,6 +37,7 @@ import { OfflineQueueBanner } from '../pos/OfflineQueueBanner'
 import { useAuthStore } from '@/stores/auth'
 import { useLogout } from '@/hooks'
 import { useSubscription } from '@/hooks/useSubscription'
+import { useOrgModules } from '@/hooks/useOrgModules'
 import { cn } from '@/lib/utils'
 import type { PlanTier } from '@/types'
 
@@ -45,18 +48,22 @@ export function AppLayout() {
   const user = useAuthStore((state) => state.user)
   const logout = useLogout()
   const { hasRequiredPlan } = useSubscription()
+  const { hasPos, hasInvoicing } = useOrgModules()
 
 
 
   const getPageTitle = () => {
     const path = location.pathname
     if (path.startsWith('/dashboard')) return 'Overview'
+    if (path.startsWith('/pos/dashboard')) return 'Dashboard'
     if (path.startsWith('/clients')) return 'Clients'
     if (path.startsWith('/invoices')) return 'Invoices'
     if (path.startsWith('/payments')) return 'Payments'
     if (path.startsWith('/vendors')) return 'Vendors'
     if (path.startsWith('/expenses')) return 'Expenses'
     if (path.startsWith('/inventory')) return 'Product Inventory'
+    if (path.startsWith('/pos/orders')) return 'Orders'
+    if (path.startsWith('/pos/customers')) return 'Customers'
     if (path.startsWith('/pos/tables')) return 'Tables'
     if (path.startsWith('/pos/menu')) return 'Menu'
     if (path.startsWith('/pos/categories')) return 'Categories'
@@ -69,12 +76,19 @@ export function AppLayout() {
     return ''
   }
 
-  const navItems = [
-    { name: 'Overview', href: '/dashboard', icon: DashboardIcon },
-    { name: 'Clients', href: '/clients', icon: ClientsIcon },
-    { name: 'Invoices', href: '/invoices', icon: InvoicesIcon },
-    { name: 'Payments', href: '/payments', icon: PaymentsIcon },
-  ]
+  const navItems = hasInvoicing
+    ? [
+        { name: 'Overview', href: '/dashboard', icon: DashboardIcon },
+        { name: 'Clients', href: '/clients', icon: ClientsIcon },
+        { name: 'Invoices', href: '/invoices', icon: InvoicesIcon },
+        { name: 'Payments', href: '/payments', icon: PaymentsIcon },
+      ]
+    : [
+        { name: 'Dashboard', href: '/pos/dashboard', icon: DashboardIcon },
+        { name: 'Sell', href: '/pos/order/new', icon: ShoppingCart },
+        { name: 'Orders', href: '/pos/orders', icon: Receipt },
+        ...(user?.role !== 'STAFF' ? [{ name: 'Payments', href: '/payments', icon: PaymentsIcon }] : []),
+      ]
 
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
   const canViewReports = isAdmin || user?.role === 'ACCOUNTANT'
@@ -87,24 +101,25 @@ export function AppLayout() {
       items: [
         { name: 'Expenses', href: '/expenses', icon: ExpensesIcon, requiresPlan: 'PRO' as PlanTier, visible: user?.role !== 'STAFF' },
         { name: 'Vendors', href: '/vendors', icon: VendorsIcon, requiresPlan: 'PRO' as PlanTier, visible: user?.role !== 'STAFF' },
-        { name: 'Tax', href: '/tax', icon: TaxIcon, requiresPlan: 'PRO' as PlanTier, visible: user?.role !== 'STAFF' },
+        { name: 'Tax', href: '/tax', icon: TaxIcon, requiresPlan: 'PRO' as PlanTier, visible: hasInvoicing && user?.role !== 'STAFF' },
       ] as MoreItem[],
     },
     {
       label: 'Catalog',
       items: [
         { name: 'Product Inventory', href: '/inventory', icon: InventoryIcon, requiresPlan: 'PRO' as PlanTier },
-        { name: 'Services', href: '/settings/services', icon: ServicesIcon },
+        { name: 'Services', href: '/settings/services', icon: ServicesIcon, visible: hasInvoicing },
       ] as MoreItem[],
     },
     {
       label: 'Restaurant POS',
       items: [
-        { name: 'Tables', href: '/pos/tables', icon: UtensilsCrossed },
-        { name: 'Menu', href: '/pos/menu', icon: ChefHat },
-        { name: 'Categories', href: '/pos/categories', icon: Tag },
-        { name: 'Waiters', href: '/pos/waiters', icon: UserRound },
-        { name: 'Shift', href: '/pos/shift', icon: Clock },
+        { name: 'Tables', href: '/pos/tables', icon: UtensilsCrossed, visible: hasPos },
+        { name: 'Menu', href: '/pos/menu', icon: ChefHat, visible: hasPos },
+        { name: 'Categories', href: '/pos/categories', icon: Tag, visible: hasPos },
+        { name: 'Waiters', href: '/pos/waiters', icon: UserRound, visible: hasPos },
+        { name: 'Shift', href: '/pos/shift', icon: Clock, visible: hasPos },
+        { name: 'Customers', href: '/pos/customers', icon: UserRound, visible: hasPos },
       ] as MoreItem[],
     },
     {

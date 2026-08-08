@@ -54,6 +54,7 @@ const navigationGroups = [
   {
     title: 'Restaurant POS',
     items: [
+      { name: 'Dashboard', href: '/pos/dashboard', icon: DashboardIcon, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Sell', href: '/pos/order/new', icon: ShoppingCart, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Tables', href: '/pos/tables', icon: UtensilsCrossed, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Menu', href: '/pos/menu', icon: ChefHat, requiresPlan: undefined as PlanTier | undefined },
@@ -127,7 +128,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const canViewReports = isAdmin || user?.role === 'ACCOUNTANT'
 
   // Which invoicing-only nav items to hide from POS-only orgs
-  const INVOICING_ONLY_HREFS = ['/clients', '/invoices', '/tax']
+  const INVOICING_ONLY_HREFS = ['/clients', '/invoices', '/tax', '/dashboard', '/settings/services']
 
   // Filter groups and items
   const filteredNavGroups = navigationGroups

@@ -70,7 +70,7 @@ function WalletSection({ customerId, balance, creditLimit }: { customerId: strin
   const [adjustAmount, setAdjustAmount] = useState('')
   const [adjustReason, setAdjustReason] = useState('')
 
-  const [creditLimitInput, setCreditLimitInput] = useState(String(creditLimit))
+  const [creditLimitInput, setCreditLimitInput] = useState(creditLimit > 0 ? String(creditLimit) : '')
 
   const { data: transactions, isLoading } = useQuery({
     queryKey: ['wallet-transactions', customerId, page],
@@ -139,7 +139,14 @@ function WalletSection({ customerId, balance, creditLimit }: { customerId: strin
           </div>
           <div className="flex gap-2">
             {canGrantCredit && (
-              <Button variant="outline" size="sm" onClick={() => setCreditOpen(true)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setCreditLimitInput(creditLimit > 0 ? String(creditLimit) : '')
+                  setCreditOpen(true)
+                }}
+              >
                 <ShieldCheck className="mr-1.5 h-4 w-4" /> Credit
               </Button>
             )}
