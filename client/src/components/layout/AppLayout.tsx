@@ -99,8 +99,8 @@ export function AppLayout() {
     {
       label: 'Money',
       items: [
-        { name: 'Expenses', href: '/expenses', icon: ExpensesIcon, requiresPlan: 'PRO' as PlanTier, visible: user?.role !== 'STAFF' },
-        { name: 'Vendors', href: '/vendors', icon: VendorsIcon, requiresPlan: 'PRO' as PlanTier, visible: user?.role !== 'STAFF' },
+        { name: 'Expenses', href: '/expenses', icon: ExpensesIcon, requiresPlan: 'PRO' as PlanTier, visible: hasInvoicing && user?.role !== 'STAFF' },
+        { name: 'Vendors', href: '/vendors', icon: VendorsIcon, requiresPlan: 'PRO' as PlanTier, visible: hasInvoicing && user?.role !== 'STAFF' },
         { name: 'Tax', href: '/tax', icon: TaxIcon, requiresPlan: 'PRO' as PlanTier, visible: hasInvoicing && user?.role !== 'STAFF' },
       ] as MoreItem[],
     },
