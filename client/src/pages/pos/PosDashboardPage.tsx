@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, ShoppingCart, Receipt } from 'lucide-react'
+import { ChevronDown, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, ShoppingCart } from 'lucide-react'
+import { ReceiptTextIcon } from '@hugeicons/core-free-icons'
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { Link } from 'react-router-dom'
 import { Header } from '@/components/layout'
@@ -206,7 +207,7 @@ export function PosDashboardPage() {
                   ))}
                 </div>
               ) : (
-                <EmptyState icon={Receipt} title="No sales yet" description="Top items will appear once orders close in this period." />
+                <EmptyState icon={ReceiptTextIcon} title="No sales yet" description="Top items will appear once orders close in this period." />
               )}
             </CardContent>
           </Card>
@@ -232,7 +233,7 @@ export function PosDashboardPage() {
                   ))}
                 </div>
               ) : (
-                <EmptyState icon={Receipt} title="No payments yet" description="Payment breakdown will appear once sales come in." />
+                <EmptyState icon={ReceiptTextIcon} title="No payments yet" description="Payment breakdown will appear once sales come in." />
               )}
             </CardContent>
           </Card>
