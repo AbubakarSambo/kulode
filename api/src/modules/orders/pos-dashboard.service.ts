@@ -65,7 +65,7 @@ export class PosDashboardService {
     const { startDate, endDate } = this.getDateRange(filter);
     const prevRange = this.getPreviousDateRange(startDate, endDate);
 
-    const [sales, prevSales, orderCount, byMethod, topItems] = await Promise.all([
+    const [sales, prevSales, orderCount, byMethod, topItems, topWaiters] = await Promise.all([
       this.prisma.payment.aggregate({
         where: { organizationId, orderId: { not: null }, paymentDate: { gte: startDate, lte: endDate } },
         _sum: { amount: true },
@@ -104,7 +104,23 @@ export class PosDashboardService {
           AND o.closed_at <= ${endDate}
         GROUP BY oi.menu_item_id, mi.name
         ORDER BY revenue DESC
-        LIMIT 5
+        LIMIT 10
+      `,
+      this.prisma.$queryRaw<{ id: string; name: string; revenue: number; orders: number }[]>`
+        SELECT
+          o.waiter_id as id,
+          w.name as name,
+          SUM(o.total)::numeric as revenue,
+          COUNT(*)::integer as orders
+        FROM orders o
+        JOIN waiters w ON o.waiter_id = w.id
+        WHERE o.organization_id = ${organizationId}
+          AND o.status IN ('CLOSED_PAID', 'CLOSED_UNPAID')
+          AND o.closed_at >= ${startDate}
+          AND o.closed_at <= ${endDate}
+        GROUP BY o.waiter_id, w.name
+        ORDER BY revenue DESC
+        LIMIT 10
       `,
     ]);
 
@@ -131,6 +147,12 @@ export class PosDashboardService {
         quantity: Number(i.quantity),
         revenue: Number(i.revenue),
         orders: Number(i.orders),
+      })),
+      topWaiters: topWaiters.map((w) => ({
+        id: w.id,
+        name: w.name,
+        revenue: Number(w.revenue),
+        orders: Number(w.orders),
       })),
     };
   }

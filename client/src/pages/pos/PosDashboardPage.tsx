@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, ShoppingCart } from 'lucide-react'
+import { ChevronDown, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, ShoppingCart, Users } from 'lucide-react'
 import { ReceiptTextIcon } from '@hugeicons/core-free-icons'
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { Link } from 'react-router-dom'
@@ -53,7 +53,7 @@ export function PosDashboardPage() {
     <div className="flex flex-1 flex-col overflow-hidden">
       <Header
         title="Dashboard"
-        description="Overview of your POS sales performance"
+        description="Sales, top items, and waiter performance for your restaurant"
         action={
           <div className="flex items-center gap-2">
             <div className="relative inline-block text-left w-full sm:w-auto">
@@ -185,7 +185,7 @@ export function PosDashboardPage() {
           </Card>
         )}
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-3">
           <Card>
             <CardHeader className="p-8 pb-4">
               <CardTitle className="flex items-center gap-2.5 text-base font-semibold text-foreground">
@@ -197,17 +197,51 @@ export function PosDashboardPage() {
               {summary?.topItems && summary.topItems.length > 0 ? (
                 <div className="space-y-3">
                   {summary.topItems.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between p-3 rounded-2xl bg-muted/50">
+                    <Link
+                      key={item.id}
+                      to={`/pos/menu/${item.id}`}
+                      className="flex items-center justify-between p-3 rounded-2xl bg-muted/50 hover:bg-muted"
+                    >
                       <div>
                         <p className="text-sm font-semibold text-foreground">{item.name}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">{item.quantity} sold</p>
                       </div>
                       <span className="text-sm font-semibold text-foreground tabular-nums">{formatCurrency(item.revenue)}</span>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               ) : (
                 <EmptyState icon={ReceiptTextIcon} title="No sales yet" description="Top items will appear once orders close in this period." />
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="p-8 pb-4">
+              <CardTitle className="flex items-center gap-2.5 text-base font-semibold text-foreground">
+                <Users className="h-5 w-5 text-muted-foreground" />
+                Top Waiters
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-8 pt-0">
+              {summary?.topWaiters && summary.topWaiters.length > 0 ? (
+                <div className="space-y-3">
+                  {summary.topWaiters.map((w) => (
+                    <Link
+                      key={w.id}
+                      to={`/pos/waiters/${w.id}`}
+                      className="flex items-center justify-between p-3 rounded-2xl bg-muted/50 hover:bg-muted"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{w.name}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{w.orders} orders</p>
+                      </div>
+                      <span className="text-sm font-semibold text-foreground tabular-nums">{formatCurrency(w.revenue)}</span>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState icon={ReceiptTextIcon} title="No orders yet" description="Top waiters will appear once orders close in this period." />
               )}
             </CardContent>
           </Card>

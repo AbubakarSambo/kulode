@@ -9,6 +9,7 @@ export interface PosDashboardSummary {
   avgOrderValue: number
   byPaymentMethod: { method: string; total: number; count: number }[]
   topItems: { id: string; name: string; quantity: number; revenue: number; orders: number }[]
+  topWaiters: { id: string; name: string; revenue: number; orders: number }[]
 }
 
 export interface PosDashboardTrend {

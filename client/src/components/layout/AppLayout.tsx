@@ -125,8 +125,8 @@ export function AppLayout() {
     {
       label: 'Insights',
       items: [
-        { name: 'Reports', href: '/reports', icon: ReportsIcon, requiresPlan: 'PRO' as PlanTier, visible: canViewReports },
-        { name: 'AI Chat', href: '/ai-chat', icon: AiChatIcon, requiresPlan: 'PRO' as PlanTier, visible: canViewReports },
+        { name: 'Reports', href: '/reports', icon: ReportsIcon, requiresPlan: 'PRO' as PlanTier, visible: canViewReports && hasInvoicing },
+        { name: 'AI Chat', href: '/ai-chat', icon: AiChatIcon, requiresPlan: 'PRO' as PlanTier, visible: canViewReports && hasInvoicing },
       ] as MoreItem[],
     },
     {

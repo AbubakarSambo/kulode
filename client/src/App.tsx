@@ -149,11 +149,11 @@ function App() {
                   <Route path="/expenses/new" element={<NewExpensePage />} />
                   <Route path="/expenses/bulk-recategorize" element={<BulkRecategorizePage />} />
                 </Route>
-                <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/insights" element={<InsightsPage />} />
-                <Route path="/ai-chat" element={<AiChatPage />} />
                 <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/pos/dashboard" />}>
+                  <Route path="/reports" element={<ReportsPage />} />
                   <Route path="/tax" element={<TaxFilingPackPage />} />
+                  <Route path="/ai-chat" element={<AiChatPage />} />
                 </Route>
               </Route>
 
