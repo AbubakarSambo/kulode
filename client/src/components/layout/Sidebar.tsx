@@ -128,7 +128,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const canViewReports = isAdmin || user?.role === 'ACCOUNTANT'
 
   // Which invoicing-only nav items to hide from POS-only orgs
-  const INVOICING_ONLY_HREFS = ['/clients', '/invoices', '/tax', '/reports', '/ai-chat', '/dashboard', '/settings/services', '/vendors', '/expenses']
+  const INVOICING_ONLY_HREFS = ['/clients', '/invoices', '/tax', '/reports', '/ai-chat', '/inventory', '/payments', '/dashboard', '/settings/services', '/vendors', '/expenses']
 
   // Filter groups and items
   const filteredNavGroups = navigationGroups

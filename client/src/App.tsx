@@ -188,8 +188,10 @@ function App() {
                 <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
               </Route>
 
-              {/* Payments (available to all plans) */}
-              <Route path="/payments" element={<PaymentsListPage />} />
+              {/* Payments (available to all plans, invoicing-only) */}
+              <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/pos/dashboard" />}>
+                <Route path="/payments" element={<PaymentsListPage />} />
+              </Route>
 
               {/* Super Admin only */}
               <Route element={<ReadOnlyGatedRoute redirectTo="/payments" />}>
@@ -206,9 +208,11 @@ function App() {
                 </Route>
               </Route>
 
-              {/* Inventory */}
+              {/* Inventory (invoicing-only) */}
               <Route element={<PlanGatedRoute requiredPlan="PRO" />}>
-                <Route path="/inventory" element={<InventoryPage />} />
+                <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/pos/dashboard" />}>
+                  <Route path="/inventory" element={<InventoryPage />} />
+                </Route>
               </Route>
 
               {/* Restaurant POS (POS-only) */}

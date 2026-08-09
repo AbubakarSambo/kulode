@@ -87,7 +87,6 @@ export function AppLayout() {
         { name: 'Dashboard', href: '/pos/dashboard', icon: DashboardIcon },
         { name: 'Sell', href: '/pos/order/new', icon: ShoppingCart },
         { name: 'Orders', href: '/pos/orders', icon: Receipt },
-        ...(user?.role !== 'STAFF' ? [{ name: 'Payments', href: '/payments', icon: PaymentsIcon }] : []),
       ]
 
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
@@ -107,7 +106,7 @@ export function AppLayout() {
     {
       label: 'Catalog',
       items: [
-        { name: 'Product Inventory', href: '/inventory', icon: InventoryIcon, requiresPlan: 'PRO' as PlanTier },
+        { name: 'Product Inventory', href: '/inventory', icon: InventoryIcon, requiresPlan: 'PRO' as PlanTier, visible: hasInvoicing },
         { name: 'Services', href: '/settings/services', icon: ServicesIcon, visible: hasInvoicing },
       ] as MoreItem[],
     },
