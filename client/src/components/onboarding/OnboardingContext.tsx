@@ -556,10 +556,13 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
   const total = afterDiscount + vatAmount;
   const installmentsTotal = installments.reduce((sum, inst) => sum + (inst.percentage || 0), 0);
 
+  // Org-level only — this reflects whether the BUSINESS has been set up, not whether the
+  // current user has. Invited staff/admins never get a `businessRole` seeded on invite, so
+  // gating on `user.businessRole` here would show this survey to every invited teammate
+  // forever, even after the org owner already completed it.
   const isPersonalized =
     !!(user?.organization?.businessType &&
-    user?.organization?.organizationSize &&
-    user?.businessRole);
+    user?.organization?.organizationSize);
 
   // Fetch onboarding status to check for pre-existing usage
   const { data: onboardingStatus } = useQuery({
@@ -1082,7 +1085,11 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const showSurvey = !isPersonalized && (isOpen || (!isDismissed && !hasActiveUsage));
+  // Only the org owner can actually submit this survey (PATCH /organizations/current and
+  // PATCH /users/:id are both SUPER_ADMIN[/ADMIN]-gated on the backend) — never show it to an
+  // invited teammate who'd otherwise be stuck on it with no way to complete or skip.
+  const showSurvey =
+    user?.role === "SUPER_ADMIN" && !isPersonalized && (isOpen || (!isDismissed && !hasActiveUsage));
   const shouldShow = isOpen || showSurvey || showCelebration;
   const orgName = user?.organization?.name || "your business";
 
