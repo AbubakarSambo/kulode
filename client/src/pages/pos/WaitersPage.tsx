@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -33,6 +34,7 @@ const waiterSchema = z.object({
 type WaiterFormData = z.infer<typeof waiterSchema>
 
 export function WaitersPage() {
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
 
   const [waiterModalOpen, setWaiterModalOpen] = useState(false)
@@ -118,7 +120,11 @@ export function WaitersPage() {
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {waiters?.map((waiter) => (
-              <Card key={waiter.id} className="flex h-full flex-col p-4">
+              <Card
+                key={waiter.id}
+                onClick={() => navigate(`/pos/waiters/${waiter.id}`)}
+                className="flex h-full cursor-pointer flex-col p-4"
+              >
                 <CardContent className="flex h-full flex-col p-0">
                   <div className="flex items-start justify-between">
                     <div>
@@ -126,11 +132,20 @@ export function WaitersPage() {
                       {waiter.phone && <p className="mt-1 text-sm text-muted-foreground">{waiter.phone}</p>}
                     </div>
                     <div className="flex gap-1">
-                      <button onClick={() => openEditWaiter(waiter)} className="rounded-lg p-2 hover:bg-muted">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openEditWaiter(waiter)
+                        }}
+                        className="rounded-lg p-2 hover:bg-muted"
+                      >
                         <Pencil className="h-4 w-4 text-muted-foreground" />
                       </button>
                       <button
-                        onClick={() => setDeleteTarget({ id: waiter.id, name: waiter.name })}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setDeleteTarget({ id: waiter.id, name: waiter.name })
+                        }}
                         className="rounded-lg p-2 hover:bg-muted"
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
@@ -139,7 +154,12 @@ export function WaitersPage() {
                   </div>
                   {waiter.notes && <p className="mt-2 text-sm text-muted-foreground">{waiter.notes}</p>}
                   <div className="mt-auto flex items-center justify-end pt-3">
-                    <button onClick={() => toggleActive.mutate({ id: waiter.id, isActive: !waiter.isActive })}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleActive.mutate({ id: waiter.id, isActive: !waiter.isActive })
+                      }}
+                    >
                       <Badge variant={waiter.isActive ? 'success' : 'secondary'}>
                         {waiter.isActive ? 'Active' : 'Inactive'}
                       </Badge>

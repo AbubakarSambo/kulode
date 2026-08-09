@@ -109,7 +109,7 @@ export function OrderTakingPage() {
       if (existing) {
         return prev.map((l) => (l.menuItemId === menuItemId ? { ...l, quantity: l.quantity + 1 } : l))
       }
-      return [...prev, { menuItemId, name, price, quantity: 1 }]
+      return [{ menuItemId, name, price, quantity: 1 }, ...prev]
     })
   }
 
@@ -299,7 +299,7 @@ export function OrderTakingPage() {
             ))}
           </div>
 
-          <div className="mt-4">
+          <div className="mt-2">
             <div className="flex items-center justify-between">
               <Label>Customer (optional)</Label>
               <button
@@ -310,7 +310,7 @@ export function OrderTakingPage() {
                 <UserPlus className="h-3.5 w-3.5" /> New
               </button>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="mt-1 flex items-center gap-1.5">
               <div className="flex-1">
                 <SearchableSelect
                   options={customerOptions}
@@ -332,9 +332,9 @@ export function OrderTakingPage() {
             </div>
           </div>
 
-          <div className="mt-4">
+          <div className="mt-2">
             <Label>Waiter (optional)</Label>
-            <div className="flex items-center gap-2">
+            <div className="mt-1 flex items-center gap-1.5">
               <div className="flex-1">
                 <SearchableSelect
                   options={waiterOptions}

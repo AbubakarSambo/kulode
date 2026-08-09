@@ -53,9 +53,11 @@ import {
   BillingPage,
   ChangelogPage,
   MenuManagementPage,
+  MenuItemDetailPage,
   PosDashboardPage,
   MenuCategoriesPage,
   WaitersPage,
+  WaiterDetailPage,
   TablesFloorPage,
   OrderTakingPage,
   OrderDetailPage,
@@ -213,8 +215,10 @@ function App() {
               <Route element={<ModuleGatedRoute requiredModule="POS" redirectTo="/invoices" />}>
                 <Route path="/pos/dashboard" element={<PosDashboardPage />} />
                 <Route path="/pos/menu" element={<MenuManagementPage />} />
+                <Route path="/pos/menu/:id" element={<MenuItemDetailPage />} />
                 <Route path="/pos/categories" element={<MenuCategoriesPage />} />
                 <Route path="/pos/waiters" element={<WaitersPage />} />
+                <Route path="/pos/waiters/:id" element={<WaiterDetailPage />} />
                 <Route path="/pos/tables" element={<TablesFloorPage />} />
                 <Route path="/pos/order/new" element={<OrderTakingPage />} />
                 <Route path="/pos/orders" element={<OrdersListPage />} />

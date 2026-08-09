@@ -170,6 +170,7 @@ function PendingOrderView({ localOrderId }: { localOrderId: string }) {
   const [addItemsOpen, setAddItemsOpen] = useState(false)
   const [closeModalOpen, setCloseModalOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<(typeof OFFLINE_PAYMENT_METHODS)[number]['value']>('CASH')
+  const [otherPaymentNote, setOtherPaymentNote] = useState('')
 
   const { data: queuedActions, refetch } = useQuery({
     queryKey: ['offline-queue', localOrderId],
@@ -205,7 +206,8 @@ function PendingOrderView({ localOrderId }: { localOrderId: string }) {
   })
 
   const closeOrder = useMutation({
-    mutationFn: () => ordersApi.close(localOrderId, { paymentMethod }),
+    mutationFn: () =>
+      ordersApi.close(localOrderId, { paymentMethod, notes: paymentMethod === 'OTHER' ? otherPaymentNote : undefined }),
     onSuccess: () => {
       toast.success('Queued — order will close once it syncs')
       navigate('/pos/tables')
@@ -313,11 +315,26 @@ function PendingOrderView({ localOrderId }: { localOrderId: string }) {
               ))}
             </div>
           </div>
+          {paymentMethod === 'OTHER' && (
+            <div>
+              <Label>Specify Payment Method</Label>
+              <Input
+                value={otherPaymentNote}
+                onChange={(e) => setOtherPaymentNote(e.target.value)}
+                placeholder="e.g. Cheque, Gift card"
+              />
+            </div>
+          )}
           <div className="rounded-xl bg-muted p-4 text-center">
             <div className="text-sm text-muted-foreground">Estimated Amount Due</div>
             <div className="text-2xl font-bold text-foreground">{formatCurrency(estimatedTotal)}</div>
           </div>
-          <Button className="w-full" isLoading={closeOrder.isPending} onClick={() => closeOrder.mutate()}>
+          <Button
+            className="w-full"
+            isLoading={closeOrder.isPending}
+            disabled={paymentMethod === 'OTHER' && !otherPaymentNote.trim()}
+            onClick={() => closeOrder.mutate()}
+          >
             Queue Close
           </Button>
         </div>
@@ -333,6 +350,7 @@ function SyncedOrderView({ id }: { id: string }) {
   const [closeModalOpen, setCloseModalOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<(typeof PAYMENT_METHODS)[number]['value']>('CASH')
   const [customerEmail, setCustomerEmail] = useState('')
+  const [otherPaymentNote, setOtherPaymentNote] = useState('')
   const [customerModalOpen, setCustomerModalOpen] = useState(false)
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [waiterModalOpen, setWaiterModalOpen] = useState(false)
@@ -438,7 +456,7 @@ function SyncedOrderView({ id }: { id: string }) {
       if (paymentMethod === 'PAYSTACK') {
         return ordersApi.paystackCheckout(id, { paymentMethod, customerEmail })
       }
-      return ordersApi.close(id, { paymentMethod })
+      return ordersApi.close(id, { paymentMethod, notes: paymentMethod === 'OTHER' ? otherPaymentNote : undefined })
     },
     onSuccess: (result) => {
       if ('paymentUrl' in result) {
@@ -664,6 +682,16 @@ function SyncedOrderView({ id }: { id: string }) {
               />
             </div>
           )}
+          {paymentMethod === 'OTHER' && (
+            <div>
+              <Label>Specify Payment Method</Label>
+              <Input
+                value={otherPaymentNote}
+                onChange={(e) => setOtherPaymentNote(e.target.value)}
+                placeholder="e.g. Cheque, Gift card"
+              />
+            </div>
+          )}
           {paymentMethod === 'WALLET' && (() => {
             const balanceAfter = walletBalance ? walletBalance.balance - order.total : undefined
             const exceedsCredit = balanceAfter !== undefined && balanceAfter < -(walletBalance?.creditLimit ?? 0)
@@ -700,6 +728,7 @@ function SyncedOrderView({ id }: { id: string }) {
             isLoading={closeOrder.isPending}
             disabled={
               (paymentMethod === 'PAYSTACK' && !customerEmail) ||
+              (paymentMethod === 'OTHER' && !otherPaymentNote.trim()) ||
               (paymentMethod === 'WALLET' &&
                 !!walletBalance &&
                 walletBalance.balance - order.total < -walletBalance.creditLimit)

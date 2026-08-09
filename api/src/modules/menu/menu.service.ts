@@ -88,6 +88,51 @@ export class MenuService {
     return this.flattenCategories(item);
   }
 
+  async getItemHistory(organizationId: string, id: string) {
+    const item = await this.prisma.menuItem.findFirst({ where: { id, organizationId } });
+    if (!item) throw new NotFoundException('Menu item not found');
+
+    const [recentOrders, stats] = await Promise.all([
+      this.prisma.orderItem.findMany({
+        where: { menuItemId: id, order: { organizationId } },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: {
+          id: true,
+          quantity: true,
+          unitPrice: true,
+          amount: true,
+          createdAt: true,
+          order: {
+            select: {
+              id: true,
+              status: true,
+              source: true,
+              createdAt: true,
+              waiter: { select: { id: true, name: true } },
+            },
+          },
+        },
+      }),
+      this.prisma.orderItem.aggregate({
+        where: { menuItemId: id, order: { organizationId, status: 'CLOSED_PAID' } },
+        _count: true,
+        _sum: { quantity: true, amount: true },
+      }),
+    ]);
+
+    return {
+      itemId: id,
+      recentOrders,
+      stats: {
+        timesOrdered: stats._count,
+        totalQuantitySold: stats._sum.quantity ?? 0,
+        totalRevenue: stats._sum.amount ?? 0,
+        lastOrderedAt: recentOrders[0]?.createdAt ?? null,
+      },
+    };
+  }
+
   private flattenCategories<T extends { categories: { category: { id: string; name: string } }[] }>(
     item: T,
   ) {

@@ -24,6 +24,14 @@ export class WaitersController {
     return this.waitersService.findAll(organizationId);
   }
 
+  @Get(':id')
+  findOne(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.waitersService.findOne(organizationId, id);
+  }
+
   @Post()
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   create(

@@ -81,6 +81,14 @@ export class MenuItemsController {
     return this.menuService.findOneItem(organizationId, id);
   }
 
+  @Get(':id/history')
+  getHistory(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.menuService.getItemHistory(organizationId, id);
+  }
+
   @Post()
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   create(

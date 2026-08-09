@@ -23,6 +23,7 @@ export function OrdersListPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const customerId = searchParams.get('customerId') || undefined
+  const waiterId = searchParams.get('waiterId') || undefined
 
   const [status, setStatus] = useState<OrderStatus | ''>('')
   const [tableId, setTableId] = useState('')
@@ -32,12 +33,13 @@ export function OrdersListPage() {
   const { data: tables } = useQuery({ queryKey: ['restaurant-tables'], queryFn: () => tablesApi.list() })
 
   const { data, isLoading } = useQuery({
-    queryKey: ['orders', { status, tableId, customerId, page }],
+    queryKey: ['orders', { status, tableId, customerId, waiterId, page }],
     queryFn: () =>
       ordersApi.list({
         status: status || undefined,
         tableId: tableId || undefined,
         customerId,
+        waiterId,
         page,
         limit,
       }),

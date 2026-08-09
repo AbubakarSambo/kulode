@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -38,6 +39,7 @@ const CSV_SAMPLE_ROWS = [
 ]
 
 export function MenuManagementPage() {
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
 
   const [itemModalOpen, setItemModalOpen] = useState(false)
@@ -143,7 +145,11 @@ export function MenuManagementPage() {
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {items?.map((item) => (
-              <Card key={item.id} className="flex h-full flex-col p-4">
+              <Card
+                key={item.id}
+                onClick={() => navigate(`/pos/menu/${item.id}`)}
+                className="flex h-full cursor-pointer flex-col p-4"
+              >
                 <CardContent className="flex h-full flex-col p-0">
                   <div className="flex items-start justify-between">
                     <div>
@@ -157,11 +163,20 @@ export function MenuManagementPage() {
                       )}
                     </div>
                     <div className="flex gap-1">
-                      <button onClick={() => openEditItem(item)} className="rounded-lg p-2 hover:bg-muted">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openEditItem(item)
+                        }}
+                        className="rounded-lg p-2 hover:bg-muted"
+                      >
                         <Pencil className="h-4 w-4 text-muted-foreground" />
                       </button>
                       <button
-                        onClick={() => setDeleteTarget({ id: item.id, name: item.name })}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setDeleteTarget({ id: item.id, name: item.name })
+                        }}
                         className="rounded-lg p-2 hover:bg-muted"
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
@@ -172,7 +187,10 @@ export function MenuManagementPage() {
                   <div className="mt-auto flex items-center justify-between pt-3">
                     <span className="text-lg font-bold text-foreground">{formatCurrency(item.price)}</span>
                     <button
-                      onClick={() => toggleAvailability.mutate({ id: item.id, isAvailable: !item.isAvailable })}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleAvailability.mutate({ id: item.id, isAvailable: !item.isAvailable })
+                      }}
                     >
                       <Badge variant={item.isAvailable ? 'success' : 'secondary'}>
                         {item.isAvailable ? 'Available' : 'Unavailable'}

@@ -13,6 +13,34 @@ export class WaitersService {
     });
   }
 
+  async findOne(organizationId: string, id: string) {
+    const waiter = await this.prisma.waiter.findFirst({ where: { id, organizationId } });
+    if (!waiter) throw new NotFoundException('Waiter not found');
+
+    const [orders, stats] = await Promise.all([
+      this.prisma.order.findMany({
+        where: { waiterId: id, organizationId },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: { id: true, status: true, total: true, source: true, createdAt: true, closedAt: true },
+      }),
+      this.prisma.order.aggregate({
+        where: { waiterId: id, organizationId, status: 'CLOSED_PAID' },
+        _count: true,
+        _sum: { total: true },
+      }),
+    ]);
+
+    return {
+      ...waiter,
+      orders,
+      stats: {
+        totalOrders: stats._count,
+        totalRevenue: stats._sum.total ?? 0,
+      },
+    };
+  }
+
   async create(organizationId: string, dto: CreateWaiterDto) {
     const existing = await this.prisma.waiter.findUnique({
       where: { organizationId_name: { organizationId, name: dto.name } },

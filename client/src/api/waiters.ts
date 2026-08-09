@@ -14,9 +14,27 @@ export interface UpdateWaiterData {
   isActive?: boolean
 }
 
+export interface WaiterOrderSummary {
+  id: string
+  status: string
+  total: number
+  source: string
+  createdAt: string
+  closedAt?: string
+}
+
+export interface WaiterWithHistory extends Waiter {
+  orders: WaiterOrderSummary[]
+  stats: { totalOrders: number; totalRevenue: number }
+}
+
 export const waitersApi = {
   list: async (): Promise<Waiter[]> => {
     const response = await apiClient.get<ApiResponse<Waiter[]>>('/waiters')
+    return response.data.data
+  },
+  get: async (id: string): Promise<WaiterWithHistory> => {
+    const response = await apiClient.get<ApiResponse<WaiterWithHistory>>(`/waiters/${id}`)
     return response.data.data
   },
   create: async (data: CreateWaiterData): Promise<Waiter> => {
