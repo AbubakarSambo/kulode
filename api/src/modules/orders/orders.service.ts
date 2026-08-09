@@ -239,8 +239,8 @@ export class OrdersService {
   async setCustomer(organizationId: string, id: string, dto: UpdateOrderCustomerDto) {
     const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
     if (!order) throw new NotFoundException('Order not found');
-    if (!OPEN_STATUSES.includes(order.status)) {
-      throw new BadRequestException('Cannot change customer on a closed order');
+    if (order.status === OrderStatus.CANCELLED) {
+      throw new BadRequestException('Cannot change customer on a cancelled order');
     }
 
     if (dto.customerId) {
@@ -260,8 +260,8 @@ export class OrdersService {
   async setWaiter(organizationId: string, id: string, dto: UpdateOrderWaiterDto) {
     const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
     if (!order) throw new NotFoundException('Order not found');
-    if (!OPEN_STATUSES.includes(order.status)) {
-      throw new BadRequestException('Cannot change waiter on a closed order');
+    if (order.status === OrderStatus.CANCELLED) {
+      throw new BadRequestException('Cannot change waiter on a cancelled order');
     }
 
     if (dto.waiterId) {

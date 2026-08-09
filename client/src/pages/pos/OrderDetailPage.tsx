@@ -505,6 +505,7 @@ function SyncedOrderView({ id }: { id: string }) {
   }
 
   const isOpenStatus = ['OPEN', 'IN_KITCHEN', 'READY'].includes(order.status)
+  const canEditCustomerOrWaiter = order.status !== 'CANCELLED'
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -543,7 +544,7 @@ function SyncedOrderView({ id }: { id: string }) {
           ) : (
             <span className="text-sm text-muted-foreground">No customer attached</span>
           )}
-          {isOpenStatus && (
+          {canEditCustomerOrWaiter && (
             <button
               type="button"
               onClick={() => {
@@ -564,7 +565,7 @@ function SyncedOrderView({ id }: { id: string }) {
           ) : (
             <span className="text-sm text-muted-foreground">No waiter assigned</span>
           )}
-          {isOpenStatus && (
+          {canEditCustomerOrWaiter && (
             <button
               type="button"
               onClick={() => {
