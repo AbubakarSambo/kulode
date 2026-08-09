@@ -9,6 +9,8 @@ export interface CsvColumn {
   key: string
   label: string
   required?: boolean
+  /** Alternate header names accepted for this column, matched the same way as `label` (case-insensitive). */
+  aliases?: string[]
 }
 
 interface RowResult {
@@ -86,7 +88,8 @@ export function CsvImportModal({
     const normalizedHeader = header.map((h) => h.trim().toLowerCase())
     const columnIndex = new Map<string, number>()
     for (const col of columns) {
-      const idx = normalizedHeader.indexOf(col.label.toLowerCase())
+      const candidates = [col.label, ...(col.aliases ?? [])].map((c) => c.toLowerCase())
+      const idx = normalizedHeader.findIndex((h) => candidates.includes(h))
       if (idx !== -1) columnIndex.set(col.key, idx)
     }
 

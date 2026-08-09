@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
@@ -29,7 +29,7 @@ const CSV_COLUMNS: CsvColumn[] = [
   { key: 'name', label: 'Name', required: true },
   { key: 'description', label: 'Description' },
   { key: 'price', label: 'Price', required: true },
-  { key: 'categories', label: 'Categories' },
+  { key: 'categories', label: 'Categories', aliases: ['Product Category', 'Category'] },
 ]
 const CSV_SAMPLE_ROWS = [
   ['Name', 'Description', 'Price', 'Categories'],
@@ -51,6 +51,15 @@ export function MenuManagementPage() {
     queryKey: ['menu-categories'],
     queryFn: () => menuCategoriesApi.list(),
   })
+
+  // Name (lowercased) -> id, used during CSV import to resolve/auto-create categories without
+  // waiting on a query refetch between rows.
+  const categoryCacheRef = useRef(new Map<string, string>())
+  useEffect(() => {
+    for (const cat of categories ?? []) {
+      categoryCacheRef.current.set(cat.name.toLowerCase(), cat.id)
+    }
+  }, [categories])
 
   const { data: items, isLoading: itemsLoading } = useQuery({
     queryKey: ['menu-items'],
@@ -272,18 +281,28 @@ export function MenuManagementPage() {
         sampleFilename="menu-items-sample.csv"
         sampleRows={CSV_SAMPLE_ROWS}
         onImportRow={async (row) => {
-          const price = Number(row.price)
-          if (Number.isNaN(price)) throw new Error(`Invalid price "${row.price}"`)
+          // Accept price formats like "1,200.00" or "₦1,200" — strip everything but digits/dot/minus.
+          const cleanedPrice = row.price.replace(/[^0-9.-]/g, '')
+          const price = Number(cleanedPrice)
+          if (cleanedPrice === '' || Number.isNaN(price)) throw new Error(`Invalid price "${row.price}"`)
 
+          // Categories may be semicolon- or slash-separated (e.g. a flattened "Bar / Cold Drinks" path).
           const categoryNames = row.categories
-            .split(';')
+            .split(/[;/]/)
             .map((n) => n.trim())
             .filter(Boolean)
-          const categoryIds = categoryNames.map((wantedName) => {
-            const match = categories?.find((c) => c.name.toLowerCase() === wantedName.toLowerCase())
-            if (!match) throw new Error(`Unknown category "${wantedName}" — create it first`)
-            return match.id
-          })
+
+          const categoryIds: string[] = []
+          for (const wantedName of categoryNames) {
+            const key = wantedName.toLowerCase()
+            let id = categoryCacheRef.current.get(key)
+            if (!id) {
+              const created = await menuCategoriesApi.create({ name: wantedName })
+              id = created.id
+              categoryCacheRef.current.set(key, id)
+            }
+            categoryIds.push(id)
+          }
 
           await menuItemsApi.create({
             name: row.name,
@@ -292,7 +311,10 @@ export function MenuManagementPage() {
             categoryIds,
           })
         }}
-        onImported={() => queryClient.invalidateQueries({ queryKey: ['menu-items'] })}
+        onImported={() => {
+          queryClient.invalidateQueries({ queryKey: ['menu-items'] })
+          queryClient.invalidateQueries({ queryKey: ['menu-categories'] })
+        }}
       />
     </div>
   )
