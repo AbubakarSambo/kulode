@@ -120,8 +120,9 @@ export function PersonalizationSurvey() {
             setStep(resumeStep);
             toast.dismiss();
             toast.success("Profile personalized successfully!", { duration: 2000 });
-          } catch {
-            toast.error("Failed to save profile personalization");
+          } catch (error) {
+            const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            toast.error(message || "Failed to save profile personalization");
           } finally {
             setIsSavingStep(false);
           }
