@@ -135,6 +135,12 @@ export const ordersApi = {
     return response.data.data
   },
 
+  /** Marks an order ready for payment without collecting it — for roles that can't accept payment (e.g. waiters). */
+  markAwaitingPayment: async (id: string): Promise<Order> => {
+    const response = await apiClient.post<ApiResponse<Order>>(`/orders/${id}/mark-awaiting-payment`)
+    return response.data.data
+  },
+
   /**
    * Closes an order against an immediate (non-PAYSTACK) payment method — those queue offline the
    * same way addItems does. PAYSTACK never queues (it needs a live checkout redirect); calling it

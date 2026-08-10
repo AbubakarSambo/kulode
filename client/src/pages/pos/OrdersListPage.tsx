@@ -1,12 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { Receipt } from 'lucide-react'
 import { ReceiptTextIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Select, Card, CardContent, Badge, EmptyState, Button } from '@/components/ui'
 import { ordersApi, tablesApi } from '@/api'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth'
 import type { OrderStatus } from '@/types'
 
 const STATUS_OPTIONS: { value: OrderStatus | ''; label: string }[] = [
@@ -30,7 +32,28 @@ export function OrdersListPage() {
   const [page, setPage] = useState(1)
   const limit = 20
 
+  const currentUser = useAuthStore((s) => s.user)
+  const isCashier = currentUser?.role === 'CASHIER'
+
   const { data: tables } = useQuery({ queryKey: ['restaurant-tables'], queryFn: () => tablesApi.list() })
+
+  // Cashier notification queue — polls the awaiting-payment count independent of whatever
+  // filter is currently selected, and toasts when a new order shows up in it.
+  const { data: awaitingPayment } = useQuery({
+    queryKey: ['orders', 'awaiting-payment-count'],
+    queryFn: () => ordersApi.list({ status: 'CLOSED_UNPAID', page: 1, limit: 1 }),
+    enabled: isCashier,
+    refetchInterval: isCashier ? 15_000 : undefined,
+  })
+  const prevAwaitingCountRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (!isCashier || !awaitingPayment) return
+    const count = awaitingPayment.meta.total
+    if (prevAwaitingCountRef.current !== null && count > prevAwaitingCountRef.current) {
+      toast.success('An order is ready for payment')
+    }
+    prevAwaitingCountRef.current = count
+  }, [awaitingPayment, isCashier])
 
   const { data, isLoading } = useQuery({
     queryKey: ['orders', { status, tableId, customerId, waiterId, page }],
@@ -51,6 +74,18 @@ export function OrdersListPage() {
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mb-4 flex flex-wrap items-center gap-3">
+          {isCashier && !!awaitingPayment?.meta.total && (
+            <Button
+              size="sm"
+              variant={status === 'CLOSED_UNPAID' ? 'default' : 'outline'}
+              onClick={() => {
+                setStatus('CLOSED_UNPAID')
+                setPage(1)
+              }}
+            >
+              Awaiting Payment ({awaitingPayment.meta.total})
+            </Button>
+          )}
           <Select
             className="w-auto"
             value={status}

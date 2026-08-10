@@ -9,8 +9,33 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { CreateUserDto, UpdateUserDto } from './dto';
-import { PaginationDto, paginate, PLAN_LIMITS } from '../../common';
-import { TokenType } from '@prisma/client';
+import { PaginationDto, paginate, PLAN_LIMITS, Role } from '../../common';
+import { TokenType, OrgModule } from '@prisma/client';
+
+const ADMIN_ROLES = [Role.ADMIN, Role.SUPER_ADMIN];
+
+// Which UserRole values are valid for an org, based on its enabled modules. POS-only orgs use
+// the WAITER/CASHIER/SUPERVISOR/MANAGER ladder; STAFF/ACCOUNTANT don't apply there and vice versa.
+const POS_ROLES = [Role.WAITER, Role.CASHIER, Role.SUPERVISOR, Role.MANAGER, Role.ADMIN, Role.SUPER_ADMIN];
+const NON_POS_ROLES = [Role.STAFF, Role.ACCOUNTANT, Role.ADMIN, Role.SUPER_ADMIN];
+
+function assertRoleMatchesModule(role: string | undefined, enabledModules: OrgModule) {
+  if (!role) return;
+  const allowed = enabledModules === 'POS' ? POS_ROLES : NON_POS_ROLES;
+  if (!allowed.includes(role as Role)) {
+    throw new ForbiddenException(
+      `Role "${role}" isn't valid for a ${enabledModules === 'POS' ? 'POS-only' : 'non-POS-only'} organization`,
+    );
+  }
+}
+
+// Only a SUPER_ADMIN may create, promote to, or otherwise touch an ADMIN/SUPER_ADMIN account.
+function assertAdminActionAllowed(actingRole: string, targetOrRequestedRole: string | undefined) {
+  if (actingRole === Role.SUPER_ADMIN) return;
+  if (targetOrRequestedRole && ADMIN_ROLES.includes(targetOrRequestedRole as Role)) {
+    throw new ForbiddenException('Only a Super Admin can create or manage Admin accounts');
+  }
+}
 
 @Injectable()
 export class UsersService {
@@ -72,7 +97,9 @@ export class UsersService {
     return user;
   }
 
-  async create(organizationId: string, dto: CreateUserDto) {
+  async create(organizationId: string, dto: CreateUserDto, actingUserRole: string) {
+    assertAdminActionAllowed(actingUserRole, dto.role);
+
     // Check if email already exists
     const existingUser = await this.prisma.user.findUnique({
       where: { email: dto.email.toLowerCase() },
@@ -82,11 +109,21 @@ export class UsersService {
       throw new ConflictException('Email already in use');
     }
 
-    // Get org for invite email and plan check
+    // Get org for invite email, plan check, and role validation
     const organization = await this.prisma.organization.findUnique({
       where: { id: organizationId },
-      select: { name: true, planTier: true, subscriptionStatus: true, trialEndDate: true, isGrandfathered: true },
+      select: {
+        name: true,
+        planTier: true,
+        subscriptionStatus: true,
+        trialEndDate: true,
+        isGrandfathered: true,
+        enabledModules: true,
+      },
     });
+    if (organization) {
+      assertRoleMatchesModule(dto.role, organization.enabledModules);
+    }
 
     // Enforce user limit unless grandfathered
     if (organization && !organization.isGrandfathered) {
@@ -127,7 +164,7 @@ export class UsersService {
           email: dto.email.toLowerCase(),
           firstName: dto.firstName,
           lastName: dto.lastName,
-          role: dto.role || 'STAFF',
+          role: dto.role || (organization?.enabledModules === 'POS' ? 'WAITER' : 'STAFF'),
           isEmailVerified: false,
         },
         select: {
@@ -213,7 +250,7 @@ export class UsersService {
     return { message: `Invitation resent to ${user.email}` };
   }
 
-  async update(id: string, organizationId: string, dto: UpdateUserDto, currentUserId: string) {
+  async update(id: string, organizationId: string, dto: UpdateUserDto, currentUserId: string, actingUserRole: string) {
     const user = await this.prisma.user.findFirst({
       where: { id, organizationId },
     });
@@ -225,6 +262,18 @@ export class UsersService {
     // Prevent users from modifying their own role
     if (id === currentUserId && dto.role && dto.role !== user.role) {
       throw new ForbiddenException('Cannot modify your own role');
+    }
+
+    // Only a Super Admin may touch an Admin/Super Admin account or promote someone into one
+    assertAdminActionAllowed(actingUserRole, user.role);
+    assertAdminActionAllowed(actingUserRole, dto.role);
+
+    if (dto.role) {
+      const organization = await this.prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { enabledModules: true },
+      });
+      if (organization) assertRoleMatchesModule(dto.role, organization.enabledModules);
     }
 
     // If email is being updated, check for conflicts
@@ -271,7 +320,7 @@ export class UsersService {
     return updatedUser;
   }
 
-  async remove(id: string, organizationId: string, currentUserId: string) {
+  async remove(id: string, organizationId: string, currentUserId: string, actingUserRole: string) {
     if (id === currentUserId) {
       throw new ForbiddenException('Cannot delete your own account');
     }
@@ -283,6 +332,8 @@ export class UsersService {
     if (!user) {
       throw new NotFoundException('User not found');
     }
+
+    assertAdminActionAllowed(actingUserRole, user.role);
 
     // Soft delete by deactivating
     await this.prisma.user.update({

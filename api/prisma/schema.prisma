@@ -13,6 +13,11 @@ enum UserRole {
   ADMIN
   ACCOUNTANT
   STAFF
+  // POS-only-org roles — STAFF/ACCOUNTANT don't apply there; see api/src/common/decorators/roles.decorator.ts.
+  MANAGER
+  SUPERVISOR
+  CASHIER
+  WAITER
 }
 
 // Which feature modules an organization has access to. Distinct from

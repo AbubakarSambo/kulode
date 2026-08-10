@@ -9,8 +9,14 @@ import { Modal } from '@/components/shared/Modal'
 import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, waitersApi } from '@/api'
 import { getQueuedActionsForLocalOrder, discardFailedAction, LOCAL_ORDER_PREFIX } from '@/lib/offlineOrderQueue'
 import { formatCurrency, cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth'
 import type { OrderItemStatus, MenuItem } from '@/types'
 import type { CreateOrderItemData } from '@/api/orders'
+
+// Matches the backend's @Roles list on POST /orders/:id/close — only these roles can accept payment.
+const PAYMENT_CAPABLE_ROLES = ['STAFF', 'ACCOUNTANT', 'CASHIER', 'ADMIN', 'SUPER_ADMIN']
+// Matches the backend's @Roles list on POST /orders/:id/cancel.
+const VOID_CAPABLE_ROLES = ['STAFF', 'ACCOUNTANT', 'SUPERVISOR', 'MANAGER', 'ADMIN', 'SUPER_ADMIN']
 
 const ITEM_STATUS_FLOW: OrderItemStatus[] = ['PENDING', 'PREPARING', 'READY', 'SERVED']
 
@@ -346,6 +352,9 @@ function PendingOrderView({ localOrderId }: { localOrderId: string }) {
 function SyncedOrderView({ id }: { id: string }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const currentUser = useAuthStore((s) => s.user)
+  const canAcceptPayment = !!currentUser && PAYMENT_CAPABLE_ROLES.includes(currentUser.role)
+  const canVoid = !!currentUser && VOID_CAPABLE_ROLES.includes(currentUser.role)
   const [addItemsOpen, setAddItemsOpen] = useState(false)
   const [closeModalOpen, setCloseModalOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<(typeof PAYMENT_METHODS)[number]['value']>('CASH')
@@ -448,6 +457,18 @@ function SyncedOrderView({ id }: { id: string }) {
     onError: (err: unknown) => {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
       toast.error(message || 'Failed to cancel order')
+    },
+  })
+
+  const markAwaitingPayment = useMutation({
+    mutationFn: () => ordersApi.markAwaitingPayment(id),
+    onSuccess: () => {
+      toast.success('Order marked ready — a cashier can now take payment')
+      queryClient.invalidateQueries({ queryKey: ['order', id] })
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to mark order ready for payment')
     },
   })
 
@@ -635,12 +656,39 @@ function SyncedOrderView({ id }: { id: string }) {
 
         {isOpenStatus && (
           <div className="mt-4 flex gap-3">
-            <Button variant="outline" className="flex-1" onClick={() => cancelOrder.mutate()} isLoading={cancelOrder.isPending}>
-              <X className="mr-1.5 h-4 w-4" /> Cancel Order
-            </Button>
-            <Button className="flex-1" onClick={() => setCloseModalOpen(true)}>
-              Close & Pay
-            </Button>
+            {canVoid && (
+              <Button variant="outline" className="flex-1" onClick={() => cancelOrder.mutate()} isLoading={cancelOrder.isPending}>
+                <X className="mr-1.5 h-4 w-4" /> Void Order
+              </Button>
+            )}
+            {canAcceptPayment ? (
+              <Button className="flex-1" onClick={() => setCloseModalOpen(true)}>
+                Close & Pay
+              </Button>
+            ) : (
+              <Button
+                className="flex-1"
+                onClick={() => markAwaitingPayment.mutate()}
+                isLoading={markAwaitingPayment.isPending}
+              >
+                Mark Ready for Payment
+              </Button>
+            )}
+          </div>
+        )}
+
+        {order.status === 'CLOSED_UNPAID' && (
+          <div className="mt-4 flex gap-3">
+            {canVoid && (
+              <Button variant="outline" className="flex-1" onClick={() => cancelOrder.mutate()} isLoading={cancelOrder.isPending}>
+                <X className="mr-1.5 h-4 w-4" /> Void Order
+              </Button>
+            )}
+            {canAcceptPayment && (
+              <Button className="flex-1" onClick={() => setCloseModalOpen(true)}>
+                Accept Payment
+              </Button>
+            )}
           </div>
         )}
       </div>
