@@ -24,7 +24,7 @@ import {
   CloseOrderDto,
   OrderFilterDto,
 } from './dto';
-import { CurrentUser, CurrentUserData } from '../../common';
+import { CurrentUser, CurrentUserData, Roles, Role } from '../../common';
 
 @ApiTags('Orders')
 @ApiBearerAuth()
@@ -97,7 +97,17 @@ export class OrdersController {
     return this.ordersService.setWaiter(organizationId, id, dto);
   }
 
+  @Post(':id/mark-awaiting-payment')
+  @Roles(Role.WAITER, Role.SUPERVISOR, Role.MANAGER, Role.ADMIN, Role.SUPER_ADMIN, Role.CASHIER)
+  markAwaitingPayment(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.ordersService.markAwaitingPayment(organizationId, id);
+  }
+
   @Post(':id/cancel')
+  @Roles(Role.STAFF, Role.ACCOUNTANT, Role.SUPERVISOR, Role.MANAGER, Role.ADMIN, Role.SUPER_ADMIN)
   cancel(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -106,6 +116,7 @@ export class OrdersController {
   }
 
   @Post(':id/close')
+  @Roles(Role.STAFF, Role.ACCOUNTANT, Role.CASHIER, Role.ADMIN, Role.SUPER_ADMIN)
   close(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CloseOrderDto,
@@ -115,6 +126,7 @@ export class OrdersController {
   }
 
   @Post(':id/paystack-checkout')
+  @Roles(Role.STAFF, Role.ACCOUNTANT, Role.CASHIER, Role.ADMIN, Role.SUPER_ADMIN)
   async paystackCheckout(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CloseOrderDto,

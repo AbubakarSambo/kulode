@@ -11,6 +11,8 @@ import { Modal } from '@/components/shared/Modal'
 import apiClient from '@/api/client'
 import { posthog } from '@/lib/posthog'
 import { cn } from '@/lib/utils'
+import { useOrgModules } from '@/hooks/useOrgModules'
+import { useAuthStore } from '@/stores/auth'
 import type { ApiResponse, PaginatedResponse, UserRole } from '@/types'
 
 interface UserData {
@@ -57,7 +59,7 @@ const userSchema = z.object({
   email: z.string().email('Invalid email'),
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
-  role: z.enum(['ADMIN', 'ACCOUNTANT', 'STAFF']),
+  role: z.string().min(1, 'Role is required'),
 })
 
 type UserFormData = z.infer<typeof userSchema>
@@ -67,11 +69,35 @@ const roleLabels: Record<UserRole, string> = {
   ADMIN: 'Admin',
   ACCOUNTANT: 'Accountant',
   STAFF: 'Staff',
+  MANAGER: 'Manager',
+  SUPERVISOR: 'Supervisor',
+  CASHIER: 'Cashier',
+  WAITER: 'Waiter',
 }
+
+// Creatable roles by org type — SUPER_ADMIN is never assignable through this UI.
+const POS_CREATABLE_ROLES: { value: UserRole; label: string }[] = [
+  { value: 'WAITER', label: 'Waiter' },
+  { value: 'CASHIER', label: 'Cashier' },
+  { value: 'SUPERVISOR', label: 'Supervisor' },
+  { value: 'MANAGER', label: 'Manager' },
+  { value: 'ADMIN', label: 'Admin' },
+]
+const DEFAULT_CREATABLE_ROLES: { value: UserRole; label: string }[] = [
+  { value: 'ADMIN', label: 'Admin' },
+  { value: 'ACCOUNTANT', label: 'Accountant' },
+  { value: 'STAFF', label: 'Staff' },
+]
 
 export function UsersPage() {
   const queryClient = useQueryClient()
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const { enabledModules } = useOrgModules()
+  const currentUser = useAuthStore((s) => s.user)
+  const isPosOnly = enabledModules === 'POS'
+  const roleOptions = (isPosOnly ? POS_CREATABLE_ROLES : DEFAULT_CREATABLE_ROLES).filter(
+    (opt) => opt.value !== 'ADMIN' || currentUser?.role === 'SUPER_ADMIN',
+  )
 
   const { data, isLoading } = useQuery({
     queryKey: ['users'],
@@ -89,7 +115,7 @@ export function UsersPage() {
       email: '',
       firstName: '',
       lastName: '',
-      role: 'STAFF',
+      role: isPosOnly ? 'WAITER' : 'STAFF',
     },
   })
 
@@ -286,9 +312,9 @@ export function UsersPage() {
               {...register('role')}
               error={errors.role?.message}
             >
-              <option value="ADMIN">Admin</option>
-              <option value="ACCOUNTANT">Accountant</option>
-              <option value="STAFF">Staff</option>
+              {roleOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
             </Select>
           </div>
 

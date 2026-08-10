@@ -16,6 +16,10 @@ import {
 import { paginate, runIdempotent } from '../../common';
 
 const OPEN_STATUSES: OrderStatus[] = [OrderStatus.OPEN, OrderStatus.IN_KITCHEN, OrderStatus.READY];
+// CLOSED_UNPAID means "a waiter marked this ready for payment, a cashier hasn't taken it yet" —
+// still voidable, and still eligible to be closed out with an actual payment.
+const VOIDABLE_STATUSES: OrderStatus[] = [...OPEN_STATUSES, OrderStatus.CLOSED_UNPAID];
+const PAYABLE_STATUSES: OrderStatus[] = [...OPEN_STATUSES, OrderStatus.CLOSED_UNPAID];
 
 function toNumber(val: Prisma.Decimal | number): number {
   return typeof val === 'number' ? val : Number(val);
@@ -281,15 +285,15 @@ export class OrdersService {
   async cancel(organizationId: string, id: string) {
     const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
     if (!order) throw new NotFoundException('Order not found');
-    if (!OPEN_STATUSES.includes(order.status)) {
+    if (!VOIDABLE_STATUSES.includes(order.status)) {
       throw new BadRequestException(`Cannot cancel a ${order.status.toLowerCase()} order`);
     }
 
     await this.prisma.$transaction(async (tx) => {
       // Conditional update guards against a concurrent close/cancel racing past the check above —
-      // only an order still in an open status actually transitions.
+      // only an order still in a voidable status actually transitions.
       const result = await tx.order.updateMany({
-        where: { id, organizationId, status: { in: OPEN_STATUSES } },
+        where: { id, organizationId, status: { in: VOIDABLE_STATUSES } },
         data: { status: 'CANCELLED' },
       });
       if (result.count === 0) {
@@ -301,6 +305,29 @@ export class OrdersService {
     });
 
     return { message: 'Order cancelled successfully' };
+  }
+
+  /**
+   * A waiter (or above) marks an order done and ready for a cashier to collect payment on —
+   * splits "close" from "accept payment" for POS-only orgs that use the cashier role. No
+   * Payment row and no inventory deduction yet; the table stays occupied until payment lands.
+   */
+  async markAwaitingPayment(organizationId: string, id: string) {
+    const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
+    if (!order) throw new NotFoundException('Order not found');
+    if (!OPEN_STATUSES.includes(order.status)) {
+      throw new BadRequestException(`Cannot mark a ${order.status.toLowerCase()} order as awaiting payment`);
+    }
+
+    const result = await this.prisma.order.updateMany({
+      where: { id, organizationId, status: { in: OPEN_STATUSES } },
+      data: { status: 'CLOSED_UNPAID', closedAt: new Date() },
+    });
+    if (result.count === 0) {
+      throw new BadRequestException('Order was already closed or cancelled');
+    }
+
+    return this.prisma.order.findUniqueOrThrow({ where: { id }, include: this.orderInclude });
   }
 
   /**
@@ -324,7 +351,7 @@ export class OrdersService {
 
     const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
     if (!order) throw new NotFoundException('Order not found');
-    if (!OPEN_STATUSES.includes(order.status)) {
+    if (!PAYABLE_STATUSES.includes(order.status)) {
       throw new BadRequestException(`Cannot close a ${order.status.toLowerCase()} order`);
     }
     if (dto.paymentMethod === 'WALLET' && !order.customerId) {
@@ -342,7 +369,7 @@ export class OrdersService {
       // only an order still in an open status actually transitions, so double-submits (e.g. a
       // cashier double-tapping "close") can't create two Payment rows for the same order.
       const result = await tx.order.updateMany({
-        where: { id, organizationId, status: { in: OPEN_STATUSES } },
+        where: { id, organizationId, status: { in: PAYABLE_STATUSES } },
         data: { amountPaid: amount, status: 'CLOSED_PAID', closedAt: new Date() },
       });
       if (result.count === 0) {

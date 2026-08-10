@@ -50,9 +50,9 @@ export class UsersController {
   @ApiResponse({ status: 409, description: 'Email already in use' })
   async create(
     @Body() dto: CreateUserDto,
-    @CurrentUser('organizationId') organizationId: string,
+    @CurrentUser() user: CurrentUserData,
   ) {
-    return this.usersService.create(organizationId, dto);
+    return this.usersService.create(user.organizationId, dto, user.role);
   }
 
   @Patch(':id')
@@ -65,7 +65,7 @@ export class UsersController {
     @Body() dto: UpdateUserDto,
     @CurrentUser() user: CurrentUserData,
   ) {
-    return this.usersService.update(id, user.organizationId, dto, user.id);
+    return this.usersService.update(id, user.organizationId, dto, user.id, user.role);
   }
 
   @Post(':id/resend-invite')
@@ -89,6 +89,6 @@ export class UsersController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: CurrentUserData,
   ) {
-    return this.usersService.remove(id, user.organizationId, user.id);
+    return this.usersService.remove(id, user.organizationId, user.id, user.role);
   }
 }

@@ -83,7 +83,16 @@ export interface User {
   }
 }
 
-export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'ACCOUNTANT' | 'STAFF'
+export type UserRole =
+  | 'SUPER_ADMIN'
+  | 'ADMIN'
+  | 'ACCOUNTANT'
+  | 'STAFF'
+  // POS-only-org roles
+  | 'MANAGER'
+  | 'SUPERVISOR'
+  | 'CASHIER'
+  | 'WAITER'
 
 export interface AuthResponse {
   accessToken: string
