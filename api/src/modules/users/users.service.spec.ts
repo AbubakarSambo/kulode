@@ -375,5 +375,25 @@ describe('UsersService — user limit enforcement', () => {
         service.create(ORG_ID, { ...createDto, role: Role.WAITER }, Role.SUPER_ADMIN),
       ).resolves.toBeDefined();
     });
+
+    it('allows assigning CASHIER on a BOTH-module org (POS ladder also applies there)', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.organization.findUnique.mockResolvedValue(orgWith({ enabledModules: 'BOTH' }));
+      prisma.user.count.mockResolvedValue(0);
+      setupTransactionMock(prisma);
+
+      await expect(
+        service.create(ORG_ID, { ...createDto, role: Role.CASHIER }, Role.SUPER_ADMIN),
+      ).resolves.toBeDefined();
+    });
+
+    it('rejects assigning ACCOUNTANT on a BOTH-module org (no accountant-equivalent in the POS ladder)', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.organization.findUnique.mockResolvedValue(orgWith({ enabledModules: 'BOTH' }));
+
+      await expect(
+        service.create(ORG_ID, { ...createDto, role: Role.ACCOUNTANT }, Role.SUPER_ADMIN),
+      ).rejects.toThrow(ForbiddenException);
+    });
   });
 });

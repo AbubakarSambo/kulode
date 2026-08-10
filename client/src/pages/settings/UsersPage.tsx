@@ -92,10 +92,12 @@ const DEFAULT_CREATABLE_ROLES: { value: UserRole; label: string }[] = [
 export function UsersPage() {
   const queryClient = useQueryClient()
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const { enabledModules } = useOrgModules()
+  // Any org running POS (POS-only or BOTH) uses the waiter/cashier ladder — only a pure
+  // invoicing-only org keeps STAFF/ACCOUNTANT. Matches usesPosRoles() on the backend.
+  const { hasPos } = useOrgModules()
   const currentUser = useAuthStore((s) => s.user)
-  const isPosOnly = enabledModules === 'POS'
-  const roleOptions = (isPosOnly ? POS_CREATABLE_ROLES : DEFAULT_CREATABLE_ROLES).filter(
+  const usesPosRoles = hasPos
+  const roleOptions = (usesPosRoles ? POS_CREATABLE_ROLES : DEFAULT_CREATABLE_ROLES).filter(
     (opt) => opt.value !== 'ADMIN' || currentUser?.role === 'SUPER_ADMIN',
   )
 
@@ -115,7 +117,7 @@ export function UsersPage() {
       email: '',
       firstName: '',
       lastName: '',
-      role: isPosOnly ? 'WAITER' : 'STAFF',
+      role: usesPosRoles ? 'WAITER' : 'STAFF',
     },
   })
 

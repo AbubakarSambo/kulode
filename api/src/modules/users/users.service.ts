@@ -14,17 +14,24 @@ import { TokenType, OrgModule } from '@prisma/client';
 
 const ADMIN_ROLES = [Role.ADMIN, Role.SUPER_ADMIN];
 
-// Which UserRole values are valid for an org, based on its enabled modules. POS-only orgs use
-// the WAITER/CASHIER/SUPERVISOR/MANAGER ladder; STAFF/ACCOUNTANT don't apply there and vice versa.
+// Which UserRole values are valid for an org, based on its enabled modules. Any org that runs
+// the POS module (POS-only or BOTH) uses the WAITER/CASHIER/SUPERVISOR/MANAGER ladder for floor
+// operations — STAFF/ACCOUNTANT are reserved for orgs that never touch POS (invoicing-only).
+// A BOTH org's back-office/reporting access (Reports, AI Chat) is ADMIN+/SUPER_ADMIN-only as a
+// result — there's no ACCOUNTANT-equivalent inside the POS ladder.
 const POS_ROLES = [Role.WAITER, Role.CASHIER, Role.SUPERVISOR, Role.MANAGER, Role.ADMIN, Role.SUPER_ADMIN];
 const NON_POS_ROLES = [Role.STAFF, Role.ACCOUNTANT, Role.ADMIN, Role.SUPER_ADMIN];
 
+function usesPosRoles(enabledModules: OrgModule): boolean {
+  return enabledModules === 'POS' || enabledModules === 'BOTH';
+}
+
 function assertRoleMatchesModule(role: string | undefined, enabledModules: OrgModule) {
   if (!role) return;
-  const allowed = enabledModules === 'POS' ? POS_ROLES : NON_POS_ROLES;
+  const allowed = usesPosRoles(enabledModules) ? POS_ROLES : NON_POS_ROLES;
   if (!allowed.includes(role as Role)) {
     throw new ForbiddenException(
-      `Role "${role}" isn't valid for a ${enabledModules === 'POS' ? 'POS-only' : 'non-POS-only'} organization`,
+      `Role "${role}" isn't valid for a ${usesPosRoles(enabledModules) ? 'POS' : 'non-POS'} organization`,
     );
   }
 }
@@ -164,7 +171,7 @@ export class UsersService {
           email: dto.email.toLowerCase(),
           firstName: dto.firstName,
           lastName: dto.lastName,
-          role: dto.role || (organization?.enabledModules === 'POS' ? 'WAITER' : 'STAFF'),
+          role: dto.role || (organization && usesPosRoles(organization.enabledModules) ? 'WAITER' : 'STAFF'),
           isEmailVerified: false,
         },
         select: {

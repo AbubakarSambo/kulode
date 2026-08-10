@@ -96,7 +96,10 @@ export function MenuManagementPage() {
       toast.success('Item deleted')
       setDeleteTarget(null)
     },
-    onError: () => toast.error('Failed to delete item'),
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to delete item')
+    },
   })
 
   const openNewItem = () => {
