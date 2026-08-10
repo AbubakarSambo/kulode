@@ -9,9 +9,21 @@ export interface BottomSheetProps {
   title: string
   onClearAll?: () => void
   children: React.ReactNode
+  /** When false, the sheet renders on all screen sizes instead of only below the `md` breakpoint. Defaults to true. */
+  mobileOnly?: boolean
+  /** Extra classes for the sheet panel, e.g. to cap its width on larger screens. */
+  panelClassName?: string
 }
 
-export function BottomSheet({ isOpen, onClose, title, onClearAll, children }: BottomSheetProps) {
+export function BottomSheet({
+  isOpen,
+  onClose,
+  title,
+  onClearAll,
+  children,
+  mobileOnly = true,
+  panelClassName,
+}: BottomSheetProps) {
   const [shouldRender, setShouldRender] = useState(isOpen)
   const [isAnimated, setIsAnimated] = useState(isOpen)
 
@@ -48,7 +60,7 @@ export function BottomSheet({ isOpen, onClose, title, onClearAll, children }: Bo
   if (!shouldRender) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-50 md:hidden flex items-end justify-center">
+    <div className={cn('fixed inset-0 z-50 flex items-end justify-center', mobileOnly && 'md:hidden')}>
       {/* Backdrop */}
       <div
         className={cn(
@@ -62,7 +74,8 @@ export function BottomSheet({ isOpen, onClose, title, onClearAll, children }: Bo
       <div
         className={cn(
           "relative w-full max-h-[85vh] bg-white rounded-t-[32px] p-6 shadow-[0px_-12px_32px_rgba(0,55,176,0.12)] z-10 flex flex-col transition-all",
-          isAnimated ? "translate-y-0 opacity-100" : "translate-y-full opacity-90"
+          isAnimated ? "translate-y-0 opacity-100" : "translate-y-full opacity-90",
+          panelClassName,
         )}
         style={{
           transitionDuration: '400ms',

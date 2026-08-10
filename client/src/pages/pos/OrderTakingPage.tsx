@@ -5,10 +5,11 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Minus, Plus, ArrowLeft, UserPlus, X, Search } from 'lucide-react'
+import { Minus, Plus, ArrowLeft, UserPlus, X, Search, ChevronDown } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Label, Input, SearchableSelect } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
+import { BottomSheet } from '@/components/shared/BottomSheet'
 import { menuCategoriesApi, menuItemsApi, ordersApi, customersApi, tablesApi, waitersApi } from '@/api'
 import { formatCurrency, cn } from '@/lib/utils'
 import type { OrderSource } from '@/types'
@@ -20,6 +21,13 @@ const customerSchema = z.object({
   notes: z.string().optional(),
 })
 type CustomerFormData = z.infer<typeof customerSchema>
+
+const tableSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  section: z.string().optional(),
+  capacity: z.string().optional(),
+})
+type TableFormData = z.infer<typeof tableSchema>
 
 interface CartLine {
   menuItemId: string
@@ -51,6 +59,8 @@ export function OrderTakingPage() {
   const [newCustomerOpen, setNewCustomerOpen] = useState(false)
   const [selectedTableId, setSelectedTableId] = useState('')
   const [waiterId, setWaiterId] = useState('')
+  const [assignmentsOpen, setAssignmentsOpen] = useState(false)
+  const [newTableOpen, setNewTableOpen] = useState(false)
 
   const { data: tables } = useQuery({
     queryKey: ['restaurant-tables'],
@@ -75,6 +85,14 @@ export function OrderTakingPage() {
     () => (waiters ?? []).filter((w) => w.isActive).map((w) => ({ id: w.id, label: w.name })),
     [waiters],
   )
+  const selectedCustomerLabel = useMemo(
+    () => customerOptions.find((c) => c.id === customerId)?.label,
+    [customerOptions, customerId],
+  )
+  const selectedWaiterLabel = useMemo(
+    () => waiterOptions.find((w) => w.id === waiterId)?.label,
+    [waiterOptions, waiterId],
+  )
 
   const customerForm = useForm<CustomerFormData>({ resolver: zodResolver(customerSchema) })
   const createCustomer = useMutation({
@@ -89,6 +107,27 @@ export function OrderTakingPage() {
     onError: (err: unknown) => {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
       toast.error(message || 'Failed to add customer')
+    },
+  })
+
+  const tableForm = useForm<TableFormData>({ resolver: zodResolver(tableSchema) })
+  const createTable = useMutation({
+    mutationFn: (data: TableFormData) =>
+      tablesApi.create({
+        name: data.name,
+        section: data.section || undefined,
+        capacity: data.capacity ? Number(data.capacity) : undefined,
+      }),
+    onSuccess: (table) => {
+      queryClient.invalidateQueries({ queryKey: ['restaurant-tables'] })
+      setSelectedTableId(table.id)
+      setNewTableOpen(false)
+      tableForm.reset()
+      toast.success('Table added')
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to add table')
     },
   })
 
@@ -188,7 +227,16 @@ export function OrderTakingPage() {
 
           {!tableId && source === 'DINE_IN' && (
             <div className="mb-4">
-              <Label>Table</Label>
+              <div className="flex items-center justify-between">
+                <Label>Table</Label>
+                <button
+                  type="button"
+                  onClick={() => setNewTableOpen(true)}
+                  className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  <Plus className="h-3.5 w-3.5" /> New
+                </button>
+              </div>
               <div className="mt-1 flex flex-wrap gap-2">
                 {availableTables.map((t) => (
                   <button
@@ -299,7 +347,49 @@ export function OrderTakingPage() {
             ))}
           </div>
 
-          <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => setAssignmentsOpen(true)}
+            className="mt-2 flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-muted/50 px-3 py-2.5 text-left"
+          >
+            <div className="min-w-0">
+              <div className="text-xs font-medium text-muted-foreground">Customer &amp; Waiter</div>
+              <div className="truncate text-sm font-semibold text-foreground">
+                {selectedCustomerLabel || selectedWaiterLabel
+                  ? [selectedCustomerLabel, selectedWaiterLabel].filter(Boolean).join(' · ')
+                  : 'Not set (optional)'}
+              </div>
+            </div>
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+          </button>
+
+          <Card className="mt-4 p-4">
+            <CardContent className="flex items-center justify-between p-0">
+              <span className="font-semibold text-muted-foreground">Total</span>
+              <span className="text-xl font-bold text-foreground">{formatCurrency(total)}</span>
+            </CardContent>
+          </Card>
+
+          <Button
+            className="mt-4 h-14 text-base"
+            disabled={cart.length === 0 || (source === 'DINE_IN' && !effectiveTableId)}
+            isLoading={createOrder.isPending}
+            onClick={() => createOrder.mutate()}
+          >
+            Send Order
+          </Button>
+        </div>
+      </div>
+
+      <BottomSheet
+        isOpen={assignmentsOpen}
+        onClose={() => setAssignmentsOpen(false)}
+        title="Customer & Waiter"
+        mobileOnly={false}
+        panelClassName="sm:max-w-md sm:mx-auto sm:rounded-b-[32px]"
+      >
+        <div className="space-y-4 overflow-y-auto">
+          <div>
             <div className="flex items-center justify-between">
               <Label>Customer (optional)</Label>
               <button
@@ -332,7 +422,7 @@ export function OrderTakingPage() {
             </div>
           </div>
 
-          <div className="mt-2">
+          <div>
             <Label>Waiter (optional)</Label>
             <div className="mt-1 flex items-center gap-1.5">
               <div className="flex-1">
@@ -356,23 +446,11 @@ export function OrderTakingPage() {
             </div>
           </div>
 
-          <Card className="mt-4 p-4">
-            <CardContent className="flex items-center justify-between p-0">
-              <span className="font-semibold text-muted-foreground">Total</span>
-              <span className="text-xl font-bold text-foreground">{formatCurrency(total)}</span>
-            </CardContent>
-          </Card>
-
-          <Button
-            className="mt-4 h-14 text-base"
-            disabled={cart.length === 0 || (source === 'DINE_IN' && !effectiveTableId)}
-            isLoading={createOrder.isPending}
-            onClick={() => createOrder.mutate()}
-          >
-            Send Order
+          <Button className="w-full" onClick={() => setAssignmentsOpen(false)}>
+            Done
           </Button>
         </div>
-      </div>
+      </BottomSheet>
 
       <Modal isOpen={newCustomerOpen} onClose={() => setNewCustomerOpen(false)} title="New Customer">
         <form onSubmit={customerForm.handleSubmit((data) => createCustomer.mutate(data))} className="space-y-4">
@@ -390,6 +468,26 @@ export function OrderTakingPage() {
           </div>
           <Button type="submit" className="w-full" isLoading={createCustomer.isPending}>
             Add Customer
+          </Button>
+        </form>
+      </Modal>
+
+      <Modal isOpen={newTableOpen} onClose={() => setNewTableOpen(false)} title="New Table">
+        <form onSubmit={tableForm.handleSubmit((data) => createTable.mutate(data))} className="space-y-4">
+          <div>
+            <Label>Name</Label>
+            <Input {...tableForm.register('name')} placeholder="e.g. Table 12" />
+          </div>
+          <div>
+            <Label>Section (optional)</Label>
+            <Input {...tableForm.register('section')} placeholder="e.g. Patio" />
+          </div>
+          <div>
+            <Label>Capacity (optional)</Label>
+            <Input type="number" {...tableForm.register('capacity')} placeholder="e.g. 4" />
+          </div>
+          <Button type="submit" className="w-full" isLoading={createTable.isPending}>
+            Add Table
           </Button>
         </form>
       </Modal>

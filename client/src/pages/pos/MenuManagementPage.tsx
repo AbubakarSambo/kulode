@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Upload } from 'lucide-react'
+import { Plus, Pencil, Trash2, Upload, LayoutGrid, List } from 'lucide-react'
 import { ChefHatIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, Badge, ConfirmDialog, EmptyState } from '@/components/ui'
@@ -48,6 +48,7 @@ export function MenuManagementPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
 
   const { data: categories, isLoading: categoriesLoading } = useQuery({
     queryKey: ['menu-categories'],
@@ -138,6 +139,11 @@ export function MenuManagementPage() {
     })
   }
 
+  const allSelected = !!items?.length && selectedIds.size === items.length
+  const toggleAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(items?.map((i) => i.id)))
+  }
+
   const openNewItem = () => {
     setEditingItem(null)
     itemForm.reset({ name: '', description: '', price: undefined, categoryIds: [] })
@@ -171,6 +177,24 @@ export function MenuManagementPage() {
         icon={InventoryIcon}
         action={
           <div className="flex gap-2">
+            <div className="flex items-center rounded-lg border border-border p-0.5">
+              <button
+                type="button"
+                onClick={() => setViewMode('grid')}
+                aria-label="Grid view"
+                className={cn('rounded-md p-1.5', viewMode === 'grid' ? 'bg-muted text-foreground' : 'text-muted-foreground')}
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                aria-label="List view"
+                className={cn('rounded-md p-1.5', viewMode === 'list' ? 'bg-muted text-foreground' : 'text-muted-foreground')}
+              >
+                <List className="h-4 w-4" />
+              </button>
+            </div>
             <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
               <Upload className="mr-1.5 h-4 w-4" /> Import CSV
             </Button>
@@ -182,17 +206,27 @@ export function MenuManagementPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-        {selectedIds.size > 0 && (
+        {!!items?.length && (
           <div className="mb-4 flex items-center justify-between rounded-xl border border-border bg-muted/50 px-4 py-2.5">
-            <span className="text-sm font-medium text-foreground">{selectedIds.size} selected</span>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setSelectedIds(new Set())}>
-                Cancel
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setBulkDeleteOpen(true)}>
-                <Trash2 className="mr-1.5 h-4 w-4 text-destructive" /> Delete Selected
-              </Button>
-            </div>
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={toggleAll}
+                className="h-4 w-4 rounded border-border accent-primary"
+              />
+              {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
+            </label>
+            {selectedIds.size > 0 && (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setSelectedIds(new Set())}>
+                  Cancel
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setBulkDeleteOpen(true)}>
+                  <Trash2 className="mr-1.5 h-4 w-4 text-destructive" /> Delete Selected
+                </Button>
+              </div>
+            )}
           </div>
         )}
         {!categoriesLoading && !itemsLoading && (!items || items.length === 0) ? (
@@ -203,6 +237,69 @@ export function MenuManagementPage() {
             actionLabel="Add Menu Item"
             onAction={openNewItem}
           />
+        ) : viewMode === 'list' ? (
+          <Card className="overflow-hidden p-0">
+            <CardContent className="divide-y divide-border p-0">
+              {items?.map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => navigate(`/pos/menu/${item.id}`)}
+                  className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-muted/50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(item.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={() => toggleSelected(item.id)}
+                    className="h-4 w-4 shrink-0 rounded border-border accent-primary"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="truncate font-semibold text-foreground">{item.name}</h3>
+                      {item.categories.map((cat) => (
+                        <Badge key={cat.id} variant="secondary">{cat.name}</Badge>
+                      ))}
+                    </div>
+                    {item.description && (
+                      <p className="mt-0.5 truncate text-sm text-muted-foreground">{item.description}</p>
+                    )}
+                  </div>
+                  <span className="shrink-0 font-semibold text-foreground">{formatCurrency(item.price)}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      toggleAvailability.mutate({ id: item.id, isAvailable: !item.isAvailable })
+                    }}
+                    className="shrink-0"
+                  >
+                    <Badge variant={item.isAvailable ? 'success' : 'secondary'}>
+                      {item.isAvailable ? 'Available' : 'Unavailable'}
+                    </Badge>
+                  </button>
+                  <div className="flex shrink-0 gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        openEditItem(item)
+                      }}
+                      className="rounded-lg p-2 hover:bg-muted"
+                    >
+                      <Pencil className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setDeleteTarget({ id: item.id, name: item.name })
+                      }}
+                      className="rounded-lg p-2 hover:bg-muted"
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {items?.map((item) => (
