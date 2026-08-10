@@ -38,6 +38,8 @@ export function MenuCategoriesPage() {
   const [importOpen, setImportOpen] = useState(false)
   const [editingCategory, setEditingCategory] = useState<MenuCategory | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
 
   const { data: categories, isLoading } = useQuery({
     queryKey: ['menu-categories'],
@@ -75,6 +77,35 @@ export function MenuCategoriesPage() {
     onError: () => toast.error('Failed to delete category'),
   })
 
+  const bulkDelete = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const results = await Promise.allSettled(ids.map((id) => menuCategoriesApi.delete(id)))
+      return results
+    },
+    onSuccess: (results) => {
+      queryClient.invalidateQueries({ queryKey: ['menu-categories'] })
+      const failed = results.filter((r) => r.status === 'rejected').length
+      const succeeded = results.length - failed
+      if (failed === 0) {
+        toast.success(`${succeeded} categor${succeeded === 1 ? 'y' : 'ies'} deleted`)
+      } else {
+        toast.error(`${succeeded} deleted, ${failed} failed`)
+      }
+      setSelectedIds(new Set())
+      setBulkDeleteOpen(false)
+    },
+    onError: () => toast.error('Failed to delete categories'),
+  })
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   const openNewCategory = () => {
     setEditingCategory(null)
     categoryForm.reset({ name: '', sortOrder: (categories?.length ?? 0) + 1 })
@@ -106,6 +137,19 @@ export function MenuCategoriesPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        {selectedIds.size > 0 && (
+          <div className="mb-4 flex items-center justify-between rounded-xl border border-border bg-muted/50 px-4 py-2.5">
+            <span className="text-sm font-medium text-foreground">{selectedIds.size} selected</span>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setSelectedIds(new Set())}>
+                Cancel
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setBulkDeleteOpen(true)}>
+                <Trash2 className="mr-1.5 h-4 w-4 text-destructive" /> Delete Selected
+              </Button>
+            </div>
+          </div>
+        )}
         {!isLoading && (!categories || categories.length === 0) ? (
           <EmptyState
             icon={Tag01Icon}
@@ -122,9 +166,17 @@ export function MenuCategoriesPage() {
               .map((category) => (
                 <Card key={category.id} className="p-4">
                   <CardContent className="flex items-center justify-between p-0">
-                    <div>
-                      <h3 className="font-semibold text-foreground">{category.name}</h3>
-                      <p className="mt-1 text-xs text-muted-foreground">Order: {category.sortOrder}</p>
+                    <div className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(category.id)}
+                        onChange={() => toggleSelected(category.id)}
+                        className="mt-1 h-4 w-4 shrink-0 rounded border-border accent-primary"
+                      />
+                      <div>
+                        <h3 className="font-semibold text-foreground">{category.name}</h3>
+                        <p className="mt-1 text-xs text-muted-foreground">Order: {category.sortOrder}</p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-1">
                       <button onClick={() => toggleActive.mutate({ id: category.id, isActive: !category.isActive })}>
@@ -181,6 +233,17 @@ export function MenuCategoriesPage() {
         confirmText="Delete"
         isDangerous
         isLoading={deleteCategory.isPending}
+      />
+
+      <ConfirmDialog
+        isOpen={bulkDeleteOpen}
+        onClose={() => setBulkDeleteOpen(false)}
+        onConfirm={() => bulkDelete.mutate(Array.from(selectedIds))}
+        title={`Delete ${selectedIds.size} categor${selectedIds.size === 1 ? 'y' : 'ies'}?`}
+        description="This cannot be undone."
+        confirmText="Delete"
+        isDangerous
+        isLoading={bulkDelete.isPending}
       />
 
       <CsvImportModal

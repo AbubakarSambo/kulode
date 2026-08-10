@@ -46,6 +46,8 @@ export function MenuManagementPage() {
   const [importOpen, setImportOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
 
   const { data: categories, isLoading: categoriesLoading } = useQuery({
     queryKey: ['menu-categories'],
@@ -102,6 +104,40 @@ export function MenuManagementPage() {
     },
   })
 
+  const bulkDelete = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const results = await Promise.allSettled(ids.map((id) => menuItemsApi.delete(id)))
+      return ids.map((id, i) => ({ id, result: results[i] }))
+    },
+    onSuccess: (results) => {
+      queryClient.invalidateQueries({ queryKey: ['menu-items'] })
+      const failures = results.filter((r) => r.result.status === 'rejected')
+      const succeeded = results.length - failures.length
+      if (failures.length === 0) {
+        toast.success(`${succeeded} item${succeeded === 1 ? '' : 's'} deleted`)
+      } else {
+        const firstMessage = (failures[0].result as PromiseRejectedResult).reason?.response?.data?.message
+        toast.error(`${succeeded} deleted, ${failures.length} couldn't be deleted`, {
+          description: failures.length === 1
+            ? firstMessage || 'It has order history — mark it Unavailable instead.'
+            : `${failures.length} items have order history and can't be deleted — mark them Unavailable instead.`,
+        })
+      }
+      setSelectedIds(new Set())
+      setBulkDeleteOpen(false)
+    },
+    onError: () => toast.error('Failed to delete items'),
+  })
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   const openNewItem = () => {
     setEditingItem(null)
     itemForm.reset({ name: '', description: '', price: undefined, categoryIds: [] })
@@ -146,6 +182,19 @@ export function MenuManagementPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        {selectedIds.size > 0 && (
+          <div className="mb-4 flex items-center justify-between rounded-xl border border-border bg-muted/50 px-4 py-2.5">
+            <span className="text-sm font-medium text-foreground">{selectedIds.size} selected</span>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setSelectedIds(new Set())}>
+                Cancel
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setBulkDeleteOpen(true)}>
+                <Trash2 className="mr-1.5 h-4 w-4 text-destructive" /> Delete Selected
+              </Button>
+            </div>
+          </div>
+        )}
         {!categoriesLoading && !itemsLoading && (!items || items.length === 0) ? (
           <EmptyState
             icon={ChefHatIcon}
@@ -164,15 +213,24 @@ export function MenuManagementPage() {
               >
                 <CardContent className="flex h-full flex-col p-0">
                   <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-semibold text-foreground">{item.name}</h3>
-                      {item.categories.length > 0 && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {item.categories.map((cat) => (
-                            <Badge key={cat.id} variant="secondary">{cat.name}</Badge>
-                          ))}
-                        </div>
-                      )}
+                    <div className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(item.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={() => toggleSelected(item.id)}
+                        className="mt-1 h-4 w-4 shrink-0 rounded border-border accent-primary"
+                      />
+                      <div>
+                        <h3 className="font-semibold text-foreground">{item.name}</h3>
+                        {item.categories.length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {item.categories.map((cat) => (
+                              <Badge key={cat.id} variant="secondary">{cat.name}</Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="flex gap-1">
                       <button
@@ -274,6 +332,17 @@ export function MenuManagementPage() {
         confirmText="Delete"
         isDangerous
         isLoading={deleteItem.isPending}
+      />
+
+      <ConfirmDialog
+        isOpen={bulkDeleteOpen}
+        onClose={() => setBulkDeleteOpen(false)}
+        onConfirm={() => bulkDelete.mutate(Array.from(selectedIds))}
+        title={`Delete ${selectedIds.size} item${selectedIds.size === 1 ? '' : 's'}?`}
+        description="This cannot be undone. Items with order history can't be deleted and will be skipped."
+        confirmText="Delete"
+        isDangerous
+        isLoading={bulkDelete.isPending}
       />
 
       <CsvImportModal
