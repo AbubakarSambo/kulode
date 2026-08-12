@@ -76,7 +76,16 @@ export function AppLayout() {
     return ''
   }
 
-  const navItems = hasInvoicing
+  const isWaiter = user?.role === 'WAITER'
+  // Waiters only handle selling, order tracking, and customer lookup
+  const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/customers']
+
+  const navItems = isWaiter
+    ? [
+        { name: 'Sell', href: '/pos/order/new', icon: ShoppingCart },
+        { name: 'Orders', href: '/pos/orders', icon: Receipt },
+      ]
+    : hasInvoicing
     ? [
         { name: 'Overview', href: '/dashboard', icon: DashboardIcon },
         { name: 'Clients', href: '/clients', icon: ClientsIcon },
@@ -136,7 +145,12 @@ export function AppLayout() {
       ] as MoreItem[],
     },
   ]
-    .map((group) => ({ ...group, items: group.items.filter((item) => item.visible !== false) }))
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) =>
+        isWaiter ? WAITER_ALLOWED_HREFS.includes(item.href) : item.visible !== false,
+      ),
+    }))
     .filter((group) => group.items.length > 0)
 
   const isHideMobileNav = location.pathname.includes('/new') || 

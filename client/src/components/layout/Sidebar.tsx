@@ -130,12 +130,16 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   // Which invoicing-only nav items to hide from POS-only orgs
   const INVOICING_ONLY_HREFS = ['/clients', '/invoices', '/tax', '/reports', '/ai-chat', '/inventory', '/payments', '/dashboard', '/settings/services', '/vendors', '/expenses']
 
+  // Waiters only handle selling, order tracking, and customer lookup
+  const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/customers']
+
   // Filter groups and items
   const filteredNavGroups = navigationGroups
     .filter((group) => group.title !== 'Restaurant POS' || hasPos)
     .map((group) => ({
       ...group,
       items: group.items.filter((item) => {
+        if (user?.role === 'WAITER') return WAITER_ALLOWED_HREFS.includes(item.href)
         if (INVOICING_ONLY_HREFS.includes(item.href) && !hasInvoicing) return false
         if ((item.href === '/reports' || item.href === '/ai-chat') && !canViewReports) return false
         if (
