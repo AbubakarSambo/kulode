@@ -93,6 +93,15 @@ export function OrderTakingPage() {
     () => waiterOptions.find((w) => w.id === waiterId)?.label,
     [waiterOptions, waiterId],
   )
+  const tableOptions = useMemo(
+    () => availableTables.map((t) => ({ id: t.id, label: t.name + (t.section ? ` — ${t.section}` : '') })),
+    [availableTables],
+  )
+  const selectedTableLabel = useMemo(
+    () => tableOptions.find((t) => t.id === selectedTableId)?.label,
+    [tableOptions, selectedTableId],
+  )
+  const showTablePicker = !tableId && source === 'DINE_IN'
 
   const customerForm = useForm<CustomerFormData>({ resolver: zodResolver(customerSchema) })
   const createCustomer = useMutation({
@@ -225,39 +234,6 @@ export function OrderTakingPage() {
             </div>
           )}
 
-          {!tableId && source === 'DINE_IN' && (
-            <div className="mb-4">
-              <div className="flex items-center justify-between">
-                <Label>Table</Label>
-                <button
-                  type="button"
-                  onClick={() => setNewTableOpen(true)}
-                  className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-                >
-                  <Plus className="h-3.5 w-3.5" /> New
-                </button>
-              </div>
-              <div className="mt-1 flex flex-wrap gap-2">
-                {availableTables.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setSelectedTableId(t.id)}
-                    className={cn(
-                      'shrink-0 cursor-pointer rounded-full px-4 py-2 text-sm font-medium',
-                      selectedTableId === t.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
-                    )}
-                  >
-                    {t.name}{t.section ? ` — ${t.section}` : ''}
-                  </button>
-                ))}
-              </div>
-              {availableTables.length === 0 && (
-                <p className="mt-1 text-xs text-muted-foreground">No available tables right now.</p>
-              )}
-            </div>
-          )}
-
           <div className="relative mb-4">
             <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -353,10 +329,12 @@ export function OrderTakingPage() {
             className="mt-2 flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-muted/50 px-3 py-2.5 text-left"
           >
             <div className="min-w-0">
-              <div className="text-xs font-medium text-muted-foreground">Customer &amp; Waiter</div>
+              <div className="text-xs font-medium text-muted-foreground">
+                {showTablePicker ? 'Table, Customer & Waiter' : 'Customer & Waiter'}
+              </div>
               <div className="truncate text-sm font-semibold text-foreground">
-                {selectedCustomerLabel || selectedWaiterLabel
-                  ? [selectedCustomerLabel, selectedWaiterLabel].filter(Boolean).join(' · ')
+                {selectedTableLabel || selectedCustomerLabel || selectedWaiterLabel
+                  ? [selectedTableLabel, selectedCustomerLabel, selectedWaiterLabel].filter(Boolean).join(' · ')
                   : 'Not set (optional)'}
               </div>
             </div>
@@ -384,11 +362,49 @@ export function OrderTakingPage() {
       <BottomSheet
         isOpen={assignmentsOpen}
         onClose={() => setAssignmentsOpen(false)}
-        title="Customer & Waiter"
+        title={showTablePicker ? 'Table, Customer & Waiter' : 'Customer & Waiter'}
         mobileOnly={false}
         panelClassName="sm:max-w-md sm:mx-auto sm:rounded-b-[32px]"
       >
         <div className="space-y-4 overflow-y-auto">
+          {showTablePicker && (
+            <div>
+              <div className="flex items-center justify-between">
+                <Label>Table</Label>
+                <button
+                  type="button"
+                  onClick={() => setNewTableOpen(true)}
+                  className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  <Plus className="h-3.5 w-3.5" /> New
+                </button>
+              </div>
+              <div className="mt-1 flex items-center gap-1.5">
+                <div className="flex-1">
+                  <SearchableSelect
+                    options={tableOptions}
+                    value={selectedTableId}
+                    onChange={setSelectedTableId}
+                    placeholder="Attach a table"
+                  />
+                </div>
+                {selectedTableId && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTableId('')}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted"
+                    aria-label="Clear table"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              {tableOptions.length === 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">No available tables right now.</p>
+              )}
+            </div>
+          )}
+
           <div>
             <div className="flex items-center justify-between">
               <Label>Customer (optional)</Label>
