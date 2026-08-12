@@ -33,7 +33,7 @@ export function GoogleCallbackPage() {
         }
         posthog.capture('user_logged_in', { method: 'google' })
         toast.success(`Welcome${user.firstName ? `, ${user.firstName}` : ''}!`)
-        navigate('/dashboard')
+        navigate(user.organization?.enabledModules === 'POS' ? '/pos/order/new' : '/dashboard')
       })
       .catch(() => {
         posthog.capture('google_oauth_failed', { reason: 'profile_fetch_failed' })

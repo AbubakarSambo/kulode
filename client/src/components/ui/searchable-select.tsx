@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Search01Icon, ArrowDown01Icon } from "@hugeicons/core-free-icons";
@@ -37,12 +38,19 @@ export function SearchableSelect({
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [openUpward, setOpenUpward] = useState(false);
+  const [rect, setRect] = useState<{ top: number; bottom: number; left: number; width: number } | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
-  // Close dropdown on click outside and reset search
+  // Close dropdown on click outside (of either the trigger or the portaled panel) and reset search
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(target) &&
+        !(panelRef.current && panelRef.current.contains(target))
+      ) {
         setIsOpen(false);
         setSearch("");
       }
@@ -50,6 +58,24 @@ export function SearchableSelect({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Keep the portaled panel aligned with its trigger while open (e.g. when an
+  // ancestor bottom sheet/modal scrolls or the window resizes).
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const updateRect = () => {
+      if (!containerRef.current) return;
+      const r = containerRef.current.getBoundingClientRect();
+      setRect({ top: r.top, bottom: r.bottom, left: r.left, width: r.width });
+    };
+    updateRect();
+    window.addEventListener("scroll", updateRect, true);
+    window.addEventListener("resize", updateRect);
+    return () => {
+      window.removeEventListener("scroll", updateRect, true);
+      window.removeEventListener("resize", updateRect);
+    };
+  }, [isOpen]);
 
   // Find currently selected option label
   const getSelectedLabel = () => {
@@ -140,13 +166,22 @@ export function SearchableSelect({
         />
       </button>
 
-      {isOpen && (
-        <div className={cn(
-          "absolute left-0 right-0 z-[9995] bg-white border border-[#c4c5d7]/20 rounded-xl shadow-[0_12px_32px_rgba(0,55,176,0.08)] overflow-hidden flex flex-col max-h-64 animate-in fade-in duration-150",
-          openUpward 
-            ? "bottom-[calc(100%+6px)] origin-bottom slide-in-from-bottom-1" 
-            : "top-[calc(100%+6px)] origin-top slide-in-from-top-1"
-        )}>
+      {isOpen && rect && createPortal(
+        <div
+          ref={panelRef}
+          style={{
+            position: "fixed",
+            left: rect.left,
+            width: rect.width,
+            ...(openUpward
+              ? { bottom: window.innerHeight - rect.top + 6 }
+              : { top: rect.bottom + 6 }),
+          }}
+          className={cn(
+            "z-[9995] bg-white border border-[#c4c5d7]/20 rounded-xl shadow-[0_12px_32px_rgba(0,55,176,0.08)] overflow-hidden flex flex-col max-h-64 animate-in fade-in duration-150",
+            openUpward ? "origin-bottom slide-in-from-bottom-1" : "origin-top slide-in-from-top-1"
+          )}
+        >
           {/* Search Header */}
           <div className="sticky top-0 bg-white p-2 border-b border-[#eef4ff]/50 flex items-center gap-2 shrink-0">
             <HugeiconsIcon
@@ -216,7 +251,8 @@ export function SearchableSelect({
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {error && <p className="mt-1 text-xs text-rose-600 font-semibold">{error}</p>}

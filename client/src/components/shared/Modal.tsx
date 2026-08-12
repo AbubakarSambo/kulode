@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui'
@@ -33,10 +34,10 @@ export function Modal({ isOpen, onClose, title, description, children, className
 
   if (!isOpen) return null
 
-  return (
+  return createPortal(
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
       onClick={(e) => {
         if (e.target === overlayRef.current) onClose()
       }}
@@ -58,6 +59,7 @@ export function Modal({ isOpen, onClose, title, description, children, className
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

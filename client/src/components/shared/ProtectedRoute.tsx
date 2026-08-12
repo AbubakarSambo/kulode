@@ -29,7 +29,7 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
   }
 
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-    return <Navigate to={hasInvoicing ? '/dashboard' : '/pos/dashboard'} replace />
+    return <Navigate to={hasInvoicing ? '/dashboard' : '/pos/order/new'} replace />
   }
 
   return <Outlet />
@@ -45,7 +45,7 @@ export function GuestRoute() {
   }
 
   if (isAuthenticated) {
-    return <Navigate to={hasInvoicing ? '/dashboard' : '/pos/dashboard'} replace />
+    return <Navigate to={hasInvoicing ? '/dashboard' : '/pos/order/new'} replace />
   }
 
   return <Outlet />

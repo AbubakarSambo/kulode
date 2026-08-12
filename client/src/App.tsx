@@ -85,7 +85,7 @@ function HomeRedirect() {
   }
 
   if (isAuthenticated) {
-    return <Navigate to={hasInvoicing ? '/dashboard' : '/pos/dashboard'} replace />
+    return <Navigate to={hasInvoicing ? '/dashboard' : '/pos/order/new'} replace />
   }
 
   if (import.meta.env.DEV) {
@@ -150,7 +150,7 @@ function App() {
                   <Route path="/expenses/bulk-recategorize" element={<BulkRecategorizePage />} />
                 </Route>
                 <Route path="/insights" element={<InsightsPage />} />
-                <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/pos/dashboard" />}>
+                <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/pos/order/new" />}>
                   <Route path="/reports" element={<ReportsPage />} />
                   <Route path="/tax" element={<TaxFilingPackPage />} />
                   <Route path="/ai-chat" element={<AiChatPage />} />
@@ -158,7 +158,7 @@ function App() {
               </Route>
 
               {/* Clients (invoicing-only) */}
-              <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/pos/dashboard" />}>
+              <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/pos/order/new" />}>
                 <Route path="/clients" element={<ClientsListPage />} />
                 <Route element={<ReadOnlyGatedRoute redirectTo="/clients" />}>
                   <Route path="/clients/new" element={<NewClientPage />} />
@@ -180,7 +180,7 @@ function App() {
               </Route>
 
               {/* Invoices (invoicing-only) */}
-              <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/pos/dashboard" />}>
+              <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/pos/order/new" />}>
                 <Route path="/invoices" element={<InvoicesListPage />} />
                 <Route element={<ReadOnlyGatedRoute redirectTo="/invoices" />}>
                   <Route path="/invoices/new" element={<NewInvoicePage />} />
@@ -189,7 +189,7 @@ function App() {
               </Route>
 
               {/* Payments (available to all plans, invoicing-only) */}
-              <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/pos/dashboard" />}>
+              <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/pos/order/new" />}>
                 <Route path="/payments" element={<PaymentsListPage />} />
               </Route>
 
@@ -210,7 +210,7 @@ function App() {
 
               {/* Inventory (invoicing-only) */}
               <Route element={<PlanGatedRoute requiredPlan="PRO" />}>
-                <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/pos/dashboard" />}>
+                <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/pos/order/new" />}>
                   <Route path="/inventory" element={<InventoryPage />} />
                 </Route>
               </Route>

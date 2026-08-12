@@ -3,7 +3,6 @@ import { Outlet, Link, useLocation } from 'react-router-dom'
 import {
   MoreHorizontal,
   X,
-  UtensilsCrossed,
   ChefHat,
   Clock,
   Tag,
@@ -64,7 +63,6 @@ export function AppLayout() {
     if (path.startsWith('/inventory')) return 'Product Inventory'
     if (path.startsWith('/pos/orders')) return 'Orders'
     if (path.startsWith('/pos/customers')) return 'Customers'
-    if (path.startsWith('/pos/tables')) return 'Tables'
     if (path.startsWith('/pos/menu')) return 'Menu'
     if (path.startsWith('/pos/categories')) return 'Categories'
     if (path.startsWith('/pos/waiters')) return 'Waiters'
@@ -122,7 +120,6 @@ export function AppLayout() {
     {
       label: 'Restaurant POS',
       items: [
-        { name: 'Tables', href: '/pos/tables', icon: UtensilsCrossed, visible: hasPos },
         { name: 'Menu', href: '/pos/menu', icon: ChefHat, visible: hasPos },
         { name: 'Categories', href: '/pos/categories', icon: Tag, visible: hasPos },
         { name: 'Waiters', href: '/pos/waiters', icon: UserRound, visible: hasPos },

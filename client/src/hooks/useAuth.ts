@@ -4,9 +4,14 @@ import { toast } from 'sonner'
 import { authApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { posthog } from '@/lib/posthog'
-import type { LoginCredentials, RegisterData } from '@/types'
+import type { LoginCredentials, RegisterData, User } from '@/types'
 
 declare function gtag(...args: unknown[]): void
+
+// POS-only orgs land on the Sell screen, not the invoicing dashboard
+function postAuthRoute(user: User): string {
+  return user.organization?.enabledModules === 'POS' ? '/pos/order/new' : '/dashboard'
+}
 
 export function useLogin() {
   const navigate = useNavigate()
@@ -20,7 +25,7 @@ export function useLogin() {
       toast.success('Welcome back!', {
         description: `Logged in as ${data.user.firstName}`,
       })
-      navigate('/dashboard')
+      navigate(postAuthRoute(data.user))
     },
     onError: (error: any) => {
       const message = error.response?.data?.message || 'Login failed'
@@ -59,7 +64,7 @@ export function useVerifyEmail() {
         navigate(`/set-password?token=${data.setupToken}`)
       } else {
         toast.success('Email verified!', { description: 'Welcome to Tari1' })
-        navigate('/dashboard')
+        navigate(postAuthRoute(data.user))
       }
     },
   })
@@ -95,7 +100,7 @@ export function useSetPassword() {
       toast.success('Password set!', {
         description: 'Your account is now active',
       })
-      navigate('/dashboard')
+      navigate(postAuthRoute(data.user))
     },
     onError: (error: any) => {
       const message = error.response?.data?.message || 'Failed to set password'
@@ -147,7 +152,7 @@ export function useResetPassword() {
       toast.success('Password reset!', {
         description: 'You are now logged in',
       })
-      navigate('/dashboard')
+      navigate(postAuthRoute(data.user))
     },
     onError: (error: any) => {
       const message = error.response?.data?.message || 'Failed to reset password'
