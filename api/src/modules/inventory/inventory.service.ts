@@ -323,7 +323,7 @@ export class InventoryService {
     });
 
     for (const orderItem of orderItems) {
-      const inventoryItemId = orderItem.menuItem.inventoryItemId;
+      const inventoryItemId = orderItem.menuItem?.inventoryItemId;
       if (!inventoryItemId) continue;
 
       const inventoryItem = await tx.inventoryItem.findFirst({

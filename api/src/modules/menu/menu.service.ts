@@ -218,15 +218,8 @@ export class MenuService {
     const item = await this.prisma.menuItem.findFirst({ where: { id, organizationId } });
     if (!item) throw new NotFoundException('Menu item not found');
 
-    // OrderItem.menuItemId has no onDelete cascade/setnull — historical orders must keep their
-    // menu item reference, so an item that's ever been ordered can't be hard-deleted.
-    const orderCount = await this.prisma.orderItem.count({ where: { menuItemId: id } });
-    if (orderCount > 0) {
-      throw new ConflictException(
-        'This item has order history and can\'t be deleted — mark it Unavailable instead to hide it from the menu.',
-      );
-    }
-
+    // OrderItem.menuItemId is nullable with onDelete: SetNull, and OrderItem.itemName is a
+    // point-in-time snapshot, so order history/receipts survive this even once menuItem is gone.
     await this.prisma.menuItem.delete({ where: { id } });
     return { message: 'Menu item deleted successfully' };
   }

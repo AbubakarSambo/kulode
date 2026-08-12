@@ -119,9 +119,7 @@ export function MenuManagementPage() {
       } else {
         const firstMessage = (failures[0].result as PromiseRejectedResult).reason?.response?.data?.message
         toast.error(`${succeeded} deleted, ${failures.length} couldn't be deleted`, {
-          description: failures.length === 1
-            ? firstMessage || 'It has order history — mark it Unavailable instead.'
-            : `${failures.length} items have order history and can't be deleted — mark them Unavailable instead.`,
+          description: failures.length === 1 ? firstMessage || 'Failed to delete item' : undefined,
         })
       }
       setSelectedIds(new Set())
@@ -425,7 +423,7 @@ export function MenuManagementPage() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => deleteTarget && deleteItem.mutate(deleteTarget.id)}
         title={`Delete "${deleteTarget?.name}"?`}
-        description="This cannot be undone."
+        description="This cannot be undone, even if it has past orders."
         confirmText="Delete"
         isDangerous
         isLoading={deleteItem.isPending}
@@ -436,7 +434,7 @@ export function MenuManagementPage() {
         onClose={() => setBulkDeleteOpen(false)}
         onConfirm={() => bulkDelete.mutate(Array.from(selectedIds))}
         title={`Delete ${selectedIds.size} item${selectedIds.size === 1 ? '' : 's'}?`}
-        description="This cannot be undone. Items with order history can't be deleted and will be skipped."
+        description="This cannot be undone, even for items with past orders."
         confirmText="Delete"
         isDangerous
         isLoading={bulkDelete.isPending}

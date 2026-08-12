@@ -275,7 +275,7 @@ export function MenuItemDetailPage() {
         onClose={() => setDeleteOpen(false)}
         onConfirm={() => deleteItem.mutate()}
         title={`Delete "${item.name}"?`}
-        description="This cannot be undone."
+        description="This cannot be undone, even if it has past orders."
         confirmText="Delete"
         cancelText="Cancel"
         isDangerous

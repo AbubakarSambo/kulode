@@ -101,6 +101,7 @@ export class OrdersService {
       const unitPrice = toNumber(menuItem.price);
       return {
         menuItemId: menuItem.id,
+        itemName: menuItem.name,
         quantity: item.quantity,
         unitPrice,
         amount: Math.round(unitPrice * item.quantity * 100) / 100,
@@ -458,7 +459,7 @@ export class OrdersService {
       source: order.source,
       table: order.table,
       items: order.items.map((i) => ({
-        name: i.menuItem.name,
+        name: i.menuItem?.name ?? i.itemName,
         quantity: toNumber(i.quantity),
         unitPrice: toNumber(i.unitPrice),
         amount: toNumber(i.amount),
