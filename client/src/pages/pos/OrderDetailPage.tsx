@@ -18,7 +18,13 @@ const PAYMENT_CAPABLE_ROLES = ['STAFF', 'ACCOUNTANT', 'CASHIER', 'ADMIN', 'SUPER
 // Matches the backend's @Roles list on POST /orders/:id/cancel.
 const VOID_CAPABLE_ROLES = ['STAFF', 'ACCOUNTANT', 'SUPERVISOR', 'MANAGER', 'ADMIN', 'SUPER_ADMIN']
 
-const ITEM_STATUS_FLOW: OrderItemStatus[] = ['PENDING', 'PREPARING', 'READY', 'SERVED']
+const ITEM_STATUS_FLOW: OrderItemStatus[] = ['PENDING', 'ON_IT', 'PASS', 'SERVED']
+const ITEM_STATUS_LABELS: Record<OrderItemStatus, string> = {
+  PENDING: 'Pending',
+  ON_IT: 'On It',
+  PASS: 'Pass',
+  SERVED: 'Served',
+}
 
 const PAYMENT_METHODS = [
   { value: 'CASH', label: 'Cash' },
@@ -608,7 +614,7 @@ function SyncedOrderView({ id }: { id: string }) {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="font-semibold text-foreground">
-                      {item.quantity}x {item.menuItem.name}
+                      {item.quantity}x {item.menuItem?.name ?? item.itemName}
                     </div>
                     {item.notes && <div className="text-xs text-muted-foreground">{item.notes}</div>}
                   </div>
@@ -625,7 +631,7 @@ function SyncedOrderView({ id }: { id: string }) {
                           item.status === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
                         )}
                       >
-                        {s}
+                        {ITEM_STATUS_LABELS[s]}
                       </button>
                     ))}
                   </div>

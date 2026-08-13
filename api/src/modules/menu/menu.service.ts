@@ -169,6 +169,7 @@ export class MenuService {
         price: dto.price,
         inventoryItemId: dto.inventoryItemId,
         imageUrl: dto.imageUrl,
+        durationMinutes: dto.durationMinutes,
         categories: { create: categoryIds.map((categoryId) => ({ categoryId })) },
       },
       include: { categories: { include: { category: { select: { id: true, name: true } } } } },
@@ -202,6 +203,7 @@ export class MenuService {
         ...(dto.inventoryItemId !== undefined && { inventoryItemId: dto.inventoryItemId }),
         ...(dto.imageUrl !== undefined && { imageUrl: dto.imageUrl }),
         ...(dto.isAvailable !== undefined && { isAvailable: dto.isAvailable }),
+        ...(dto.durationMinutes !== undefined && { durationMinutes: dto.durationMinutes }),
         ...(dto.categoryIds !== undefined && {
           categories: {
             deleteMany: {},

@@ -21,6 +21,7 @@ const itemSchema = z.object({
   description: z.string().optional(),
   price: z.number().min(0, 'Price must be 0 or greater'),
   categoryIds: z.array(z.string()),
+  durationMinutes: z.number().min(0, 'Duration must be 0 or greater').optional(),
 })
 
 type ItemFormData = z.infer<typeof itemSchema>
@@ -144,7 +145,7 @@ export function MenuManagementPage() {
 
   const openNewItem = () => {
     setEditingItem(null)
-    itemForm.reset({ name: '', description: '', price: undefined, categoryIds: [] })
+    itemForm.reset({ name: '', description: '', price: undefined, categoryIds: [], durationMinutes: undefined })
     setItemModalOpen(true)
   }
 
@@ -155,6 +156,7 @@ export function MenuManagementPage() {
       description: item.description,
       price: item.price,
       categoryIds: item.categories.map((c) => c.id),
+      durationMinutes: item.durationMinutes,
     })
     setItemModalOpen(true)
   }
@@ -386,6 +388,15 @@ export function MenuManagementPage() {
           <div>
             <Label>Price (NGN)</Label>
             <Input type="number" step="0.01" placeholder="0.00" {...itemForm.register('price', { valueAsNumber: true })} />
+          </div>
+          <div>
+            <Label>Prep time (minutes)</Label>
+            <Input
+              type="number"
+              step="1"
+              placeholder="Optional — drives the kitchen ticket countdown"
+              {...itemForm.register('durationMinutes', { valueAsNumber: true })}
+            />
           </div>
           <div>
             <Label>Categories</Label>

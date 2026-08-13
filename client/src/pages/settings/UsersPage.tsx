@@ -73,11 +73,15 @@ const roleLabels: Record<UserRole, string> = {
   SUPERVISOR: 'Supervisor',
   CASHIER: 'Cashier',
   WAITER: 'Waiter',
+  PASS: 'Pass',
+  RUNNER: 'Runner',
 }
 
 // Creatable roles by org type — SUPER_ADMIN is never assignable through this UI.
 const POS_CREATABLE_ROLES: { value: UserRole; label: string }[] = [
   { value: 'WAITER', label: 'Waiter' },
+  { value: 'PASS', label: 'Pass' },
+  { value: 'RUNNER', label: 'Runner' },
   { value: 'CASHIER', label: 'Cashier' },
   { value: 'SUPERVISOR', label: 'Supervisor' },
   { value: 'MANAGER', label: 'Manager' },

@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsBoolean, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { IsArray, IsBoolean, IsInt, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 
 export class UpdateMenuItemDto {
   @ApiPropertyOptional()
@@ -39,4 +39,10 @@ export class UpdateMenuItemDto {
   @IsOptional()
   @IsBoolean()
   isAvailable?: boolean;
+
+  @ApiPropertyOptional({ description: 'Expected kitchen prep time in minutes, used for the kitchen ticket countdown timer', example: 15 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  durationMinutes?: number;
 }

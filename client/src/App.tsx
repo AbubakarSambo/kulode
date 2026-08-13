@@ -6,7 +6,7 @@ import { ProtectedRoute, GuestRoute, PlanGatedRoute, ReadOnlyGatedRoute, ModuleG
 
 
 import { useAuthStore } from '@/stores/auth'
-import { useOrgModules } from '@/hooks/useOrgModules'
+import { getPostAuthRoute } from '@/lib/authRouting'
 import {
   LoginPage,
   RegisterPage,
@@ -65,6 +65,7 @@ import {
   ShiftPage,
   CustomersListPage,
   CustomerDetailPage,
+  KitchenTicketsPage,
 } from '@/pages'
 import { useVersionCheck } from '@/hooks/useVersionCheck'
 import { WhatsNewModal } from '@/components/changelog/WhatsNewModal'
@@ -73,8 +74,7 @@ import { ReloadBanner } from '@/components/changelog/ReloadBanner'
 import { queryClient } from '@/lib/queryClient'
 
 function HomeRedirect() {
-  const { isAuthenticated, _hasHydrated } = useAuthStore()
-  const { hasInvoicing } = useOrgModules()
+  const { isAuthenticated, _hasHydrated, user } = useAuthStore()
 
   if (!_hasHydrated) {
     return (
@@ -85,7 +85,7 @@ function HomeRedirect() {
   }
 
   if (isAuthenticated) {
-    return <Navigate to={hasInvoicing ? '/dashboard' : '/pos/order/new'} replace />
+    return <Navigate to={getPostAuthRoute(user)} replace />
   }
 
   if (import.meta.env.DEV) {
@@ -230,6 +230,15 @@ function App() {
                 <Route path="/pos/shift" element={<ShiftPage />} />
                 <Route path="/pos/customers" element={<CustomersListPage />} />
                 <Route path="/pos/customers/:id" element={<CustomerDetailPage />} />
+                <Route
+                  element={
+                    <ProtectedRoute
+                      allowedRoles={['PASS', 'RUNNER', 'MANAGER', 'SUPERVISOR', 'ADMIN', 'SUPER_ADMIN']}
+                    />
+                  }
+                >
+                  <Route path="/pos/kitchen" element={<KitchenTicketsPage />} />
+                </Route>
               </Route>
 
 
@@ -240,7 +249,9 @@ function App() {
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/settings/organization" element={<OrganizationPage />} />
               <Route path="/settings/directors" element={<DirectorsPage />} />
-              <Route path="/settings/users" element={<UsersPage />} />
+              <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']} />}>
+                <Route path="/settings/users" element={<UsersPage />} />
+              </Route>
               <Route path="/settings/billing" element={<BillingPage />} />
               <Route path="/settings/paystack" element={<PaystackPage />} />
               <Route path="/settings/categories" element={<CategoriesPage />} />

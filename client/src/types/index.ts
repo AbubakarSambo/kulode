@@ -93,6 +93,8 @@ export type UserRole =
   | 'SUPERVISOR'
   | 'CASHIER'
   | 'WAITER'
+  | 'PASS'
+  | 'RUNNER'
 
 export interface AuthResponse {
   accessToken: string
@@ -393,7 +395,7 @@ export interface StockMovement {
 export type TableStatus = 'AVAILABLE' | 'OCCUPIED' | 'RESERVED' | 'NEEDS_CLEANING'
 export type OrderSource = 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY' | 'THIRD_PARTY'
 export type OrderStatus = 'OPEN' | 'IN_KITCHEN' | 'READY' | 'CLOSED_PAID' | 'CLOSED_UNPAID' | 'CANCELLED'
-export type OrderItemStatus = 'PENDING' | 'PREPARING' | 'READY' | 'SERVED'
+export type OrderItemStatus = 'PENDING' | 'ON_IT' | 'PASS' | 'SERVED'
 export type ShiftStatus = 'OPEN' | 'CLOSED'
 
 export interface MenuCategory {
@@ -412,6 +414,7 @@ export interface MenuItem {
   inventoryItemId?: string
   imageUrl?: string
   isAvailable: boolean
+  durationMinutes?: number
 }
 
 export interface Waiter {
@@ -434,7 +437,8 @@ export interface RestaurantTable {
 export interface OrderItem {
   id: string
   menuItemId: string
-  menuItem: { id: string; name: string }
+  menuItem: { id: string; name: string; durationMinutes?: number } | null
+  itemName: string
   quantity: number
   unitPrice: number
   amount: number

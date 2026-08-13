@@ -376,6 +376,20 @@ describe('UsersService — user limit enforcement', () => {
       ).resolves.toBeDefined();
     });
 
+    it('allows assigning PASS and RUNNER (kitchen roles) on a POS-only org', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.organization.findUnique.mockResolvedValue(orgWith({ enabledModules: 'POS' }));
+      prisma.user.count.mockResolvedValue(0);
+      setupTransactionMock(prisma);
+
+      await expect(
+        service.create(ORG_ID, { ...createDto, role: Role.PASS }, Role.SUPER_ADMIN),
+      ).resolves.toBeDefined();
+      await expect(
+        service.create(ORG_ID, { ...createDto, role: Role.RUNNER }, Role.SUPER_ADMIN),
+      ).resolves.toBeDefined();
+    });
+
     it('allows assigning CASHIER on a BOTH-module org (POS ladder also applies there)', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
       prisma.organization.findUnique.mockResolvedValue(orgWith({ enabledModules: 'BOTH' }));

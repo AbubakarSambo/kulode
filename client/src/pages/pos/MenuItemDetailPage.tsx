@@ -17,6 +17,7 @@ const itemSchema = z.object({
   description: z.string().optional(),
   price: z.number().min(0, 'Price must be 0 or greater'),
   categoryIds: z.array(z.string()),
+  durationMinutes: z.number().min(0, 'Duration must be 0 or greater').optional(),
 })
 type ItemFormData = z.infer<typeof itemSchema>
 
@@ -128,6 +129,12 @@ export function MenuItemDetailPage() {
                 <div className="text-muted-foreground">Price</div>
                 <div className="font-medium text-foreground">{formatCurrency(item.price)}</div>
               </div>
+              {item.durationMinutes != null && (
+                <div className="space-y-1 text-sm">
+                  <div className="text-muted-foreground">Prep time</div>
+                  <div className="font-medium text-foreground">{item.durationMinutes} min</div>
+                </div>
+              )}
 
               <div className="flex gap-2 pt-2">
                 <Button
@@ -140,6 +147,7 @@ export function MenuItemDetailPage() {
                       description: item.description,
                       price: item.price,
                       categoryIds: item.categories.map((c) => c.id),
+                      durationMinutes: item.durationMinutes,
                     })
                     setEditOpen(true)
                   }}
@@ -238,6 +246,15 @@ export function MenuItemDetailPage() {
           <div>
             <Label>Price (NGN)</Label>
             <Input type="number" step="0.01" {...form.register('price', { valueAsNumber: true })} />
+          </div>
+          <div>
+            <Label>Prep time (minutes)</Label>
+            <Input
+              type="number"
+              step="1"
+              placeholder="Optional — drives the kitchen ticket countdown"
+              {...form.register('durationMinutes', { valueAsNumber: true })}
+            />
           </div>
           <div>
             <Label>Categories</Label>

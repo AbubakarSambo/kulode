@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, X, CreditCard, ChefHat, Clock, Receipt, Users, ShoppingCart, Tag, UserRound } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, CreditCard, ChefHat, Clock, Receipt, Users, ShoppingCart, Tag, UserRound, Timer, UserCog } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { useLogout } from '@/hooks'
@@ -62,6 +62,7 @@ const navigationGroups = [
       { name: 'Orders', href: '/pos/orders', icon: Receipt, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Customers', href: '/pos/customers', icon: Users, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Waiters', href: '/pos/waiters', icon: UserRound, requiresPlan: undefined as PlanTier | undefined },
+      { name: 'Kitchen', href: '/pos/kitchen', icon: Timer, requiresPlan: undefined as PlanTier | undefined },
     ]
   },
   {
@@ -80,6 +81,7 @@ const navigationGroups = [
 ]
 
 const adminNavigation = [
+  { name: 'Users', href: '/settings/users', icon: UserCog },
   { name: 'Settings', href: '/settings', icon: SettingsIcon },
   { name: 'Billing & Plans', href: '/settings/billing', icon: CreditCard },
 ]
@@ -132,6 +134,9 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   // Waiters only handle selling, order tracking, and customer lookup
   const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/customers']
 
+  // Pass/Runner are kitchen-only roles — the ticket board is the only page they can see
+  const KITCHEN_ALLOWED_HREFS = ['/pos/kitchen']
+
   // Filter groups and items
   const filteredNavGroups = navigationGroups
     .filter((group) => group.title !== 'Restaurant POS' || hasPos)
@@ -139,6 +144,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       ...group,
       items: group.items.filter((item) => {
         if (user?.role === 'WAITER') return WAITER_ALLOWED_HREFS.includes(item.href)
+        if (user?.role === 'PASS' || user?.role === 'RUNNER') return KITCHEN_ALLOWED_HREFS.includes(item.href)
         if (INVOICING_ONLY_HREFS.includes(item.href) && !hasInvoicing) return false
         if ((item.href === '/reports' || item.href === '/ai-chat') && !canViewReports) return false
         if (

@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth'
 import { authApi } from '@/api'
 import { posthog } from '@/lib/posthog'
+import { getPostAuthRoute } from '@/lib/authRouting'
 
 export function GoogleCallbackPage() {
   const [searchParams] = useSearchParams()
@@ -33,7 +34,7 @@ export function GoogleCallbackPage() {
         }
         posthog.capture('user_logged_in', { method: 'google' })
         toast.success(`Welcome${user.firstName ? `, ${user.firstName}` : ''}!`)
-        navigate(user.organization?.enabledModules === 'POS' ? '/pos/order/new' : '/dashboard')
+        navigate(getPostAuthRoute(user))
       })
       .catch(() => {
         posthog.capture('google_oauth_failed', { reason: 'profile_fetch_failed' })

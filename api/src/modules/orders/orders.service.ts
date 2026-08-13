@@ -40,7 +40,7 @@ export class OrdersService {
     waiter: { select: { id: true, name: true, phone: true } },
     createdBy: { select: { id: true, firstName: true, lastName: true } },
     items: {
-      include: { menuItem: { select: { id: true, name: true } } },
+      include: { menuItem: { select: { id: true, name: true, durationMinutes: true } } },
     },
     payments: true,
   } as const;
@@ -228,9 +228,9 @@ export class OrdersService {
     // Roll the order-level status up from its items so front-of-house and kitchen views agree.
     const items = await this.prisma.orderItem.findMany({ where: { orderId } });
     let newOrderStatus: 'IN_KITCHEN' | 'READY' | undefined;
-    if (items.every((i) => i.status === 'READY' || i.status === 'SERVED')) {
+    if (items.every((i) => i.status === 'PASS' || i.status === 'SERVED')) {
       newOrderStatus = 'READY';
-    } else if (items.some((i) => i.status === 'PREPARING' || i.status === 'READY' || i.status === 'SERVED')) {
+    } else if (items.some((i) => i.status === 'ON_IT' || i.status === 'PASS' || i.status === 'SERVED')) {
       newOrderStatus = 'IN_KITCHEN';
     }
 

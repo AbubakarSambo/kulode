@@ -76,6 +76,9 @@ export { ShiftPage } from './pos/ShiftPage'
 export { CustomersListPage } from './pos/CustomersListPage'
 export { CustomerDetailPage } from './pos/CustomerDetailPage'
 
+// Kitchen (PASS / RUNNER)
+export { KitchenTicketsPage } from './kitchen/KitchenTicketsPage'
+
 // Admin
 export { AdminDashboardPage } from './admin/AdminDashboard'
 

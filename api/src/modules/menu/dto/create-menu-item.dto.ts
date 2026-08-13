@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { IsArray, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 
 export class CreateMenuItemDto {
   @ApiProperty({ example: 'Jollof Rice' })
@@ -33,4 +33,10 @@ export class CreateMenuItemDto {
   @IsOptional()
   @IsString()
   imageUrl?: string;
+
+  @ApiPropertyOptional({ description: 'Expected kitchen prep time in minutes, used for the kitchen ticket countdown timer', example: 15 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  durationMinutes?: number;
 }

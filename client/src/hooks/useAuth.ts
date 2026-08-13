@@ -4,14 +4,10 @@ import { toast } from 'sonner'
 import { authApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { posthog } from '@/lib/posthog'
-import type { LoginCredentials, RegisterData, User } from '@/types'
+import { getPostAuthRoute as postAuthRoute } from '@/lib/authRouting'
+import type { LoginCredentials, RegisterData } from '@/types'
 
 declare function gtag(...args: unknown[]): void
-
-// POS-only orgs land on the Sell screen, not the invoicing dashboard
-function postAuthRoute(user: User): string {
-  return user.organization?.enabledModules === 'POS' ? '/pos/order/new' : '/dashboard'
-}
 
 export function useLogin() {
   const navigate = useNavigate()

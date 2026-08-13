@@ -19,7 +19,16 @@ const ADMIN_ROLES = [Role.ADMIN, Role.SUPER_ADMIN];
 // operations — STAFF/ACCOUNTANT are reserved for orgs that never touch POS (invoicing-only).
 // A BOTH org's back-office/reporting access (Reports, AI Chat) is ADMIN+/SUPER_ADMIN-only as a
 // result — there's no ACCOUNTANT-equivalent inside the POS ladder.
-const POS_ROLES = [Role.WAITER, Role.CASHIER, Role.SUPERVISOR, Role.MANAGER, Role.ADMIN, Role.SUPER_ADMIN];
+const POS_ROLES = [
+  Role.WAITER,
+  Role.PASS,
+  Role.RUNNER,
+  Role.CASHIER,
+  Role.SUPERVISOR,
+  Role.MANAGER,
+  Role.ADMIN,
+  Role.SUPER_ADMIN,
+];
 const NON_POS_ROLES = [Role.STAFF, Role.ACCOUNTANT, Role.ADMIN, Role.SUPER_ADMIN];
 
 function usesPosRoles(enabledModules: OrgModule): boolean {
