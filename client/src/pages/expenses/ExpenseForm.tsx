@@ -130,7 +130,9 @@ const expenseSchema = z.object({
   reference: z.string().optional(),
   notes: z.string().optional(),
   taxCategory: z.enum(['RENT', 'SALARIES', 'UTILITIES', 'MARKETING', 'TRANSPORT',
-    'PROFESSIONAL_FEES', 'LOAN_INTEREST', 'CAPITAL_ASSETS', 'NON_DEDUCTIBLE', 'UNCATEGORIZED']).optional(),
+    'PROFESSIONAL_FEES', 'LOAN_INTEREST', 'CAPITAL_ASSETS', 'NON_DEDUCTIBLE', 'UNCATEGORIZED'])
+    .optional()
+    .or(z.literal('')),
 })
 
 type ExpenseFormData = z.infer<typeof expenseSchema>
@@ -222,7 +224,7 @@ function ExpenseForm({ expenseId }: { expenseId?: string }) {
       categoryId: data.categoryId || undefined,
       vendorId: data.vendorId || undefined,
       paymentMethod: data.paymentMethod as PaymentMethod,
-      taxCategory: data.taxCategory as TaxCategory | undefined,
+      taxCategory: (data.taxCategory || undefined) as TaxCategory | undefined,
     }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] })
@@ -244,7 +246,7 @@ function ExpenseForm({ expenseId }: { expenseId?: string }) {
       categoryId: data.categoryId || undefined,
       vendorId: data.vendorId || undefined,
       paymentMethod: data.paymentMethod as PaymentMethod,
-      taxCategory: data.taxCategory as TaxCategory | undefined,
+      taxCategory: (data.taxCategory || undefined) as TaxCategory | undefined,
     }),
     onSuccess: () => {
       posthog.capture('expense_updated', { expense_id: expenseId })
@@ -290,7 +292,12 @@ function ExpenseForm({ expenseId }: { expenseId?: string }) {
             <CardTitle>Expense Details</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <form
+              onSubmit={handleSubmit(onSubmit, () =>
+                toast.error('Please fix the highlighted fields before submitting'),
+              )}
+              className="space-y-4"
+            >
               <div className="space-y-2">
                 <Label htmlFor="description" required>Description</Label>
                 <Input
@@ -371,7 +378,7 @@ function ExpenseForm({ expenseId }: { expenseId?: string }) {
                   )}
                 </div>
                 {isPro ? (
-                  <Select id="taxCategory" {...register('taxCategory')}>
+                  <Select id="taxCategory" error={errors.taxCategory?.message} {...register('taxCategory')}>
                     <option value="">Select tax category</option>
                     {TAX_CATEGORIES.map((cat) => (
                       <option key={cat} value={cat}>{TAX_CATEGORY_LABELS[cat]}</option>
