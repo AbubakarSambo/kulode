@@ -42,9 +42,9 @@ export function useSubscription() {
     autoRenew: subscription?.autoRenew ?? false,
     isTrial: subscription?.subscriptionStatus === 'TRIALING',
     isActive: subscription?.subscriptionStatus === 'ACTIVE',
-    isExpired: subscription?.subscriptionStatus === 'EXPIRED' ||
-      (subscription?.subscriptionStatus === 'TRIALING' && subscription?.trialDaysRemaining === 0),
-    isReadOnlyMode: (subscription?.subscriptionStatus === 'EXPIRED' ||
+    isExpired: !isGrandfathered && (subscription?.subscriptionStatus === 'EXPIRED' ||
+      (subscription?.subscriptionStatus === 'TRIALING' && subscription?.trialDaysRemaining === 0)),
+    isReadOnlyMode: !isGrandfathered && (subscription?.subscriptionStatus === 'EXPIRED' ||
       (subscription?.subscriptionStatus === 'TRIALING' && subscription?.trialDaysRemaining === 0)) && !user?.isPlatformAdmin,
     trialDaysRemaining: subscription?.trialDaysRemaining ?? null,
     canAccessPage,
