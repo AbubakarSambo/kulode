@@ -34,10 +34,11 @@ import { TrialBanner } from '../shared/TrialBanner'
 import { SubscriptionExpiredBanner } from '../shared/SubscriptionExpiredBanner'
 import { OfflineQueueBanner } from '../pos/OfflineQueueBanner'
 import { useAuthStore } from '@/stores/auth'
-import { useLogout } from '@/hooks'
+import { useLogout, useSwitchUser } from '@/hooks'
 import { useSubscription } from '@/hooks/useSubscription'
 import { useOrgModules } from '@/hooks/useOrgModules'
 import { cn } from '@/lib/utils'
+import { PIN_ELIGIBLE_ROLES } from '@/lib/pin'
 import type { PlanTier } from '@/types'
 
 export function AppLayout() {
@@ -46,6 +47,8 @@ export function AppLayout() {
   const location = useLocation()
   const user = useAuthStore((state) => state.user)
   const logout = useLogout()
+  const switchUser = useSwitchUser()
+  const isPinEligible = !!user && PIN_ELIGIBLE_ROLES.includes(user.role)
   const { hasRequiredPlan } = useSubscription()
   const { hasPos, hasInvoicing } = useOrgModules()
 
@@ -313,15 +316,31 @@ export function AppLayout() {
                   <SupportIcon className="h-5 w-5" />
                   Contact Support
                 </a>
+                {!isPinEligible && (
+                  <button
+                    onClick={() => {
+                      setMoreOpen(false)
+                      switchUser()
+                    }}
+                    className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-foreground bg-muted hover:bg-accent transition-colors cursor-pointer"
+                  >
+                    <LogoutIcon className="h-5 w-5" />
+                    Switch User
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     setMoreOpen(false)
-                    logout()
+                    if (isPinEligible) {
+                      switchUser()
+                    } else {
+                      logout()
+                    }
                   }}
                   className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-rose-600 bg-rose-500/10 hover:bg-rose-500/20 transition-colors cursor-pointer"
                 >
                   <LogoutIcon className="h-5 w-5" />
-                  Logout
+                  {isPinEligible ? 'Switch User' : 'Logout'}
                 </button>
               </div>
             </div>

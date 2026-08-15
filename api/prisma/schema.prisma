@@ -179,6 +179,10 @@ model Organization {
   currency              String    @default("NGN")
   taxRate               Decimal   @default(0) @map("tax_rate") @db.Decimal(5, 2)
   vatEnabled            Boolean   @default(false) @map("vat_enabled")
+  // A second, independent tax type (e.g. Nigerian state consumption/entertainment tax on
+  // restaurant/bar bills) — stackable with VAT, toggled per order on the Sell screen.
+  entertainmentTaxRate    Decimal @default(0) @map("entertainment_tax_rate") @db.Decimal(5, 2)
+  entertainmentTaxEnabled Boolean @default(false) @map("entertainment_tax_enabled")
   showQrCode            Boolean   @default(false) @map("show_qr_code")
   paymentTerms          String?   @map("payment_terms")
   defaultNotes          String?   @map("default_notes")
@@ -256,6 +260,15 @@ model User {
   isEmailVerified Boolean  @default(false) @map("is_email_verified")
   isPlatformAdmin Boolean  @default(false) @map("is_platform_admin")
   googleId        String?  @unique @map("google_id")
+  // Quick-login PIN for shared POS terminals (waiter/pass/runner/cashier) — set by an admin, not
+  // the user's own password. Hashed with bcrypt; lookup is a compare-loop over the org's active
+  // PIN-eligible staff since bcrypt hashes aren't directly queryable (fine at realistic org sizes).
+  pinHash         String?  @map("pin_hash")
+  pinSetAt        DateTime? @map("pin_set_at")
+  // True when `email` is an auto-generated internal placeholder (PIN-eligible roles created
+  // without a real email) rather than one the person actually reads — no invite/verification
+  // email is ever sent to it, and the UI shouldn't show it as a real address.
+  hasPlaceholderEmail Boolean @default(false) @map("has_placeholder_email")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -969,10 +982,20 @@ model Order {
   status         OrderStatus @default(OPEN)
 
   subtotal   Decimal @db.Decimal(12, 2)
+  // taxAmount is always vatAmount + entertainmentTaxAmount — kept as the single source everything
+  // else (receipts, close/payment, reports) already reads for the order total.
   taxAmount  Decimal @default(0) @map("tax_amount") @db.Decimal(12, 2)
   total      Decimal @db.Decimal(12, 2)
   amountPaid Decimal @default(0) @map("amount_paid") @db.Decimal(12, 2)
   notes      String?
+
+  // Per-order tax breakdown — decided once at order creation (not re-derived from the org's
+  // current settings on every read) so a later settings change never retroactively alters an
+  // already-placed order's charges.
+  vatApplied              Boolean @default(false) @map("vat_applied")
+  entertainmentTaxApplied Boolean @default(false) @map("entertainment_tax_applied")
+  vatAmount               Decimal @default(0) @map("vat_amount") @db.Decimal(12, 2)
+  entertainmentTaxAmount  Decimal @default(0) @map("entertainment_tax_amount") @db.Decimal(12, 2)
 
   closedAt  DateTime? @map("closed_at")
   createdAt DateTime  @default(now()) @map("created_at")

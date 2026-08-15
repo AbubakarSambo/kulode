@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { posthog } from '@/lib/posthog'
 import { queryClient } from '@/lib/queryClient'
+import { rememberOrgContext } from '@/lib/deviceOrgContext'
 import type { User } from '@/types'
 
 interface AuthState {
@@ -27,6 +28,7 @@ export const useAuthStore = create<AuthState>()(
 
       setAuth: (user, token) => {
         localStorage.setItem('token', token)
+        rememberOrgContext(user.organizationId, user.organizationName)
         posthog.identify(user.id, {
           email: user.email,
           firstName: user.firstName,

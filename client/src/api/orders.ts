@@ -21,6 +21,8 @@ export interface CreateOrderData {
   source?: 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY' | 'THIRD_PARTY'
   items: CreateOrderItemData[]
   notes?: string
+  applyVat?: boolean
+  applyEntertainmentTax?: boolean
 }
 
 export interface CloseOrderData {

@@ -4,7 +4,7 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
-import { RegisterDto, LoginDto, AuthResponseDto, VerifyEmailDto, SetPasswordDto, ResendVerificationDto, ForgotPasswordDto, ResetPasswordDto, MagicLinkRegisterDto } from './dto';
+import { RegisterDto, LoginDto, AuthResponseDto, VerifyEmailDto, SetPasswordDto, ResendVerificationDto, ForgotPasswordDto, ResetPasswordDto, MagicLinkRegisterDto, PinLoginDto } from './dto';
 import { Public, CurrentUser, CurrentUserData } from '../../common';
 
 @ApiTags('Auth')
@@ -43,6 +43,17 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(@Body() dto: LoginDto): Promise<AuthResponseDto> {
     return this.authService.login(dto);
+  }
+
+  @Public()
+  @Post('pin-login')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ global: { limit: 10, ttl: 60000 } })
+  @ApiOperation({ summary: 'Quick login for POS floor staff via 4-digit PIN' })
+  @ApiResponse({ status: 200, description: 'Login successful', type: AuthResponseDto })
+  @ApiResponse({ status: 401, description: 'Invalid PIN or too many attempts' })
+  async pinLogin(@Body() dto: PinLoginDto): Promise<AuthResponseDto> {
+    return this.authService.pinLogin(dto);
   }
 
   @Public()

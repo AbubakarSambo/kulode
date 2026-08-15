@@ -16,6 +16,7 @@ import {
   ForgotPasswordPage,
   ResetPasswordPage,
   GoogleCallbackPage,
+  PinLoginPage,
   DashboardPage,
   ClientsListPage,
   ClientDetailPage,
@@ -126,6 +127,10 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
           </Route>
+          {/* Not under GuestRoute: "Switch User" navigates here while STILL authenticated (see
+              useSwitchUser) so ProtectedRoute never gets a chance to redirect to /login first —
+              PinLoginPage clears the outgoing session itself once it has actually mounted. */}
+          <Route path="/pin" element={<PinLoginPage />} />
           <Route path="/check-email" element={<CheckEmailPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/set-password" element={<SetPasswordPage />} />

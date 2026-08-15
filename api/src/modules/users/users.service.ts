@@ -8,8 +8,8 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
-import { CreateUserDto, UpdateUserDto } from './dto';
-import { PaginationDto, paginate, PLAN_LIMITS, Role } from '../../common';
+import { CreateUserDto, UpdateUserDto, SetPinDto } from './dto';
+import { PaginationDto, paginate, PLAN_LIMITS, Role, PIN_ELIGIBLE_ROLES } from '../../common';
 import { TokenType, OrgModule } from '@prisma/client';
 
 const ADMIN_ROLES = [Role.ADMIN, Role.SUPER_ADMIN];
@@ -79,6 +79,8 @@ export class UsersService {
           businessRole: true,
           isActive: true,
           isEmailVerified: true,
+          hasPlaceholderEmail: true,
+          pinSetAt: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -101,6 +103,8 @@ export class UsersService {
         businessRole: true,
         isActive: true,
         isEmailVerified: true,
+        hasPlaceholderEmail: true,
+        pinSetAt: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -116,20 +120,12 @@ export class UsersService {
   async create(organizationId: string, dto: CreateUserDto, actingUserRole: string) {
     assertAdminActionAllowed(actingUserRole, dto.role);
 
-    // Check if email already exists
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email: dto.email.toLowerCase() },
-    });
-
-    if (existingUser) {
-      throw new ConflictException('Email already in use');
-    }
-
-    // Get org for invite email, plan check, and role validation
+    // Get org for invite email, plan check, role validation, and placeholder-email domain
     const organization = await this.prisma.organization.findUnique({
       where: { id: organizationId },
       select: {
         name: true,
+        slug: true,
         planTier: true,
         subscriptionStatus: true,
         trialEndDate: true,
@@ -139,6 +135,28 @@ export class UsersService {
     });
     if (organization) {
       assertRoleMatchesModule(dto.role, organization.enabledModules);
+    }
+
+    const resolvedRole = dto.role || (organization && usesPosRoles(organization.enabledModules) ? 'WAITER' : 'STAFF');
+    const isPinEligibleRole = PIN_ELIGIBLE_ROLES.includes(resolvedRole as Role);
+
+    if (!dto.email && !isPinEligibleRole) {
+      throw new ConflictException(`Email is required for role "${resolvedRole}"`);
+    }
+
+    let email: string;
+    let hasPlaceholderEmail: boolean;
+    if (dto.email) {
+      email = dto.email.toLowerCase();
+      hasPlaceholderEmail = false;
+
+      const existingUser = await this.prisma.user.findUnique({ where: { email } });
+      if (existingUser) {
+        throw new ConflictException('Email already in use');
+      }
+    } else {
+      email = await this.generateUniquePlaceholderEmail(organization?.slug ?? organizationId, dto.firstName, dto.lastName);
+      hasPlaceholderEmail = true;
     }
 
     // Enforce user limit unless grandfathered
@@ -172,16 +190,17 @@ export class UsersService {
       }
     }
 
-    // Create user without password and generate invite token
+    // Create user without password; only PIN-less (email-based) accounts get an invite token
     const result = await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
           organizationId,
-          email: dto.email.toLowerCase(),
+          email,
           firstName: dto.firstName,
           lastName: dto.lastName,
-          role: dto.role || (organization && usesPosRoles(organization.enabledModules) ? 'WAITER' : 'STAFF'),
+          role: resolvedRole,
           isEmailVerified: false,
+          hasPlaceholderEmail,
         },
         select: {
           id: true,
@@ -191,10 +210,15 @@ export class UsersService {
           role: true,
           isActive: true,
           isEmailVerified: true,
+          hasPlaceholderEmail: true,
           createdAt: true,
           updatedAt: true,
         },
       });
+
+      if (hasPlaceholderEmail) {
+        return { user, token: null };
+      }
 
       // Create password setup token (72h expiry)
       const token = crypto.randomBytes(32).toString('hex');
@@ -210,15 +234,29 @@ export class UsersService {
       return { user, token };
     });
 
-    // Send invite email (throws on failure so admin knows)
-    await this.emailService.sendPasswordSetupEmail(
-      dto.email.toLowerCase(),
-      dto.firstName,
-      result.token,
-      organization?.name || 'your organization',
-    );
+    // Send invite email (throws on failure so admin knows) — skipped for PIN-only accounts,
+    // which have no real inbox and are set up via "Set PIN" instead.
+    if (result.token) {
+      await this.emailService.sendPasswordSetupEmail(
+        email,
+        dto.firstName,
+        result.token,
+        organization?.name || 'your organization',
+      );
+    }
 
     return result.user;
+  }
+
+  private async generateUniquePlaceholderEmail(orgSlug: string, firstName: string, lastName: string): Promise<string> {
+    const base = `${firstName}.${lastName}`.toLowerCase().replace(/[^a-z0-9.]+/g, '');
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const suffix = crypto.randomBytes(3).toString('hex');
+      const candidate = `${base}-${suffix}@${orgSlug}.internal`;
+      const existing = await this.prisma.user.findUnique({ where: { email: candidate } });
+      if (!existing) return candidate;
+    }
+    throw new ConflictException('Could not generate a unique internal account — please try again');
   }
 
   async resendInvite(userId: string, organizationId: string) {
@@ -233,6 +271,10 @@ export class UsersService {
 
     if (user.isEmailVerified) {
       throw new ConflictException('User has already been verified');
+    }
+
+    if (user.hasPlaceholderEmail) {
+      throw new ConflictException('This account has no real email — set a PIN instead');
     }
 
     // Invalidate old tokens
@@ -334,6 +376,41 @@ export class UsersService {
     });
 
     return updatedUser;
+  }
+
+  async setPin(id: string, organizationId: string, dto: SetPinDto) {
+    const user = await this.prisma.user.findFirst({ where: { id, organizationId } });
+    if (!user) throw new NotFoundException('User not found');
+    if (!PIN_ELIGIBLE_ROLES.includes(user.role as Role)) {
+      throw new ForbiddenException(`A quick-login PIN can't be set for role "${user.role}"`);
+    }
+
+    // Uniqueness is enforced here (not a DB constraint, since the PIN is stored hashed) so two
+    // staff in the same org can never end up with the same code and get mistaken for each other.
+    const activeOrgUsers = await this.prisma.user.findMany({
+      where: { organizationId, isActive: true, pinHash: { not: null }, id: { not: id } },
+      select: { pinHash: true },
+    });
+    for (const other of activeOrgUsers) {
+      if (other.pinHash && (await bcrypt.compare(dto.pin, other.pinHash))) {
+        throw new ConflictException('That PIN is already in use by another staff member — pick a different one');
+      }
+    }
+
+    await this.prisma.user.update({
+      where: { id },
+      data: { pinHash: await bcrypt.hash(dto.pin, 10), pinSetAt: new Date() },
+    });
+
+    return { message: 'PIN set' };
+  }
+
+  async clearPin(id: string, organizationId: string) {
+    const user = await this.prisma.user.findFirst({ where: { id, organizationId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    await this.prisma.user.update({ where: { id }, data: { pinHash: null, pinSetAt: null } });
+    return { message: 'PIN removed' };
   }
 
   async remove(id: string, organizationId: string, currentUserId: string, actingUserRole: string) {

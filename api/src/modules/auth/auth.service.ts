@@ -12,8 +12,9 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
-import { RegisterDto, LoginDto, AuthResponseDto, VerifyEmailDto, SetPasswordDto, ResendVerificationDto, ForgotPasswordDto, ResetPasswordDto, MagicLinkRegisterDto } from './dto';
+import { RegisterDto, LoginDto, AuthResponseDto, VerifyEmailDto, SetPasswordDto, ResendVerificationDto, ForgotPasswordDto, ResetPasswordDto, MagicLinkRegisterDto, PinLoginDto } from './dto';
 import { TokenType } from '@prisma/client';
+import { PIN_ELIGIBLE_ROLES } from '../../common';
 
 @Injectable()
 export class AuthService {
@@ -275,37 +276,7 @@ export class AuthService {
 
       const accessToken = this.generateToken(user);
 
-      return {
-        accessToken,
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          role: user.role,
-          businessRole: user.businessRole,
-          organizationId: user.organizationId,
-          organizationName: user.organization.name,
-          isPlatformAdmin: user.isPlatformAdmin,
-          plan: {
-            planTier: user.organization.planTier,
-            subscriptionStatus: user.organization.subscriptionStatus,
-            trialEndDate: user.organization.trialEndDate,
-            isGrandfathered: user.organization.isGrandfathered,
-          },
-          organization: {
-            id: user.organization.id,
-            name: user.organization.name,
-            slug: user.organization.slug,
-            isPaystackVerified: user.organization.isPaystackVerified,
-            businessType: user.organization.businessType,
-            enabledModules: user.organization.enabledModules,
-            organizationSize: user.organization.organizationSize,
-            vatEnabled: user.organization.vatEnabled,
-            taxRate: Number(user.organization.taxRate),
-          },
-        },
-      };
+      return this.buildAuthResponse(user, accessToken);
     } catch (error) {
       this.logger.error(`Error in login for email ${dto.email}:`, error.stack || error);
       throw error;
@@ -359,6 +330,8 @@ export class AuthService {
               organizationSize: org.organizationSize,
               vatEnabled: org.vatEnabled,
               taxRate: Number(org.taxRate),
+              entertainmentTaxEnabled: org.entertainmentTaxEnabled,
+              entertainmentTaxRate: Number(org.entertainmentTaxRate),
             },
           },
         };
@@ -434,6 +407,8 @@ export class AuthService {
           organizationSize: user.organization.organizationSize,
           vatEnabled: user.organization.vatEnabled,
           taxRate: Number(user.organization.taxRate),
+          entertainmentTaxEnabled: user.organization.entertainmentTaxEnabled,
+          entertainmentTaxRate: Number(user.organization.entertainmentTaxRate),
         },
       },
     };
@@ -507,6 +482,8 @@ export class AuthService {
           organizationSize: user.organization.organizationSize,
           vatEnabled: user.organization.vatEnabled,
           taxRate: Number(user.organization.taxRate),
+          entertainmentTaxEnabled: user.organization.entertainmentTaxEnabled,
+          entertainmentTaxRate: Number(user.organization.entertainmentTaxRate),
         },
       },
     };
@@ -838,11 +815,16 @@ export class AuthService {
         organizationSize: user.organization.organizationSize,
         vatEnabled: user.organization.vatEnabled,
         taxRate: Number(user.organization.taxRate),
+        entertainmentTaxEnabled: user.organization.entertainmentTaxEnabled,
+        entertainmentTaxRate: Number(user.organization.entertainmentTaxRate),
       },
     };
   }
 
-  private generateToken(user: { id: string; email: string; organizationId: string; role: string }) {
+  private generateToken(
+    user: { id: string; email: string; organizationId: string; role: string },
+    expiresInSeconds?: number,
+  ) {
     const payload = {
       sub: user.id,
       email: user.email,
@@ -850,7 +832,90 @@ export class AuthService {
       role: user.role,
     };
 
-    return this.jwtService.sign(payload);
+    return expiresInSeconds ? this.jwtService.sign(payload, { expiresIn: expiresInSeconds }) : this.jwtService.sign(payload);
+  }
+
+  private buildAuthResponse(user: any, accessToken: string) {
+    return {
+      accessToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        businessRole: user.businessRole,
+        organizationId: user.organizationId,
+        organizationName: user.organization.name,
+        isPlatformAdmin: user.isPlatformAdmin,
+        plan: {
+          planTier: user.organization.planTier,
+          subscriptionStatus: user.organization.subscriptionStatus,
+          trialEndDate: user.organization.trialEndDate,
+          isGrandfathered: user.organization.isGrandfathered,
+        },
+        organization: {
+          id: user.organization.id,
+          name: user.organization.name,
+          slug: user.organization.slug,
+          isPaystackVerified: user.organization.isPaystackVerified,
+          businessType: user.organization.businessType,
+          enabledModules: user.organization.enabledModules,
+          organizationSize: user.organization.organizationSize,
+          vatEnabled: user.organization.vatEnabled,
+          taxRate: Number(user.organization.taxRate),
+          entertainmentTaxEnabled: user.organization.entertainmentTaxEnabled,
+          entertainmentTaxRate: Number(user.organization.entertainmentTaxRate),
+        },
+      },
+    };
+  }
+
+  // In-memory per-org PIN lockout — resets on deploy, which is acceptable for an MVP quick-login
+  // path; the existing IP-based @Throttle on the controller route is the primary brute-force guard.
+  private readonly pinFailures = new Map<string, { count: number; lockedUntil?: number }>();
+  private static readonly PIN_MAX_ATTEMPTS = 5;
+  private static readonly PIN_LOCKOUT_MS = 5 * 60 * 1000;
+
+  async pinLogin(dto: PinLoginDto): Promise<any> {
+    const state = this.pinFailures.get(dto.organizationId);
+    if (state?.lockedUntil && state.lockedUntil > Date.now()) {
+      throw new UnauthorizedException('Too many attempts — try again in a few minutes');
+    }
+
+    const candidates = await this.prisma.user.findMany({
+      where: {
+        organizationId: dto.organizationId,
+        isActive: true,
+        pinHash: { not: null },
+        role: { in: PIN_ELIGIBLE_ROLES },
+      },
+      include: { organization: true },
+    });
+
+    let matched: (typeof candidates)[number] | undefined;
+    for (const candidate of candidates) {
+      if (candidate.pinHash && (await bcrypt.compare(dto.pin, candidate.pinHash))) {
+        matched = candidate;
+        break;
+      }
+    }
+
+    if (!matched) {
+      const failures = (state?.count ?? 0) + 1;
+      this.pinFailures.set(dto.organizationId, {
+        count: failures,
+        lockedUntil:
+          failures >= AuthService.PIN_MAX_ATTEMPTS ? Date.now() + AuthService.PIN_LOCKOUT_MS : undefined,
+      });
+      throw new UnauthorizedException('Invalid PIN');
+    }
+
+    this.pinFailures.delete(dto.organizationId);
+
+    // Shorter-lived than the default password-login token since this is a shared terminal.
+    const accessToken = this.generateToken(matched, 16 * 60 * 60);
+    return this.buildAuthResponse(matched, accessToken);
   }
 
   private async generateUniqueSlug(name: string): Promise<string> {

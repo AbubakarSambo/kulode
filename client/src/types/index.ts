@@ -74,6 +74,8 @@ export interface User {
     enabledModules?: OrgModule
     vatEnabled?: boolean
     taxRate?: number
+    entertainmentTaxEnabled?: boolean
+    entertainmentTaxRate?: number
     logo?: string
     email?: string
     phone?: string
@@ -138,6 +140,8 @@ export interface Organization {
   currency: string
   taxRate: number
   vatEnabled: boolean
+  entertainmentTaxRate: number
+  entertainmentTaxEnabled: boolean
   showQrCode: boolean
   paymentTerms?: string
   defaultNotes?: string
@@ -468,6 +472,10 @@ export interface Order {
   status: OrderStatus
   subtotal: number
   taxAmount: number
+  vatApplied: boolean
+  entertainmentTaxApplied: boolean
+  vatAmount: number
+  entertainmentTaxAmount: number
   total: number
   amountPaid: number
   notes?: string

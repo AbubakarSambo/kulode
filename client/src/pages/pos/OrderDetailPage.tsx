@@ -647,11 +647,28 @@ function SyncedOrderView({ id }: { id: string }) {
               <span>Subtotal</span>
               <span>{formatCurrency(order.subtotal)}</span>
             </div>
-            {order.taxAmount > 0 && (
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Tax</span>
-                <span>{formatCurrency(order.taxAmount)}</span>
-              </div>
+            {order.vatAmount > 0 || order.entertainmentTaxAmount > 0 ? (
+              <>
+                {order.vatAmount > 0 && (
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>VAT</span>
+                    <span>{formatCurrency(order.vatAmount)}</span>
+                  </div>
+                )}
+                {order.entertainmentTaxAmount > 0 && (
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Entertainment Tax</span>
+                    <span>{formatCurrency(order.entertainmentTaxAmount)}</span>
+                  </div>
+                )}
+              </>
+            ) : (
+              order.taxAmount > 0 && (
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Tax</span>
+                  <span>{formatCurrency(order.taxAmount)}</span>
+                </div>
+              )
             )}
             <div className="flex justify-between text-lg font-bold text-foreground">
               <span>Total</span>

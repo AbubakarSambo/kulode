@@ -10,9 +10,13 @@ import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Label, Input, SearchableSelect } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { BottomSheet } from '@/components/shared/BottomSheet'
-import { menuCategoriesApi, menuItemsApi, ordersApi, customersApi, tablesApi, waitersApi } from '@/api'
+import { menuCategoriesApi, menuItemsApi, ordersApi, customersApi, tablesApi, waitersApi, organizationsApi } from '@/api'
 import { formatCurrency, cn } from '@/lib/utils'
 import type { OrderSource } from '@/types'
+
+function roundCurrency(value: number): number {
+  return Math.round(value * 100) / 100
+}
 
 const customerSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -51,6 +55,19 @@ export function OrderTakingPage() {
   const initialSource = (searchParams.get('source') as OrderSource) || (tableId ? 'DINE_IN' : 'TAKEAWAY')
 
   const queryClient = useQueryClient()
+  // Fresh, not the auth store's login-time snapshot — an admin can flip these settings mid-shift
+  // and a waiter already logged in should see it reflected without having to re-authenticate.
+  const { data: organization } = useQuery({
+    queryKey: ['organization'],
+    queryFn: () => organizationsApi.getCurrent(),
+    staleTime: 60_000,
+  })
+  const vatEnabled = !!organization?.vatEnabled
+  const vatRate = organization?.taxRate ?? 0
+  const entertainmentTaxEnabled = !!organization?.entertainmentTaxEnabled
+  const entertainmentTaxRate = organization?.entertainmentTaxRate ?? 0
+  const [applyVat, setApplyVat] = useState(true)
+  const [applyEntertainmentTax, setApplyEntertainmentTax] = useState(true)
   const [source, setSource] = useState<OrderSource>(initialSource)
   const [activeCategory, setActiveCategory] = useState<string | 'all'>('all')
   const [search, setSearch] = useState('')
@@ -149,7 +166,11 @@ export function OrderTakingPage() {
     return query ? byCategory.filter((i) => i.name.toLowerCase().includes(query)) : byCategory
   }, [items, activeCategory, search])
 
-  const total = cart.reduce((sum, line) => sum + line.price * line.quantity, 0)
+  const subtotal = cart.reduce((sum, line) => sum + line.price * line.quantity, 0)
+  const vatAmount = vatEnabled && applyVat ? roundCurrency(subtotal * (vatRate / 100)) : 0
+  const entertainmentTaxAmount =
+    entertainmentTaxEnabled && applyEntertainmentTax ? roundCurrency(subtotal * (entertainmentTaxRate / 100)) : 0
+  const total = subtotal + vatAmount + entertainmentTaxAmount
 
   const addToCart = (menuItemId: string, name: string, price: number) => {
     setCart((prev) => {
@@ -181,6 +202,8 @@ export function OrderTakingPage() {
         waiterId: waiterId || undefined,
         source,
         items: cart.map((l) => ({ menuItemId: l.menuItemId, quantity: l.quantity, notes: l.notes || undefined })),
+        applyVat,
+        applyEntertainmentTax,
       }),
     onSuccess: (result) => {
       if ('__offlinePending' in result) {
@@ -342,9 +365,50 @@ export function OrderTakingPage() {
           </button>
 
           <Card className="mt-4 p-4">
-            <CardContent className="flex items-center justify-between p-0">
-              <span className="font-semibold text-muted-foreground">Total</span>
-              <span className="text-xl font-bold text-foreground">{formatCurrency(total)}</span>
+            <CardContent className="space-y-2 p-0">
+              {(vatEnabled || entertainmentTaxEnabled) && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span className="font-medium text-foreground">{formatCurrency(subtotal)}</span>
+                </div>
+              )}
+              {vatEnabled && (
+                <label className="flex items-center justify-between gap-2 text-sm">
+                  <span className="flex items-center gap-2 text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={applyVat}
+                      onChange={(e) => setApplyVat(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    VAT ({vatRate}%)
+                  </span>
+                  <span className="font-medium text-foreground">{formatCurrency(vatAmount)}</span>
+                </label>
+              )}
+              {entertainmentTaxEnabled && (
+                <label className="flex items-center justify-between gap-2 text-sm">
+                  <span className="flex items-center gap-2 text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={applyEntertainmentTax}
+                      onChange={(e) => setApplyEntertainmentTax(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    Entertainment Tax ({entertainmentTaxRate}%)
+                  </span>
+                  <span className="font-medium text-foreground">{formatCurrency(entertainmentTaxAmount)}</span>
+                </label>
+              )}
+              <div
+                className={cn(
+                  'flex items-center justify-between',
+                  (vatEnabled || entertainmentTaxEnabled) && 'border-t border-border pt-2',
+                )}
+              >
+                <span className="font-semibold text-muted-foreground">Total</span>
+                <span className="text-xl font-bold text-foreground">{formatCurrency(total)}</span>
+              </div>
             </CardContent>
           </Card>
 

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, X, CreditCard, ChefHat, Clock, Receipt, Users, ShoppingCart, Tag, UserRound, Timer, UserCog } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, CreditCard, ChefHat, Clock, Receipt, Users, ShoppingCart, Tag, UserRound, Timer, UserCog, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
-import { useLogout } from '@/hooks'
+import { useLogout, useSwitchUser } from '@/hooks'
+import { PIN_ELIGIBLE_ROLES } from '@/lib/pin'
 import { Logo } from '@/components/shared'
 import { useSubscription } from '@/hooks/useSubscription'
 import { useOrgModules } from '@/hooks/useOrgModules'
@@ -94,6 +95,8 @@ interface SidebarProps {
 export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const user = useAuthStore((state) => state.user)
   const logout = useLogout()
+  const switchUser = useSwitchUser()
+  const isPinEligible = !!user && PIN_ELIGIBLE_ROLES.includes(user.role)
   const { hasRequiredPlan } = useSubscription()
   const { hasPos, hasInvoicing } = useOrgModules()
 
@@ -403,9 +406,40 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
               )}
             </a>
             
+            {/* Non-PIN roles (admin/manager/etc) still need a way to hand the terminal to a PIN
+                user without a full logout, so "Switch User" shows alongside "Logout" for them —
+                PIN-eligible roles only ever need the one (they're already PIN-only accounts). */}
+            {!isPinEligible && (
+              <button
+                onClick={() => {
+                  switchUser()
+                  if (onClose) onClose()
+                }}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-xs font-medium text-slate-500 hover:bg-[#eef4ff]/60 hover:text-slate-950 transition-colors relative group cursor-pointer",
+                  effectiveCollapsed && "lg:justify-center lg:px-0"
+                )}
+              >
+                <RefreshCw className="h-4.5 w-4.5 shrink-0" />
+                <span className={cn(
+                  "transition-all duration-200",
+                  effectiveCollapsed && "lg:opacity-0 lg:max-w-0 lg:pointer-events-none lg:overflow-hidden"
+                )}>Switch User</span>
+                {effectiveCollapsed && (
+                  <div className="hidden lg:group-hover:block absolute left-16 bg-slate-900/90 backdrop-blur-md text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-md whitespace-nowrap z-55 pointer-events-none">
+                    Switch User
+                  </div>
+                )}
+              </button>
+            )}
+
             <button
               onClick={() => {
-                logout()
+                if (isPinEligible) {
+                  switchUser()
+                } else {
+                  logout()
+                }
                 if (onClose) onClose()
               }}
               className={cn(
@@ -413,14 +447,14 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                 effectiveCollapsed && "lg:justify-center lg:px-0"
               )}
             >
-              <LogoutIcon className="h-4.5 w-4.5 shrink-0" />
+              {isPinEligible ? <RefreshCw className="h-4.5 w-4.5 shrink-0" /> : <LogoutIcon className="h-4.5 w-4.5 shrink-0" />}
               <span className={cn(
                 "transition-all duration-200",
                 effectiveCollapsed && "lg:opacity-0 lg:max-w-0 lg:pointer-events-none lg:overflow-hidden"
-              )}>Logout</span>
+              )}>{isPinEligible ? 'Switch User' : 'Logout'}</span>
               {effectiveCollapsed && (
                 <div className="hidden lg:group-hover:block absolute left-16 bg-slate-900/90 backdrop-blur-md text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-md whitespace-nowrap z-55 pointer-events-none">
-                  Logout
+                  {isPinEligible ? 'Switch User' : 'Logout'}
                 </div>
               )}
             </button>

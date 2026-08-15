@@ -144,8 +144,17 @@ export class OrdersService {
     const organization = await this.prisma.organization.findUniqueOrThrow({
       where: { id: organizationId },
     });
-    const taxRate = organization.vatEnabled ? toNumber(organization.taxRate) : 0;
-    const taxAmount = Math.round(subtotal * (taxRate / 100) * 100) / 100;
+
+    // Each tax type only applies at all if the org has it enabled; when enabled, it defaults to
+    // "on" for a new order (matching the old always-on behavior) unless explicitly toggled off.
+    const applyVat = organization.vatEnabled && (dto.applyVat ?? true);
+    const applyEntertainmentTax = organization.entertainmentTaxEnabled && (dto.applyEntertainmentTax ?? true);
+    const { vatAmount, entertainmentTaxAmount, taxAmount } = this.computeOrderTax(
+      subtotal,
+      organization,
+      applyVat,
+      applyEntertainmentTax,
+    );
     const total = subtotal + taxAmount;
 
     return runIdempotent(this.prisma, organizationId, 'ORDER_CREATE', dto.clientRequestId, async (tx) => {
@@ -159,6 +168,10 @@ export class OrdersService {
           source,
           subtotal,
           taxAmount,
+          vatApplied: applyVat,
+          entertainmentTaxApplied: applyEntertainmentTax,
+          vatAmount,
+          entertainmentTaxAmount,
           total,
           notes: dto.notes,
           items: { create: pricedItems },
@@ -189,10 +202,16 @@ export class OrdersService {
     const organization = await this.prisma.organization.findUniqueOrThrow({
       where: { id: organizationId },
     });
-    const taxRate = organization.vatEnabled ? toNumber(organization.taxRate) : 0;
 
     const newSubtotal = toNumber(order.subtotal) + addedAmount;
-    const newTaxAmount = Math.round(newSubtotal * (taxRate / 100) * 100) / 100;
+    // Which taxes apply was already decided at order creation — adding items recalculates the
+    // amounts against the org's current rates, but never silently turns a tax on/off mid-order.
+    const { vatAmount, entertainmentTaxAmount, taxAmount: newTaxAmount } = this.computeOrderTax(
+      newSubtotal,
+      organization,
+      order.vatApplied,
+      order.entertainmentTaxApplied,
+    );
     const newTotal = newSubtotal + newTaxAmount;
 
     return runIdempotent(this.prisma, organizationId, 'ORDER_ADD_ITEMS', dto.clientRequestId, async (tx) => {
@@ -202,10 +221,23 @@ export class OrdersService {
 
       return tx.order.update({
         where: { id },
-        data: { subtotal: newSubtotal, taxAmount: newTaxAmount, total: newTotal },
+        data: { subtotal: newSubtotal, taxAmount: newTaxAmount, vatAmount, entertainmentTaxAmount, total: newTotal },
         include: this.orderInclude,
       });
     });
+  }
+
+  private computeOrderTax(
+    subtotal: number,
+    organization: { taxRate: Prisma.Decimal | number; entertainmentTaxRate: Prisma.Decimal | number },
+    applyVat: boolean,
+    applyEntertainmentTax: boolean,
+  ) {
+    const vatRate = applyVat ? toNumber(organization.taxRate) : 0;
+    const entertainmentRate = applyEntertainmentTax ? toNumber(organization.entertainmentTaxRate) : 0;
+    const vatAmount = Math.round(subtotal * (vatRate / 100) * 100) / 100;
+    const entertainmentTaxAmount = Math.round(subtotal * (entertainmentRate / 100) * 100) / 100;
+    return { vatAmount, entertainmentTaxAmount, taxAmount: vatAmount + entertainmentTaxAmount };
   }
 
   async updateItemStatus(

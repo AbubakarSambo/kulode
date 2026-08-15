@@ -48,10 +48,22 @@ export class UpdateOrganizationDto {
   @Max(100)
   taxRate?: number;
 
-  @ApiPropertyOptional({ example: false, description: 'Enable VAT on invoices' })
+  @ApiPropertyOptional({ example: false, description: 'Enable VAT (applies to both invoices and POS orders)' })
   @IsOptional()
   @IsBoolean()
   vatEnabled?: boolean;
+
+  @ApiPropertyOptional({ example: 5, description: 'Entertainment/consumption tax rate percentage (POS orders only)' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  entertainmentTaxRate?: number;
+
+  @ApiPropertyOptional({ example: false, description: 'Enable entertainment/consumption tax (POS orders only)' })
+  @IsOptional()
+  @IsBoolean()
+  entertainmentTaxEnabled?: boolean;
 
   @ApiPropertyOptional({ example: 'Payment due within 30 days of invoice date.' })
   @IsOptional()

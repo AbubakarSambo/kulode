@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsNotEmpty,
   IsNumber,
@@ -64,6 +65,16 @@ export class CreateOrderDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({ description: 'Apply VAT to this order. Defaults to the org setting when omitted; has no effect if the org hasn\'t enabled VAT.' })
+  @IsOptional()
+  @IsBoolean()
+  applyVat?: boolean;
+
+  @ApiPropertyOptional({ description: 'Apply entertainment/consumption tax to this order. Defaults to the org setting when omitted; has no effect if the org hasn\'t enabled it.' })
+  @IsOptional()
+  @IsBoolean()
+  applyEntertainmentTax?: boolean;
 
   @ApiProperty({ description: 'Client-generated UUID for idempotent retries (e.g. from the offline queue)' })
   @IsNotEmpty()

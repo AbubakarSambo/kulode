@@ -7,6 +7,7 @@ export { SetPasswordPage } from './auth/SetPassword'
 export { ForgotPasswordPage } from './auth/ForgotPassword'
 export { ResetPasswordPage } from './auth/ResetPassword'
 export { GoogleCallbackPage } from './auth/GoogleCallback'
+export { PinLoginPage } from './auth/PinLogin'
 
 // Dashboard
 export { DashboardPage } from './dashboard/Dashboard'
