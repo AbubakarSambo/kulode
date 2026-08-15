@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, UserX, Send } from 'lucide-react'
+import { Plus, UserX, Send, KeyRound } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Select, Card, CardContent, Badge } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import { useOrgModules } from '@/hooks/useOrgModules'
 import { useAuthStore } from '@/stores/auth'
 import type { ApiResponse, PaginatedResponse, UserRole } from '@/types'
+import { PIN_ELIGIBLE_ROLES } from '@/lib/pin'
 
 interface UserData {
   id: string
@@ -23,6 +24,8 @@ interface UserData {
   role: UserRole
   isActive: boolean
   isEmailVerified: boolean
+  hasPlaceholderEmail?: boolean
+  pinSetAt?: string | null
   createdAt: string
 }
 
@@ -46,21 +49,35 @@ const usersApi = {
     const response = await apiClient.post<ApiResponse<{ message: string }>>(`/users/${id}/resend-invite`)
     return response.data.data
   },
+  setPin: async (id: string, pin: string): Promise<{ message: string }> => {
+    const response = await apiClient.post<ApiResponse<{ message: string }>>(`/users/${id}/pin`, { pin })
+    return response.data.data
+  },
+  clearPin: async (id: string): Promise<{ message: string }> => {
+    const response = await apiClient.delete<ApiResponse<{ message: string }>>(`/users/${id}/pin`)
+    return response.data.data
+  },
 }
 
 interface CreateUserData {
-  email: string
+  email?: string
   firstName: string
   lastName: string
   role: UserRole
 }
 
-const userSchema = z.object({
-  email: z.string().email('Invalid email'),
-  firstName: z.string().min(1, 'First name is required'),
-  lastName: z.string().min(1, 'Last name is required'),
-  role: z.string().min(1, 'Role is required'),
-})
+const userSchema = z
+  .object({
+    email: z.string().email('Invalid email').optional().or(z.literal('')),
+    firstName: z.string().min(1, 'First name is required'),
+    lastName: z.string().min(1, 'Last name is required'),
+    role: z.string().min(1, 'Role is required'),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.email && !PIN_ELIGIBLE_ROLES.includes(data.role as UserRole)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['email'], message: 'Email is required for this role' })
+    }
+  })
 
 type UserFormData = z.infer<typeof userSchema>
 
@@ -93,9 +110,15 @@ const DEFAULT_CREATABLE_ROLES: { value: UserRole; label: string }[] = [
   { value: 'STAFF', label: 'Staff' },
 ]
 
+const pinSchema = z.object({
+  pin: z.string().regex(/^\d{4}$/, 'PIN must be exactly 4 digits'),
+})
+type PinFormData = z.infer<typeof pinSchema>
+
 export function UsersPage() {
   const queryClient = useQueryClient()
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [pinModalUser, setPinModalUser] = useState<UserData | null>(null)
   // Any org running POS (POS-only or BOTH) uses the waiter/cashier ladder — only a pure
   // invoicing-only org keeps STAFF/ACCOUNTANT. Matches usesPosRoles() on the backend.
   const { hasPos } = useOrgModules()
@@ -114,6 +137,7 @@ export function UsersPage() {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm<UserFormData>({
     resolver: zodResolver(userSchema),
@@ -124,15 +148,23 @@ export function UsersPage() {
       role: usesPosRoles ? 'WAITER' : 'STAFF',
     },
   })
+  const selectedRole = watch('role') as UserRole
+  const showEmailField = !PIN_ELIGIBLE_ROLES.includes(selectedRole)
 
   const createMutation = useMutation({
     mutationFn: (data: UserFormData) => usersApi.create(data as CreateUserData),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       posthog.capture('team_member_invited', { role: variables.role })
-      toast.success('Invitation sent', {
-        description: `Invitation sent to ${variables.email}`,
-      })
+      if (variables.email) {
+        toast.success('Invitation sent', {
+          description: `Invitation sent to ${variables.email}`,
+        })
+      } else {
+        toast.success('User created', {
+          description: 'Set a PIN for them below so they can log in on a shared terminal',
+        })
+      }
       setIsModalOpen(false)
       reset()
     },
@@ -171,8 +203,44 @@ export function UsersPage() {
     },
   })
 
+  const pinForm = useForm<PinFormData>({ resolver: zodResolver(pinSchema) })
+
+  const setPinMutation = useMutation({
+    mutationFn: ({ id, pin }: { id: string; pin: string }) => usersApi.setPin(id, pin),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      toast.success('PIN set')
+      setPinModalUser(null)
+      pinForm.reset()
+    },
+    onError: (error: any) => {
+      toast.error('Failed to set PIN', {
+        description: error.response?.data?.message,
+      })
+    },
+  })
+
+  const clearPinMutation = useMutation({
+    mutationFn: (id: string) => usersApi.clearPin(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      toast.success('PIN removed')
+    },
+    onError: (error: any) => {
+      toast.error('Failed to remove PIN', {
+        description: error.response?.data?.message,
+      })
+    },
+  })
+
   const onSubmit = (data: UserFormData) => {
-    createMutation.mutate(data)
+    createMutation.mutate({ ...data, email: data.email || undefined })
+  }
+
+  const handleClearPin = (user: UserData) => {
+    if (window.confirm(`Remove ${user.firstName}'s PIN? They'll need a new one set to use quick login.`)) {
+      clearPinMutation.mutate(user.id)
+    }
   }
 
   const handleDeactivate = (user: UserData) => {
@@ -226,13 +294,25 @@ export function UsersPage() {
                       <td className="px-6 py-4">
                         <p className="font-bold text-slate-900 text-sm">{user.firstName} {user.lastName}</p>
                       </td>
-                      <td className="px-6 py-4 text-xs font-semibold text-slate-500">{user.email}</td>
+                      <td className="px-6 py-4 text-xs font-semibold text-slate-500">
+                        {user.hasPlaceholderEmail ? (
+                          <span className="italic text-slate-400">PIN login only</span>
+                        ) : (
+                          user.email
+                        )}
+                      </td>
                       <td className="px-6 py-4">
                         <Badge variant="secondary" className="rounded-md">{roleLabels[user.role]}</Badge>
                       </td>
                       <td className="px-6 py-4">
                         {!user.isActive ? (
                           <Badge variant="secondary" className="rounded-md">Inactive</Badge>
+                        ) : user.hasPlaceholderEmail ? (
+                          user.pinSetAt ? (
+                            <Badge variant="success" className="rounded-md">Active</Badge>
+                          ) : (
+                            <Badge variant="outline" className="rounded-md">PIN not set</Badge>
+                          )
                         ) : !user.isEmailVerified ? (
                           <Badge variant="outline" className="rounded-md">Pending Invite</Badge>
                         ) : (
@@ -240,7 +320,7 @@ export function UsersPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 text-right space-x-1">
-                        {user.isActive && !user.isEmailVerified && (
+                        {user.isActive && !user.isEmailVerified && !user.hasPlaceholderEmail && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -250,6 +330,22 @@ export function UsersPage() {
                             className="h-8 w-8 p-0 rounded-lg"
                           >
                             <Send className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {user.isActive && PIN_ELIGIBLE_ROLES.includes(user.role) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              user.pinSetAt ? handleClearPin(user) : setPinModalUser(user)
+                            }
+                            title={user.pinSetAt ? 'Remove PIN' : 'Set quick-login PIN'}
+                            className={cn(
+                              'h-8 w-8 p-0 rounded-lg',
+                              user.pinSetAt && 'text-rose-500 hover:text-rose-700 hover:bg-rose-50',
+                            )}
+                          >
+                            <KeyRound className="h-4 w-4" />
                           </Button>
                         )}
                         {user.isActive && user.role !== 'SUPER_ADMIN' && (
@@ -302,16 +398,6 @@ export function UsersPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email" required>Email</Label>
-            <Input
-              id="email"
-              type="email"
-              {...register('email')}
-              error={errors.email?.message}
-            />
-          </div>
-
-          <div className="space-y-2">
             <Label htmlFor="role" required>Role</Label>
             <Select
               id="role"
@@ -324,11 +410,71 @@ export function UsersPage() {
             </Select>
           </div>
 
+          {showEmailField ? (
+            <div className="space-y-2">
+              <Label htmlFor="email" required>Email</Label>
+              <Input
+                id="email"
+                type="email"
+                {...register('email')}
+                error={errors.email?.message}
+              />
+            </div>
+          ) : (
+            <p className="rounded-xl bg-muted p-3 text-xs text-muted-foreground">
+              This role logs in with a PIN, not email — you'll set one for them right after creating the account.
+            </p>
+          )}
+
           <div className="flex gap-3 pt-2">
             <Button type="submit" isLoading={createMutation.isPending}>
-              Send Invitation
+              {showEmailField ? 'Send Invitation' : 'Create Account'}
             </Button>
             <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        isOpen={!!pinModalUser}
+        onClose={() => {
+          setPinModalUser(null)
+          pinForm.reset()
+        }}
+        title="Set Quick-Login PIN"
+        description={pinModalUser ? `4-digit PIN ${pinModalUser.firstName} will use to log into a shared POS terminal` : undefined}
+      >
+        <form
+          onSubmit={pinForm.handleSubmit((data) =>
+            pinModalUser && setPinMutation.mutate({ id: pinModalUser.id, pin: data.pin }),
+          )}
+          className="space-y-4"
+        >
+          <div className="space-y-2">
+            <Label htmlFor="pin" required>PIN</Label>
+            <Input
+              id="pin"
+              inputMode="numeric"
+              maxLength={4}
+              placeholder="4821"
+              {...pinForm.register('pin')}
+              error={pinForm.formState.errors.pin?.message}
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <Button type="submit" isLoading={setPinMutation.isPending}>
+              Save PIN
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setPinModalUser(null)
+                pinForm.reset()
+              }}
+            >
               Cancel
             </Button>
           </div>

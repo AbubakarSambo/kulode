@@ -44,10 +44,16 @@ apiClient.interceptors.response.use(
     
     if (error.response?.status === 401) {
       const url = error.config?.url || ''
-      const authEndpoints = ['/auth/login', '/auth/verify-email', '/auth/set-password', '/auth/resend-verification']
+      const authEndpoints = ['/auth/login', '/auth/verify-email', '/auth/set-password', '/auth/resend-verification', '/auth/pin-login']
       const isAuthEndpoint = authEndpoints.some(ep => url.includes(ep))
-      // Only redirect if not on login/auth pages (to preserve form state on failed login)
-      if (!window.location.pathname.includes('/login') && !isAuthEndpoint) {
+      // If there's no token at all, we already know we're logged out — most likely a deliberate
+      // "Switch User"/"Logout" that cleared the session right before this stale in-flight request
+      // landed. The app's own routing (ProtectedRoute/GuestRoute) already handles that case via a
+      // normal SPA navigation; forcing a hard `window.location.href` reload here would stomp over
+      // wherever that navigation was actually headed (e.g. /pin). Only a *surprise* mid-session
+      // expiry — token still present but rejected — should force the hard redirect.
+      const hasToken = !!localStorage.getItem('token')
+      if (hasToken && !isAuthEndpoint) {
         useAuthStore.getState().logout()
         window.location.href = '/login'
       }

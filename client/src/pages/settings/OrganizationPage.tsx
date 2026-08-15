@@ -23,6 +23,8 @@ const organizationSchema = z.object({
   vatEnabled: z.boolean().optional(),
   showQrCode: z.boolean().optional(),
   taxRate: z.number().min(0).max(100).optional(),
+  entertainmentTaxEnabled: z.boolean().optional(),
+  entertainmentTaxRate: z.number().min(0).max(100).optional(),
   paymentTerms: z.string().max(2000).optional(),
   defaultNotes: z.string().max(2000).optional(),
   googleSheetId: z.string().optional(),
@@ -89,6 +91,8 @@ export function OrganizationPage() {
       vatEnabled: false,
       showQrCode: false,
       taxRate: 0,
+      entertainmentTaxEnabled: false,
+      entertainmentTaxRate: 0,
       paymentTerms: '',
       defaultNotes: '',
       googleSheetId: '',
@@ -108,6 +112,8 @@ export function OrganizationPage() {
         vatEnabled: organization.vatEnabled,
         showQrCode: organization.showQrCode ?? false,
         taxRate: Number(organization.taxRate) || 0,
+        entertainmentTaxEnabled: organization.entertainmentTaxEnabled,
+        entertainmentTaxRate: Number(organization.entertainmentTaxRate) || 0,
         paymentTerms: organization.paymentTerms || '',
         defaultNotes: organization.defaultNotes || '',
         googleSheetId: organization.googleSheetId || '',
@@ -123,6 +129,8 @@ export function OrganizationPage() {
         vatEnabled: !!data.vatEnabled,
         showQrCode: !!data.showQrCode,
         taxRate: Number(data.taxRate) || 0,
+        entertainmentTaxEnabled: !!data.entertainmentTaxEnabled,
+        entertainmentTaxRate: Number(data.entertainmentTaxRate) || 0,
         paymentTerms: data.paymentTerms || '',
         defaultNotes: data.defaultNotes || '',
         googleSheetId: data.googleSheetId || null,
@@ -331,11 +339,11 @@ export function OrganizationPage() {
                     }}
                     className="h-4 w-4 rounded border-gray-300"
                   />
-                  <span className="text-sm font-medium">Enable VAT on invoices</span>
+                  <span className="text-sm font-medium">Enable VAT</span>
                 </label>
                 <p className="text-xs text-muted-foreground">
-                  This is your default for new invoices — it applies VAT at the rate below.
-                  The same default is shown (and can be saved) in the onboarding invoice setup.
+                  Applies VAT at the rate below to both invoices and POS orders. The same default
+                  is shown (and can be saved) in the onboarding invoice setup.
                 </p>
                 {watch('vatEnabled') && (
                   <div className="space-y-2">
@@ -349,6 +357,43 @@ export function OrganizationPage() {
                       className="max-w-[200px]"
                       {...register('taxRate', { valueAsNumber: true })}
                       error={errors.taxRate?.message}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={watch('entertainmentTaxEnabled') || false}
+                    onChange={(e) => {
+                      setValue('entertainmentTaxEnabled', e.target.checked, { shouldDirty: true })
+                      if (e.target.checked && !watch('entertainmentTaxRate')) {
+                        setValue('entertainmentTaxRate', 5, { shouldDirty: true })
+                      }
+                    }}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <span className="text-sm font-medium">Enable Entertainment Tax</span>
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  A second, stackable tax for POS orders (e.g. a state consumption/entertainment
+                  tax on restaurant or bar bills). Waiters can toggle it on or off per order on the
+                  Sell screen once enabled here.
+                </p>
+                {watch('entertainmentTaxEnabled') && (
+                  <div className="space-y-2">
+                    <Label htmlFor="entertainmentTaxRate">Entertainment Tax Rate (%)</Label>
+                    <Input
+                      id="entertainmentTaxRate"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      className="max-w-[200px]"
+                      {...register('entertainmentTaxRate', { valueAsNumber: true })}
+                      error={errors.entertainmentTaxRate?.message}
                     />
                   </div>
                 )}

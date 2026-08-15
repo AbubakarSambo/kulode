@@ -7,6 +7,11 @@ export const authApi = {
     return response.data.data
   },
 
+  pinLogin: async (organizationId: string, pin: string): Promise<AuthResponse> => {
+    const response = await apiClient.post<ApiResponse<AuthResponse>>('/auth/pin-login', { organizationId, pin })
+    return response.data.data
+  },
+
   register: async (data: RegisterData): Promise<RegisterResponse> => {
     const response = await apiClient.post<ApiResponse<RegisterResponse>>('/auth/register', data)
     return response.data.data

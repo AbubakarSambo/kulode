@@ -168,3 +168,17 @@ export function useLogout() {
     navigate('/login')
   }
 }
+
+// For PIN-eligible roles on a shared terminal — hands off to the PIN pad instead of the full
+// email/password login screen. Deliberately does NOT clear the session here: /pin isn't under
+// ProtectedRoute, so navigating first (while still "authenticated") leaves cleanly with no
+// intermediate render where ProtectedRoute could fire its own redirect to /login. PinLoginPage
+// clears the outgoing session itself once mounted — see its own effect.
+export function useSwitchUser() {
+  const navigate = useNavigate()
+
+  return () => {
+    posthog.capture('user_switched')
+    navigate('/pin')
+  }
+}

@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
-import { CreateUserDto, UpdateUserDto } from './dto';
+import { CreateUserDto, UpdateUserDto, SetPinDto } from './dto';
 import { CurrentUser, CurrentUserData, Roles, Role, PaginationDto } from '../../common';
 
 @ApiTags('Users')
@@ -78,6 +78,31 @@ export class UsersController {
     @CurrentUser('organizationId') organizationId: string,
   ) {
     return this.usersService.resendInvite(id, organizationId);
+  }
+
+  @Post(':id/pin')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'Set or reset a user\'s quick-login PIN (POS floor roles only)' })
+  @ApiResponse({ status: 200, description: 'PIN set' })
+  @ApiResponse({ status: 403, description: 'Role is not PIN-eligible' })
+  @ApiResponse({ status: 409, description: 'PIN already in use by another staff member' })
+  async setPin(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetPinDto,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.usersService.setPin(id, organizationId, dto);
+  }
+
+  @Delete(':id/pin')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'Remove a user\'s quick-login PIN' })
+  @ApiResponse({ status: 200, description: 'PIN removed' })
+  async clearPin(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.usersService.clearPin(id, organizationId);
   }
 
   @Delete(':id')
