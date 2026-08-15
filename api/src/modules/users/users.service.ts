@@ -35,22 +35,32 @@ function usesPosRoles(enabledModules: OrgModule): boolean {
   return enabledModules === 'POS' || enabledModules === 'BOTH';
 }
 
-function assertRoleMatchesModule(role: string | undefined, enabledModules: OrgModule) {
-  if (!role) return;
+// Every assigned role must individually be valid for the org's module — a user can't mix a
+// POS-only role with a non-POS one, since that combination can never make sense for one org.
+function assertRoleMatchesModule(roles: string[] | undefined, enabledModules: OrgModule) {
+  if (!roles || roles.length === 0) return;
   const allowed = usesPosRoles(enabledModules) ? POS_ROLES : NON_POS_ROLES;
-  if (!allowed.includes(role as Role)) {
+  const invalid = roles.find((role) => !allowed.includes(role as Role));
+  if (invalid) {
     throw new ForbiddenException(
-      `Role "${role}" isn't valid for a ${usesPosRoles(enabledModules) ? 'POS' : 'non-POS'} organization`,
+      `Role "${invalid}" isn't valid for a ${usesPosRoles(enabledModules) ? 'POS' : 'non-POS'} organization`,
     );
   }
 }
 
-// Only a SUPER_ADMIN may create, promote to, or otherwise touch an ADMIN/SUPER_ADMIN account.
-function assertAdminActionAllowed(actingRole: string, targetOrRequestedRole: string | undefined) {
-  if (actingRole === Role.SUPER_ADMIN) return;
-  if (targetOrRequestedRole && ADMIN_ROLES.includes(targetOrRequestedRole as Role)) {
+// Only a SUPER_ADMIN may create, promote to, or otherwise touch an account that holds (or would
+// hold) ADMIN/SUPER_ADMIN among its roles — checked against the whole set, not just one value.
+function assertAdminActionAllowed(actingRoles: string[], targetOrRequestedRoles: string[] | undefined) {
+  if (actingRoles.includes(Role.SUPER_ADMIN)) return;
+  if (targetOrRequestedRoles?.some((r) => ADMIN_ROLES.includes(r as Role))) {
     throw new ForbiddenException('Only a Super Admin can create or manage Admin accounts');
   }
+}
+
+function sameRoleSet(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const setB = new Set(b);
+  return a.every((r) => setB.has(r));
 }
 
 @Injectable()
@@ -75,7 +85,7 @@ export class UsersService {
           email: true,
           firstName: true,
           lastName: true,
-          role: true,
+          roles: true,
           businessRole: true,
           isActive: true,
           isEmailVerified: true,
@@ -99,7 +109,7 @@ export class UsersService {
         email: true,
         firstName: true,
         lastName: true,
-        role: true,
+        roles: true,
         businessRole: true,
         isActive: true,
         isEmailVerified: true,
@@ -117,8 +127,8 @@ export class UsersService {
     return user;
   }
 
-  async create(organizationId: string, dto: CreateUserDto, actingUserRole: string) {
-    assertAdminActionAllowed(actingUserRole, dto.role);
+  async create(organizationId: string, dto: CreateUserDto, actingUserRoles: string[]) {
+    assertAdminActionAllowed(actingUserRoles, dto.roles);
 
     // Get org for invite email, plan check, role validation, and placeholder-email domain
     const organization = await this.prisma.organization.findUnique({
@@ -134,14 +144,19 @@ export class UsersService {
       },
     });
     if (organization) {
-      assertRoleMatchesModule(dto.role, organization.enabledModules);
+      assertRoleMatchesModule(dto.roles, organization.enabledModules);
     }
 
-    const resolvedRole = dto.role || (organization && usesPosRoles(organization.enabledModules) ? 'WAITER' : 'STAFF');
-    const isPinEligibleRole = PIN_ELIGIBLE_ROLES.includes(resolvedRole as Role);
+    const resolvedRoles =
+      dto.roles && dto.roles.length > 0
+        ? dto.roles
+        : [organization && usesPosRoles(organization.enabledModules) ? Role.WAITER : Role.STAFF];
+    // Only a PIN-only (no-email) account if EVERY assigned role is PIN-eligible — a single
+    // admin-tier role mixed in means this account must use full email+password login.
+    const isPinEligibleRole = resolvedRoles.every((r) => PIN_ELIGIBLE_ROLES.includes(r as Role));
 
     if (!dto.email && !isPinEligibleRole) {
-      throw new ConflictException(`Email is required for role "${resolvedRole}"`);
+      throw new ConflictException(`Email is required for role(s) "${resolvedRoles.join(", ")}"`);
     }
 
     let email: string;
@@ -198,7 +213,7 @@ export class UsersService {
           email,
           firstName: dto.firstName,
           lastName: dto.lastName,
-          role: resolvedRole,
+          roles: resolvedRoles,
           isEmailVerified: false,
           hasPlaceholderEmail,
         },
@@ -207,7 +222,7 @@ export class UsersService {
           email: true,
           firstName: true,
           lastName: true,
-          role: true,
+          roles: true,
           isActive: true,
           isEmailVerified: true,
           hasPlaceholderEmail: true,
@@ -308,7 +323,7 @@ export class UsersService {
     return { message: `Invitation resent to ${user.email}` };
   }
 
-  async update(id: string, organizationId: string, dto: UpdateUserDto, currentUserId: string, actingUserRole: string) {
+  async update(id: string, organizationId: string, dto: UpdateUserDto, currentUserId: string, actingUserRoles: string[]) {
     const user = await this.prisma.user.findFirst({
       where: { id, organizationId },
     });
@@ -317,21 +332,21 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    // Prevent users from modifying their own role
-    if (id === currentUserId && dto.role && dto.role !== user.role) {
-      throw new ForbiddenException('Cannot modify your own role');
+    // Prevent users from modifying their own roles
+    if (id === currentUserId && dto.roles && !sameRoleSet(dto.roles, user.roles)) {
+      throw new ForbiddenException('Cannot modify your own roles');
     }
 
     // Only a Super Admin may touch an Admin/Super Admin account or promote someone into one
-    assertAdminActionAllowed(actingUserRole, user.role);
-    assertAdminActionAllowed(actingUserRole, dto.role);
+    assertAdminActionAllowed(actingUserRoles, user.roles);
+    assertAdminActionAllowed(actingUserRoles, dto.roles);
 
-    if (dto.role) {
+    if (dto.roles) {
       const organization = await this.prisma.organization.findUnique({
         where: { id: organizationId },
         select: { enabledModules: true },
       });
-      if (organization) assertRoleMatchesModule(dto.role, organization.enabledModules);
+      if (organization) assertRoleMatchesModule(dto.roles, organization.enabledModules);
     }
 
     // If email is being updated, check for conflicts
@@ -349,13 +364,20 @@ export class UsersService {
       ...(dto.firstName && { firstName: dto.firstName }),
       ...(dto.lastName && { lastName: dto.lastName }),
       ...(dto.email && { email: dto.email.toLowerCase() }),
-      ...(dto.role && { role: dto.role }),
+      ...(dto.roles && { roles: dto.roles }),
       ...(dto.businessRole !== undefined && { businessRole: dto.businessRole }),
       ...(typeof dto.isActive === 'boolean' && { isActive: dto.isActive }),
     };
 
     if (dto.password) {
       updateData.passwordHash = await bcrypt.hash(dto.password, 12);
+    }
+
+    // If roles are changing to include a non-PIN-eligible (admin-tier) role, any existing PIN
+    // must be revoked — that account now needs full email+password login.
+    if (dto.roles && !dto.roles.every((r) => PIN_ELIGIBLE_ROLES.includes(r as Role))) {
+      updateData.pinHash = null;
+      updateData.pinSetAt = null;
     }
 
     const updatedUser = await this.prisma.user.update({
@@ -366,7 +388,7 @@ export class UsersService {
         email: true,
         firstName: true,
         lastName: true,
-        role: true,
+        roles: true,
         businessRole: true,
         isActive: true,
         isEmailVerified: true,
@@ -381,8 +403,8 @@ export class UsersService {
   async setPin(id: string, organizationId: string, dto: SetPinDto) {
     const user = await this.prisma.user.findFirst({ where: { id, organizationId } });
     if (!user) throw new NotFoundException('User not found');
-    if (!PIN_ELIGIBLE_ROLES.includes(user.role as Role)) {
-      throw new ForbiddenException(`A quick-login PIN can't be set for role "${user.role}"`);
+    if (!user.roles.every((r) => PIN_ELIGIBLE_ROLES.includes(r as Role))) {
+      throw new ForbiddenException(`A quick-login PIN can't be set for role(s) "${user.roles.join(', ')}"`);
     }
 
     // Uniqueness is enforced here (not a DB constraint, since the PIN is stored hashed) so two
@@ -413,7 +435,7 @@ export class UsersService {
     return { message: 'PIN removed' };
   }
 
-  async remove(id: string, organizationId: string, currentUserId: string, actingUserRole: string) {
+  async remove(id: string, organizationId: string, currentUserId: string, actingUserRoles: string[]) {
     if (id === currentUserId) {
       throw new ForbiddenException('Cannot delete your own account');
     }
@@ -426,7 +448,7 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    assertAdminActionAllowed(actingUserRole, user.role);
+    assertAdminActionAllowed(actingUserRoles, user.roles);
 
     // Soft delete by deactivating
     await this.prisma.user.update({

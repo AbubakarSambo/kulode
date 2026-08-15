@@ -622,7 +622,7 @@ export class InvoicesService {
     return updated;
   }
 
-  async remove(id: string, organizationId: string, userRole?: string) {
+  async remove(id: string, organizationId: string, userRoles?: string[]) {
     const invoice = await this.prisma.invoice.findFirst({
       where: { id, organizationId, deletedAt: null },
     });
@@ -639,7 +639,7 @@ export class InvoicesService {
     }
 
     // Super admins can delete any unpaid invoice, others can only delete drafts
-    const isSuperAdmin = userRole === 'SUPER_ADMIN';
+    const isSuperAdmin = !!userRoles?.includes('SUPER_ADMIN');
     if (!isSuperAdmin && invoice.status !== 'DRAFT') {
       throw new ForbiddenException('Only draft invoices can be deleted');
     }
@@ -1106,7 +1106,7 @@ export class InvoicesService {
       return clientEmail;
     }
     const owner = await this.prisma.user.findFirst({
-      where: { organizationId, role: 'SUPER_ADMIN', isActive: true },
+      where: { organizationId, roles: { has: 'SUPER_ADMIN' }, isActive: true },
       select: { email: true },
     });
     return owner?.email ?? null;

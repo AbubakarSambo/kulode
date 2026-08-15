@@ -27,7 +27,7 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
-  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+  if (allowedRoles && user && !user.roles.some((r) => allowedRoles.includes(r))) {
     return <Navigate to={getPostAuthRoute(user)} replace />
   }
 

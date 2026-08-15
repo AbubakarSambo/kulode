@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import { Plus, UserX, Send, KeyRound } from 'lucide-react'
 import { Header } from '@/components/layout'
-import { Button, Input, Label, Select, Card, CardContent, Badge } from '@/components/ui'
+import { Button, Input, Label, Card, CardContent, Badge } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import apiClient from '@/api/client'
 import { posthog } from '@/lib/posthog'
@@ -21,7 +21,7 @@ interface UserData {
   email: string
   firstName: string
   lastName: string
-  role: UserRole
+  roles: UserRole[]
   isActive: boolean
   isEmailVerified: boolean
   hasPlaceholderEmail?: boolean
@@ -63,7 +63,7 @@ interface CreateUserData {
   email?: string
   firstName: string
   lastName: string
-  role: UserRole
+  roles: UserRole[]
 }
 
 const userSchema = z
@@ -71,10 +71,11 @@ const userSchema = z
     email: z.string().email('Invalid email').optional().or(z.literal('')),
     firstName: z.string().min(1, 'First name is required'),
     lastName: z.string().min(1, 'Last name is required'),
-    role: z.string().min(1, 'Role is required'),
+    roles: z.array(z.string()).min(1, 'At least one role is required'),
   })
   .superRefine((data, ctx) => {
-    if (!data.email && !PIN_ELIGIBLE_ROLES.includes(data.role as UserRole)) {
+    const allPinEligible = data.roles.every((r) => PIN_ELIGIBLE_ROLES.includes(r as UserRole))
+    if (!data.email && !allPinEligible) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['email'], message: 'Email is required for this role' })
     }
   })
@@ -125,7 +126,7 @@ export function UsersPage() {
   const currentUser = useAuthStore((s) => s.user)
   const usesPosRoles = hasPos
   const roleOptions = (usesPosRoles ? POS_CREATABLE_ROLES : DEFAULT_CREATABLE_ROLES).filter(
-    (opt) => opt.value !== 'ADMIN' || currentUser?.role === 'SUPER_ADMIN',
+    (opt) => opt.value !== 'ADMIN' || !!currentUser?.roles.includes('SUPER_ADMIN'),
   )
 
   const { data, isLoading } = useQuery({
@@ -138,6 +139,7 @@ export function UsersPage() {
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<UserFormData>({
     resolver: zodResolver(userSchema),
@@ -145,17 +147,26 @@ export function UsersPage() {
       email: '',
       firstName: '',
       lastName: '',
-      role: usesPosRoles ? 'WAITER' : 'STAFF',
+      roles: [usesPosRoles ? 'WAITER' : 'STAFF'],
     },
   })
-  const selectedRole = watch('role') as UserRole
-  const showEmailField = !PIN_ELIGIBLE_ROLES.includes(selectedRole)
+  const selectedRoles = (watch('roles') ?? []) as UserRole[]
+  const showEmailField = selectedRoles.length === 0 || !selectedRoles.every((r) => PIN_ELIGIBLE_ROLES.includes(r))
+
+  const toggleRole = (role: UserRole) => {
+    const current = selectedRoles
+    setValue(
+      'roles',
+      current.includes(role) ? current.filter((r) => r !== role) : [...current, role],
+      { shouldValidate: true },
+    )
+  }
 
   const createMutation = useMutation({
     mutationFn: (data: UserFormData) => usersApi.create(data as CreateUserData),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
-      posthog.capture('team_member_invited', { role: variables.role })
+      posthog.capture('team_member_invited', { roles: variables.roles })
       if (variables.email) {
         toast.success('Invitation sent', {
           description: `Invitation sent to ${variables.email}`,
@@ -302,7 +313,11 @@ export function UsersPage() {
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        <Badge variant="secondary" className="rounded-md">{roleLabels[user.role]}</Badge>
+                        <div className="flex flex-wrap gap-1">
+                          {user.roles.map((r) => (
+                            <Badge key={r} variant="secondary" className="rounded-md">{roleLabels[r]}</Badge>
+                          ))}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         {!user.isActive ? (
@@ -332,7 +347,7 @@ export function UsersPage() {
                             <Send className="h-4 w-4" />
                           </Button>
                         )}
-                        {user.isActive && PIN_ELIGIBLE_ROLES.includes(user.role) && (
+                        {user.isActive && user.roles.every((r) => PIN_ELIGIBLE_ROLES.includes(r)) && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -348,7 +363,7 @@ export function UsersPage() {
                             <KeyRound className="h-4 w-4" />
                           </Button>
                         )}
-                        {user.isActive && user.role !== 'SUPER_ADMIN' && (
+                        {user.isActive && !user.roles.includes('SUPER_ADMIN') && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -398,16 +413,30 @@ export function UsersPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="role" required>Role</Label>
-            <Select
-              id="role"
-              {...register('role')}
-              error={errors.role?.message}
-            >
-              {roleOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </Select>
+            <Label required>Roles</Label>
+            <p className="text-xs text-muted-foreground">
+              Select one or more — a user can hold multiple roles at once (e.g. Cashier + Waiter),
+              with access being the union of whatever each grants.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {roleOptions.map((opt) => {
+                const selected = selectedRoles.includes(opt.value)
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => toggleRole(opt.value)}
+                    className={cn(
+                      'rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
+                      selected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+            {errors.roles && <p className="text-xs text-destructive">{errors.roles.message}</p>}
           </div>
 
           {showEmailField ? (

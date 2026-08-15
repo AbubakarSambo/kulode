@@ -86,7 +86,7 @@ export function PaymentsListPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [paymentToDelete, setPaymentToDelete] = useState<{ id: string; invoiceNumber: string } | null>(null)
   const user = useAuthStore((s) => s.user)
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN'
+  const isSuperAdmin = !!user?.roles.includes('SUPER_ADMIN')
   const queryClient = useQueryClient()
 
   const handleExportCSV = () => {

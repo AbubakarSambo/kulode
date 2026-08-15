@@ -144,7 +144,7 @@ export class InvoicesController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: CurrentUserData,
   ) {
-    return this.invoicesService.remove(id, user.organizationId, user.role);
+    return this.invoicesService.remove(id, user.organizationId, user.roles);
   }
 
   @Get(':id/pdf')

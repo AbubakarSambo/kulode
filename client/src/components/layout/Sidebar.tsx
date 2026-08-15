@@ -4,11 +4,11 @@ import { ChevronLeft, ChevronRight, X, CreditCard, ChefHat, Clock, Receipt, User
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { useLogout, useSwitchUser } from '@/hooks'
-import { PIN_ELIGIBLE_ROLES } from '@/lib/pin'
+import { isPinEligible } from '@/lib/pin'
 import { Logo } from '@/components/shared'
 import { useSubscription } from '@/hooks/useSubscription'
 import { useOrgModules } from '@/hooks/useOrgModules'
-import type { PlanTier } from '@/types'
+import type { PlanTier, UserRole } from '@/types'
 import {
   DashboardIcon,
   ClientsIcon,
@@ -96,7 +96,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const user = useAuthStore((state) => state.user)
   const logout = useLogout()
   const switchUser = useSwitchUser()
-  const isPinEligible = !!user && PIN_ELIGIBLE_ROLES.includes(user.role)
+  const userIsPinEligible = !!user && isPinEligible(user.roles)
   const { hasRequiredPlan } = useSubscription()
   const { hasPos, hasInvoicing } = useOrgModules()
 
@@ -128,8 +128,9 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
     }
   }, [isOpen])
 
-  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
-  const canViewReports = isAdmin || user?.role === 'ACCOUNTANT'
+  const userRoles = user?.roles ?? []
+  const isAdmin = userRoles.includes('SUPER_ADMIN') || userRoles.includes('ADMIN')
+  const canViewReports = isAdmin || userRoles.includes('ACCOUNTANT')
 
   // Which invoicing-only nav items to hide from POS-only orgs
   const INVOICING_ONLY_HREFS = ['/clients', '/invoices', '/tax', '/reports', '/ai-chat', '/inventory', '/payments', '/dashboard', '/settings/services', '/vendors', '/expenses']
@@ -140,14 +141,37 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   // Pass/Runner are kitchen-only roles — the ticket board is the only page they can see
   const KITCHEN_ALLOWED_HREFS = ['/pos/kitchen']
 
+  // Cashiers close out orders and take payment — no need for menu/waiter management or analytics
+  const CASHIER_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift']
+
+  // Supervisors get floor oversight (orders, customers, shift, staff, kitchen) but not menu/
+  // category editing — that's a Manager/Admin concern.
+  const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/waiters', '/pos/kitchen']
+
+  // Roles that get a tight nav allowlist rather than the broader access every other role has.
+  // A user with multiple roles sees the UNION of what each individually unlocks — e.g. a
+  // Waiter+Pass user sees Sell/Orders/Customers AND the kitchen board. But if ANY assigned role
+  // is unrestricted (not in this map), that's already a superset of these allowlists, so the
+  // tight filtering is skipped entirely in favor of the normal broader rules below.
+  const RESTRICTED_ROLE_HREFS: Partial<Record<UserRole, string[]>> = {
+    WAITER: WAITER_ALLOWED_HREFS,
+    PASS: KITCHEN_ALLOWED_HREFS,
+    RUNNER: KITCHEN_ALLOWED_HREFS,
+    CASHIER: CASHIER_ALLOWED_HREFS,
+    SUPERVISOR: SUPERVISOR_ALLOWED_HREFS,
+  }
+  const hasUnrestrictedRole = userRoles.some((r) => !(r in RESTRICTED_ROLE_HREFS))
+  const restrictedHrefsUnion = hasUnrestrictedRole
+    ? null
+    : Array.from(new Set(userRoles.flatMap((r) => RESTRICTED_ROLE_HREFS[r] ?? [])))
+
   // Filter groups and items
   const filteredNavGroups = navigationGroups
     .filter((group) => group.title !== 'Restaurant POS' || hasPos)
     .map((group) => ({
       ...group,
       items: group.items.filter((item) => {
-        if (user?.role === 'WAITER') return WAITER_ALLOWED_HREFS.includes(item.href)
-        if (user?.role === 'PASS' || user?.role === 'RUNNER') return KITCHEN_ALLOWED_HREFS.includes(item.href)
+        if (restrictedHrefsUnion) return restrictedHrefsUnion.includes(item.href)
         if (INVOICING_ONLY_HREFS.includes(item.href) && !hasInvoicing) return false
         if ((item.href === '/reports' || item.href === '/ai-chat') && !canViewReports) return false
         if (
@@ -155,7 +179,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             item.href === '/expenses' ||
             item.href === '/vendors' ||
             item.href === '/tax') &&
-          user?.role === 'STAFF'
+          userRoles.every((r) => r === 'STAFF')
         )
           return false
         return true
@@ -409,7 +433,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             {/* Non-PIN roles (admin/manager/etc) still need a way to hand the terminal to a PIN
                 user without a full logout, so "Switch User" shows alongside "Logout" for them —
                 PIN-eligible roles only ever need the one (they're already PIN-only accounts). */}
-            {!isPinEligible && (
+            {!userIsPinEligible && (
               <button
                 onClick={() => {
                   switchUser()
@@ -435,7 +459,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
             <button
               onClick={() => {
-                if (isPinEligible) {
+                if (userIsPinEligible) {
                   switchUser()
                 } else {
                   logout()
@@ -447,14 +471,14 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                 effectiveCollapsed && "lg:justify-center lg:px-0"
               )}
             >
-              {isPinEligible ? <RefreshCw className="h-4.5 w-4.5 shrink-0" /> : <LogoutIcon className="h-4.5 w-4.5 shrink-0" />}
+              {userIsPinEligible ? <RefreshCw className="h-4.5 w-4.5 shrink-0" /> : <LogoutIcon className="h-4.5 w-4.5 shrink-0" />}
               <span className={cn(
                 "transition-all duration-200",
                 effectiveCollapsed && "lg:opacity-0 lg:max-w-0 lg:pointer-events-none lg:overflow-hidden"
-              )}>{isPinEligible ? 'Switch User' : 'Logout'}</span>
+              )}>{userIsPinEligible ? 'Switch User' : 'Logout'}</span>
               {effectiveCollapsed && (
                 <div className="hidden lg:group-hover:block absolute left-16 bg-slate-900/90 backdrop-blur-md text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-md whitespace-nowrap z-55 pointer-events-none">
-                  {isPinEligible ? 'Switch User' : 'Logout'}
+                  {userIsPinEligible ? 'Switch User' : 'Logout'}
                 </div>
               )}
             </button>

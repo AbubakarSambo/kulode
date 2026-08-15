@@ -127,7 +127,7 @@ export function ExpensesListPage() {
   }
 
   const user = useAuthStore((s) => s.user)
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN'
+  const isSuperAdmin = !!user?.roles.includes('SUPER_ADMIN')
   const queryClient = useQueryClient()
   const { isReadOnlyMode: isExpired } = useSubscription()
   const showActions = isSuperAdmin && !isExpired

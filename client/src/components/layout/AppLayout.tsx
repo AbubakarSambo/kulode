@@ -9,6 +9,7 @@ import {
   UserRound,
   ShoppingCart,
   Receipt,
+  Timer,
 } from 'lucide-react'
 import {
   DashboardIcon,
@@ -38,8 +39,8 @@ import { useLogout, useSwitchUser } from '@/hooks'
 import { useSubscription } from '@/hooks/useSubscription'
 import { useOrgModules } from '@/hooks/useOrgModules'
 import { cn } from '@/lib/utils'
-import { PIN_ELIGIBLE_ROLES } from '@/lib/pin'
-import type { PlanTier } from '@/types'
+import { isPinEligible } from '@/lib/pin'
+import type { PlanTier, UserRole } from '@/types'
 
 export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -48,7 +49,7 @@ export function AppLayout() {
   const user = useAuthStore((state) => state.user)
   const logout = useLogout()
   const switchUser = useSwitchUser()
-  const isPinEligible = !!user && PIN_ELIGIBLE_ROLES.includes(user.role)
+  const userIsPinEligible = !!user && isPinEligible(user.roles)
   const { hasRequiredPlan } = useSubscription()
   const { hasPos, hasInvoicing } = useOrgModules()
 
@@ -77,15 +78,39 @@ export function AppLayout() {
     return ''
   }
 
-  const isWaiter = user?.role === 'WAITER'
-  // Waiters only handle selling, order tracking, and customer lookup
+  const userRoles = user?.roles ?? []
+  // Waiters only handle selling, order tracking, and customer lookup; Pass/Runner only see the
+  // kitchen ticket board. A user with multiple roles gets the UNION of what each unlocks — same
+  // logic as Sidebar.tsx, kept in lockstep since this is the parallel mobile-nav rendering.
   const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/customers']
+  const KITCHEN_ALLOWED_HREFS = ['/pos/kitchen']
+  // Cashiers close out orders and take payment — no need for menu/waiter management or analytics
+  const CASHIER_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift']
+  // Supervisors get floor oversight but not menu/category editing — that's Manager/Admin's job
+  const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/waiters', '/pos/kitchen']
+  const RESTRICTED_ROLE_HREFS: Partial<Record<UserRole, string[]>> = {
+    WAITER: WAITER_ALLOWED_HREFS,
+    PASS: KITCHEN_ALLOWED_HREFS,
+    RUNNER: KITCHEN_ALLOWED_HREFS,
+    CASHIER: CASHIER_ALLOWED_HREFS,
+    SUPERVISOR: SUPERVISOR_ALLOWED_HREFS,
+  }
+  const hasUnrestrictedRole = userRoles.some((r) => !(r in RESTRICTED_ROLE_HREFS))
+  const restrictedHrefsUnion = hasUnrestrictedRole
+    ? null
+    : Array.from(new Set(userRoles.flatMap((r) => RESTRICTED_ROLE_HREFS[r] ?? [])))
 
-  const navItems = isWaiter
-    ? [
-        { name: 'Sell', href: '/pos/order/new', icon: ShoppingCart },
-        { name: 'Orders', href: '/pos/orders', icon: Receipt },
-      ]
+  const RESTRICTED_NAV_ITEMS_BY_HREF: Record<string, { name: string; icon: typeof ShoppingCart }> = {
+    '/pos/order/new': { name: 'Sell', icon: ShoppingCart },
+    '/pos/orders': { name: 'Orders', icon: Receipt },
+    '/pos/customers': { name: 'Customers', icon: UserRound },
+    '/pos/kitchen': { name: 'Kitchen', icon: Timer },
+    '/pos/shift': { name: 'Shift', icon: Clock },
+    '/pos/waiters': { name: 'Waiters', icon: UserRound },
+  }
+
+  const navItems = restrictedHrefsUnion
+    ? restrictedHrefsUnion.map((href) => ({ href, ...RESTRICTED_NAV_ITEMS_BY_HREF[href] }))
     : hasInvoicing
     ? [
         { name: 'Overview', href: '/dashboard', icon: DashboardIcon },
@@ -99,8 +124,8 @@ export function AppLayout() {
         { name: 'Orders', href: '/pos/orders', icon: Receipt },
       ]
 
-  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
-  const canViewReports = isAdmin || user?.role === 'ACCOUNTANT'
+  const isAdmin = userRoles.includes('SUPER_ADMIN') || userRoles.includes('ADMIN')
+  const canViewReports = isAdmin || userRoles.includes('ACCOUNTANT')
 
   type MoreItem = { name: string; href: string; icon: React.ComponentType<{ className?: string }>; requiresPlan?: PlanTier; visible?: boolean }
 
@@ -108,9 +133,9 @@ export function AppLayout() {
     {
       label: 'Money',
       items: [
-        { name: 'Expenses', href: '/expenses', icon: ExpensesIcon, requiresPlan: 'PRO' as PlanTier, visible: hasInvoicing && user?.role !== 'STAFF' },
-        { name: 'Vendors', href: '/vendors', icon: VendorsIcon, requiresPlan: 'PRO' as PlanTier, visible: hasInvoicing && user?.role !== 'STAFF' },
-        { name: 'Tax', href: '/tax', icon: TaxIcon, requiresPlan: 'PRO' as PlanTier, visible: hasInvoicing && user?.role !== 'STAFF' },
+        { name: 'Expenses', href: '/expenses', icon: ExpensesIcon, requiresPlan: 'PRO' as PlanTier, visible: hasInvoicing && !userRoles.every((r) => r === 'STAFF') },
+        { name: 'Vendors', href: '/vendors', icon: VendorsIcon, requiresPlan: 'PRO' as PlanTier, visible: hasInvoicing && !userRoles.every((r) => r === 'STAFF') },
+        { name: 'Tax', href: '/tax', icon: TaxIcon, requiresPlan: 'PRO' as PlanTier, visible: hasInvoicing && !userRoles.every((r) => r === 'STAFF') },
       ] as MoreItem[],
     },
     {
@@ -148,7 +173,7 @@ export function AppLayout() {
     .map((group) => ({
       ...group,
       items: group.items.filter((item) =>
-        isWaiter ? WAITER_ALLOWED_HREFS.includes(item.href) : item.visible !== false,
+        restrictedHrefsUnion ? restrictedHrefsUnion.includes(item.href) : item.visible !== false,
       ),
     }))
     .filter((group) => group.items.length > 0)
@@ -316,7 +341,7 @@ export function AppLayout() {
                   <SupportIcon className="h-5 w-5" />
                   Contact Support
                 </a>
-                {!isPinEligible && (
+                {!userIsPinEligible && (
                   <button
                     onClick={() => {
                       setMoreOpen(false)
@@ -331,7 +356,7 @@ export function AppLayout() {
                 <button
                   onClick={() => {
                     setMoreOpen(false)
-                    if (isPinEligible) {
+                    if (userIsPinEligible) {
                       switchUser()
                     } else {
                       logout()
@@ -340,7 +365,7 @@ export function AppLayout() {
                   className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-rose-600 bg-rose-500/10 hover:bg-rose-500/20 transition-colors cursor-pointer"
                 >
                   <LogoutIcon className="h-5 w-5" />
-                  {isPinEligible ? 'Switch User' : 'Logout'}
+                  {userIsPinEligible ? 'Switch User' : 'Logout'}
                 </button>
               </div>
             </div>

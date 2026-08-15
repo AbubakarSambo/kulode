@@ -59,7 +59,7 @@ export function VendorsListPage() {
   const { isReadOnlyMode: isExpired } = useSubscription()
 
 
-  const canCreate = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
+  const canCreate = !!user?.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')
 
   const { data, isLoading } = useQuery({
     queryKey: ['vendors', { search, page, limit }],

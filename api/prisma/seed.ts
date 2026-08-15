@@ -48,7 +48,7 @@ async function main() {
       passwordHash,
       firstName: 'Jane',
       lastName: 'Doe',
-      role: 'SUPER_ADMIN',
+      roles: ['SUPER_ADMIN'],
       isEmailVerified: true,
       isPlatformAdmin: true,
     },
@@ -61,7 +61,7 @@ async function main() {
       passwordHash,
       firstName: 'Alice',
       lastName: 'Smith',
-      role: 'ACCOUNTANT',
+      roles: ['ACCOUNTANT'],
       isEmailVerified: true,
     },
   });
@@ -73,7 +73,7 @@ async function main() {
       passwordHash,
       firstName: 'Bob',
       lastName: 'Johnson',
-      role: 'STAFF',
+      roles: ['STAFF'],
       isEmailVerified: true,
     },
   });
@@ -813,7 +813,7 @@ async function main() {
       passwordHash,
       firstName: 'Hank',
       lastName: 'Scorpio',
-      role: 'SUPER_ADMIN',
+      roles: ['SUPER_ADMIN'],
       isEmailVerified: true,
     },
   });

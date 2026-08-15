@@ -254,7 +254,10 @@ model User {
   passwordHash    String?  @map("password_hash")
   firstName       String   @map("first_name")
   lastName        String   @map("last_name")
-  role            UserRole @default(STAFF)
+  // A user can hold more than one role at once (e.g. Cashier + Waiter) — access is the union of
+  // whatever each individual role would unlock. Always non-empty; enforced at the service layer
+  // since Prisma/Postgres can't express "array must have length >= 1" as a column constraint.
+  roles           UserRole[] @default([STAFF])
   businessRole    String?  @map("business_role")
   isActive        Boolean  @default(true) @map("is_active")
   isEmailVerified Boolean  @default(false) @map("is_email_verified")

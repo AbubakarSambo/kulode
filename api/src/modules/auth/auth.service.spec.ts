@@ -70,7 +70,7 @@ const mockUser = {
   email: 'admin@acme.com',
   firstName: 'John',
   lastName: 'Doe',
-  role: 'SUPER_ADMIN',
+  roles: ['SUPER_ADMIN'],
   organizationId: 'org-1',
   isPlatformAdmin: false,
   isActive: true,
@@ -142,7 +142,7 @@ describe('AuthService — login', () => {
     expect(result.accessToken).toBe('mock-jwt-token');
     expect(result.user.email).toBe(mockUser.email);
     expect(result.user.organizationId).toBe(mockUser.organizationId);
-    expect(result.user.role).toBe(mockUser.role);
+    expect(result.user.roles).toEqual(mockUser.roles);
     expect(result.user.plan.planTier).toBe(mockOrg.planTier);
   });
 
@@ -277,7 +277,7 @@ describe('AuthService — JWT payload shape', () => {
         sub: mockUser.id,
         email: mockUser.email,
         organizationId: mockUser.organizationId,
-        role: mockUser.role,
+        roles: mockUser.roles,
       }),
     );
   });

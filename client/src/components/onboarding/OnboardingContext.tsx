@@ -1089,7 +1089,7 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
   // PATCH /users/:id are both SUPER_ADMIN[/ADMIN]-gated on the backend) — never show it to an
   // invited teammate who'd otherwise be stuck on it with no way to complete or skip.
   const showSurvey =
-    user?.role === "SUPER_ADMIN" && !isPersonalized && (isOpen || (!isDismissed && !hasActiveUsage));
+    !!user?.roles.includes("SUPER_ADMIN") && !isPersonalized && (isOpen || (!isDismissed && !hasActiveUsage));
   const shouldShow = isOpen || showSurvey || showCelebration;
   const orgName = user?.organization?.name || "your business";
 

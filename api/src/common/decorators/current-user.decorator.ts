@@ -4,7 +4,7 @@ export interface CurrentUserData {
   id: string;
   email: string;
   organizationId: string;
-  role: string;
+  roles: string[];
   firstName: string;
   lastName: string;
   isPlatformAdmin: boolean;

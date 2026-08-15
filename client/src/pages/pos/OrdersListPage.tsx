@@ -33,7 +33,7 @@ export function OrdersListPage() {
   const limit = 20
 
   const currentUser = useAuthStore((s) => s.user)
-  const isCashier = currentUser?.role === 'CASHIER'
+  const isCashier = !!currentUser?.roles.includes('CASHIER')
 
   const { data: tables } = useQuery({ queryKey: ['restaurant-tables'], queryFn: () => tablesApi.list() })
 

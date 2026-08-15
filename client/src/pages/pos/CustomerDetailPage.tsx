@@ -54,9 +54,9 @@ function errorMessage(err: unknown, fallback: string) {
 function WalletSection({ customerId, balance, creditLimit }: { customerId: string; balance: number; creditLimit: number }) {
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
-  const canTopUp = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'ACCOUNTANT'
-  const canAdjust = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
-  const canGrantCredit = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN'
+  const canTopUp = !!user?.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN' || r === 'ACCOUNTANT')
+  const canAdjust = !!user?.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')
+  const canGrantCredit = !!user?.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')
 
   const [topUpOpen, setTopUpOpen] = useState(false)
   const [adjustOpen, setAdjustOpen] = useState(false)

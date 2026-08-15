@@ -14,7 +14,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { RegisterDto, LoginDto, AuthResponseDto, VerifyEmailDto, SetPasswordDto, ResendVerificationDto, ForgotPasswordDto, ResetPasswordDto, MagicLinkRegisterDto, PinLoginDto } from './dto';
 import { TokenType } from '@prisma/client';
-import { PIN_ELIGIBLE_ROLES } from '../../common';
+import { PIN_ELIGIBLE_ROLES, Role } from '../../common';
 
 @Injectable()
 export class AuthService {
@@ -89,7 +89,7 @@ export class AuthService {
           passwordHash,
           firstName: dto.firstName,
           lastName: dto.lastName,
-          role: 'SUPER_ADMIN',
+          roles: ['SUPER_ADMIN'],
           isEmailVerified: false,
         },
       });
@@ -187,7 +187,7 @@ export class AuthService {
           passwordHash: null,
           firstName: dto.firstName,
           lastName: dto.lastName,
-          role: 'SUPER_ADMIN',
+          roles: ['SUPER_ADMIN'],
           isEmailVerified: false,
         },
       });
@@ -309,7 +309,7 @@ export class AuthService {
             email: u.email,
             firstName: u.firstName,
             lastName: u.lastName,
-            role: u.role,
+            roles: u.roles,
             businessRole: u.businessRole,
             organizationId: u.organizationId,
             organizationName: org.name,
@@ -386,7 +386,7 @@ export class AuthService {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role,
+        roles: user.roles,
         businessRole: user.businessRole,
         organizationId: user.organizationId,
         organizationName: user.organization.name,
@@ -461,7 +461,7 @@ export class AuthService {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role,
+        roles: user.roles,
         businessRole: user.businessRole,
         organizationId: user.organizationId,
         organizationName: user.organization.name,
@@ -633,7 +633,7 @@ export class AuthService {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role,
+        roles: user.roles,
         organizationId: user.organizationId,
         organizationName: user.organization.name,
         isPlatformAdmin: user.isPlatformAdmin,
@@ -703,7 +703,7 @@ export class AuthService {
               googleId: googleUser.googleId,
               firstName: googleUser.firstName,
               lastName: googleUser.lastName,
-              role: 'SUPER_ADMIN',
+              roles: ['SUPER_ADMIN'],
               isEmailVerified: true,
             },
           });
@@ -794,7 +794,7 @@ export class AuthService {
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
-      role: user.role,
+      roles: user.roles,
       businessRole: user.businessRole,
       organizationId: user.organizationId,
       organizationName: user.organization.name,
@@ -822,14 +822,14 @@ export class AuthService {
   }
 
   private generateToken(
-    user: { id: string; email: string; organizationId: string; role: string },
+    user: { id: string; email: string; organizationId: string; roles: string[] },
     expiresInSeconds?: number,
   ) {
     const payload = {
       sub: user.id,
       email: user.email,
       organizationId: user.organizationId,
-      role: user.role,
+      roles: user.roles,
     };
 
     return expiresInSeconds ? this.jwtService.sign(payload, { expiresIn: expiresInSeconds }) : this.jwtService.sign(payload);
@@ -843,7 +843,7 @@ export class AuthService {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role,
+        roles: user.roles,
         businessRole: user.businessRole,
         organizationId: user.organizationId,
         organizationName: user.organization.name,
@@ -888,13 +888,18 @@ export class AuthService {
         organizationId: dto.organizationId,
         isActive: true,
         pinHash: { not: null },
-        role: { in: PIN_ELIGIBLE_ROLES },
+        roles: { hasSome: PIN_ELIGIBLE_ROLES },
       },
       include: { organization: true },
     });
 
-    let matched: (typeof candidates)[number] | undefined;
-    for (const candidate of candidates) {
+    // `hasSome` above is just a DB-level prefilter — a user with ANY non-PIN-eligible role (e.g.
+    // Manager + Waiter) must never be allowed to authenticate via PIN, so require every assigned
+    // role to be PIN-eligible before treating them as a candidate.
+    const eligible = candidates.filter((c) => c.roles.every((r) => PIN_ELIGIBLE_ROLES.includes(r as Role)));
+
+    let matched: (typeof eligible)[number] | undefined;
+    for (const candidate of eligible) {
       if (candidate.pinHash && (await bcrypt.compare(dto.pin, candidate.pinHash))) {
         matched = candidate;
         break;

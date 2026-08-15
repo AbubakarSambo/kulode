@@ -41,7 +41,7 @@ const createDto = {
   email: 'newuser@example.com',
   firstName: 'New',
   lastName: 'User',
-  role: Role.STAFF,
+  roles: [Role.STAFF],
 };
 
 function orgWith(overrides: object) {
@@ -62,7 +62,7 @@ function setupTransactionMock(prisma: ReturnType<typeof createMockPrisma>) {
     email: createDto.email,
     firstName: createDto.firstName,
     lastName: createDto.lastName,
-    role: 'STAFF',
+    roles: ['STAFF'],
     isActive: true,
     isEmailVerified: false,
     createdAt: new Date(),
@@ -107,7 +107,7 @@ describe('UsersService — user limit enforcement', () => {
 
   it('throws ConflictException when email is already in use', async () => {
     prisma.user.findUnique.mockResolvedValue({ id: 'existing-user' });
-    await expect(service.create(ORG_ID, createDto, Role.SUPER_ADMIN)).rejects.toThrow(ConflictException);
+    await expect(service.create(ORG_ID, createDto, [Role.SUPER_ADMIN])).rejects.toThrow(ConflictException);
   });
 
   // ─── Grandfathered ───────────────────────────────────────────────────────
@@ -117,7 +117,7 @@ describe('UsersService — user limit enforcement', () => {
     prisma.organization.findUnique.mockResolvedValue(orgWith({ planTier: 'FREE', isGrandfathered: true }));
     setupTransactionMock(prisma);
 
-    await service.create(ORG_ID, createDto, Role.SUPER_ADMIN);
+    await service.create(ORG_ID, createDto, [Role.SUPER_ADMIN]);
 
     expect(prisma.user.count).not.toHaveBeenCalled();
   });
@@ -130,7 +130,7 @@ describe('UsersService — user limit enforcement', () => {
     prisma.user.count.mockResolvedValue(0); // 0 active users
     setupTransactionMock(prisma);
 
-    await expect(service.create(ORG_ID, createDto, Role.SUPER_ADMIN)).resolves.toBeDefined();
+    await expect(service.create(ORG_ID, createDto, [Role.SUPER_ADMIN])).resolves.toBeDefined();
   });
 
   it('throws USER_LIMIT_REACHED when FREE plan already has 1 active user', async () => {
@@ -138,7 +138,7 @@ describe('UsersService — user limit enforcement', () => {
     prisma.organization.findUnique.mockResolvedValue(orgWith({ planTier: 'FREE' }));
     prisma.user.count.mockResolvedValue(1); // already at limit
 
-    await expect(service.create(ORG_ID, createDto, Role.SUPER_ADMIN)).rejects.toMatchObject({
+    await expect(service.create(ORG_ID, createDto, [Role.SUPER_ADMIN])).rejects.toMatchObject({
       response: expect.objectContaining({
         code: 'USER_LIMIT_REACHED',
         currentPlan: 'FREE',
@@ -156,7 +156,7 @@ describe('UsersService — user limit enforcement', () => {
     prisma.user.count.mockResolvedValue(2);
     setupTransactionMock(prisma);
 
-    await expect(service.create(ORG_ID, createDto, Role.SUPER_ADMIN)).resolves.toBeDefined();
+    await expect(service.create(ORG_ID, createDto, [Role.SUPER_ADMIN])).resolves.toBeDefined();
   });
 
   it('throws USER_LIMIT_REACHED when ACTIVE PRO plan already has 3 active users', async () => {
@@ -164,7 +164,7 @@ describe('UsersService — user limit enforcement', () => {
     prisma.organization.findUnique.mockResolvedValue(orgWith({ planTier: 'PRO', subscriptionStatus: 'ACTIVE' }));
     prisma.user.count.mockResolvedValue(3);
 
-    await expect(service.create(ORG_ID, createDto, Role.SUPER_ADMIN)).rejects.toMatchObject({
+    await expect(service.create(ORG_ID, createDto, [Role.SUPER_ADMIN])).rejects.toMatchObject({
       response: expect.objectContaining({
         code: 'USER_LIMIT_REACHED',
         currentPlan: 'PRO',
@@ -184,7 +184,7 @@ describe('UsersService — user limit enforcement', () => {
     prisma.user.count.mockResolvedValue(999);
     setupTransactionMock(prisma);
 
-    await expect(service.create(ORG_ID, createDto, Role.SUPER_ADMIN)).resolves.toBeDefined();
+    await expect(service.create(ORG_ID, createDto, [Role.SUPER_ADMIN])).resolves.toBeDefined();
   });
 
   // ─── Trial scenarios ──────────────────────────────────────────────────────
@@ -198,7 +198,7 @@ describe('UsersService — user limit enforcement', () => {
     prisma.user.count.mockResolvedValue(2); // 2 of 3 used
     setupTransactionMock(prisma);
 
-    await expect(service.create(ORG_ID, createDto, Role.SUPER_ADMIN)).resolves.toBeDefined();
+    await expect(service.create(ORG_ID, createDto, [Role.SUPER_ADMIN])).resolves.toBeDefined();
   });
 
   it('drops to FREE user limit when PRO trial has expired (TRIALING + past end date)', async () => {
@@ -209,7 +209,7 @@ describe('UsersService — user limit enforcement', () => {
     );
     prisma.user.count.mockResolvedValue(2); // above FREE limit (1), below PRO limit (3)
 
-    await expect(service.create(ORG_ID, createDto, Role.SUPER_ADMIN)).rejects.toMatchObject({
+    await expect(service.create(ORG_ID, createDto, [Role.SUPER_ADMIN])).rejects.toMatchObject({
       response: expect.objectContaining({
         code: 'USER_LIMIT_REACHED',
         currentPlan: 'FREE',
@@ -225,7 +225,7 @@ describe('UsersService — user limit enforcement', () => {
     );
     prisma.user.count.mockResolvedValue(2);
 
-    await expect(service.create(ORG_ID, createDto, Role.SUPER_ADMIN)).rejects.toMatchObject({
+    await expect(service.create(ORG_ID, createDto, [Role.SUPER_ADMIN])).rejects.toMatchObject({
       response: expect.objectContaining({
         code: 'USER_LIMIT_REACHED',
         currentPlan: 'FREE',
@@ -242,7 +242,7 @@ describe('UsersService — user limit enforcement', () => {
     prisma.user.count.mockResolvedValue(0);
     setupTransactionMock(prisma);
 
-    await expect(service.create(ORG_ID, createDto, Role.SUPER_ADMIN)).resolves.toBeDefined();
+    await expect(service.create(ORG_ID, createDto, [Role.SUPER_ADMIN])).resolves.toBeDefined();
   });
 
   // ─── Invite email ────────────────────────────────────────────────────────
@@ -253,7 +253,7 @@ describe('UsersService — user limit enforcement', () => {
     prisma.user.count.mockResolvedValue(1);
     setupTransactionMock(prisma);
 
-    await service.create(ORG_ID, createDto, Role.SUPER_ADMIN);
+    await service.create(ORG_ID, createDto, [Role.SUPER_ADMIN]);
 
     expect(emailService.sendPasswordSetupEmail).toHaveBeenCalledWith(
       createDto.email,
@@ -267,19 +267,19 @@ describe('UsersService — user limit enforcement', () => {
 
   describe('remove', () => {
     it('throws ForbiddenException when user tries to deactivate themselves', async () => {
-      await expect(service.remove(CURRENT_USER_ID, ORG_ID, CURRENT_USER_ID, Role.SUPER_ADMIN)).rejects.toThrow(ForbiddenException);
+      await expect(service.remove(CURRENT_USER_ID, ORG_ID, CURRENT_USER_ID, [Role.SUPER_ADMIN])).rejects.toThrow(ForbiddenException);
     });
 
     it('throws NotFoundException when user does not exist', async () => {
       prisma.user.findFirst.mockResolvedValue(null);
-      await expect(service.remove('other-user-id', ORG_ID, CURRENT_USER_ID, Role.SUPER_ADMIN)).rejects.toThrow(NotFoundException);
+      await expect(service.remove('other-user-id', ORG_ID, CURRENT_USER_ID, [Role.SUPER_ADMIN])).rejects.toThrow(NotFoundException);
     });
 
     it('soft-deletes by setting isActive to false', async () => {
       prisma.user.findFirst.mockResolvedValue({ id: 'other-user-id', organizationId: ORG_ID });
       prisma.user.update.mockResolvedValue({});
 
-      const result = await service.remove('other-user-id', ORG_ID, CURRENT_USER_ID, Role.SUPER_ADMIN);
+      const result = await service.remove('other-user-id', ORG_ID, CURRENT_USER_ID, [Role.SUPER_ADMIN]);
 
       expect(prisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({ data: { isActive: false } }),
@@ -288,17 +288,17 @@ describe('UsersService — user limit enforcement', () => {
     });
 
     it('throws ForbiddenException when an ADMIN tries to deactivate another ADMIN', async () => {
-      prisma.user.findFirst.mockResolvedValue({ id: 'other-admin-id', organizationId: ORG_ID, role: Role.ADMIN });
-      await expect(service.remove('other-admin-id', ORG_ID, CURRENT_USER_ID, Role.ADMIN)).rejects.toThrow(
+      prisma.user.findFirst.mockResolvedValue({ id: 'other-admin-id', organizationId: ORG_ID, roles: [Role.ADMIN] });
+      await expect(service.remove('other-admin-id', ORG_ID, CURRENT_USER_ID, [Role.ADMIN])).rejects.toThrow(
         ForbiddenException,
       );
     });
 
     it('allows a SUPER_ADMIN to deactivate an ADMIN', async () => {
-      prisma.user.findFirst.mockResolvedValue({ id: 'other-admin-id', organizationId: ORG_ID, role: Role.ADMIN });
+      prisma.user.findFirst.mockResolvedValue({ id: 'other-admin-id', organizationId: ORG_ID, roles: [Role.ADMIN] });
       prisma.user.update.mockResolvedValue({});
       await expect(
-        service.remove('other-admin-id', ORG_ID, CURRENT_USER_ID, Role.SUPER_ADMIN),
+        service.remove('other-admin-id', ORG_ID, CURRENT_USER_ID, [Role.SUPER_ADMIN]),
       ).resolves.toMatchObject({ message: 'User deactivated successfully' });
     });
   });
@@ -308,13 +308,13 @@ describe('UsersService — user limit enforcement', () => {
   describe('admin-cannot-manage-admin restriction', () => {
     it('throws ForbiddenException when an ADMIN tries to create another ADMIN', async () => {
       await expect(
-        service.create(ORG_ID, { ...createDto, role: Role.ADMIN }, Role.ADMIN),
+        service.create(ORG_ID, { ...createDto, roles: [Role.ADMIN] }, [Role.ADMIN]),
       ).rejects.toThrow(ForbiddenException);
     });
 
     it('throws ForbiddenException when an ADMIN tries to create a SUPER_ADMIN', async () => {
       await expect(
-        service.create(ORG_ID, { ...createDto, role: Role.SUPER_ADMIN }, Role.ADMIN),
+        service.create(ORG_ID, { ...createDto, roles: [Role.SUPER_ADMIN] }, [Role.ADMIN]),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -325,21 +325,21 @@ describe('UsersService — user limit enforcement', () => {
       setupTransactionMock(prisma);
 
       await expect(
-        service.create(ORG_ID, { ...createDto, role: Role.ADMIN }, Role.SUPER_ADMIN),
+        service.create(ORG_ID, { ...createDto, roles: [Role.ADMIN] }, [Role.SUPER_ADMIN]),
       ).resolves.toBeDefined();
     });
 
     it('throws ForbiddenException when an ADMIN tries to update another ADMIN (even a non-role field)', async () => {
-      prisma.user.findFirst.mockResolvedValue({ id: 'other-admin-id', role: Role.ADMIN, email: 'a@b.com' });
+      prisma.user.findFirst.mockResolvedValue({ id: 'other-admin-id', roles: [Role.ADMIN], email: 'a@b.com' });
       await expect(
-        service.update('other-admin-id', ORG_ID, { firstName: 'New' }, CURRENT_USER_ID, Role.ADMIN),
+        service.update('other-admin-id', ORG_ID, { firstName: 'New' }, CURRENT_USER_ID, [Role.ADMIN]),
       ).rejects.toThrow(ForbiddenException);
     });
 
     it('throws ForbiddenException when an ADMIN tries to promote a STAFF user to ADMIN', async () => {
-      prisma.user.findFirst.mockResolvedValue({ id: 'staff-id', role: Role.STAFF, email: 'a@b.com' });
+      prisma.user.findFirst.mockResolvedValue({ id: 'staff-id', roles: [Role.STAFF], email: 'a@b.com' });
       await expect(
-        service.update('staff-id', ORG_ID, { role: Role.ADMIN }, CURRENT_USER_ID, Role.ADMIN),
+        service.update('staff-id', ORG_ID, { roles: [Role.ADMIN] }, CURRENT_USER_ID, [Role.ADMIN]),
       ).rejects.toThrow(ForbiddenException);
     });
   });
@@ -352,7 +352,7 @@ describe('UsersService — user limit enforcement', () => {
       prisma.organization.findUnique.mockResolvedValue(orgWith({ enabledModules: 'INVOICING' }));
 
       await expect(
-        service.create(ORG_ID, { ...createDto, role: Role.WAITER }, Role.SUPER_ADMIN),
+        service.create(ORG_ID, { ...createDto, roles: [Role.WAITER] }, [Role.SUPER_ADMIN]),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -361,7 +361,7 @@ describe('UsersService — user limit enforcement', () => {
       prisma.organization.findUnique.mockResolvedValue(orgWith({ enabledModules: 'POS' }));
 
       await expect(
-        service.create(ORG_ID, { ...createDto, role: Role.STAFF }, Role.SUPER_ADMIN),
+        service.create(ORG_ID, { ...createDto, roles: [Role.STAFF] }, [Role.SUPER_ADMIN]),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -372,7 +372,7 @@ describe('UsersService — user limit enforcement', () => {
       setupTransactionMock(prisma);
 
       await expect(
-        service.create(ORG_ID, { ...createDto, role: Role.WAITER }, Role.SUPER_ADMIN),
+        service.create(ORG_ID, { ...createDto, roles: [Role.WAITER] }, [Role.SUPER_ADMIN]),
       ).resolves.toBeDefined();
     });
 
@@ -383,10 +383,10 @@ describe('UsersService — user limit enforcement', () => {
       setupTransactionMock(prisma);
 
       await expect(
-        service.create(ORG_ID, { ...createDto, role: Role.PASS }, Role.SUPER_ADMIN),
+        service.create(ORG_ID, { ...createDto, roles: [Role.PASS] }, [Role.SUPER_ADMIN]),
       ).resolves.toBeDefined();
       await expect(
-        service.create(ORG_ID, { ...createDto, role: Role.RUNNER }, Role.SUPER_ADMIN),
+        service.create(ORG_ID, { ...createDto, roles: [Role.RUNNER] }, [Role.SUPER_ADMIN]),
       ).resolves.toBeDefined();
     });
 
@@ -397,7 +397,7 @@ describe('UsersService — user limit enforcement', () => {
       setupTransactionMock(prisma);
 
       await expect(
-        service.create(ORG_ID, { ...createDto, role: Role.CASHIER }, Role.SUPER_ADMIN),
+        service.create(ORG_ID, { ...createDto, roles: [Role.CASHIER] }, [Role.SUPER_ADMIN]),
       ).resolves.toBeDefined();
     });
 
@@ -406,7 +406,7 @@ describe('UsersService — user limit enforcement', () => {
       prisma.organization.findUnique.mockResolvedValue(orgWith({ enabledModules: 'BOTH' }));
 
       await expect(
-        service.create(ORG_ID, { ...createDto, role: Role.ACCOUNTANT }, Role.SUPER_ADMIN),
+        service.create(ORG_ID, { ...createDto, roles: [Role.ACCOUNTANT] }, [Role.SUPER_ADMIN]),
       ).rejects.toThrow(ForbiddenException);
     });
   });

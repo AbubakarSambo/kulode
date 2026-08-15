@@ -52,7 +52,7 @@ export class UsersController {
     @Body() dto: CreateUserDto,
     @CurrentUser() user: CurrentUserData,
   ) {
-    return this.usersService.create(user.organizationId, dto, user.role);
+    return this.usersService.create(user.organizationId, dto, user.roles);
   }
 
   @Patch(':id')
@@ -65,7 +65,7 @@ export class UsersController {
     @Body() dto: UpdateUserDto,
     @CurrentUser() user: CurrentUserData,
   ) {
-    return this.usersService.update(id, user.organizationId, dto, user.id, user.role);
+    return this.usersService.update(id, user.organizationId, dto, user.id, user.roles);
   }
 
   @Post(':id/resend-invite')
@@ -114,6 +114,6 @@ export class UsersController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: CurrentUserData,
   ) {
-    return this.usersService.remove(id, user.organizationId, user.id, user.role);
+    return this.usersService.remove(id, user.organizationId, user.id, user.roles);
   }
 }

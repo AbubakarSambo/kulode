@@ -1,5 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ArrayMinSize,
+  IsArray,
   IsEmail,
   IsString,
   IsEnum,
@@ -40,10 +42,12 @@ export class UpdateUserDto {
   })
   password?: string;
 
-  @ApiPropertyOptional({ enum: Role })
+  @ApiPropertyOptional({ enum: Role, isArray: true })
   @IsOptional()
-  @IsEnum(Role)
-  role?: Role;
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsEnum(Role, { each: true })
+  roles?: Role[];
 
   @ApiPropertyOptional()
   @IsOptional()

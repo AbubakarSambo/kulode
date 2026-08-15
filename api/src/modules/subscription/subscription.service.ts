@@ -260,7 +260,7 @@ export class SubscriptionService {
 
   private async getOrgAdmin(organizationId: string) {
     return this.prisma.user.findFirst({
-      where: { organizationId, role: 'ADMIN', isActive: true },
+      where: { organizationId, roles: { has: 'ADMIN' }, isActive: true },
       select: { email: true, firstName: true },
     });
   }

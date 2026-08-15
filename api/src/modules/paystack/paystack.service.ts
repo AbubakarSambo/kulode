@@ -1141,7 +1141,7 @@ export class PaystackService {
       merchantEmails.push(invoice.organization.email);
     }
     if (invoice.organization.users && invoice.organization.users.length > 0) {
-      const admins = invoice.organization.users.filter((u: any) => u.role === 'SUPER_ADMIN' || u.role === 'ADMIN');
+      const admins = invoice.organization.users.filter((u: any) => u.roles.includes('SUPER_ADMIN') || u.roles.includes('ADMIN'));
       const targets = admins.length > 0 ? admins : invoice.organization.users;
       targets.forEach((u: any) => {
         if (u.email && !merchantEmails.includes(u.email)) {

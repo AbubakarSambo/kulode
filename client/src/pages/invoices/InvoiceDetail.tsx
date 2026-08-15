@@ -333,7 +333,7 @@ export function InvoiceDetailPage() {
     )
   }
 
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN'
+  const isSuperAdmin = !!user?.roles.includes('SUPER_ADMIN')
   const canRecordPayment = invoice.status !== 'DRAFT' && invoice.status !== 'CANCELLED' && invoice.status !== 'PAID'
   const canSend = invoice.status === 'DRAFT'
   const hasReceivedPayment = Number(invoice.amountPaid) > 0

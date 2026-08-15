@@ -27,8 +27,8 @@ export class UserResponseDto {
   @ApiProperty()
   lastName: string;
 
-  @ApiProperty()
-  role: string;
+  @ApiProperty({ type: [String] })
+  roles: string[];
 
   @ApiProperty()
   organizationId: string;

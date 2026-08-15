@@ -1581,7 +1581,7 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary" className="text-[9px] px-2 py-0.5">
-                          {u.role}
+                          {u.roles.join(', ')}
                         </Badge>
                         <Badge
                           variant={u.isActive ? 'success' : 'destructive'}

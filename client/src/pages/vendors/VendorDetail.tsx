@@ -32,7 +32,7 @@ export function VendorDetailPage() {
   const queryClient = useQueryClient()
   const user = useAuthStore((state) => state.user)
 
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN'
+  const isSuperAdmin = !!user?.roles.includes('SUPER_ADMIN')
 
   const { data: vendor, isLoading } = useQuery({
     queryKey: ['vendors', id],

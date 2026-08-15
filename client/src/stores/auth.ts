@@ -33,7 +33,7 @@ export const useAuthStore = create<AuthState>()(
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
-          role: user.role,
+          roles: user.roles,
           organizationId: user.organizationId,
         })
         set({ user, token, isAuthenticated: true })
@@ -55,7 +55,17 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'auth-storage-v2',
       partialize: (state) => ({ user: state.user, token: state.token, isAuthenticated: state.isAuthenticated }),
+      // User.role (single string) became User.roles (array) when multi-role support shipped.
+      // zustand's version/migrate mechanism only fires when the persisted blob already HAS a
+      // numeric version — every session cached before today has none at all, so migrate would
+      // silently never run for exactly the sessions that need it. Fix the shape directly here
+      // instead, since onRehydrateStorage always runs regardless of version.
       onRehydrateStorage: () => (state) => {
+        const user = state?.user as (User & { role?: string }) | null | undefined
+        if (user && !Array.isArray(user.roles) && typeof user.role === 'string') {
+          const { role, ...rest } = user
+          if (state) state.user = { ...rest, roles: [role as User['roles'][number]] }
+        }
         state?.setHasHydrated(true)
       },
     }

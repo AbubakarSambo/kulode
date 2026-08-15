@@ -57,7 +57,7 @@ export interface User {
   email: string
   firstName: string
   lastName: string
-  role: UserRole
+  roles: UserRole[]
   organizationId: string
   organizationName: string
   isEmailVerified?: boolean
@@ -814,7 +814,7 @@ export interface PlatformOrganizationDetails extends PlatformOrganization {
     email: string
     firstName: string
     lastName: string
-    role: string
+    roles: string[]
     isActive: boolean
     createdAt: string
   }>

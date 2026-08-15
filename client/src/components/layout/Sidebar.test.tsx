@@ -15,8 +15,11 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: <T,>(selector: (state: { user: Record<string, unknown> }) => T) => selector({ user: mockUseAuthStore() }),
 }))
 
+const mockSwitchUser = vi.fn()
+
 vi.mock('@/hooks', () => ({
   useLogout: () => mockLogout,
+  useSwitchUser: () => mockSwitchUser,
 }))
 
 vi.mock('@tanstack/react-query', () => ({
@@ -39,7 +42,7 @@ const adminUser = {
   email: 'admin@test.com',
   firstName: 'Test',
   lastName: 'Admin',
-  role: 'SUPER_ADMIN' as const,
+  roles: ['SUPER_ADMIN'] as const,
   organizationId: 'org1',
   organizationName: 'Test Org',
   isPlatformAdmin: false,
@@ -151,7 +154,7 @@ describe('Sidebar', () => {
   })
 
   it('hides payments/expenses/vendors for STAFF role', () => {
-    mockUseAuthStore.mockReturnValue({ ...adminUser, role: 'STAFF' })
+    mockUseAuthStore.mockReturnValue({ ...adminUser, roles: ['STAFF'] })
     mockUseSubscription.mockReturnValue({
       hasRequiredPlan: () => true,
     })
@@ -164,5 +167,101 @@ describe('Sidebar', () => {
     expect(screen.queryByText('Payments')).not.toBeInTheDocument()
     expect(screen.queryByText('Vendors')).not.toBeInTheDocument()
     expect(screen.queryByText('Expenses')).not.toBeInTheDocument()
+  })
+
+  it('a multi-role user sees the UNION of what each role unlocks (Waiter + Pass)', () => {
+    mockUseAuthStore.mockReturnValue({
+      ...adminUser,
+      roles: ['WAITER', 'PASS'],
+      organization: { enabledModules: 'POS' },
+    })
+    mockUseSubscription.mockReturnValue({ hasRequiredPlan: () => true })
+
+    renderSidebar()
+
+    // Waiter's allowlist
+    expect(screen.getAllByText('Sell').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Orders').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Customers').length).toBeGreaterThan(0)
+    // Pass's allowlist
+    expect(screen.getAllByText('Kitchen').length).toBeGreaterThan(0)
+    // Neither role grants these
+    expect(screen.queryByText('Menu')).not.toBeInTheDocument()
+    expect(screen.queryByText('Dashboard')).not.toBeInTheDocument()
+  })
+
+  it('an unrestricted role in the mix (e.g. Manager + Waiter) gets the full broader nav', () => {
+    mockUseAuthStore.mockReturnValue({
+      ...adminUser,
+      roles: ['WAITER', 'MANAGER'],
+      organization: { enabledModules: 'POS' },
+    })
+    mockUseSubscription.mockReturnValue({ hasRequiredPlan: () => true })
+
+    renderSidebar()
+
+    // Manager isn't floor-restricted, so the union should include the full POS nav, not just
+    // Waiter's tight allowlist.
+    expect(screen.getAllByText('Menu').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Categories').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Kitchen').length).toBeGreaterThan(0)
+  })
+
+  it('a pure Cashier is restricted to Orders/Customers/Shift only', () => {
+    mockUseAuthStore.mockReturnValue({
+      ...adminUser,
+      roles: ['CASHIER'],
+      organization: { enabledModules: 'POS' },
+    })
+    mockUseSubscription.mockReturnValue({ hasRequiredPlan: () => true })
+
+    renderSidebar()
+
+    expect(screen.getAllByText('Orders').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Customers').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Shift').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Sell')).not.toBeInTheDocument()
+    expect(screen.queryByText('Menu')).not.toBeInTheDocument()
+    expect(screen.queryByText('Waiters')).not.toBeInTheDocument()
+    expect(screen.queryByText('Kitchen')).not.toBeInTheDocument()
+  })
+
+  it('Waiter + Runner + Cashier sees the union: Sell/Orders/Customers/Shift + Kitchen', () => {
+    mockUseAuthStore.mockReturnValue({
+      ...adminUser,
+      roles: ['WAITER', 'RUNNER', 'CASHIER'],
+      organization: { enabledModules: 'POS' },
+    })
+    mockUseSubscription.mockReturnValue({ hasRequiredPlan: () => true })
+
+    renderSidebar()
+
+    expect(screen.getAllByText('Sell').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Orders').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Customers').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Shift').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Kitchen').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Menu')).not.toBeInTheDocument()
+    expect(screen.queryByText('Waiters')).not.toBeInTheDocument()
+  })
+
+  it('a pure Supervisor is restricted to Orders/Customers/Shift/Waiters/Kitchen (no menu editing)', () => {
+    mockUseAuthStore.mockReturnValue({
+      ...adminUser,
+      roles: ['SUPERVISOR'],
+      organization: { enabledModules: 'POS' },
+    })
+    mockUseSubscription.mockReturnValue({ hasRequiredPlan: () => true })
+
+    renderSidebar()
+
+    expect(screen.getAllByText('Orders').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Customers').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Shift').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Waiters').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Kitchen').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Sell')).not.toBeInTheDocument()
+    expect(screen.queryByText('Menu')).not.toBeInTheDocument()
+    expect(screen.queryByText('Categories')).not.toBeInTheDocument()
   })
 })

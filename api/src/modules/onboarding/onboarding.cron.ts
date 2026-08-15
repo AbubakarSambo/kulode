@@ -26,7 +26,7 @@ export class OnboardingCron {
       },
       include: {
         users: {
-          where: { role: 'SUPER_ADMIN', isActive: true },
+          where: { roles: { has: 'SUPER_ADMIN' }, isActive: true },
           take: 1,
         },
       },
