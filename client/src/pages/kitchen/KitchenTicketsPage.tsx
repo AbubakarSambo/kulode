@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { useQueries, useQueryClient, useMutation } from '@tanstack/react-query'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Timer } from 'lucide-react'
 import { Header } from '@/components/layout'
@@ -127,19 +127,19 @@ export function KitchenTicketsPage() {
     return () => clearInterval(interval)
   }, [])
 
-  const results = useQueries({
-    queries: ACTIVE_STATUSES.map((status) => ({
-      queryKey: ['kitchen-orders', status],
-      queryFn: () => ordersApi.list({ status, limit: 100 }),
-      refetchInterval: 5_000,
-    })),
+  // One request covering all three active statuses — not three separate polled requests, which
+  // burned through the backend's shared per-IP rate limit (60 req/min, across the whole API)
+  // on its own and caused repeated 429s.
+  const { data, isLoading } = useQuery({
+    queryKey: ['kitchen-orders', ACTIVE_STATUSES],
+    queryFn: () => ordersApi.list({ statuses: ACTIVE_STATUSES, limit: 100 }),
+    refetchInterval: 5_000,
   })
 
-  const isLoading = results.some((r) => r.isLoading)
   const orders = useMemo(() => {
-    const merged = results.flatMap((r) => r.data?.data ?? [])
-    return merged.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-  }, [results])
+    const merged = data?.data ?? []
+    return [...merged].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+  }, [data])
 
   return (
     <div className="flex h-full flex-col overflow-hidden">

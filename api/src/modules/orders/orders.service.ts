@@ -46,11 +46,11 @@ export class OrdersService {
   } as const;
 
   async findAll(organizationId: string, filter: OrderFilterDto) {
-    const { page = 1, limit = 20, status, tableId, customerId, waiterId } = filter;
+    const { page = 1, limit = 20, status, statuses, tableId, customerId, waiterId } = filter;
     const skip = (page - 1) * limit;
     const where = {
       organizationId,
-      ...(status && { status }),
+      ...(statuses && statuses.length > 0 ? { status: { in: statuses } } : status && { status }),
       ...(tableId && { tableId }),
       ...(customerId && { customerId }),
       ...(waiterId && { waiterId }),

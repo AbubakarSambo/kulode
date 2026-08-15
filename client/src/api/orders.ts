@@ -37,6 +37,7 @@ export interface OrderFilter {
   page?: number
   limit?: number
   status?: OrderStatus
+  statuses?: OrderStatus[]
   tableId?: string
   customerId?: string
   waiterId?: string
@@ -62,7 +63,13 @@ function isNoResponseError(err: unknown): boolean {
 
 export const ordersApi = {
   list: async (filter?: OrderFilter): Promise<PaginatedResponse<Order>> => {
-    const response = await apiClient.get<ApiResponse<PaginatedResponse<Order>>>('/orders', { params: filter })
+    const response = await apiClient.get<ApiResponse<PaginatedResponse<Order>>>('/orders', {
+      params: filter,
+      // Axios defaults array params to `statuses[]=a&statuses[]=b`, but this API's query parser
+      // only turns repeated bare keys (`statuses=a&statuses=b`) into an array — bracket notation
+      // arrives as a literal `"statuses[]"` property and fails DTO validation.
+      paramsSerializer: { indexes: null },
+    })
     return response.data.data
   },
   get: async (id: string): Promise<Order> => {
