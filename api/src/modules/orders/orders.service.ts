@@ -248,18 +248,15 @@ export class OrdersService {
   ) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, organizationId },
-      include: { items: true },
+      include: this.orderInclude,
     });
     if (!order) throw new NotFoundException('Order not found');
 
     const item = order.items.find((i) => i.id === itemId);
     if (!item) throw new NotFoundException('Order item not found');
 
-    await this.prisma.orderItem.update({ where: { id: itemId }, data: { status: dto.status } });
-
     // Roll the order-level status up from its items so front-of-house and kitchen views agree.
-    // Reuses the items already fetched above (patched with the new status) instead of a second
-    // round trip — this list was the perf hot spot on the order detail page's status buttons.
+    // Computed against the already-fetched items (patched in memory) rather than a re-fetch.
     const items = order.items.map((i) => (i.id === itemId ? { ...i, status: dto.status } : i));
     let newOrderStatus: 'IN_KITCHEN' | 'READY' | undefined;
     if (items.every((i) => i.status === 'PASS' || i.status === 'SERVED')) {
@@ -267,12 +264,20 @@ export class OrdersService {
     } else if (items.some((i) => i.status === 'ON_IT' || i.status === 'PASS' || i.status === 'SERVED')) {
       newOrderStatus = 'IN_KITCHEN';
     }
+    const willTransitionOrder = !!newOrderStatus && OPEN_STATUSES.includes(order.status);
 
-    if (newOrderStatus && OPEN_STATUSES.includes(order.status)) {
-      await this.prisma.order.update({ where: { id: orderId }, data: { status: newOrderStatus } });
-    }
+    // Batched into one round trip (each `await this.prisma.X` is a separate network hop against
+    // the hosted DB — that's what was turning this endpoint into a multi-second wait in prod).
+    await this.prisma.$transaction([
+      this.prisma.orderItem.update({ where: { id: itemId }, data: { status: dto.status } }),
+      ...(willTransitionOrder
+        ? [this.prisma.order.update({ where: { id: orderId }, data: { status: newOrderStatus } })]
+        : []),
+    ]);
 
-    return this.findOne(organizationId, orderId);
+    // Build the response from data already in hand instead of a third round trip — table,
+    // customer, waiter and payments are all unaffected by an item status change.
+    return { ...order, items, status: willTransitionOrder ? newOrderStatus! : order.status };
   }
 
   async setCustomer(organizationId: string, id: string, dto: UpdateOrderCustomerDto) {
