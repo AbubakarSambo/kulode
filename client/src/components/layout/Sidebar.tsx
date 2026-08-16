@@ -434,7 +434,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             {/* Non-PIN roles (admin/manager/etc) still need a way to hand the terminal to a PIN
                 user without a full logout, so "Switch User" shows alongside "Logout" for them —
                 PIN-eligible roles only ever need the one (they're already PIN-only accounts). */}
-            {!userIsPinEligible && (
+            {!userIsPinEligible && hasPos && (
               <button
                 onClick={() => {
                   switchUser()

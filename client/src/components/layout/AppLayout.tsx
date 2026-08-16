@@ -342,7 +342,7 @@ export function AppLayout() {
                   <SupportIcon className="h-5 w-5" />
                   Contact Support
                 </a>
-                {!userIsPinEligible && (
+                {!userIsPinEligible && hasPos && (
                   <button
                     onClick={() => {
                       setMoreOpen(false)
