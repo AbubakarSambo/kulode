@@ -421,14 +421,6 @@ export interface MenuItem {
   durationMinutes?: number
 }
 
-export interface Waiter {
-  id: string
-  name: string
-  phone?: string
-  notes?: string
-  isActive: boolean
-}
-
 export interface RestaurantTable {
   id: string
   name: string
@@ -465,7 +457,7 @@ export interface Order {
   customerId?: string
   customer?: { id: string; name: string; phone: string } | null
   waiterId?: string
-  waiter?: { id: string; name: string; phone?: string } | null
+  waiter?: { id: string; firstName: string; lastName: string; phone?: string } | null
   createdById: string
   createdBy?: { id: string; firstName: string; lastName: string }
   source: OrderSource

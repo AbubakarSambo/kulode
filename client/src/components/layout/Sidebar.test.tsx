@@ -382,7 +382,7 @@ describe('Sidebar', () => {
     expect(screen.queryByText('Shift')).not.toBeInTheDocument()
   })
 
-  it('a pure Supervisor is restricted to Orders/Customers/Shift/Waiters/Kitchen (no menu editing)', () => {
+  it('a pure Supervisor is restricted to Orders/Customers/Shift/Kitchen (no menu editing, no Waiters roster)', () => {
     mockUseAuthStore.mockReturnValue({
       ...adminUser,
       roles: ['SUPERVISOR'],
@@ -395,7 +395,9 @@ describe('Sidebar', () => {
     expect(screen.getAllByText('Orders').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Customers').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Shift').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Waiters').length).toBeGreaterThan(0)
+    // Waiter is just a User now — managing the roster needs the same admin-only access as the
+    // rest of user management, so Supervisors no longer get a nav entry for it.
+    expect(screen.queryByText('Waiters')).not.toBeInTheDocument()
     expect(screen.getAllByText('Kitchen').length).toBeGreaterThan(0)
     expect(screen.queryByText('Sell')).not.toBeInTheDocument()
     expect(screen.queryByText('Menu')).not.toBeInTheDocument()

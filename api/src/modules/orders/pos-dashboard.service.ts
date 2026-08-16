@@ -109,16 +109,16 @@ export class PosDashboardService {
       this.prisma.$queryRaw<{ id: string; name: string; revenue: number; orders: number }[]>`
         SELECT
           o.waiter_id as id,
-          w.name as name,
+          u.first_name || ' ' || u.last_name as name,
           SUM(o.total)::numeric as revenue,
           COUNT(*)::integer as orders
         FROM orders o
-        JOIN waiters w ON o.waiter_id = w.id
+        JOIN users u ON o.waiter_id = u.id
         WHERE o.organization_id = ${organizationId}
           AND o.status IN ('CLOSED_PAID', 'CLOSED_UNPAID')
           AND o.closed_at >= ${startDate}
           AND o.closed_at <= ${endDate}
-        GROUP BY o.waiter_id, w.name
+        GROUP BY o.waiter_id, u.first_name, u.last_name
         ORDER BY revenue DESC
         LIMIT 10
       `,

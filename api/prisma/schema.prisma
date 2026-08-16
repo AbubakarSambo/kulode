@@ -238,7 +238,6 @@ model Organization {
   menuItems          MenuItem[]
   orders             Order[]
   shifts             Shift[]
-  waiters            Waiter[]
   idempotencyKeys    IdempotencyKey[]
   walletTransactions WalletTransaction[]
   sheetSyncQueue     SheetSyncQueueEntry[]
@@ -259,6 +258,10 @@ model User {
   // since Prisma/Postgres can't express "array must have length >= 1" as a column constraint.
   roles           UserRole[] @default([STAFF])
   businessRole    String?  @map("business_role")
+  // Floor-staff contact info — mirrors what the old standalone Waiter directory held before it
+  // was merged into User (a WAITER-role account now doubles as the order-attribution record).
+  phone           String?
+  notes           String?
   isActive        Boolean  @default(true) @map("is_active")
   isEmailVerified Boolean  @default(false) @map("is_email_verified")
   isPlatformAdmin Boolean  @default(false) @map("is_platform_admin")
@@ -285,6 +288,7 @@ model User {
   taxReportLogs      TaxReportLog[]
   chatSessions       ChatSession[]
   createdOrders      Order[]                  @relation("OrderCreatedByUser")
+  waiterOrders       Order[]                  @relation("OrderWaiter")
   openedShifts       Shift[]                  @relation("ShiftOpenedByUser")
   closedShifts       Shift[]                  @relation("ShiftClosedByUser")
   walletTransactions WalletTransaction[]
@@ -366,26 +370,6 @@ model Customer {
 }
 
 // Restaurant/POS floor staff roster — lightweight, no login required
-model Waiter {
-  id             String  @id @default(uuid())
-  organizationId String  @map("organization_id")
-  name           String
-  phone          String?
-  notes          String?
-  isActive       Boolean @default(true) @map("is_active")
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  // Relations
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  orders       Order[]
-
-  @@unique([organizationId, name])
-  @@index([organizationId])
-  @@map("waiters")
-}
-
 // Append-only ledger backing Customer.walletBalance — every credit/debit is a row here, timestamped
 // and user-attributed, so the cached balance can always be reconstructed and audited.
 model WalletTransaction {
@@ -1008,7 +992,7 @@ model Order {
   organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   table              RestaurantTable?    @relation(fields: [tableId], references: [id], onDelete: SetNull)
   customer           Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  waiter             Waiter?             @relation(fields: [waiterId], references: [id], onDelete: SetNull)
+  waiter             User?               @relation("OrderWaiter", fields: [waiterId], references: [id], onDelete: SetNull)
   createdBy          User                @relation("OrderCreatedByUser", fields: [createdById], references: [id])
   items              OrderItem[]
   payments           Payment[]

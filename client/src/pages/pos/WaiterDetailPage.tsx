@@ -9,7 +9,7 @@ import { ArrowLeft, Pencil, Trash2 } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, Badge, ConfirmDialog } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
-import { waitersApi } from '@/api'
+import { usersApi } from '@/api'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
 const waiterSchema = z.object({
@@ -18,6 +18,13 @@ const waiterSchema = z.object({
   notes: z.string().optional(),
 })
 type WaiterFormData = z.infer<typeof waiterSchema>
+
+function splitName(name: string): { firstName: string; lastName: string } {
+  const trimmed = name.trim()
+  const spaceIndex = trimmed.indexOf(' ')
+  if (spaceIndex === -1) return { firstName: trimmed, lastName: '' }
+  return { firstName: trimmed.slice(0, spaceIndex), lastName: trimmed.slice(spaceIndex + 1) }
+}
 
 function errorMessage(err: unknown, fallback: string) {
   return (err as { response?: { data?: { message?: string } } })?.response?.data?.message || fallback
@@ -31,32 +38,37 @@ export function WaiterDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   const { data: waiter, isLoading } = useQuery({
-    queryKey: ['waiters', id],
-    queryFn: () => waitersApi.get(id!),
+    queryKey: ['waiter-history', id],
+    queryFn: () => usersApi.getOrderHistory(id!),
     enabled: !!id,
   })
 
   const form = useForm<WaiterFormData>({ resolver: zodResolver(waiterSchema) })
 
   const updateWaiter = useMutation({
-    mutationFn: (data: WaiterFormData) => waitersApi.update(id!, data),
+    mutationFn: (data: WaiterFormData) => {
+      const { firstName, lastName } = splitName(data.name)
+      return usersApi.update(id!, { firstName, lastName, phone: data.phone, notes: data.notes })
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['waiters', id] })
-      queryClient.invalidateQueries({ queryKey: ['waiters'] })
+      queryClient.invalidateQueries({ queryKey: ['waiter-history', id] })
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      queryClient.invalidateQueries({ queryKey: ['waiters-directory'] })
       toast.success('Waiter updated')
       setEditOpen(false)
     },
     onError: (err: unknown) => toast.error(errorMessage(err, 'Failed to update waiter')),
   })
 
-  const deleteWaiter = useMutation({
-    mutationFn: () => waitersApi.delete(id!),
+  const deactivateWaiter = useMutation({
+    mutationFn: () => usersApi.delete(id!),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['waiters'] })
-      toast.success('Waiter removed')
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      queryClient.invalidateQueries({ queryKey: ['waiters-directory'] })
+      toast.success('Waiter deactivated')
       navigate('/pos/waiters')
     },
-    onError: (err: unknown) => toast.error(errorMessage(err, 'Failed to remove waiter')),
+    onError: (err: unknown) => toast.error(errorMessage(err, 'Failed to deactivate waiter')),
   })
 
   if (isLoading || !waiter) {
@@ -67,11 +79,13 @@ export function WaiterDetailPage() {
     )
   }
 
+  const fullName = `${waiter.firstName} ${waiter.lastName}`.trim()
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Header
-        title={waiter.name}
-        description={waiter.phone}
+        title={fullName}
+        description={waiter.phone ?? undefined}
         action={
           <Button variant="ghost" size="sm" onClick={() => navigate('/pos/waiters')}>
             <ArrowLeft className="mr-1.5 h-4 w-4" /> Back
@@ -84,7 +98,7 @@ export function WaiterDetailPage() {
           <Card className="p-4 md:col-span-1">
             <CardContent className="space-y-3 p-0">
               <div className="flex items-center justify-between">
-                <span className="text-lg font-bold text-foreground">{waiter.name}</span>
+                <span className="text-lg font-bold text-foreground">{fullName}</span>
                 <Badge variant={waiter.isActive ? 'success' : 'secondary'}>
                   {waiter.isActive ? 'Active' : 'Inactive'}
                 </Badge>
@@ -108,14 +122,14 @@ export function WaiterDetailPage() {
                   size="sm"
                   className="flex-1"
                   onClick={() => {
-                    form.reset({ name: waiter.name, phone: waiter.phone, notes: waiter.notes })
+                    form.reset({ name: fullName, phone: waiter.phone ?? '', notes: waiter.notes ?? '' })
                     setEditOpen(true)
                   }}
                 >
                   <Pencil className="mr-1.5 h-4 w-4" /> Edit
                 </Button>
                 <Button variant="outline" size="sm" className="flex-1" onClick={() => setDeleteOpen(true)}>
-                  <Trash2 className="mr-1.5 h-4 w-4" /> Delete
+                  <Trash2 className="mr-1.5 h-4 w-4" /> Deactivate
                 </Button>
               </div>
             </CardContent>
@@ -213,13 +227,13 @@ export function WaiterDetailPage() {
       <ConfirmDialog
         isOpen={deleteOpen}
         onClose={() => setDeleteOpen(false)}
-        onConfirm={() => deleteWaiter.mutate()}
-        title={`Remove "${waiter.name}"?`}
-        description="This cannot be undone."
-        confirmText="Remove"
+        onConfirm={() => deactivateWaiter.mutate()}
+        title={`Deactivate "${fullName}"?`}
+        description="They'll no longer be able to log in or be assigned to new orders."
+        confirmText="Deactivate"
         cancelText="Cancel"
         isDangerous
-        isLoading={deleteWaiter.isPending}
+        isLoading={deactivateWaiter.isPending}
       />
     </div>
   )

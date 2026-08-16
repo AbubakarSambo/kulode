@@ -11,8 +11,8 @@ import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, Badge, ConfirmDialog, EmptyState } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { CsvImportModal, type CsvColumn } from '@/components/shared/CsvImportModal'
-import { waitersApi } from '@/api'
-import type { Waiter } from '@/types'
+import { usersApi } from '@/api'
+import type { UserData } from '@/api/users'
 
 const CSV_COLUMNS: CsvColumn[] = [
   { key: 'name', label: 'Name', required: true },
@@ -33,27 +33,42 @@ const waiterSchema = z.object({
 
 type WaiterFormData = z.infer<typeof waiterSchema>
 
+// A waiter is just a User with role WAITER — this page manages the single "name" field the form
+// shows, splitting/joining against the underlying firstName/lastName columns.
+function splitName(name: string): { firstName: string; lastName: string } {
+  const trimmed = name.trim()
+  const spaceIndex = trimmed.indexOf(' ')
+  if (spaceIndex === -1) return { firstName: trimmed, lastName: '' }
+  return { firstName: trimmed.slice(0, spaceIndex), lastName: trimmed.slice(spaceIndex + 1) }
+}
+
 export function WaitersPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
   const [waiterModalOpen, setWaiterModalOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
-  const [editingWaiter, setEditingWaiter] = useState<Waiter | null>(null)
+  const [editingWaiter, setEditingWaiter] = useState<UserData | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
 
-  const { data: waiters, isLoading } = useQuery({
-    queryKey: ['waiters'],
-    queryFn: () => waitersApi.list(),
+  const { data, isLoading } = useQuery({
+    queryKey: ['users'],
+    queryFn: () => usersApi.list(),
   })
+  const waiters = (data?.data ?? []).filter((u) => u.roles.includes('WAITER'))
 
   const waiterForm = useForm<WaiterFormData>({ resolver: zodResolver(waiterSchema) })
 
   const saveWaiter = useMutation({
-    mutationFn: (data: WaiterFormData) =>
-      editingWaiter ? waitersApi.update(editingWaiter.id, data) : waitersApi.create(data),
+    mutationFn: (data: WaiterFormData) => {
+      const { firstName, lastName } = splitName(data.name)
+      return editingWaiter
+        ? usersApi.update(editingWaiter.id, { firstName, lastName, phone: data.phone, notes: data.notes })
+        : usersApi.create({ firstName, lastName, roles: ['WAITER'], phone: data.phone, notes: data.notes })
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['waiters'] })
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      queryClient.invalidateQueries({ queryKey: ['waiters-directory'] })
       toast.success(editingWaiter ? 'Waiter updated' : 'Waiter added')
       setWaiterModalOpen(false)
       setEditingWaiter(null)
@@ -63,19 +78,23 @@ export function WaitersPage() {
   })
 
   const toggleActive = useMutation({
-    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => waitersApi.update(id, { isActive }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['waiters'] }),
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => usersApi.update(id, { isActive }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      queryClient.invalidateQueries({ queryKey: ['waiters-directory'] })
+    },
     onError: () => toast.error('Failed to update waiter'),
   })
 
-  const deleteWaiter = useMutation({
-    mutationFn: (id: string) => waitersApi.delete(id),
+  const deactivateWaiter = useMutation({
+    mutationFn: (id: string) => usersApi.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['waiters'] })
-      toast.success('Waiter removed')
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      queryClient.invalidateQueries({ queryKey: ['waiters-directory'] })
+      toast.success('Waiter deactivated')
       setDeleteTarget(null)
     },
-    onError: () => toast.error('Failed to remove waiter'),
+    onError: () => toast.error('Failed to deactivate waiter'),
   })
 
   const openNewWaiter = () => {
@@ -84,9 +103,13 @@ export function WaitersPage() {
     setWaiterModalOpen(true)
   }
 
-  const openEditWaiter = (waiter: Waiter) => {
+  const openEditWaiter = (waiter: UserData) => {
     setEditingWaiter(waiter)
-    waiterForm.reset({ name: waiter.name, phone: waiter.phone, notes: waiter.notes })
+    waiterForm.reset({
+      name: `${waiter.firstName} ${waiter.lastName}`.trim(),
+      phone: waiter.phone ?? '',
+      notes: waiter.notes ?? '',
+    })
     setWaiterModalOpen(true)
   }
 
@@ -109,7 +132,7 @@ export function WaitersPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-        {!isLoading && (!waiters || waiters.length === 0) ? (
+        {!isLoading && waiters.length === 0 ? (
           <EmptyState
             icon={WaiterIcon}
             title="No waiters yet"
@@ -119,7 +142,7 @@ export function WaitersPage() {
           />
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {waiters?.map((waiter) => (
+            {waiters.map((waiter) => (
               <Card
                 key={waiter.id}
                 onClick={() => navigate(`/pos/waiters/${waiter.id}`)}
@@ -128,7 +151,7 @@ export function WaitersPage() {
                 <CardContent className="flex h-full flex-col p-0">
                   <div className="flex items-start justify-between">
                     <div>
-                      <h3 className="font-semibold text-foreground">{waiter.name}</h3>
+                      <h3 className="font-semibold text-foreground">{waiter.firstName} {waiter.lastName}</h3>
                       {waiter.phone && <p className="mt-1 text-sm text-muted-foreground">{waiter.phone}</p>}
                     </div>
                     <div className="flex gap-1">
@@ -144,7 +167,7 @@ export function WaitersPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
-                          setDeleteTarget({ id: waiter.id, name: waiter.name })
+                          setDeleteTarget({ id: waiter.id, name: `${waiter.firstName} ${waiter.lastName}`.trim() })
                         }}
                         className="rounded-lg p-2 hover:bg-muted"
                       >
@@ -202,12 +225,12 @@ export function WaitersPage() {
       <ConfirmDialog
         isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onConfirm={() => deleteTarget && deleteWaiter.mutate(deleteTarget.id)}
-        title={`Remove "${deleteTarget?.name}"?`}
-        description="This cannot be undone."
-        confirmText="Remove"
+        onConfirm={() => deleteTarget && deactivateWaiter.mutate(deleteTarget.id)}
+        title={`Deactivate "${deleteTarget?.name}"?`}
+        description="They'll no longer be able to log in or be assigned to new orders."
+        confirmText="Deactivate"
         isDangerous
-        isLoading={deleteWaiter.isPending}
+        isLoading={deactivateWaiter.isPending}
       />
 
       <CsvImportModal
@@ -218,13 +241,19 @@ export function WaitersPage() {
         sampleFilename="waiters-sample.csv"
         sampleRows={CSV_SAMPLE_ROWS}
         onImportRow={async (row) => {
-          await waitersApi.create({
-            name: row.name,
+          const { firstName, lastName } = splitName(row.name)
+          await usersApi.create({
+            firstName,
+            lastName,
+            roles: ['WAITER'],
             phone: row.phone || undefined,
             notes: row.notes || undefined,
           })
         }}
-        onImported={() => queryClient.invalidateQueries({ queryKey: ['waiters'] })}
+        onImported={() => {
+          queryClient.invalidateQueries({ queryKey: ['users'] })
+          queryClient.invalidateQueries({ queryKey: ['waiters-directory'] })
+        }}
       />
     </div>
   )

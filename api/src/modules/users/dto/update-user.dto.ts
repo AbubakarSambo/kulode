@@ -59,4 +59,15 @@ export class UpdateUserDto {
   @IsString()
   @MaxLength(100)
   businessRole?: string;
+
+  @ApiPropertyOptional({ example: '+234 123 456 7890' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  phone?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }

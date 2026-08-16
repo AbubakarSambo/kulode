@@ -8,8 +8,9 @@ import {
   Param,
   Query,
   ParseUUIDPipe,
+  ParseEnumPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateUserDto, UpdateUserDto, SetPinDto } from './dto';
 import { CurrentUser, CurrentUserData, Roles, Role, PaginationDto } from '../../common';
@@ -29,6 +30,32 @@ export class UsersController {
     @Query() pagination: PaginationDto,
   ) {
     return this.usersService.findAll(organizationId, pagination);
+  }
+
+  @Get('directory')
+  @ApiOperation({
+    summary: 'Lightweight staff directory for a given role, e.g. assigning a waiter to an order',
+    description: 'Unrestricted by role — any authenticated staff member needs this to assign a colleague to an order.',
+  })
+  @ApiQuery({ name: 'role', enum: Role })
+  @ApiResponse({ status: 200, description: 'Active staff holding the given role' })
+  @ApiResponse({ status: 400, description: 'Unknown role' })
+  async findDirectory(
+    @CurrentUser('organizationId') organizationId: string,
+    @Query('role', new ParseEnumPipe(Role)) role: Role,
+  ) {
+    return this.usersService.findDirectory(organizationId, role);
+  }
+
+  @Get(':id/waiter-history')
+  @ApiOperation({ summary: 'Order history/stats for a staff member (e.g. the Waiters detail view)' })
+  @ApiResponse({ status: 200, description: 'Recent orders and totals attributed to this user' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async findOrderHistory(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.usersService.findOrderHistory(id, organizationId);
   }
 
   @Get(':id')

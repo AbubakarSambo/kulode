@@ -10,7 +10,7 @@ import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Label, Input, SearchableSelect } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { BottomSheet } from '@/components/shared/BottomSheet'
-import { menuCategoriesApi, menuItemsApi, ordersApi, customersApi, tablesApi, waitersApi, organizationsApi } from '@/api'
+import { menuCategoriesApi, menuItemsApi, ordersApi, customersApi, tablesApi, usersApi, organizationsApi } from '@/api'
 import { formatCurrency, cn } from '@/lib/utils'
 import type { OrderSource } from '@/types'
 
@@ -97,9 +97,9 @@ export function OrderTakingPage() {
     () => (customersPage?.data ?? []).map((c) => ({ id: c.id, label: `${c.name} (${c.phone})` })),
     [customersPage],
   )
-  const { data: waiters } = useQuery({ queryKey: ['waiters'], queryFn: () => waitersApi.list() })
+  const { data: waiters } = useQuery({ queryKey: ['waiters-directory'], queryFn: () => usersApi.directory('WAITER') })
   const waiterOptions = useMemo(
-    () => (waiters ?? []).filter((w) => w.isActive).map((w) => ({ id: w.id, label: w.name })),
+    () => (waiters ?? []).map((w) => ({ id: w.id, label: `${w.firstName} ${w.lastName}` })),
     [waiters],
   )
   const selectedCustomerLabel = useMemo(

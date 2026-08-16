@@ -6,7 +6,7 @@ import { ArrowLeft, Download, Plus, X, UserPlus, Pencil } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Badge, Input, Label, SearchableSelect } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
-import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, waitersApi } from '@/api'
+import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, usersApi } from '@/api'
 import { getQueuedActionsForLocalOrder, discardFailedAction, LOCAL_ORDER_PREFIX } from '@/lib/offlineOrderQueue'
 import { formatCurrency, cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
@@ -408,12 +408,12 @@ function SyncedOrderView({ id }: { id: string }) {
   })
 
   const { data: waiters } = useQuery({
-    queryKey: ['waiters'],
-    queryFn: () => waitersApi.list(),
+    queryKey: ['waiters-directory'],
+    queryFn: () => usersApi.directory('WAITER'),
     enabled: waiterModalOpen,
   })
   const waiterOptions = useMemo(
-    () => (waiters ?? []).filter((w) => w.isActive).map((w) => ({ id: w.id, label: w.name })),
+    () => (waiters ?? []).map((w) => ({ id: w.id, label: `${w.firstName} ${w.lastName}` })),
     [waiters],
   )
 
@@ -588,7 +588,7 @@ function SyncedOrderView({ id }: { id: string }) {
 
         <div className="mb-4 flex items-center justify-between rounded-xl border border-border p-3">
           {order.waiter ? (
-            <span className="text-sm font-medium text-foreground">{order.waiter.name}</span>
+            <span className="text-sm font-medium text-foreground">{order.waiter.firstName} {order.waiter.lastName}</span>
           ) : (
             <span className="text-sm text-muted-foreground">No waiter assigned</span>
           )}

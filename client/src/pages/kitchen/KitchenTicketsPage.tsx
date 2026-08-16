@@ -73,7 +73,8 @@ function TicketCard({ order, now }: { order: Order; now: number }) {
     onError: () => toast.error('Failed to update item status'),
   })
 
-  const waiterOrTable = [order.waiter?.name, order.table?.name].filter(Boolean).join(' · ') || '—'
+  const waiterName = order.waiter ? `${order.waiter.firstName} ${order.waiter.lastName}` : undefined
+  const waiterOrTable = [waiterName, order.table?.name].filter(Boolean).join(' · ') || '—'
 
   return (
     <Card className="w-full overflow-hidden p-0">

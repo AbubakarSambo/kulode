@@ -109,7 +109,7 @@ export class MenuService {
               status: true,
               source: true,
               createdAt: true,
-              waiter: { select: { id: true, name: true } },
+              waiter: { select: { id: true, firstName: true, lastName: true } },
             },
           },
         },

@@ -144,9 +144,10 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   // Cashiers close out orders and take payment — no need for menu/waiter management or analytics
   const CASHIER_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift']
 
-  // Supervisors get floor oversight (orders, customers, shift, staff, kitchen) but not menu/
-  // category editing — that's a Manager/Admin concern.
-  const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/waiters', '/pos/kitchen']
+  // Supervisors get floor oversight (orders, customers, shift, kitchen) but not menu/category
+  // editing or the Waiters roster — since Waiter is just a User now, managing it requires the
+  // same admin-only access as the rest of user management.
+  const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/kitchen']
 
   // Roles that get a tight nav allowlist rather than the broader access every other role has.
   // A user with multiple roles sees the UNION of what each individually unlocks — e.g. a

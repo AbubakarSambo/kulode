@@ -87,6 +87,7 @@ export class UsersService {
           lastName: true,
           roles: true,
           businessRole: true,
+          phone: true,
           isActive: true,
           isEmailVerified: true,
           hasPlaceholderEmail: true,
@@ -101,6 +102,50 @@ export class UsersService {
     return paginate(users, total, page, limit);
   }
 
+  // Deliberately unrestricted by @Roles at the controller — any authenticated POS user needs
+  // this to assign a waiter to an order (mirrors the old standalone Waiters directory, which had
+  // no role guard either). Returns only what's needed for a picker, never email/PIN/admin fields.
+  async findDirectory(organizationId: string, role: Role) {
+    return this.prisma.user.findMany({
+      where: { organizationId, isActive: true, roles: { has: role } },
+      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
+      select: { id: true, firstName: true, lastName: true, phone: true },
+    });
+  }
+
+  // Order history/stats for a staff member (formerly Waiter.findOne) — same unrestricted read
+  // access as findDirectory, for the "Waiters" detail view.
+  async findOrderHistory(id: string, organizationId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id, organizationId },
+      select: { id: true, firstName: true, lastName: true, phone: true, notes: true, isActive: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const [orders, stats] = await Promise.all([
+      this.prisma.order.findMany({
+        where: { waiterId: id, organizationId },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: { id: true, status: true, total: true, source: true, createdAt: true, closedAt: true },
+      }),
+      this.prisma.order.aggregate({
+        where: { waiterId: id, organizationId, status: 'CLOSED_PAID' },
+        _count: true,
+        _sum: { total: true },
+      }),
+    ]);
+
+    return {
+      ...user,
+      orders,
+      stats: {
+        totalOrders: stats._count,
+        totalRevenue: stats._sum.total ?? 0,
+      },
+    };
+  }
+
   async findOne(id: string, organizationId: string) {
     const user = await this.prisma.user.findFirst({
       where: { id, organizationId },
@@ -111,6 +156,8 @@ export class UsersService {
         lastName: true,
         roles: true,
         businessRole: true,
+        phone: true,
+        notes: true,
         isActive: true,
         isEmailVerified: true,
         hasPlaceholderEmail: true,
@@ -214,6 +261,8 @@ export class UsersService {
           firstName: dto.firstName,
           lastName: dto.lastName,
           roles: resolvedRoles,
+          phone: dto.phone,
+          notes: dto.notes,
           isEmailVerified: false,
           hasPlaceholderEmail,
         },
@@ -366,6 +415,8 @@ export class UsersService {
       ...(dto.email && { email: dto.email.toLowerCase() }),
       ...(dto.roles && { roles: dto.roles }),
       ...(dto.businessRole !== undefined && { businessRole: dto.businessRole }),
+      ...(dto.phone !== undefined && { phone: dto.phone }),
+      ...(dto.notes !== undefined && { notes: dto.notes }),
       ...(typeof dto.isActive === 'boolean' && { isActive: dto.isActive }),
     };
 
@@ -390,6 +441,8 @@ export class UsersService {
         lastName: true,
         roles: true,
         businessRole: true,
+        phone: true,
+        notes: true,
         isActive: true,
         isEmailVerified: true,
         createdAt: true,

@@ -86,8 +86,9 @@ export function AppLayout() {
   const KITCHEN_ALLOWED_HREFS = ['/pos/kitchen']
   // Cashiers close out orders and take payment — no need for menu/waiter management or analytics
   const CASHIER_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift']
-  // Supervisors get floor oversight but not menu/category editing — that's Manager/Admin's job
-  const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/waiters', '/pos/kitchen']
+  // Supervisors get floor oversight but not menu/category editing, or the Waiters roster — since
+  // Waiter is just a User now, managing it needs the same admin-only access as user management.
+  const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/kitchen']
   const RESTRICTED_ROLE_HREFS: Partial<Record<UserRole, string[]>> = {
     WAITER: WAITER_ALLOWED_HREFS,
     PASS: KITCHEN_ALLOWED_HREFS,

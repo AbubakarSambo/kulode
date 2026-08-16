@@ -37,7 +37,7 @@ export class OrdersService {
   private readonly orderInclude = {
     table: { select: { id: true, name: true, section: true } },
     customer: { select: { id: true, name: true, phone: true } },
-    waiter: { select: { id: true, name: true, phone: true } },
+    waiter: { select: { id: true, firstName: true, lastName: true, phone: true } },
     createdBy: { select: { id: true, firstName: true, lastName: true } },
     items: {
       include: { menuItem: { select: { id: true, name: true, durationMinutes: true } } },
@@ -132,8 +132,8 @@ export class OrdersService {
     }
 
     if (dto.waiterId) {
-      const waiter = await this.prisma.waiter.findFirst({
-        where: { id: dto.waiterId, organizationId, isActive: true },
+      const waiter = await this.prisma.user.findFirst({
+        where: { id: dto.waiterId, organizationId, isActive: true, roles: { has: 'WAITER' } },
       });
       if (!waiter) throw new NotFoundException('Waiter not found');
     }
@@ -302,8 +302,8 @@ export class OrdersService {
     }
 
     if (dto.waiterId) {
-      const waiter = await this.prisma.waiter.findFirst({
-        where: { id: dto.waiterId, organizationId, isActive: true },
+      const waiter = await this.prisma.user.findFirst({
+        where: { id: dto.waiterId, organizationId, isActive: true, roles: { has: 'WAITER' } },
       });
       if (!waiter) throw new NotFoundException('Waiter not found');
     }

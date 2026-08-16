@@ -60,7 +60,7 @@ export interface MenuItemOrderHistoryEntry {
     status: string
     source: string
     createdAt: string
-    waiter?: { id: string; name: string } | null
+    waiter?: { id: string; firstName: string; lastName: string } | null
   }
 }
 

@@ -206,7 +206,7 @@ export function MenuItemDetailPage() {
                           </div>
                           <div className="text-xs text-muted-foreground">
                             {entry.quantity}x · {entry.order.source.replace('_', ' ')} · {formatDate(entry.createdAt)}
-                            {entry.order.waiter && ` · ${entry.order.waiter.name}`}
+                            {entry.order.waiter && ` · ${entry.order.waiter.firstName} ${entry.order.waiter.lastName}`}
                           </div>
                         </div>
                         <div className="flex items-center gap-3">

@@ -8,63 +8,14 @@ import { Plus, UserX, Send, KeyRound } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Card, CardContent, Badge } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
-import apiClient from '@/api/client'
+import { usersApi } from '@/api/users'
+import type { UserData, CreateUserData } from '@/api/users'
 import { posthog } from '@/lib/posthog'
 import { cn } from '@/lib/utils'
 import { useOrgModules } from '@/hooks/useOrgModules'
 import { useAuthStore } from '@/stores/auth'
-import type { ApiResponse, PaginatedResponse, UserRole } from '@/types'
+import type { UserRole } from '@/types'
 import { PIN_ELIGIBLE_ROLES } from '@/lib/pin'
-
-interface UserData {
-  id: string
-  email: string
-  firstName: string
-  lastName: string
-  roles: UserRole[]
-  isActive: boolean
-  isEmailVerified: boolean
-  hasPlaceholderEmail?: boolean
-  pinSetAt?: string | null
-  createdAt: string
-}
-
-const usersApi = {
-  list: async (): Promise<PaginatedResponse<UserData>> => {
-    const response = await apiClient.get<ApiResponse<PaginatedResponse<UserData>>>('/users')
-    return response.data.data
-  },
-  create: async (data: CreateUserData): Promise<UserData> => {
-    const response = await apiClient.post<ApiResponse<UserData>>('/users', data)
-    return response.data.data
-  },
-  update: async (id: string, data: Partial<CreateUserData>): Promise<UserData> => {
-    const response = await apiClient.patch<ApiResponse<UserData>>(`/users/${id}`, data)
-    return response.data.data
-  },
-  delete: async (id: string): Promise<void> => {
-    await apiClient.delete(`/users/${id}`)
-  },
-  resendInvite: async (id: string): Promise<{ message: string }> => {
-    const response = await apiClient.post<ApiResponse<{ message: string }>>(`/users/${id}/resend-invite`)
-    return response.data.data
-  },
-  setPin: async (id: string, pin: string): Promise<{ message: string }> => {
-    const response = await apiClient.post<ApiResponse<{ message: string }>>(`/users/${id}/pin`, { pin })
-    return response.data.data
-  },
-  clearPin: async (id: string): Promise<{ message: string }> => {
-    const response = await apiClient.delete<ApiResponse<{ message: string }>>(`/users/${id}/pin`)
-    return response.data.data
-  },
-}
-
-interface CreateUserData {
-  email?: string
-  firstName: string
-  lastName: string
-  roles: UserRole[]
-}
 
 const userSchema = z
   .object({
