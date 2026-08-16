@@ -399,6 +399,7 @@ function SyncedOrderView({ id }: { id: string }) {
       toast.success('Customer updated')
       setCustomerModalOpen(false)
       queryClient.invalidateQueries({ queryKey: ['order', id] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
       queryClient.invalidateQueries({ queryKey: ['customers'] })
     },
     onError: (err: unknown) => {
@@ -423,6 +424,7 @@ function SyncedOrderView({ id }: { id: string }) {
       toast.success('Waiter updated')
       setWaiterModalOpen(false)
       queryClient.invalidateQueries({ queryKey: ['order', id] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
     },
     onError: (err: unknown) => {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -433,7 +435,10 @@ function SyncedOrderView({ id }: { id: string }) {
   const updateItemStatus = useMutation({
     mutationFn: ({ itemId, status }: { itemId: string; status: OrderItemStatus }) =>
       ordersApi.updateItemStatus(id, itemId, status),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['order', id] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['order', id] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+    },
     onError: () => toast.error('Failed to update item status'),
   })
 
@@ -447,6 +452,7 @@ function SyncedOrderView({ id }: { id: string }) {
       }
       setAddItemsOpen(false)
       queryClient.invalidateQueries({ queryKey: ['order', id] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
     },
     onError: (err: unknown) => {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -458,6 +464,7 @@ function SyncedOrderView({ id }: { id: string }) {
     mutationFn: () => ordersApi.cancel(id),
     onSuccess: () => {
       toast.success('Order cancelled')
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
       navigate('/pos/tables')
     },
     onError: (err: unknown) => {
@@ -471,6 +478,7 @@ function SyncedOrderView({ id }: { id: string }) {
     onSuccess: () => {
       toast.success('Order marked ready — a cashier can now take payment')
       queryClient.invalidateQueries({ queryKey: ['order', id] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
     },
     onError: (err: unknown) => {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -506,6 +514,7 @@ function SyncedOrderView({ id }: { id: string }) {
       }
       setCloseModalOpen(false)
       queryClient.invalidateQueries({ queryKey: ['order', id] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
     },
     onError: (err: unknown) => {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message

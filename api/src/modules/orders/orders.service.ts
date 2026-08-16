@@ -258,7 +258,9 @@ export class OrdersService {
     await this.prisma.orderItem.update({ where: { id: itemId }, data: { status: dto.status } });
 
     // Roll the order-level status up from its items so front-of-house and kitchen views agree.
-    const items = await this.prisma.orderItem.findMany({ where: { orderId } });
+    // Reuses the items already fetched above (patched with the new status) instead of a second
+    // round trip — this list was the perf hot spot on the order detail page's status buttons.
+    const items = order.items.map((i) => (i.id === itemId ? { ...i, status: dto.status } : i));
     let newOrderStatus: 'IN_KITCHEN' | 'READY' | undefined;
     if (items.every((i) => i.status === 'PASS' || i.status === 'SERVED')) {
       newOrderStatus = 'READY';

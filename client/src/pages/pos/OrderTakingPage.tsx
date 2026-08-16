@@ -52,7 +52,7 @@ export function OrderTakingPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const tableId = searchParams.get('tableId') || undefined
-  const initialSource = (searchParams.get('source') as OrderSource) || (tableId ? 'DINE_IN' : 'TAKEAWAY')
+  const initialSource = (searchParams.get('source') as OrderSource) || 'DINE_IN'
 
   const queryClient = useQueryClient()
   // Fresh, not the auth store's login-time snapshot — an admin can flip these settings mid-shift
@@ -213,6 +213,7 @@ export function OrderTakingPage() {
       }
       toast.success('Order sent')
       if (customerId) queryClient.invalidateQueries({ queryKey: ['customers'] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
       navigate(`/pos/orders/${result.id}`)
     },
     onError: () => toast.error('Failed to create order'),
