@@ -60,6 +60,10 @@ describe('Sidebar', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockUseAuthStore.mockReturnValue(adminUser)
+    // Sidebar defaults to collapsed (localStorage unset), which renders both the nav
+    // label and a hover tooltip with the same text. Force expanded so each nav item's
+    // label appears exactly once, matching what getByText (singular) assertions expect.
+    localStorage.setItem('sidebar-collapsed', 'false')
   })
 
   it('shows lock icons on restricted nav items for FREE user', () => {
