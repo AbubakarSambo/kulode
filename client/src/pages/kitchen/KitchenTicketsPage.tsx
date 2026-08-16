@@ -87,13 +87,13 @@ function TicketCard({ order, now }: { order: Order; now: number }) {
                 <div className="text-sm font-semibold text-foreground">
                   {item.quantity}x {item.menuItem?.name ?? item.itemName}
                 </div>
-                <div className="mt-1 flex flex-wrap gap-1">
+                <div className="mt-2 flex flex-wrap gap-2">
                   {ITEM_STATUS_FLOW.map((s) => (
                     <button
                       key={s}
                       onClick={() => updateItemStatus.mutate({ itemId: item.id, status: s })}
                       className={cn(
-                        'rounded-full px-2 py-0.5 text-[10px] font-medium',
+                        'min-h-11 rounded-full px-4 py-2 text-sm font-semibold',
                         item.status === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
                       )}
                     >

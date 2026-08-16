@@ -630,13 +630,13 @@ function SyncedOrderView({ id }: { id: string }) {
                   <div className="font-semibold text-foreground">{formatCurrency(item.amount)}</div>
                 </div>
                 {isOpenStatus && (
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-3 flex flex-wrap gap-2">
                     {ITEM_STATUS_FLOW.map((s) => (
                       <button
                         key={s}
                         onClick={() => updateItemStatus.mutate({ itemId: item.id, status: s })}
                         className={cn(
-                          'rounded-full px-3 py-1 text-xs font-medium',
+                          'min-h-11 rounded-full px-4 py-2 text-sm font-semibold',
                           item.status === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
                         )}
                       >
