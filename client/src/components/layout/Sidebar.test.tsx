@@ -245,6 +245,139 @@ describe('Sidebar', () => {
     expect(screen.queryByText('Waiters')).not.toBeInTheDocument()
   })
 
+  it('hides the entire Restaurant POS group for an INVOICING-only org, even for an unrestricted role', () => {
+    mockUseAuthStore.mockReturnValue({
+      ...adminUser,
+      roles: ['MANAGER'],
+      organization: { enabledModules: 'INVOICING' },
+    })
+    mockUseSubscription.mockReturnValue({ hasRequiredPlan: () => true })
+
+    renderSidebar()
+
+    expect(screen.queryByText('Sell')).not.toBeInTheDocument()
+    expect(screen.queryByText('Menu')).not.toBeInTheDocument()
+    expect(screen.queryByText('Kitchen')).not.toBeInTheDocument()
+    expect(screen.queryByText('Waiters')).not.toBeInTheDocument()
+    // Invoicing side is unaffected
+    expect(screen.getAllByText('Invoices').length).toBeGreaterThan(0)
+  })
+
+  it('shows the Restaurant POS group (but no invoicing items) for a POS-only org with an unrestricted role', () => {
+    mockUseAuthStore.mockReturnValue({
+      ...adminUser,
+      roles: ['MANAGER'],
+      organization: { enabledModules: 'POS' },
+    })
+    mockUseSubscription.mockReturnValue({ hasRequiredPlan: () => true })
+
+    renderSidebar()
+
+    expect(screen.getAllByText('Sell').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Menu').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Invoices')).not.toBeInTheDocument()
+    expect(screen.queryByText('Clients')).not.toBeInTheDocument()
+    // The invoicing "/dashboard" link is hidden, but the POS "/pos/dashboard" link (also named
+    // "Dashboard") is shown — so assert on href rather than the ambiguous label text.
+    expect(screen.queryAllByText('Dashboard').some((el) => el.closest('a')?.getAttribute('href') === '/dashboard')).toBe(false)
+    expect(screen.queryAllByText('Dashboard').some((el) => el.closest('a')?.getAttribute('href') === '/pos/dashboard')).toBe(true)
+    expect(screen.queryByText('Reports')).not.toBeInTheDocument()
+  })
+
+  it('shows both POS and invoicing nav when the org has BOTH modules enabled', () => {
+    mockUseAuthStore.mockReturnValue({
+      ...adminUser,
+      roles: ['MANAGER'],
+      organization: { enabledModules: 'BOTH' },
+    })
+    mockUseSubscription.mockReturnValue({ hasRequiredPlan: () => true })
+
+    renderSidebar()
+
+    expect(screen.getAllByText('Sell').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Invoices').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Clients').length).toBeGreaterThan(0)
+  })
+
+  it('hides Reports/AI Chat for a non-admin, non-accountant STAFF user', () => {
+    mockUseAuthStore.mockReturnValue({
+      ...adminUser,
+      roles: ['STAFF'],
+    })
+    mockUseSubscription.mockReturnValue({ hasRequiredPlan: () => true })
+
+    renderSidebar()
+
+    expect(screen.queryByText('Reports')).not.toBeInTheDocument()
+    expect(screen.queryByText('AI Chat')).not.toBeInTheDocument()
+  })
+
+  it('shows Reports/AI Chat for an ACCOUNTANT even though they are not an admin', () => {
+    mockUseAuthStore.mockReturnValue({
+      ...adminUser,
+      roles: ['ACCOUNTANT'],
+    })
+    mockUseSubscription.mockReturnValue({ hasRequiredPlan: () => true })
+
+    renderSidebar()
+
+    expect(screen.getAllByText('Reports').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('AI Chat').length).toBeGreaterThan(0)
+    // Accountant is not admin, so no Configuration/admin nav
+    expect(screen.queryByText('Users')).not.toBeInTheDocument()
+    expect(screen.queryByText('Billing & Plans')).not.toBeInTheDocument()
+  })
+
+  it('does not show admin-only nav (Users, Settings, Billing) for restricted floor roles', () => {
+    mockUseAuthStore.mockReturnValue({
+      ...adminUser,
+      roles: ['WAITER'],
+      organization: { enabledModules: 'POS' },
+    })
+    mockUseSubscription.mockReturnValue({ hasRequiredPlan: () => true })
+
+    renderSidebar()
+
+    expect(screen.queryByText('Users')).not.toBeInTheDocument()
+    expect(screen.queryByText('Settings')).not.toBeInTheDocument()
+    expect(screen.queryByText('Billing & Plans')).not.toBeInTheDocument()
+  })
+
+  it('a pure Pass (kitchen-only) role sees only the Kitchen board in the POS group', () => {
+    mockUseAuthStore.mockReturnValue({
+      ...adminUser,
+      roles: ['PASS'],
+      organization: { enabledModules: 'POS' },
+    })
+    mockUseSubscription.mockReturnValue({ hasRequiredPlan: () => true })
+
+    renderSidebar()
+
+    expect(screen.getAllByText('Kitchen').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Sell')).not.toBeInTheDocument()
+    expect(screen.queryByText('Orders')).not.toBeInTheDocument()
+    expect(screen.queryByText('Customers')).not.toBeInTheDocument()
+  })
+
+  it('a pure Waiter (single role) is restricted to Sell/Orders/Customers only', () => {
+    mockUseAuthStore.mockReturnValue({
+      ...adminUser,
+      roles: ['WAITER'],
+      organization: { enabledModules: 'POS' },
+    })
+    mockUseSubscription.mockReturnValue({ hasRequiredPlan: () => true })
+
+    renderSidebar()
+
+    expect(screen.getAllByText('Sell').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Orders').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Customers').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Menu')).not.toBeInTheDocument()
+    expect(screen.queryByText('Kitchen')).not.toBeInTheDocument()
+    expect(screen.queryByText('Waiters')).not.toBeInTheDocument()
+    expect(screen.queryByText('Shift')).not.toBeInTheDocument()
+  })
+
   it('a pure Supervisor is restricted to Orders/Customers/Shift/Waiters/Kitchen (no menu editing)', () => {
     mockUseAuthStore.mockReturnValue({
       ...adminUser,
