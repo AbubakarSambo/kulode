@@ -3,5 +3,7 @@ export { AddOrderItemsDto } from './add-order-items.dto';
 export { UpdateOrderItemStatusDto } from './update-order-item-status.dto';
 export { UpdateOrderCustomerDto } from './update-order-customer.dto';
 export { UpdateOrderWaiterDto } from './update-order-waiter.dto';
+export { UpdateOrderSourceDto } from './update-order-source.dto';
 export { CloseOrderDto } from './close-order.dto';
 export { OrderFilterDto } from './order-filter.dto';
+export { MergeOrderDto } from './merge-order.dto';

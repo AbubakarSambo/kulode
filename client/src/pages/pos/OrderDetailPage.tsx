@@ -6,17 +6,25 @@ import { ArrowLeft, Download, Plus, X, UserPlus, Pencil } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Badge, Input, Label, SearchableSelect } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
-import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, usersApi } from '@/api'
+import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, usersApi, tablesApi } from '@/api'
 import { getQueuedActionsForLocalOrder, discardFailedAction, LOCAL_ORDER_PREFIX } from '@/lib/offlineOrderQueue'
 import { formatCurrency, cn } from '@/lib/utils'
+import { printBill } from '@/lib/printBill'
 import { useAuthStore } from '@/stores/auth'
-import type { OrderItemStatus, MenuItem } from '@/types'
+import type { OrderItemStatus, MenuItem, OrderSource } from '@/types'
 import type { CreateOrderItemData } from '@/api/orders'
 
 // Matches the backend's @Roles list on POST /orders/:id/close — only these roles can accept payment.
 const PAYMENT_CAPABLE_ROLES = ['STAFF', 'ACCOUNTANT', 'CASHIER', 'ADMIN', 'SUPER_ADMIN']
 // Matches the backend's @Roles list on POST /orders/:id/cancel.
 const VOID_CAPABLE_ROLES = ['STAFF', 'ACCOUNTANT', 'SUPERVISOR', 'MANAGER', 'ADMIN', 'SUPER_ADMIN']
+const ORDER_SOURCES: OrderSource[] = ['DINE_IN', 'TAKEAWAY', 'DELIVERY', 'THIRD_PARTY']
+const SOURCE_LABELS: Record<OrderSource, string> = {
+  DINE_IN: 'Dine In',
+  TAKEAWAY: 'Takeaway',
+  DELIVERY: 'Delivery',
+  THIRD_PARTY: 'Third Party',
+}
 
 const ITEM_STATUS_FLOW: OrderItemStatus[] = ['PENDING', 'ON_IT', 'PASS', 'SERVED']
 const ITEM_STATUS_LABELS: Record<OrderItemStatus, string> = {
@@ -366,10 +374,21 @@ function SyncedOrderView({ id }: { id: string }) {
   const [paymentMethod, setPaymentMethod] = useState<(typeof PAYMENT_METHODS)[number]['value']>('CASH')
   const [customerEmail, setCustomerEmail] = useState('')
   const [otherPaymentNote, setOtherPaymentNote] = useState('')
+  // Bill splitting: no split state is persisted server-side — each split is just another partial
+  // payment against the same order (see closeWithPayment). "Even" recomputes the per-share amount
+  // from whatever's still remaining each time (so rounding remainders land on the last share);
+  // "Custom" lets the cashier type an arbitrary tender amount.
+  const [splitMode, setSplitMode] = useState<'full' | 'even' | 'custom'>('full')
+  const [evenWays, setEvenWays] = useState(2)
+  const [customAmount, setCustomAmount] = useState('')
   const [customerModalOpen, setCustomerModalOpen] = useState(false)
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [waiterModalOpen, setWaiterModalOpen] = useState(false)
   const [selectedWaiterId, setSelectedWaiterId] = useState('')
+  const [mergeModalOpen, setMergeModalOpen] = useState(false)
+  const [sourceModalOpen, setSourceModalOpen] = useState(false)
+  const [selectedSource, setSelectedSource] = useState<OrderSource>('DINE_IN')
+  const [selectedSourceTableId, setSelectedSourceTableId] = useState('')
 
   const { data: order, isLoading } = useQuery({
     queryKey: ['order', id],
@@ -432,6 +451,55 @@ function SyncedOrderView({ id }: { id: string }) {
     },
   })
 
+  const { data: mergeableOrdersPage } = useQuery({
+    queryKey: ['orders', 'mergeable'],
+    queryFn: () => ordersApi.list({ statuses: ['OPEN', 'IN_KITCHEN', 'READY'], limit: 50 }),
+    enabled: mergeModalOpen,
+  })
+  // Can't merge this order into itself, and an order with a payment already on it is rejected
+  // server-side anyway — filtered here too so it's never even offered as an option.
+  const mergeableOrders = (mergeableOrdersPage?.data ?? []).filter(
+    (o) => o.id !== id && Number(o.amountPaid) === 0,
+  )
+
+  const mergeOrder = useMutation({
+    mutationFn: (sourceOrderId: string) => ordersApi.merge(id, sourceOrderId),
+    onSuccess: () => {
+      toast.success('Orders merged')
+      setMergeModalOpen(false)
+      queryClient.invalidateQueries({ queryKey: ['order', id] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to merge orders')
+    },
+  })
+
+  const { data: tables } = useQuery({
+    queryKey: ['restaurant-tables'],
+    queryFn: () => tablesApi.list(),
+    enabled: sourceModalOpen,
+  })
+  const availableTableOptions = (tables ?? [])
+    .filter((t) => t.status === 'AVAILABLE' || t.id === order?.tableId)
+    .map((t) => ({ id: t.id, label: t.name }))
+
+  const setSource = useMutation({
+    mutationFn: () => ordersApi.setSource(id, selectedSource, selectedSource === 'DINE_IN' ? selectedSourceTableId : undefined),
+    onSuccess: () => {
+      toast.success('Order type updated')
+      setSourceModalOpen(false)
+      queryClient.invalidateQueries({ queryKey: ['order', id] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+      queryClient.invalidateQueries({ queryKey: ['restaurant-tables'] })
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to update order type')
+    },
+  })
+
   const updateItemStatus = useMutation({
     mutationFn: ({ itemId, status }: { itemId: string; status: OrderItemStatus }) =>
       ordersApi.updateItemStatus(id, itemId, status),
@@ -473,12 +541,18 @@ function SyncedOrderView({ id }: { id: string }) {
     },
   })
 
+  const printBillMutation = useMutation({
+    mutationFn: async () => printBill(await ordersApi.getReceiptData(id)),
+    onError: () => toast.error('Failed to print bill'),
+  })
+
   const markAwaitingPayment = useMutation({
     mutationFn: () => ordersApi.markAwaitingPayment(id),
     onSuccess: () => {
       toast.success('Order marked ready — a cashier can now take payment')
       queryClient.invalidateQueries({ queryKey: ['order', id] })
       queryClient.invalidateQueries({ queryKey: ['orders'] })
+      printBillMutation.mutate()
     },
     onError: (err: unknown) => {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -486,12 +560,25 @@ function SyncedOrderView({ id }: { id: string }) {
     },
   })
 
+  // Recomputed from the order's current amountPaid, not cached — so after a partial payment the
+  // *next* even share and the remaining balance are both derived from server truth.
+  const orderTotal = order ? Number(order.total) : 0
+  const amountPaidSoFar = order ? Number(order.amountPaid) : 0
+  const remainingBalance = Math.max(0, Math.round((orderTotal - amountPaidSoFar) * 100) / 100)
+  const evenShare = Math.round((remainingBalance / Math.max(1, evenWays)) * 100) / 100
+  const paymentAmount =
+    splitMode === 'even' ? evenShare : splitMode === 'custom' ? Number(customAmount) || 0 : remainingBalance
+
   const closeOrder = useMutation({
     mutationFn: async () => {
       if (paymentMethod === 'PAYSTACK') {
         return ordersApi.paystackCheckout(id, { paymentMethod, customerEmail })
       }
-      return ordersApi.close(id, { paymentMethod, notes: paymentMethod === 'OTHER' ? otherPaymentNote : undefined })
+      return ordersApi.close(id, {
+        paymentMethod,
+        amount: paymentAmount,
+        notes: paymentMethod === 'OTHER' ? otherPaymentNote : undefined,
+      })
     },
     onSuccess: (result) => {
       if ('paymentUrl' in result) {
@@ -506,6 +593,16 @@ function SyncedOrderView({ id }: { id: string }) {
         navigate('/pos/tables')
         return
       }
+      if (result.status !== 'CLOSED_PAID') {
+        // Partial payment recorded — more splits still owed, keep the modal open for the next one.
+        const stillDue = Math.max(0, Math.round((orderTotal - Number(result.amountPaid)) * 100) / 100)
+        toast.success(`Payment recorded — ${formatCurrency(stillDue)} still due`)
+        queryClient.invalidateQueries({ queryKey: ['order', id] })
+        queryClient.invalidateQueries({ queryKey: ['orders'] })
+        if (splitMode === 'even') setEvenWays((w) => Math.max(1, w - 1))
+        setCustomAmount('')
+        return
+      }
       toast.success('Order closed')
       if (order?.customerId) {
         queryClient.invalidateQueries({ queryKey: ['customers'] })
@@ -513,6 +610,9 @@ function SyncedOrderView({ id }: { id: string }) {
         queryClient.invalidateQueries({ queryKey: ['wallet-transactions', order.customerId] })
       }
       setCloseModalOpen(false)
+      setSplitMode('full')
+      setEvenWays(2)
+      setCustomAmount('')
       queryClient.invalidateQueries({ queryKey: ['order', id] })
       queryClient.invalidateQueries({ queryKey: ['orders'] })
     },
@@ -569,6 +669,25 @@ function SyncedOrderView({ id }: { id: string }) {
             <Button variant="outline" size="sm" className="ml-auto" onClick={() => setAddItemsOpen(true)}>
               <Plus className="mr-1.5 h-4 w-4" /> Add Items
             </Button>
+          )}
+        </div>
+
+        <div className="mb-4 flex items-center justify-between rounded-xl border border-border p-3">
+          <span className="text-sm font-medium text-foreground">
+            {SOURCE_LABELS[order.source]}{order.table ? ` · ${order.table.name}` : ''}
+          </span>
+          {isOpenStatus && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedSource(order.source)
+                setSelectedSourceTableId(order.tableId ?? '')
+                setSourceModalOpen(true)
+              }}
+              className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            >
+              <Pencil className="h-3.5 w-3.5" /> Change
+            </button>
           )}
         </div>
 
@@ -709,6 +828,27 @@ function SyncedOrderView({ id }: { id: string }) {
           </div>
         )}
 
+        {isOpenStatus && (canVoid || canAcceptPayment) && (
+          <div className="mt-3">
+            <Button variant="outline" className="w-full" onClick={() => setMergeModalOpen(true)}>
+              Merge Another Order In
+            </Button>
+          </div>
+        )}
+
+        {(isOpenStatus || order.status === 'CLOSED_UNPAID') && (
+          <div className="mt-3">
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => printBillMutation.mutate()}
+              isLoading={printBillMutation.isPending}
+            >
+              Print Bill
+            </Button>
+          </div>
+        )}
+
         {order.status === 'CLOSED_UNPAID' && (
           <div className="mt-4 flex gap-3">
             {canVoid && (
@@ -774,7 +914,7 @@ function SyncedOrderView({ id }: { id: string }) {
             </div>
           )}
           {paymentMethod === 'WALLET' && (() => {
-            const balanceAfter = walletBalance ? walletBalance.balance - order.total : undefined
+            const balanceAfter = walletBalance ? walletBalance.balance - paymentAmount : undefined
             const exceedsCredit = balanceAfter !== undefined && balanceAfter < -(walletBalance?.creditLimit ?? 0)
             return (
               <div className="rounded-xl border border-border p-3 text-sm">
@@ -800,9 +940,82 @@ function SyncedOrderView({ id }: { id: string }) {
               </div>
             )
           })()}
+
+          {paymentMethod !== 'PAYSTACK' && (
+            <div>
+              <Label>Bill Split</Label>
+              <div className="mt-1 flex flex-wrap gap-2">
+                {(
+                  [
+                    { value: 'full', label: 'Full Amount' },
+                    { value: 'even', label: 'Split Evenly' },
+                    { value: 'custom', label: 'Custom Amount' },
+                  ] as const
+                ).map((m) => (
+                  <button
+                    key={m.value}
+                    type="button"
+                    onClick={() => setSplitMode(m.value)}
+                    className={cn(
+                      'shrink-0 cursor-pointer rounded-full px-4 py-2 text-sm font-medium',
+                      splitMode === m.value ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              {splitMode === 'even' && (
+                <div className="mt-2 flex items-center justify-between rounded-xl border border-border p-3">
+                  <span className="text-sm text-muted-foreground">Number of ways</span>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setEvenWays((w) => Math.max(2, w - 1))}
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-muted font-bold text-foreground"
+                    >
+                      −
+                    </button>
+                    <span className="w-6 text-center font-semibold text-foreground">{evenWays}</span>
+                    <button
+                      type="button"
+                      onClick={() => setEvenWays((w) => w + 1)}
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-muted font-bold text-foreground"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              )}
+              {splitMode === 'custom' && (
+                <Input
+                  type="number"
+                  step="0.01"
+                  className="mt-2"
+                  value={customAmount}
+                  onChange={(e) => setCustomAmount(e.target.value)}
+                  placeholder={`Up to ${formatCurrency(remainingBalance)}`}
+                />
+              )}
+            </div>
+          )}
+
           <div className="rounded-xl bg-muted p-4 text-center">
-            <div className="text-sm text-muted-foreground">Amount Due</div>
-            <div className="text-2xl font-bold text-foreground">{formatCurrency(order.total)}</div>
+            {amountPaidSoFar > 0 && (
+              <div className="mb-2 flex justify-between border-b border-border pb-2 text-sm text-muted-foreground">
+                <span>Already Paid</span>
+                <span className="font-semibold text-foreground">{formatCurrency(amountPaidSoFar)}</span>
+              </div>
+            )}
+            <div className="text-sm text-muted-foreground">
+              {splitMode === 'full' ? 'Amount Due' : 'Amount Due Now'}
+            </div>
+            <div className="text-2xl font-bold text-foreground">{formatCurrency(paymentAmount)}</div>
+            {splitMode !== 'full' && paymentAmount < remainingBalance - 0.01 && (
+              <div className="mt-1 text-xs text-muted-foreground">
+                {formatCurrency(remainingBalance - paymentAmount)} will remain after this
+              </div>
+            )}
           </div>
           <Button
             className="w-full"
@@ -812,11 +1025,16 @@ function SyncedOrderView({ id }: { id: string }) {
               (paymentMethod === 'OTHER' && !otherPaymentNote.trim()) ||
               (paymentMethod === 'WALLET' &&
                 !!walletBalance &&
-                walletBalance.balance - order.total < -walletBalance.creditLimit)
+                walletBalance.balance - paymentAmount < -walletBalance.creditLimit) ||
+              (paymentMethod !== 'PAYSTACK' && (paymentAmount <= 0 || paymentAmount > remainingBalance + 0.01))
             }
             onClick={() => closeOrder.mutate()}
           >
-            {paymentMethod === 'PAYSTACK' ? 'Generate Checkout Link' : 'Confirm Payment & Close'}
+            {paymentMethod === 'PAYSTACK'
+              ? 'Generate Checkout Link'
+              : paymentAmount >= remainingBalance - 0.01
+                ? 'Confirm Payment & Close'
+                : 'Record Payment'}
           </Button>
         </div>
       </Modal>
@@ -886,6 +1104,78 @@ function SyncedOrderView({ id }: { id: string }) {
               Save
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={sourceModalOpen} onClose={() => setSourceModalOpen(false)} title="Change Order Type">
+        <div className="space-y-4">
+          <div>
+            <Label>Order Type</Label>
+            <div className="mt-1 flex flex-wrap gap-2">
+              {ORDER_SOURCES.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setSelectedSource(s)}
+                  className={cn(
+                    'shrink-0 cursor-pointer rounded-full px-4 py-2 text-sm font-medium',
+                    selectedSource === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                  )}
+                >
+                  {SOURCE_LABELS[s]}
+                </button>
+              ))}
+            </div>
+          </div>
+          {selectedSource === 'DINE_IN' && (
+            <div>
+              <Label>Table</Label>
+              <SearchableSelect
+                options={availableTableOptions}
+                value={selectedSourceTableId}
+                onChange={setSelectedSourceTableId}
+                placeholder="Search tables"
+              />
+            </div>
+          )}
+          <Button
+            className="w-full"
+            disabled={selectedSource === 'DINE_IN' && !selectedSourceTableId}
+            isLoading={setSource.isPending}
+            onClick={() => setSource.mutate()}
+          >
+            Save
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={mergeModalOpen} onClose={() => setMergeModalOpen(false)} title="Merge Another Order In">
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Pick another open, unpaid order to fold into this bill. Its items move here and it gets cancelled —
+            table occupancy is unaffected either way.
+          </p>
+          {mergeableOrders.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">No other open orders to merge.</p>
+          ) : (
+            <div className="max-h-80 space-y-2 overflow-y-auto">
+              {mergeableOrders.map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => mergeOrder.mutate(o.id)}
+                  disabled={mergeOrder.isPending}
+                  className="flex w-full items-center justify-between rounded-xl border border-border p-3 text-left hover:bg-muted/50 disabled:opacity-50"
+                >
+                  <div>
+                    <div className="font-semibold text-foreground">{o.table?.name ?? o.source}</div>
+                    <div className="text-xs text-muted-foreground">{o.items.length} item{o.items.length === 1 ? '' : 's'}</div>
+                  </div>
+                  <span className="font-semibold text-foreground">{formatCurrency(o.total)}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </Modal>
     </div>

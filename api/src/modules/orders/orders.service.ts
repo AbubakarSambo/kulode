@@ -10,6 +10,7 @@ import {
   UpdateOrderItemStatusDto,
   UpdateOrderCustomerDto,
   UpdateOrderWaiterDto,
+  UpdateOrderSourceDto,
   CloseOrderDto,
   OrderFilterDto,
 } from './dto';
@@ -326,6 +327,127 @@ export class OrdersService {
     });
   }
 
+  /**
+   * Reclassifies an order (e.g. a dine-in party decides to take it to go instead). Switching away
+   * from DINE_IN frees whatever table it was on — the whole point of the change is that no one's
+   * sitting there anymore. Switching to DINE_IN requires a table and occupies it, same as at
+   * order creation.
+   */
+  async setSource(organizationId: string, id: string, dto: UpdateOrderSourceDto) {
+    const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.status === OrderStatus.CANCELLED) {
+      throw new BadRequestException('Cannot change the type of a cancelled order');
+    }
+
+    if (dto.source === 'DINE_IN') {
+      if (!dto.tableId) {
+        throw new BadRequestException('tableId is required when switching an order to dine-in');
+      }
+      const table = await this.prisma.restaurantTable.findFirst({
+        where: { id: dto.tableId, organizationId, isActive: true },
+      });
+      if (!table) throw new NotFoundException('Table not found');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      if (order.tableId && order.tableId !== dto.tableId) {
+        await tx.restaurantTable.update({ where: { id: order.tableId }, data: { status: 'AVAILABLE' } });
+      }
+      if (dto.source === 'DINE_IN' && dto.tableId) {
+        await tx.restaurantTable.update({ where: { id: dto.tableId }, data: { status: 'OCCUPIED' } });
+      }
+
+      return tx.order.update({
+        where: { id },
+        data: {
+          source: dto.source,
+          tableId: dto.source === 'DINE_IN' ? dto.tableId : null,
+        },
+        include: this.orderInclude,
+      });
+    });
+  }
+
+  /**
+   * Folds a second open order's items into this one (e.g. one guest is covering a table they
+   * weren't originally on) so the merged bill goes through the normal single-order close/split
+   * flow. Deliberately narrow for v1: both orders must still be open and unpaid — an order that
+   * already has a payment recorded is left alone rather than trying to reconcile two payment
+   * ledgers. The source order is cancelled, not deleted, for an audit trail; its own totals are
+   * left as a historical snapshot rather than zeroed. Table occupancy is untouched — merging
+   * bills says nothing about where the guests are actually sitting.
+   */
+  async mergeOrders(organizationId: string, destinationId: string, sourceOrderId: string) {
+    if (destinationId === sourceOrderId) {
+      throw new BadRequestException('Cannot merge an order into itself');
+    }
+
+    const [destination, source] = await Promise.all([
+      this.prisma.order.findFirst({ where: { id: destinationId, organizationId } }),
+      this.prisma.order.findFirst({ where: { id: sourceOrderId, organizationId } }),
+    ]);
+    if (!destination) throw new NotFoundException('Order not found');
+    if (!source) throw new NotFoundException('Order to merge not found');
+
+    if (!OPEN_STATUSES.includes(destination.status)) {
+      throw new BadRequestException(`Cannot merge into a ${destination.status.toLowerCase()} order`);
+    }
+    if (!OPEN_STATUSES.includes(source.status)) {
+      throw new BadRequestException(`Cannot merge a ${source.status.toLowerCase()} order`);
+    }
+    if (toNumber(destination.amountPaid) > 0) {
+      throw new BadRequestException('This order already has a payment recorded — cannot merge into it');
+    }
+    if (toNumber(source.amountPaid) > 0) {
+      throw new BadRequestException('That order already has a payment recorded — cannot merge it');
+    }
+
+    const organization = await this.prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
+    const combinedSubtotal = toNumber(destination.subtotal) + toNumber(source.subtotal);
+    // Merged bill inherits the destination order's tax settings — the two should normally agree
+    // (same org), this is just the tie-break if they somehow don't.
+    const { vatAmount, entertainmentTaxAmount, taxAmount } = this.computeOrderTax(
+      combinedSubtotal,
+      organization,
+      destination.vatApplied,
+      destination.entertainmentTaxApplied,
+    );
+    const total = combinedSubtotal + taxAmount;
+
+    return this.prisma.$transaction(async (tx) => {
+      // Conditional update guards against a concurrent close/cancel/merge racing past the checks
+      // above — only a source still actually open gets folded in.
+      const sourceResult = await tx.order.updateMany({
+        where: { id: sourceOrderId, organizationId, status: { in: OPEN_STATUSES } },
+        data: {
+          status: 'CANCELLED',
+          notes: source.notes
+            ? `${source.notes} — merged into order ${destinationId}`
+            : `Merged into order ${destinationId}`,
+        },
+      });
+      if (sourceResult.count === 0) {
+        throw new BadRequestException('That order is no longer available to merge');
+      }
+
+      await tx.orderItem.updateMany({
+        where: { orderId: sourceOrderId },
+        data: { orderId: destinationId },
+      });
+
+      const destResult = await tx.order.updateMany({
+        where: { id: destinationId, organizationId, status: { in: OPEN_STATUSES } },
+        data: { subtotal: combinedSubtotal, taxAmount, vatAmount, entertainmentTaxAmount, total },
+      });
+      if (destResult.count === 0) {
+        throw new BadRequestException('This order is no longer available to merge into');
+      }
+
+      return tx.order.findUniqueOrThrow({ where: { id: destinationId }, include: this.orderInclude });
+    });
+  }
+
   async cancel(organizationId: string, id: string) {
     const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
     if (!order) throw new NotFoundException('Order not found');
@@ -375,9 +497,15 @@ export class OrdersService {
   }
 
   /**
-   * Closes an order against an immediate (non-Paystack) payment method. Paystack checkout is a
-   * separate async flow — see OrdersController, which delegates to PaystackService directly and
-   * reconciles via webhook, the same pattern invoices use.
+   * Records a payment against an order — evenly-split and custom-amount bill splitting both come
+   * down to this being called more than once per order with a partial `amount`, each a separate
+   * tender (possibly a different payment method/payer). No split-specific state is persisted;
+   * the client decides what each partial amount should be (total/N, or whatever a cashier types
+   * in) and this just tracks the running `amountPaid` until it meets the total. Item-level splits
+   * (assigning specific items to a payer) are a separate, bigger feature — not handled here.
+   *
+   * Paystack checkout is a separate async flow — see OrdersController, which delegates to
+   * PaystackService directly and reconciles via webhook, the same pattern invoices use.
    */
   async closeWithPayment(
     organizationId: string,
@@ -402,19 +530,31 @@ export class OrdersService {
       throw new BadRequestException('A customer must be attached to the order to pay from their wallet');
     }
 
-    const amount = dto.amount ?? toNumber(order.total);
-    // v0 requires full settlement at close time; partial/split payments are a v1 feature.
-    if (amount < toNumber(order.total)) {
-      throw new BadRequestException('Partial payments are not yet supported — amount must cover the full order total');
+    const remaining = Math.round((toNumber(order.total) - toNumber(order.amountPaid)) * 100) / 100;
+    if (remaining <= 0) {
+      throw new BadRequestException('Order is already fully paid');
     }
+    const amount = dto.amount ?? remaining;
+    // Tiny epsilon guards against float/decimal rounding (e.g. three-way splits of an odd total)
+    // flagging a final payment as "over" by a fraction of a kobo.
+    if (amount > remaining + 0.01) {
+      throw new BadRequestException(`Amount exceeds the remaining balance of ${remaining}`);
+    }
+    const isFinalPayment = amount >= remaining - 0.01;
+    const newAmountPaid = Math.round((toNumber(order.amountPaid) + amount) * 100) / 100;
 
     return runIdempotent(this.prisma, organizationId, 'ORDER_CLOSE', clientRequestId, async (tx) => {
       // Conditional update guards against a concurrent close/cancel racing past the check above —
-      // only an order still in an open status actually transitions, so double-submits (e.g. a
-      // cashier double-tapping "close") can't create two Payment rows for the same order.
+      // only an order still in a payable status actually transitions, so double-submits (e.g. a
+      // cashier double-tapping "pay") can't create two Payment rows for the same tender. A partial
+      // payment moves the order into CLOSED_UNPAID (still voidable, still payable) so it surfaces
+      // in the cashier's queue with a running balance even if a waiter never explicitly marked it
+      // ready; only the payment that actually finishes covering the total closes it out.
       const result = await tx.order.updateMany({
         where: { id, organizationId, status: { in: PAYABLE_STATUSES } },
-        data: { amountPaid: amount, status: 'CLOSED_PAID', closedAt: new Date() },
+        data: isFinalPayment
+          ? { amountPaid: newAmountPaid, status: 'CLOSED_PAID', closedAt: new Date() }
+          : { amountPaid: newAmountPaid, status: 'CLOSED_UNPAID' },
       });
       if (result.count === 0) {
         throw new BadRequestException('Order was already closed or cancelled');
@@ -448,17 +588,6 @@ export class OrdersService {
         include: this.orderInclude,
       });
 
-      await this.sheetSync.enqueue(tx, organizationId, 'ORDERS', [
-        updated.id,
-        (updated.closedAt as Date).toISOString(),
-        updated.source,
-        updated.table?.name ?? '',
-        updated.customer?.name ?? '',
-        toNumber(updated.subtotal),
-        toNumber(updated.taxAmount),
-        toNumber(updated.total),
-        dto.paymentMethod,
-      ]);
       const recordedBy = await tx.user.findUnique({
         where: { id: userId },
         select: { firstName: true, lastName: true },
@@ -473,10 +602,27 @@ export class OrdersService {
         payment.reference ?? '',
       ]);
 
-      await this.inventoryService.deductForOrder(tx, id, organizationId);
+      // Everything below only happens once, on whichever payment actually finishes the order —
+      // inventory must not be deducted twice, and a table shouldn't flip to "needs cleaning"
+      // after split payment #1 of #3.
+      if (isFinalPayment) {
+        await this.sheetSync.enqueue(tx, organizationId, 'ORDERS', [
+          updated.id,
+          (updated.closedAt as Date).toISOString(),
+          updated.source,
+          updated.table?.name ?? '',
+          updated.customer?.name ?? '',
+          toNumber(updated.subtotal),
+          toNumber(updated.taxAmount),
+          toNumber(updated.total),
+          dto.paymentMethod,
+        ]);
 
-      if (order.tableId) {
-        await tx.restaurantTable.update({ where: { id: order.tableId }, data: { status: 'NEEDS_CLEANING' } });
+        await this.inventoryService.deductForOrder(tx, id, organizationId);
+
+        if (order.tableId) {
+          await tx.restaurantTable.update({ where: { id: order.tableId }, data: { status: 'NEEDS_CLEANING' } });
+        }
       }
 
       return updated;
