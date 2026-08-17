@@ -231,9 +231,9 @@ export function UsersPage() {
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           </div>
         ) : (
-          <Card className="border-0 bg-white shadow-[0px_12px_32px_rgba(0,55,176,0.08)] rounded-[24px] overflow-visible">
+          <Card className="border-0 bg-white shadow-[0px_12px_32px_rgba(0,55,176,0.08)] rounded-[24px] overflow-hidden">
             <CardContent className="p-0">
-              <div className="overflow-visible">
+              <div className="overflow-x-auto">
               <table className="w-full min-w-[600px] border-collapse">
                 <thead>
                   <tr className="bg-white text-slate-600">
