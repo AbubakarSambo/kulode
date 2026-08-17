@@ -78,22 +78,22 @@ function TicketCard({ order, now }: { order: Order; now: number }) {
 
   return (
     <Card className="w-full overflow-hidden p-0">
-      <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start">
+      <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-start">
         {/* Items + their notes, paired row-by-row so they never drift out of alignment */}
-        <div className="grid flex-none grid-cols-[minmax(0,auto)_minmax(0,auto)] items-center gap-x-8 gap-y-3">
+        <div className="grid flex-none grid-cols-[minmax(0,auto)_minmax(0,auto)] items-center gap-x-8 gap-y-6">
           {order.items.map((item) => (
             <Fragment key={item.id}>
               <div>
-                <div className="text-sm font-semibold text-foreground">
+                <div className="text-base font-bold text-foreground">
                   {item.quantity}x {item.menuItem?.name ?? item.itemName}
                 </div>
-                <div className="mt-2 flex flex-wrap gap-2">
+                <div className="mt-3 flex flex-wrap gap-3">
                   {ITEM_STATUS_FLOW.map((s) => (
                     <button
                       key={s}
                       onClick={() => updateItemStatus.mutate({ itemId: item.id, status: s })}
                       className={cn(
-                        'min-h-11 rounded-full px-4 py-2 text-sm font-semibold',
+                        'min-h-16 min-w-24 rounded-2xl px-6 py-4 text-lg font-bold transition-colors active:scale-95',
                         item.status === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
                       )}
                     >
@@ -102,7 +102,7 @@ function TicketCard({ order, now }: { order: Order; now: number }) {
                   ))}
                 </div>
               </div>
-              <div className="text-sm text-muted-foreground">
+              <div className="text-base text-muted-foreground">
                 {item.notes || <span className="opacity-40">—</span>}
               </div>
             </Fragment>
