@@ -10,6 +10,7 @@ import {
   ShoppingCart,
   Receipt,
   Timer,
+  UserCog,
 } from 'lucide-react'
 import {
   DashboardIcon,
@@ -175,6 +176,7 @@ export function AppLayout() {
     {
       label: 'Account',
       items: [
+        { name: 'Users', href: '/settings/users', icon: UserCog, visible: isAdmin },
         { name: 'Settings', href: '/settings', icon: SettingsIcon, visible: isAdmin },
         { name: 'Billing & Plans', href: '/settings/billing', icon: PaymentsIcon, visible: isAdmin },
       ] as MoreItem[],
