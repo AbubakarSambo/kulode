@@ -188,7 +188,10 @@ export function AppLayout() {
     }))
     .filter((group) => group.items.length > 0)
 
-  const isHideMobileNav = location.pathname.includes('/new') || 
+  // `/pos/order/new` (the Sell screen) is a core POS action, not a standalone "new record" form
+  // like `/expenses/new` — it must keep the bottom dock, or a user landing there with no tableId
+  // (so no header back button either) has no way to reach any other screen.
+  const isHideMobileNav = (location.pathname.includes('/new') && !location.pathname.startsWith('/pos/')) ||
     (location.pathname.startsWith('/invoices/') && location.pathname !== '/invoices') ||
     (location.pathname.startsWith('/clients/') && location.pathname !== '/clients') ||
     (location.pathname.startsWith('/vendors/') && location.pathname !== '/vendors')
