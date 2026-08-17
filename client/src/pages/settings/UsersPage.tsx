@@ -336,6 +336,15 @@ export function UsersPage() {
         </div>
       </div>
 
+      {/* Mobile Floating Action Button — the Header's action button is hidden below `sm` */}
+      <button
+        onClick={() => setIsModalOpen(true)}
+        className="absolute bottom-6 right-6 z-40 sm:hidden w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all"
+        aria-label="Invite User"
+      >
+        <Plus className="h-6 w-6" />
+      </button>
+
       {/* Invite User Modal */}
       <Modal
         isOpen={isModalOpen}
