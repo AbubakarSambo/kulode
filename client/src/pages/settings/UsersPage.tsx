@@ -212,7 +212,7 @@ export function UsersPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    <div className="flex flex-1 flex-col overflow-hidden relative min-h-0">
       <Header
         title="User Management"
         description="Manage team members and their roles"
@@ -399,25 +399,25 @@ export function UsersPage() {
             {errors.roles && <p className="text-xs text-destructive">{errors.roles.message}</p>}
           </div>
 
-          {showEmailField ? (
-            <div className="space-y-2">
-              <Label htmlFor="email" required>Email</Label>
-              <Input
-                id="email"
-                type="email"
-                {...register('email')}
-                error={errors.email?.message}
-              />
-            </div>
-          ) : (
-            <p className="rounded-xl bg-muted p-3 text-xs text-muted-foreground">
-              This role logs in with a PIN, not email — you'll set one for them right after creating the account.
-            </p>
-          )}
+          <div className="space-y-2">
+            <Label htmlFor="email" required={showEmailField}>Email{!showEmailField && ' (optional)'}</Label>
+            <Input
+              id="email"
+              type="email"
+              {...register('email')}
+              error={errors.email?.message}
+            />
+            {!showEmailField && (
+              <p className="rounded-xl bg-muted p-3 text-xs text-muted-foreground">
+                This role logs in with a PIN by default — you'll set one right after creating the account. Add an
+                email here too if this person should also be able to log in with email + password, like an admin.
+              </p>
+            )}
+          </div>
 
           <div className="flex gap-3 pt-2">
             <Button type="submit" isLoading={createMutation.isPending}>
-              {showEmailField ? 'Send Invitation' : 'Create Account'}
+              {watch('email') ? 'Send Invitation' : 'Create Account'}
             </Button>
             <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
               Cancel
