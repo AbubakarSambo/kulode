@@ -40,6 +40,9 @@ export class OrdersService {
     waiter: { select: { id: true, firstName: true, lastName: true, phone: true } },
     createdBy: { select: { id: true, firstName: true, lastName: true } },
     items: {
+      // Without an explicit order Postgres doesn't guarantee row order across queries — items
+      // would visibly swap places on refetch (e.g. after every status tap on the kitchen board).
+      orderBy: { createdAt: 'asc' as const },
       include: { menuItem: { select: { id: true, name: true, durationMinutes: true } } },
     },
     payments: true,
