@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Upload, LayoutGrid, List } from 'lucide-react'
+import { Plus, Pencil, Trash2, Upload, LayoutGrid, List, Search } from 'lucide-react'
 import { ChefHatIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, Badge, ConfirmDialog, EmptyState } from '@/components/ui'
@@ -50,6 +50,7 @@ export function MenuManagementPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [search, setSearch] = useState('')
 
   const { data: categories, isLoading: categoriesLoading } = useQuery({
     queryKey: ['menu-categories'],
@@ -69,6 +70,13 @@ export function MenuManagementPage() {
     queryKey: ['menu-items'],
     queryFn: () => menuItemsApi.list(),
   })
+
+  const query = search.trim().toLowerCase()
+  const filteredItems = query
+    ? items?.filter(
+        (i) => i.name.toLowerCase().includes(query) || i.description?.toLowerCase().includes(query),
+      )
+    : items
 
   const itemForm = useForm<ItemFormData>({ resolver: zodResolver(itemSchema) })
   const selectedCategoryIds = itemForm.watch('categoryIds') ?? []
@@ -138,9 +146,9 @@ export function MenuManagementPage() {
     })
   }
 
-  const allSelected = !!items?.length && selectedIds.size === items.length
+  const allSelected = !!filteredItems?.length && selectedIds.size === filteredItems.length
   const toggleAll = () => {
-    setSelectedIds(allSelected ? new Set() : new Set(items?.map((i) => i.id)))
+    setSelectedIds(allSelected ? new Set() : new Set(filteredItems?.map((i) => i.id)))
   }
 
   const openNewItem = () => {
@@ -207,6 +215,17 @@ export function MenuManagementPage() {
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {!!items?.length && (
+          <div className="relative mb-4">
+            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search menu items..."
+              className="pl-10"
+            />
+          </div>
+        )}
+        {!!filteredItems?.length && (
           <div className="mb-4 flex items-center justify-between rounded-xl border border-border bg-muted/50 px-4 py-2.5">
             <label className="flex items-center gap-2 text-sm font-medium text-foreground">
               <input
@@ -237,10 +256,12 @@ export function MenuManagementPage() {
             actionLabel="Add Menu Item"
             onAction={openNewItem}
           />
+        ) : filteredItems?.length === 0 ? (
+          <p className="py-12 text-center text-sm text-muted-foreground">No menu items match your search.</p>
         ) : viewMode === 'list' ? (
           <Card className="overflow-hidden p-0">
             <CardContent className="divide-y divide-border p-0">
-              {items?.map((item) => (
+              {filteredItems?.map((item) => (
                 <div
                   key={item.id}
                   onClick={() => navigate(`/pos/menu/${item.id}`)}
@@ -302,7 +323,7 @@ export function MenuManagementPage() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {items?.map((item) => (
+            {filteredItems?.map((item) => (
               <Card
                 key={item.id}
                 onClick={() => navigate(`/pos/menu/${item.id}`)}
