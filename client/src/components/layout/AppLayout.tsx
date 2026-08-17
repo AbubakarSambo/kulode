@@ -35,7 +35,7 @@ import { TrialBanner } from '../shared/TrialBanner'
 import { SubscriptionExpiredBanner } from '../shared/SubscriptionExpiredBanner'
 import { OfflineQueueBanner } from '../pos/OfflineQueueBanner'
 import { useAuthStore } from '@/stores/auth'
-import { useLogout, useSwitchUser } from '@/hooks'
+import { useLogout, useSwitchUser, useIdleLogout } from '@/hooks'
 import { useSubscription } from '@/hooks/useSubscription'
 import { useOrgModules } from '@/hooks/useOrgModules'
 import { cn } from '@/lib/utils'
@@ -52,6 +52,8 @@ export function AppLayout() {
   const userIsPinEligible = !!user && isPinEligible(user.roles)
   const { hasRequiredPlan } = useSubscription()
   const { hasPos, hasInvoicing } = useOrgModules()
+
+  useIdleLogout(userIsPinEligible, switchUser)
 
 
 
