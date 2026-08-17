@@ -93,7 +93,7 @@ function TicketCard({ order, now }: { order: Order; now: number }) {
                       key={s}
                       onClick={() => updateItemStatus.mutate({ itemId: item.id, status: s })}
                       className={cn(
-                        'min-h-16 min-w-24 rounded-2xl px-6 py-4 text-lg font-bold transition-colors active:scale-95',
+                        'min-h-16 min-w-24 cursor-pointer rounded-2xl px-6 py-4 text-lg font-bold transition-colors active:scale-95',
                         item.status === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
                       )}
                     >
