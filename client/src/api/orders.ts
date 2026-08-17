@@ -139,6 +139,18 @@ export const ordersApi = {
     return response.data.data
   },
 
+  /** Folds another still-open, unpaid order's items into this one; the source order is cancelled. */
+  merge: async (id: string, sourceOrderId: string): Promise<Order> => {
+    const response = await apiClient.post<ApiResponse<Order>>(`/orders/${id}/merge`, { sourceOrderId })
+    return response.data.data
+  },
+
+  /** Reclassifies an order (e.g. dine-in -> takeaway). tableId is required when switching to DINE_IN. */
+  setSource: async (id: string, source: Order['source'], tableId?: string): Promise<Order> => {
+    const response = await apiClient.patch<ApiResponse<Order>>(`/orders/${id}/source`, { source, tableId })
+    return response.data.data
+  },
+
   cancel: async (id: string): Promise<{ message: string }> => {
     const response = await apiClient.post<ApiResponse<{ message: string }>>(`/orders/${id}/cancel`)
     return response.data.data
@@ -202,6 +214,27 @@ export const ordersApi = {
     const response = await apiClient.get(`/orders/${id}/receipt`, { responseType: 'blob' })
     return response.data
   },
+
+  /** Same data the PDF receipt is built from, as JSON — used to render the print-only bill/receipt. */
+  getReceiptData: async (id: string): Promise<ReceiptData> => {
+    const response = await apiClient.get<ApiResponse<ReceiptData>>(`/orders/${id}/receipt-data`)
+    return response.data.data
+  },
+}
+
+export interface ReceiptData {
+  receiptNumber: string
+  createdAt: string
+  closedAt: string | null
+  source: string
+  table: { name: string } | null
+  items: Array<{ name: string; quantity: number; unitPrice: number; amount: number; notes?: string | null }>
+  subtotal: number
+  taxAmount: number
+  total: number
+  amountPaid: number
+  payments: Array<{ amount: number; paymentMethod: string; paymentDate: string }>
+  organization: { name: string; email?: string | null; phone?: string | null; address?: string | null; currency: string }
 }
 
 export { flushOfflineQueue }

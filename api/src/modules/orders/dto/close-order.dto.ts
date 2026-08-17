@@ -8,7 +8,11 @@ export class CloseOrderDto {
   @IsIn(PAYMENT_METHODS)
   paymentMethod: (typeof PAYMENT_METHODS)[number];
 
-  @ApiPropertyOptional({ description: 'Defaults to the order total' })
+  @ApiPropertyOptional({
+    description:
+      'Amount for this tender. Defaults to the full remaining balance. Pass less than that to record a partial ' +
+      "payment (even-split / custom-amount bill splitting) — the order stays open for payment until it's fully covered.",
+  })
   @IsOptional()
   @IsNumber()
   @Min(0.01)

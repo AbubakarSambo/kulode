@@ -21,8 +21,10 @@ import {
   UpdateOrderItemStatusDto,
   UpdateOrderCustomerDto,
   UpdateOrderWaiterDto,
+  UpdateOrderSourceDto,
   CloseOrderDto,
   OrderFilterDto,
+  MergeOrderDto,
 } from './dto';
 import { CurrentUser, CurrentUserData, Roles, Role } from '../../common';
 
@@ -97,6 +99,25 @@ export class OrdersController {
     return this.ordersService.setWaiter(organizationId, id, dto);
   }
 
+  @Patch(':id/source')
+  setSource(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateOrderSourceDto,
+  ) {
+    return this.ordersService.setSource(organizationId, id, dto);
+  }
+
+  @Post(':id/merge')
+  @Roles(Role.WAITER, Role.SUPERVISOR, Role.MANAGER, Role.CASHIER, Role.ADMIN, Role.SUPER_ADMIN)
+  merge(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: MergeOrderDto,
+  ) {
+    return this.ordersService.mergeOrders(organizationId, id, dto.sourceOrderId);
+  }
+
   @Post(':id/mark-awaiting-payment')
   @Roles(Role.WAITER, Role.SUPERVISOR, Role.MANAGER, Role.ADMIN, Role.SUPER_ADMIN, Role.CASHIER)
   markAwaitingPayment(
@@ -138,6 +159,14 @@ export class OrdersController {
     const order = await this.ordersService.findOne(organizationId, id);
     const amount = dto.amount ?? Number(order.total);
     return this.paystackService.initializeOrderTransaction(organizationId, id, dto.customerEmail, amount);
+  }
+
+  @Get(':id/receipt-data')
+  receiptData(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.ordersService.getReceiptData(organizationId, id);
   }
 
   @Get(':id/receipt')
