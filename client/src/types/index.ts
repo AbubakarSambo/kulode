@@ -477,6 +477,7 @@ export interface Order {
   discountType: 'PERCENTAGE' | 'FIXED'
   discountPercent: number
   discountAmount: number
+  discountReason?: string
   total: number
   amountPaid: number
   notes?: string
