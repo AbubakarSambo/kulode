@@ -13,6 +13,7 @@ import {
   UpdateOrderSourceDto,
   CloseOrderDto,
   OrderFilterDto,
+  MoveOrderItemsDto,
 } from './dto';
 import { paginate, runIdempotent } from '../../common';
 
@@ -445,6 +446,137 @@ export class OrdersService {
       }
 
       return tx.order.findUniqueOrThrow({ where: { id: destinationId }, include: this.orderInclude });
+    });
+  }
+
+  /**
+   * Peels specific items off this order onto a different one — an existing open order, or a
+   * fresh one if `destinationOrderId` is omitted. This is what makes item-level bill splitting
+   * possible without any new payment logic: once "the steak" and "the drink" are sitting on
+   * separate orders, closing each one is just the ordinary single-order close/split flow. Same
+   * payment/status guards as mergeOrders, applied to both ends since this is really a merge and
+   * a split happening in the same transaction.
+   */
+  async moveItems(organizationId: string, sourceOrderId: string, dto: MoveOrderItemsDto) {
+    if (dto.destinationOrderId === sourceOrderId) {
+      throw new BadRequestException('Cannot move items to the same order');
+    }
+
+    const source = await this.prisma.order.findFirst({
+      where: { id: sourceOrderId, organizationId },
+      include: { items: true },
+    });
+    if (!source) throw new NotFoundException('Order not found');
+    if (!OPEN_STATUSES.includes(source.status)) {
+      throw new BadRequestException(`Cannot move items off a ${source.status.toLowerCase()} order`);
+    }
+    if (toNumber(source.amountPaid) > 0) {
+      throw new BadRequestException('This order already has a payment recorded — cannot move items off it');
+    }
+
+    const movingItems = source.items.filter((i) => dto.itemIds.includes(i.id));
+    if (movingItems.length !== dto.itemIds.length) {
+      throw new NotFoundException('One or more items were not found on this order');
+    }
+    const remainingItems = source.items.filter((i) => !dto.itemIds.includes(i.id));
+    const movingSubtotal = movingItems.reduce((sum, i) => sum + toNumber(i.amount), 0);
+
+    let destination = dto.destinationOrderId
+      ? await this.prisma.order.findFirst({ where: { id: dto.destinationOrderId, organizationId } })
+      : null;
+    if (dto.destinationOrderId && !destination) {
+      throw new NotFoundException('Destination order not found');
+    }
+    if (destination && !OPEN_STATUSES.includes(destination.status)) {
+      throw new BadRequestException(`Cannot move items onto a ${destination.status.toLowerCase()} order`);
+    }
+    if (destination && toNumber(destination.amountPaid) > 0) {
+      throw new BadRequestException('That order already has a payment recorded — cannot move items onto it');
+    }
+
+    // Creating a fresh destination — defaults to the same table/type as the source, since the
+    // common case is splitting one table's tab into two checks, not relocating items elsewhere.
+    const newOrderSource = destination ? undefined : dto.source ?? source.source;
+    const newOrderTableId = destination ? undefined : dto.tableId ?? source.tableId ?? undefined;
+    if (!destination && newOrderSource === 'DINE_IN' && !newOrderTableId) {
+      throw new BadRequestException('tableId is required for a new dine-in order');
+    }
+    if (!destination && newOrderTableId) {
+      const table = await this.prisma.restaurantTable.findFirst({
+        where: { id: newOrderTableId, organizationId, isActive: true },
+      });
+      if (!table) throw new NotFoundException('Table not found');
+    }
+
+    const organization = await this.prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
+
+    // Source keeps its own tax settings — it isn't going anywhere, it's just lighter.
+    const remainingSubtotal = remainingItems.reduce((sum, i) => sum + toNumber(i.amount), 0);
+    const sourceTax = this.computeOrderTax(remainingSubtotal, organization, source.vatApplied, source.entertainmentTaxApplied);
+
+    // Existing destination inherits its own settings (mirrors mergeOrders); a brand-new one gets
+    // the org's current defaults, same as any other new order.
+    const destVatApplied = destination ? destination.vatApplied : organization.vatEnabled;
+    const destEntertainmentApplied = destination ? destination.entertainmentTaxApplied : organization.entertainmentTaxEnabled;
+    const destBaseSubtotal = destination ? toNumber(destination.subtotal) : 0;
+    const destSubtotal = destBaseSubtotal + movingSubtotal;
+    const destTax = this.computeOrderTax(destSubtotal, organization, destVatApplied, destEntertainmentApplied);
+
+    return this.prisma.$transaction(async (tx) => {
+      if (!destination) {
+        destination = await tx.order.create({
+          data: {
+            organizationId,
+            tableId: newOrderTableId,
+            createdById: source.createdById,
+            waiterId: source.waiterId,
+            customerId: source.customerId,
+            source: newOrderSource!,
+            subtotal: destSubtotal,
+            taxAmount: destTax.taxAmount,
+            vatApplied: destVatApplied,
+            entertainmentTaxApplied: destEntertainmentApplied,
+            vatAmount: destTax.vatAmount,
+            entertainmentTaxAmount: destTax.entertainmentTaxAmount,
+            total: destSubtotal + destTax.taxAmount,
+          },
+        });
+        if (newOrderTableId) {
+          await tx.restaurantTable.update({ where: { id: newOrderTableId }, data: { status: 'OCCUPIED' } });
+        }
+      } else {
+        const destResult = await tx.order.updateMany({
+          where: { id: destination.id, organizationId, status: { in: OPEN_STATUSES } },
+          data: {
+            subtotal: destSubtotal,
+            taxAmount: destTax.taxAmount,
+            vatAmount: destTax.vatAmount,
+            entertainmentTaxAmount: destTax.entertainmentTaxAmount,
+            total: destSubtotal + destTax.taxAmount,
+          },
+        });
+        if (destResult.count === 0) {
+          throw new BadRequestException('Destination order is no longer available');
+        }
+      }
+
+      await tx.orderItem.updateMany({
+        where: { id: { in: dto.itemIds } },
+        data: { orderId: destination.id },
+      });
+
+      const sourceResult = await tx.order.updateMany({
+        where: { id: sourceOrderId, organizationId, status: { in: OPEN_STATUSES } },
+        data:
+          remainingItems.length === 0
+            ? { status: 'CANCELLED', notes: source.notes ? `${source.notes} — items moved to order ${destination.id}` : `Items moved to order ${destination.id}` }
+            : { subtotal: remainingSubtotal, taxAmount: sourceTax.taxAmount, vatAmount: sourceTax.vatAmount, entertainmentTaxAmount: sourceTax.entertainmentTaxAmount, total: remainingSubtotal + sourceTax.taxAmount },
+      });
+      if (sourceResult.count === 0) {
+        throw new BadRequestException('This order is no longer available');
+      }
+
+      return tx.order.findUniqueOrThrow({ where: { id: destination.id }, include: this.orderInclude });
     });
   }
 

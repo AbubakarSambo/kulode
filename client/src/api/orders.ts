@@ -151,6 +151,19 @@ export const ordersApi = {
     return response.data.data
   },
 
+  /**
+   * Moves specific items off this order onto another one — an existing open order
+   * (`destinationOrderId`), or a fresh order (defaults to this order's own table/type if
+   * `tableId`/`source` aren't given). Returns the destination order.
+   */
+  moveItems: async (
+    id: string,
+    data: { itemIds: string[]; destinationOrderId?: string; tableId?: string; source?: Order['source'] },
+  ): Promise<Order> => {
+    const response = await apiClient.post<ApiResponse<Order>>(`/orders/${id}/move-items`, data)
+    return response.data.data
+  },
+
   cancel: async (id: string): Promise<{ message: string }> => {
     const response = await apiClient.post<ApiResponse<{ message: string }>>(`/orders/${id}/cancel`)
     return response.data.data

@@ -7,3 +7,4 @@ export { UpdateOrderSourceDto } from './update-order-source.dto';
 export { CloseOrderDto } from './close-order.dto';
 export { OrderFilterDto } from './order-filter.dto';
 export { MergeOrderDto } from './merge-order.dto';
+export { MoveOrderItemsDto } from './move-order-items.dto';

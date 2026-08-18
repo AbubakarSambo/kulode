@@ -389,6 +389,11 @@ function SyncedOrderView({ id }: { id: string }) {
   const [sourceModalOpen, setSourceModalOpen] = useState(false)
   const [selectedSource, setSelectedSource] = useState<OrderSource>('DINE_IN')
   const [selectedSourceTableId, setSelectedSourceTableId] = useState('')
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set())
+  const [moveModalOpen, setMoveModalOpen] = useState(false)
+  const [moveMode, setMoveMode] = useState<'new' | 'existing'>('new')
+  const [moveTableId, setMoveTableId] = useState('')
+  const [moveDestinationOrderId, setMoveDestinationOrderId] = useState('')
 
   const { data: order, isLoading } = useQuery({
     queryKey: ['order', id],
@@ -454,10 +459,10 @@ function SyncedOrderView({ id }: { id: string }) {
   const { data: mergeableOrdersPage } = useQuery({
     queryKey: ['orders', 'mergeable'],
     queryFn: () => ordersApi.list({ statuses: ['OPEN', 'IN_KITCHEN', 'READY'], limit: 50 }),
-    enabled: mergeModalOpen,
+    enabled: mergeModalOpen || (moveModalOpen && moveMode === 'existing'),
   })
-  // Can't merge this order into itself, and an order with a payment already on it is rejected
-  // server-side anyway — filtered here too so it's never even offered as an option.
+  // Can't merge/move into this order itself, and an order with a payment already on it is
+  // rejected server-side anyway — filtered here too so it's never even offered as an option.
   const mergeableOrders = (mergeableOrdersPage?.data ?? []).filter(
     (o) => o.id !== id && Number(o.amountPaid) === 0,
   )
@@ -479,11 +484,35 @@ function SyncedOrderView({ id }: { id: string }) {
   const { data: tables } = useQuery({
     queryKey: ['restaurant-tables'],
     queryFn: () => tablesApi.list(),
-    enabled: sourceModalOpen,
+    enabled: sourceModalOpen || (moveModalOpen && moveMode === 'new'),
   })
   const availableTableOptions = (tables ?? [])
     .filter((t) => t.status === 'AVAILABLE' || t.id === order?.tableId)
     .map((t) => ({ id: t.id, label: t.name }))
+
+  const moveItems = useMutation({
+    mutationFn: () =>
+      ordersApi.moveItems(id, {
+        itemIds: Array.from(selectedItemIds),
+        destinationOrderId: moveMode === 'existing' ? moveDestinationOrderId : undefined,
+        tableId: moveMode === 'new' && moveTableId ? moveTableId : undefined,
+      }),
+    onSuccess: (destination) => {
+      toast.success('Items moved')
+      setMoveModalOpen(false)
+      setSelectedItemIds(new Set())
+      setMoveTableId('')
+      setMoveDestinationOrderId('')
+      queryClient.invalidateQueries({ queryKey: ['order', id] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+      queryClient.invalidateQueries({ queryKey: ['restaurant-tables'] })
+      if (destination.id !== id) navigate(`/pos/orders/${destination.id}`)
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to move items')
+    },
+  })
 
   const setSource = useMutation({
     mutationFn: () => ordersApi.setSource(id, selectedSource, selectedSource === 'DINE_IN' ? selectedSourceTableId : undefined),
@@ -735,16 +764,47 @@ function SyncedOrderView({ id }: { id: string }) {
           )}
         </div>
 
+        {isOpenStatus && selectedItemIds.size > 0 && (
+          <div className="mb-3 flex items-center justify-between rounded-xl border border-border bg-muted/50 px-4 py-2.5">
+            <span className="text-sm font-medium text-foreground">{selectedItemIds.size} item{selectedItemIds.size === 1 ? '' : 's'} selected</span>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setSelectedItemIds(new Set())}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={() => { setMoveMode('new'); setMoveTableId(order.tableId ?? ''); setMoveDestinationOrderId(''); setMoveModalOpen(true) }}>
+                Move Selected Items
+              </Button>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-3">
           {order.items.map((item) => (
             <Card key={item.id} className="p-4">
               <CardContent className="p-0">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-semibold text-foreground">
-                      {item.quantity}x {item.menuItem?.name ?? item.itemName}
+                  <div className="flex items-center gap-3">
+                    {isOpenStatus && (
+                      <input
+                        type="checkbox"
+                        checked={selectedItemIds.has(item.id)}
+                        onChange={() => {
+                          setSelectedItemIds((prev) => {
+                            const next = new Set(prev)
+                            if (next.has(item.id)) next.delete(item.id)
+                            else next.add(item.id)
+                            return next
+                          })
+                        }}
+                        className="h-4 w-4 shrink-0 rounded border-border accent-primary"
+                      />
+                    )}
+                    <div>
+                      <div className="font-semibold text-foreground">
+                        {item.quantity}x {item.menuItem?.name ?? item.itemName}
+                      </div>
+                      {item.notes && <div className="text-xs text-muted-foreground">{item.notes}</div>}
                     </div>
-                    {item.notes && <div className="text-xs text-muted-foreground">{item.notes}</div>}
                   </div>
                   <div className="font-semibold text-foreground">{formatCurrency(item.amount)}</div>
                 </div>
@@ -1176,6 +1236,78 @@ function SyncedOrderView({ id }: { id: string }) {
               ))}
             </div>
           )}
+        </div>
+      </Modal>
+
+      <Modal isOpen={moveModalOpen} onClose={() => setMoveModalOpen(false)} title="Move Selected Items">
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Moving {selectedItemIds.size} item{selectedItemIds.size === 1 ? '' : 's'} off this order. The rest of
+            this order is untouched — if you move everything, this order is cancelled.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                { value: 'new', label: 'New Order' },
+                { value: 'existing', label: 'Existing Order' },
+              ] as const
+            ).map((m) => (
+              <button
+                key={m.value}
+                type="button"
+                onClick={() => setMoveMode(m.value)}
+                className={cn(
+                  'shrink-0 cursor-pointer rounded-full px-4 py-2 text-sm font-medium',
+                  moveMode === m.value ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                )}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          {moveMode === 'new' ? (
+            <div>
+              <Label>Table (optional — defaults to this order's table)</Label>
+              <SearchableSelect
+                options={availableTableOptions}
+                value={moveTableId}
+                onChange={setMoveTableId}
+                placeholder="Search tables"
+              />
+            </div>
+          ) : mergeableOrders.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">No other open orders to move items onto.</p>
+          ) : (
+            <div className="max-h-64 space-y-2 overflow-y-auto">
+              {mergeableOrders.map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => setMoveDestinationOrderId(o.id)}
+                  className={cn(
+                    'flex w-full items-center justify-between rounded-xl border p-3 text-left',
+                    moveDestinationOrderId === o.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50',
+                  )}
+                >
+                  <div>
+                    <div className="font-semibold text-foreground">{o.table?.name ?? o.source}</div>
+                    <div className="text-xs text-muted-foreground">{o.items.length} item{o.items.length === 1 ? '' : 's'}</div>
+                  </div>
+                  <span className="font-semibold text-foreground">{formatCurrency(o.total)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <Button
+            className="w-full"
+            isLoading={moveItems.isPending}
+            disabled={moveMode === 'existing' && !moveDestinationOrderId}
+            onClick={() => moveItems.mutate()}
+          >
+            Move Items
+          </Button>
         </div>
       </Modal>
     </div>

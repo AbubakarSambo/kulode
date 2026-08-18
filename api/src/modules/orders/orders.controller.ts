@@ -25,6 +25,7 @@ import {
   CloseOrderDto,
   OrderFilterDto,
   MergeOrderDto,
+  MoveOrderItemsDto,
 } from './dto';
 import { CurrentUser, CurrentUserData, Roles, Role } from '../../common';
 
@@ -116,6 +117,16 @@ export class OrdersController {
     @Body() dto: MergeOrderDto,
   ) {
     return this.ordersService.mergeOrders(organizationId, id, dto.sourceOrderId);
+  }
+
+  @Post(':id/move-items')
+  @Roles(Role.WAITER, Role.SUPERVISOR, Role.MANAGER, Role.CASHIER, Role.ADMIN, Role.SUPER_ADMIN)
+  moveItems(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: MoveOrderItemsDto,
+  ) {
+    return this.ordersService.moveItems(organizationId, id, dto);
   }
 
   @Post(':id/mark-awaiting-payment')
