@@ -11,6 +11,7 @@ import {
   Receipt,
   Timer,
   UserCog,
+  LayoutGrid,
 } from 'lucide-react'
 import {
   DashboardIcon,
@@ -158,6 +159,7 @@ export function AppLayout() {
         { name: 'Dashboard', href: '/pos/dashboard', icon: DashboardIcon, visible: hasPos },
         { name: 'Sell', href: '/pos/order/new', icon: ShoppingCart, visible: hasPos },
         { name: 'Orders', href: '/pos/orders', icon: Receipt, visible: hasPos },
+        { name: 'Tables', href: '/pos/tables', icon: LayoutGrid, visible: hasPos },
         { name: 'Kitchen', href: '/pos/kitchen', icon: Timer, visible: hasPos },
         { name: 'Menu', href: '/pos/menu', icon: ChefHat, visible: hasPos },
         { name: 'Categories', href: '/pos/categories', icon: Tag, visible: hasPos },
