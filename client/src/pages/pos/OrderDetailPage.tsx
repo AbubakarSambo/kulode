@@ -369,6 +369,8 @@ function SyncedOrderView({ id }: { id: string }) {
   const currentUser = useAuthStore((s) => s.user)
   const canAcceptPayment = !!currentUser && currentUser.roles.some((r) => PAYMENT_CAPABLE_ROLES.includes(r))
   const canVoid = !!currentUser && currentUser.roles.some((r) => VOID_CAPABLE_ROLES.includes(r))
+  // Same oversight roles as void — an unrestricted till-side discount is a fraud vector.
+  const canApplyDiscount = canVoid
   const [addItemsOpen, setAddItemsOpen] = useState(false)
   const [closeModalOpen, setCloseModalOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<(typeof PAYMENT_METHODS)[number]['value']>('CASH')
@@ -394,6 +396,10 @@ function SyncedOrderView({ id }: { id: string }) {
   const [moveMode, setMoveMode] = useState<'new' | 'existing'>('new')
   const [moveTableId, setMoveTableId] = useState('')
   const [moveDestinationOrderId, setMoveDestinationOrderId] = useState('')
+  const [discountModalOpen, setDiscountModalOpen] = useState(false)
+  const [discountType, setDiscountType] = useState<'PERCENTAGE' | 'FIXED'>('PERCENTAGE')
+  const [discountValue, setDiscountValue] = useState('')
+  const [discountReason, setDiscountReason] = useState('')
 
   const { data: order, isLoading } = useQuery({
     queryKey: ['order', id],
@@ -413,7 +419,7 @@ function SyncedOrderView({ id }: { id: string }) {
     enabled: customerModalOpen,
   })
   const customerOptions = useMemo(
-    () => (customersPage?.data ?? []).map((c) => ({ id: c.id, label: `${c.name} (${c.phone})` })),
+    () => (customersPage?.data ?? []).map((c) => ({ id: c.id, label: c.phone ? `${c.name} (${c.phone})` : c.name })),
     [customersPage],
   )
 
@@ -526,6 +532,23 @@ function SyncedOrderView({ id }: { id: string }) {
     onError: (err: unknown) => {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
       toast.error(message || 'Failed to update order type')
+    },
+  })
+
+  const applyDiscount = useMutation({
+    mutationFn: (data: { discountType: 'PERCENTAGE' | 'FIXED'; value: number; reason: string }) =>
+      ordersApi.applyDiscount(id, data),
+    onSuccess: () => {
+      toast.success('Discount updated')
+      setDiscountModalOpen(false)
+      setDiscountValue('')
+      setDiscountReason('')
+      queryClient.invalidateQueries({ queryKey: ['order', id] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to apply discount')
     },
   })
 
@@ -736,7 +759,7 @@ function SyncedOrderView({ id }: { id: string }) {
         <div className="mb-4 flex items-center justify-between rounded-xl border border-border p-3">
           {order.customer ? (
             <Link to={`/pos/customers/${order.customer.id}`} className="text-sm font-medium text-foreground hover:underline">
-              {order.customer.name} · {order.customer.phone}
+              {order.customer.name}{order.customer.phone ? ` · ${order.customer.phone}` : ''}
             </Link>
           ) : (
             <span className="text-sm text-muted-foreground">No customer attached</span>
@@ -878,6 +901,12 @@ function SyncedOrderView({ id }: { id: string }) {
               <span>Subtotal</span>
               <span>{formatCurrency(order.subtotal)}</span>
             </div>
+            {order.discountAmount > 0 && (
+              <div className="flex justify-between text-sm text-destructive">
+                <span>Discount{order.discountType === 'PERCENTAGE' ? ` (${order.discountPercent}%)` : ''}</span>
+                <span>−{formatCurrency(order.discountAmount)}</span>
+              </div>
+            )}
             {order.vatAmount > 0 || order.entertainmentTaxAmount > 0 ? (
               <>
                 {order.vatAmount > 0 && (
@@ -900,6 +929,12 @@ function SyncedOrderView({ id }: { id: string }) {
                   <span>{formatCurrency(order.taxAmount)}</span>
                 </div>
               )
+            )}
+            {order.serviceChargeAmount > 0 && (
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>Service Charge</span>
+                <span>{formatCurrency(order.serviceChargeAmount)}</span>
+              </div>
             )}
             <div className="flex justify-between text-lg font-bold text-foreground">
               <span>Total</span>
@@ -939,7 +974,7 @@ function SyncedOrderView({ id }: { id: string }) {
           </div>
         )}
 
-        {(isOpenStatus || order.status === 'CLOSED_UNPAID') && (
+        {(isOpenStatus || order.status === 'CLOSED_UNPAID' || order.status === 'CLOSED_PAID') && (
           <div className="mt-3">
             <Button
               variant="outline"
@@ -947,7 +982,7 @@ function SyncedOrderView({ id }: { id: string }) {
               onClick={() => printBillMutation.mutate()}
               isLoading={printBillMutation.isPending}
             >
-              Print Bill
+              {order.status === 'CLOSED_PAID' ? 'Print Receipt' : 'Print Bill'}
             </Button>
           </div>
         )}
@@ -977,6 +1012,43 @@ function SyncedOrderView({ id }: { id: string }) {
 
       <Modal isOpen={closeModalOpen} onClose={() => setCloseModalOpen(false)} title="Close Order">
         <div className="space-y-4">
+          {canApplyDiscount && (
+            <div className="flex items-center justify-between rounded-xl border border-border p-3">
+              {order.discountAmount > 0 ? (
+                <div>
+                  <div className="text-sm font-medium text-foreground">
+                    {order.discountType === 'PERCENTAGE' ? `${order.discountPercent}% off` : `${formatCurrency(order.discountAmount)} off`}
+                  </div>
+                  {order.discountReason && <div className="text-xs text-muted-foreground">{order.discountReason}</div>}
+                </div>
+              ) : (
+                <span className="text-sm text-muted-foreground">No discount applied</span>
+              )}
+              <div className="flex gap-2">
+                {order.discountAmount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => applyDiscount.mutate({ discountType: order.discountType, value: 0, reason: 'Discount removed' })}
+                    className="text-xs font-medium text-destructive hover:underline"
+                  >
+                    Remove
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDiscountType(order.discountType)
+                    setDiscountValue(order.discountAmount > 0 ? String(order.discountType === 'PERCENTAGE' ? order.discountPercent : order.discountAmount) : '')
+                    setDiscountReason('')
+                    setDiscountModalOpen(true)
+                  }}
+                  className="text-xs font-medium text-primary hover:underline"
+                >
+                  {order.discountAmount > 0 ? 'Change' : 'Apply Discount'}
+                </button>
+              </div>
+            </div>
+          )}
           <div>
             <Label>Payment Method</Label>
             <div className="mt-1 flex flex-wrap gap-2">
@@ -1207,6 +1279,61 @@ function SyncedOrderView({ id }: { id: string }) {
               Save
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={discountModalOpen} onClose={() => setDiscountModalOpen(false)} title="Apply Discount">
+        <div className="space-y-4">
+          <div>
+            <Label>Discount Type</Label>
+            <div className="mt-1 flex gap-2">
+              {(
+                [
+                  { value: 'PERCENTAGE', label: 'Percentage' },
+                  { value: 'FIXED', label: 'Fixed Amount' },
+                ] as const
+              ).map((t) => (
+                <button
+                  key={t.value}
+                  type="button"
+                  onClick={() => setDiscountType(t.value)}
+                  className={cn(
+                    'shrink-0 cursor-pointer rounded-full px-4 py-2 text-sm font-medium',
+                    discountType === t.value ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                  )}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <Label>{discountType === 'PERCENTAGE' ? 'Percentage (%)' : `Amount (up to ${formatCurrency(order.subtotal)})`}</Label>
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              max={discountType === 'PERCENTAGE' ? 100 : order.subtotal}
+              value={discountValue}
+              onChange={(e) => setDiscountValue(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>Reason (required)</Label>
+            <Input
+              value={discountReason}
+              onChange={(e) => setDiscountReason(e.target.value)}
+              placeholder="e.g. Loyalty customer, manager comp"
+            />
+          </div>
+          <Button
+            className="w-full"
+            isLoading={applyDiscount.isPending}
+            disabled={!discountValue || Number(discountValue) < 0 || !discountReason.trim()}
+            onClick={() => applyDiscount.mutate({ discountType, value: Number(discountValue), reason: discountReason.trim() })}
+          >
+            Apply Discount
+          </Button>
         </div>
       </Modal>
 

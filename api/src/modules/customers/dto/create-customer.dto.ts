@@ -8,11 +8,11 @@ export class CreateCustomerDto {
   @MaxLength(255)
   name: string;
 
-  @ApiProperty({ example: '+234 123 456 7890' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ example: '+234 123 456 7890' })
+  @IsOptional()
   @IsString()
   @MaxLength(50)
-  phone: string;
+  phone?: string;
 
   @ApiPropertyOptional({ example: 'tunde@example.com' })
   @IsOptional()
@@ -24,3 +24,4 @@ export class CreateCustomerDto {
   @IsString()
   notes?: string;
 }
+

@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, UserX, Send, KeyRound } from 'lucide-react'
+import { Plus, UserX, Send, KeyRound, Trash2 } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Card, CardContent, Badge } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
@@ -299,20 +299,28 @@ export function UsersPage() {
                           </Button>
                         )}
                         {user.isActive && user.roles.every((r) => PIN_ELIGIBLE_ROLES.includes(r)) && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() =>
-                              user.pinSetAt ? handleClearPin(user) : setPinModalUser(user)
-                            }
-                            title={user.pinSetAt ? 'Remove PIN' : 'Set quick-login PIN'}
-                            className={cn(
-                              'h-8 w-8 p-0 rounded-lg',
-                              user.pinSetAt && 'text-rose-500 hover:text-rose-700 hover:bg-rose-50',
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setPinModalUser(user)}
+                              title={user.pinSetAt ? 'Reset PIN' : 'Set quick-login PIN'}
+                              className="h-8 w-8 p-0 rounded-lg"
+                            >
+                              <KeyRound className="h-4 w-4" />
+                            </Button>
+                            {user.pinSetAt && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleClearPin(user)}
+                                title="Remove PIN"
+                                className="h-8 w-8 p-0 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             )}
-                          >
-                            <KeyRound className="h-4 w-4" />
-                          </Button>
+                          </>
                         )}
                         {user.isActive && !user.roles.includes('SUPER_ADMIN') && (
                           <Button
@@ -432,8 +440,8 @@ export function UsersPage() {
           setPinModalUser(null)
           pinForm.reset()
         }}
-        title="Set Quick-Login PIN"
-        description={pinModalUser ? `4-digit PIN ${pinModalUser.firstName} will use to log into a shared POS terminal` : undefined}
+        title={pinModalUser?.pinSetAt ? 'Reset Quick-Login PIN' : 'Set Quick-Login PIN'}
+        description={pinModalUser ? `New 4-digit PIN ${pinModalUser.firstName} will use to log into a shared POS terminal` : undefined}
       >
         <form
           onSubmit={pinForm.handleSubmit((data) =>

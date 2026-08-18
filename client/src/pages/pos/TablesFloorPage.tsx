@@ -11,8 +11,11 @@ import { Header } from '@/components/layout'
 import { Button, Input, Label, EmptyState } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { tablesApi, ordersApi } from '@/api'
-import { cn } from '@/lib/utils'
+import { cn, formatCurrency } from '@/lib/utils'
 import type { RestaurantTable, TableStatus } from '@/types'
+
+// Statuses where a table still has a running, unpaid tab worth showing on its card.
+const ACTIVE_ORDER_STATUSES = ['OPEN', 'IN_KITCHEN', 'READY', 'CLOSED_UNPAID'] as const
 
 const tableSchema = z.object({
   name: z.string().min(1, 'Table name is required'),
@@ -46,6 +49,14 @@ export function TablesFloorPage() {
     queryFn: () => tablesApi.list(),
     refetchInterval: 15_000,
   })
+
+  const { data: activeOrdersPage } = useQuery({
+    queryKey: ['orders', { statuses: ACTIVE_ORDER_STATUSES }],
+    queryFn: () => ordersApi.list({ statuses: [...ACTIVE_ORDER_STATUSES], limit: 100 }),
+    refetchInterval: 15_000,
+  })
+  // A table has at most one running order at a time in practice — first match is enough.
+  const totalByTableId = new Map((activeOrdersPage?.data ?? []).filter((o) => o.tableId).map((o) => [o.tableId!, o.total]))
 
   const form = useForm<TableFormData>({ resolver: zodResolver(tableSchema) })
 
@@ -124,6 +135,9 @@ export function TablesFloorPage() {
                 <span className="text-lg font-bold">{table.name}</span>
                 {table.section && <span className="text-xs opacity-70">{table.section}</span>}
                 <span className="text-xs font-semibold uppercase tracking-wide">{STATUS_LABELS[table.status]}</span>
+                {totalByTableId.has(table.id) && (
+                  <span className="text-sm font-bold">{formatCurrency(totalByTableId.get(table.id)!)}</span>
+                )}
                 <span className="text-[11px] opacity-70">{table.capacity} seats</span>
               </button>
             ))}

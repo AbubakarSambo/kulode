@@ -11,6 +11,8 @@ export interface UpdateOrganizationData {
   vatEnabled?: boolean
   entertainmentTaxRate?: number
   entertainmentTaxEnabled?: boolean
+  serviceChargeRate?: number
+  serviceChargeEnabled?: boolean
   showQrCode?: boolean
   paymentTerms?: string
   defaultNotes?: string

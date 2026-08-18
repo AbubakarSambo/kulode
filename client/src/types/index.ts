@@ -76,6 +76,8 @@ export interface User {
     taxRate?: number
     entertainmentTaxEnabled?: boolean
     entertainmentTaxRate?: number
+    serviceChargeEnabled?: boolean
+    serviceChargeRate?: number
     logo?: string
     email?: string
     phone?: string
@@ -142,6 +144,8 @@ export interface Organization {
   vatEnabled: boolean
   entertainmentTaxRate: number
   entertainmentTaxEnabled: boolean
+  serviceChargeRate: number
+  serviceChargeEnabled: boolean
   showQrCode: boolean
   paymentTerms?: string
   defaultNotes?: string
@@ -195,7 +199,7 @@ export interface Client {
 export interface Customer {
   id: string
   name: string
-  phone: string
+  phone?: string
   email?: string
   notes?: string
   isActive: boolean
@@ -455,7 +459,7 @@ export interface Order {
   tableId?: string
   table?: { id: string; name: string; section?: string } | null
   customerId?: string
-  customer?: { id: string; name: string; phone: string } | null
+  customer?: { id: string; name: string; phone?: string } | null
   waiterId?: string
   waiter?: { id: string; firstName: string; lastName: string; phone?: string } | null
   createdById: string
@@ -466,8 +470,13 @@ export interface Order {
   taxAmount: number
   vatApplied: boolean
   entertainmentTaxApplied: boolean
+  serviceChargeApplied: boolean
   vatAmount: number
   entertainmentTaxAmount: number
+  serviceChargeAmount: number
+  discountType: 'PERCENTAGE' | 'FIXED'
+  discountPercent: number
+  discountAmount: number
   total: number
   amountPaid: number
   notes?: string

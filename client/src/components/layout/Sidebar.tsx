@@ -142,8 +142,9 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   // Pass/Runner are kitchen-only roles — the ticket board is the only page they can see
   const KITCHEN_ALLOWED_HREFS = ['/pos/kitchen']
 
-  // Cashiers close out orders and take payment — no need for menu/waiter management or analytics
-  const CASHIER_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift']
+  // Cashiers close out orders and take payment, and can now manage the table list — no need for
+  // menu/waiter management or analytics
+  const CASHIER_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/tables']
 
   // Supervisors get floor oversight (orders, customers, shift, kitchen) but not menu/category
   // editing or the Waiters roster — since Waiter is just a User now, managing it requires the

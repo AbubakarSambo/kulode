@@ -27,6 +27,7 @@ import {
   OrderFilterDto,
   MergeOrderDto,
   MoveOrderItemsDto,
+  ApplyDiscountDto,
 } from './dto';
 import { CurrentUser, CurrentUserData, Roles, Role } from '../../common';
 
@@ -156,6 +157,16 @@ export class OrdersController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.ordersService.cancel(organizationId, id);
+  }
+
+  @Patch(':id/discount')
+  @Roles(Role.STAFF, Role.ACCOUNTANT, Role.SUPERVISOR, Role.MANAGER, Role.ADMIN, Role.SUPER_ADMIN)
+  applyDiscount(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ApplyDiscountDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.ordersService.applyDiscount(user.organizationId, id, user.id, dto);
   }
 
   @Post(':id/close')

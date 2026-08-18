@@ -183,6 +183,10 @@ model Organization {
   // restaurant/bar bills) — stackable with VAT, toggled per order on the Sell screen.
   entertainmentTaxRate    Decimal @default(0) @map("entertainment_tax_rate") @db.Decimal(5, 2)
   entertainmentTaxEnabled Boolean @default(false) @map("entertainment_tax_enabled")
+  // A gratuity/service fee, not a tax — kept out of taxAmount on the order, added to total
+  // separately. Same stackable, per-order-toggleable pattern as entertainment tax.
+  serviceChargeRate    Decimal @default(0) @map("service_charge_rate") @db.Decimal(5, 2)
+  serviceChargeEnabled Boolean @default(false) @map("service_charge_enabled")
   showQrCode            Boolean   @default(false) @map("show_qr_code")
   paymentTerms          String?   @map("payment_terms")
   defaultNotes          String?   @map("default_notes")
@@ -289,6 +293,7 @@ model User {
   chatSessions       ChatSession[]
   createdOrders      Order[]                  @relation("OrderCreatedByUser")
   waiterOrders       Order[]                  @relation("OrderWaiter")
+  discountsApplied   Order[]                  @relation("OrderDiscountAppliedBy")
   openedShifts       Shift[]                  @relation("ShiftOpenedByUser")
   closedShifts       Shift[]                  @relation("ShiftClosedByUser")
   walletTransactions WalletTransaction[]
@@ -347,7 +352,7 @@ model Customer {
   id             String  @id @default(uuid())
   organizationId String  @map("organization_id")
   name           String
-  phone          String
+  phone          String?
   email          String?
   notes          String?
   isActive       Boolean @default(true) @map("is_active")
@@ -970,7 +975,8 @@ model Order {
 
   subtotal   Decimal @db.Decimal(12, 2)
   // taxAmount is always vatAmount + entertainmentTaxAmount — kept as the single source everything
-  // else (receipts, close/payment, reports) already reads for the order total.
+  // else (receipts, close/payment, reports) already reads for the order total. serviceChargeAmount
+  // is added on top separately since it's a fee, not a tax.
   taxAmount  Decimal @default(0) @map("tax_amount") @db.Decimal(12, 2)
   total      Decimal @db.Decimal(12, 2)
   amountPaid Decimal @default(0) @map("amount_paid") @db.Decimal(12, 2)
@@ -981,8 +987,21 @@ model Order {
   // already-placed order's charges.
   vatApplied              Boolean @default(false) @map("vat_applied")
   entertainmentTaxApplied Boolean @default(false) @map("entertainment_tax_applied")
+  serviceChargeApplied    Boolean @default(false) @map("service_charge_applied")
   vatAmount               Decimal @default(0) @map("vat_amount") @db.Decimal(12, 2)
   entertainmentTaxAmount  Decimal @default(0) @map("entertainment_tax_amount") @db.Decimal(12, 2)
+  serviceChargeAmount     Decimal @default(0) @map("service_charge_amount") @db.Decimal(12, 2)
+
+  // Applied at payment time (see OrdersService.applyDiscount), not at order creation — mirrors
+  // the Invoice discount pattern (pre-tax: subtotal - discountAmount, then tax/service charge
+  // computed on the remainder). Restricted to oversight roles; reason + who is required for audit,
+  // since an unrestricted till-side discount is a fraud vector.
+  discountType        String    @default("PERCENTAGE") @map("discount_type")
+  discountPercent     Decimal   @default(0) @map("discount_percent") @db.Decimal(5, 2)
+  discountAmount      Decimal   @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  discountReason      String?   @map("discount_reason")
+  discountAppliedById String?   @map("discount_applied_by")
+  discountAppliedBy   User?     @relation("OrderDiscountAppliedBy", fields: [discountAppliedById], references: [id], onDelete: SetNull)
 
   closedAt  DateTime? @map("closed_at")
   createdAt DateTime  @default(now()) @map("created_at")

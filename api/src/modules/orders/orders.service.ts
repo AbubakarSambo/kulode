@@ -15,6 +15,7 @@ import {
   CloseOrderDto,
   OrderFilterDto,
   MoveOrderItemsDto,
+  ApplyDiscountDto,
 } from './dto';
 import { paginate, runIdempotent } from '../../common';
 
@@ -152,17 +153,19 @@ export class OrdersService {
       where: { id: organizationId },
     });
 
-    // Each tax type only applies at all if the org has it enabled; when enabled, it defaults to
-    // "on" for a new order (matching the old always-on behavior) unless explicitly toggled off.
+    // Each charge type only applies at all if the org has it enabled; when enabled, it defaults
+    // to "on" for a new order (matching the old always-on behavior) unless explicitly toggled off.
     const applyVat = organization.vatEnabled && (dto.applyVat ?? true);
     const applyEntertainmentTax = organization.entertainmentTaxEnabled && (dto.applyEntertainmentTax ?? true);
-    const { vatAmount, entertainmentTaxAmount, taxAmount } = this.computeOrderTax(
+    const applyServiceCharge = organization.serviceChargeEnabled && (dto.applyServiceCharge ?? true);
+    const { vatAmount, entertainmentTaxAmount, serviceChargeAmount, taxAmount } = this.computeOrderCharges(
       subtotal,
       organization,
       applyVat,
       applyEntertainmentTax,
+      applyServiceCharge,
     );
-    const total = subtotal + taxAmount;
+    const total = subtotal + taxAmount + serviceChargeAmount;
 
     return runIdempotent(this.prisma, organizationId, 'ORDER_CREATE', dto.clientRequestId, async (tx) => {
       const created = await tx.order.create({
@@ -177,8 +180,10 @@ export class OrdersService {
           taxAmount,
           vatApplied: applyVat,
           entertainmentTaxApplied: applyEntertainmentTax,
+          serviceChargeApplied: applyServiceCharge,
           vatAmount,
           entertainmentTaxAmount,
+          serviceChargeAmount,
           total,
           notes: dto.notes,
           items: { create: pricedItems },
@@ -203,6 +208,9 @@ export class OrdersService {
     if (!OPEN_STATUSES.includes(order.status)) {
       throw new BadRequestException(`Cannot add items to a ${order.status.toLowerCase()} order`);
     }
+    if (toNumber(order.discountAmount) > 0) {
+      throw new BadRequestException('This order has a discount applied — clear it before adding items');
+    }
 
     const pricedItems = await this.priceItems(organizationId, dto.items);
     const addedAmount = pricedItems.reduce((sum, i) => sum + i.amount, 0);
@@ -211,15 +219,16 @@ export class OrdersService {
     });
 
     const newSubtotal = toNumber(order.subtotal) + addedAmount;
-    // Which taxes apply was already decided at order creation — adding items recalculates the
-    // amounts against the org's current rates, but never silently turns a tax on/off mid-order.
-    const { vatAmount, entertainmentTaxAmount, taxAmount: newTaxAmount } = this.computeOrderTax(
+    // Which charges apply was already decided at order creation — adding items recalculates the
+    // amounts against the org's current rates, but never silently turns a charge on/off mid-order.
+    const { vatAmount, entertainmentTaxAmount, serviceChargeAmount, taxAmount: newTaxAmount } = this.computeOrderCharges(
       newSubtotal,
       organization,
       order.vatApplied,
       order.entertainmentTaxApplied,
+      order.serviceChargeApplied,
     );
-    const newTotal = newSubtotal + newTaxAmount;
+    const newTotal = newSubtotal + newTaxAmount + serviceChargeAmount;
 
     return runIdempotent(this.prisma, organizationId, 'ORDER_ADD_ITEMS', dto.clientRequestId, async (tx) => {
       await tx.orderItem.createMany({
@@ -228,23 +237,32 @@ export class OrdersService {
 
       return tx.order.update({
         where: { id },
-        data: { subtotal: newSubtotal, taxAmount: newTaxAmount, vatAmount, entertainmentTaxAmount, total: newTotal },
+        data: { subtotal: newSubtotal, taxAmount: newTaxAmount, vatAmount, entertainmentTaxAmount, serviceChargeAmount, total: newTotal },
         include: this.orderInclude,
       });
     });
   }
 
-  private computeOrderTax(
+  // "Charges" rather than "tax" since service charge is a fee, not a tax — kept out of taxAmount,
+  // callers add serviceChargeAmount into the order total separately.
+  private computeOrderCharges(
     subtotal: number,
-    organization: { taxRate: Prisma.Decimal | number; entertainmentTaxRate: Prisma.Decimal | number },
+    organization: {
+      taxRate: Prisma.Decimal | number;
+      entertainmentTaxRate: Prisma.Decimal | number;
+      serviceChargeRate: Prisma.Decimal | number;
+    },
     applyVat: boolean,
     applyEntertainmentTax: boolean,
+    applyServiceCharge: boolean,
   ) {
     const vatRate = applyVat ? toNumber(organization.taxRate) : 0;
     const entertainmentRate = applyEntertainmentTax ? toNumber(organization.entertainmentTaxRate) : 0;
+    const serviceChargeRate = applyServiceCharge ? toNumber(organization.serviceChargeRate) : 0;
     const vatAmount = Math.round(subtotal * (vatRate / 100) * 100) / 100;
     const entertainmentTaxAmount = Math.round(subtotal * (entertainmentRate / 100) * 100) / 100;
-    return { vatAmount, entertainmentTaxAmount, taxAmount: vatAmount + entertainmentTaxAmount };
+    const serviceChargeAmount = Math.round(subtotal * (serviceChargeRate / 100) * 100) / 100;
+    return { vatAmount, entertainmentTaxAmount, serviceChargeAmount, taxAmount: vatAmount + entertainmentTaxAmount };
   }
 
   async updateItemStatus(
@@ -305,6 +323,9 @@ export class OrdersService {
     if (toNumber(order.amountPaid) > 0) {
       throw new BadRequestException('This order already has a payment recorded — cannot edit its items');
     }
+    if (toNumber(order.discountAmount) > 0) {
+      throw new BadRequestException('This order has a discount applied — clear it before editing items');
+    }
 
     const item = order.items.find((i) => i.id === itemId);
     if (!item) throw new NotFoundException('Order item not found');
@@ -318,11 +339,12 @@ export class OrdersService {
     const newSubtotal = remainingItems.reduce((sum, i) => sum + toNumber(i.amount), 0) + newAmount;
 
     const organization = await this.prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
-    const { vatAmount, entertainmentTaxAmount, taxAmount } = this.computeOrderTax(
+    const { vatAmount, entertainmentTaxAmount, serviceChargeAmount, taxAmount } = this.computeOrderCharges(
       newSubtotal,
       organization,
       order.vatApplied,
       order.entertainmentTaxApplied,
+      order.serviceChargeApplied,
     );
 
     return this.prisma.$transaction(async (tx) => {
@@ -340,7 +362,14 @@ export class OrdersService {
       } else {
         await tx.order.update({
           where: { id: orderId },
-          data: { subtotal: newSubtotal, taxAmount, vatAmount, entertainmentTaxAmount, total: newSubtotal + taxAmount },
+          data: {
+            subtotal: newSubtotal,
+            taxAmount,
+            vatAmount,
+            entertainmentTaxAmount,
+            serviceChargeAmount,
+            total: newSubtotal + taxAmount + serviceChargeAmount,
+          },
         });
       }
 
@@ -465,18 +494,22 @@ export class OrdersService {
     if (toNumber(source.amountPaid) > 0) {
       throw new BadRequestException('That order already has a payment recorded — cannot merge it');
     }
+    if (toNumber(destination.discountAmount) > 0 || toNumber(source.discountAmount) > 0) {
+      throw new BadRequestException('An order with a discount applied cannot be merged — clear the discount first');
+    }
 
     const organization = await this.prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
     const combinedSubtotal = toNumber(destination.subtotal) + toNumber(source.subtotal);
-    // Merged bill inherits the destination order's tax settings — the two should normally agree
-    // (same org), this is just the tie-break if they somehow don't.
-    const { vatAmount, entertainmentTaxAmount, taxAmount } = this.computeOrderTax(
+    // Merged bill inherits the destination order's charge settings — the two should normally
+    // agree (same org), this is just the tie-break if they somehow don't.
+    const { vatAmount, entertainmentTaxAmount, serviceChargeAmount, taxAmount } = this.computeOrderCharges(
       combinedSubtotal,
       organization,
       destination.vatApplied,
       destination.entertainmentTaxApplied,
+      destination.serviceChargeApplied,
     );
-    const total = combinedSubtotal + taxAmount;
+    const total = combinedSubtotal + taxAmount + serviceChargeAmount;
 
     return this.prisma.$transaction(async (tx) => {
       // Conditional update guards against a concurrent close/cancel/merge racing past the checks
@@ -501,7 +534,7 @@ export class OrdersService {
 
       const destResult = await tx.order.updateMany({
         where: { id: destinationId, organizationId, status: { in: OPEN_STATUSES } },
-        data: { subtotal: combinedSubtotal, taxAmount, vatAmount, entertainmentTaxAmount, total },
+        data: { subtotal: combinedSubtotal, taxAmount, vatAmount, entertainmentTaxAmount, serviceChargeAmount, total },
       });
       if (destResult.count === 0) {
         throw new BadRequestException('This order is no longer available to merge into');
@@ -535,6 +568,9 @@ export class OrdersService {
     if (toNumber(source.amountPaid) > 0) {
       throw new BadRequestException('This order already has a payment recorded — cannot move items off it');
     }
+    if (toNumber(source.discountAmount) > 0) {
+      throw new BadRequestException('This order has a discount applied — clear it before moving items off it');
+    }
 
     const movingItems = source.items.filter((i) => dto.itemIds.includes(i.id));
     if (movingItems.length !== dto.itemIds.length) {
@@ -555,6 +591,9 @@ export class OrdersService {
     if (destination && toNumber(destination.amountPaid) > 0) {
       throw new BadRequestException('That order already has a payment recorded — cannot move items onto it');
     }
+    if (destination && toNumber(destination.discountAmount) > 0) {
+      throw new BadRequestException('That order has a discount applied — clear it before moving items onto it');
+    }
 
     // Creating a fresh destination — defaults to the same table/type as the source, since the
     // common case is splitting one table's tab into two checks, not relocating items elsewhere.
@@ -572,17 +611,24 @@ export class OrdersService {
 
     const organization = await this.prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
 
-    // Source keeps its own tax settings — it isn't going anywhere, it's just lighter.
+    // Source keeps its own charge settings — it isn't going anywhere, it's just lighter.
     const remainingSubtotal = remainingItems.reduce((sum, i) => sum + toNumber(i.amount), 0);
-    const sourceTax = this.computeOrderTax(remainingSubtotal, organization, source.vatApplied, source.entertainmentTaxApplied);
+    const sourceTax = this.computeOrderCharges(
+      remainingSubtotal,
+      organization,
+      source.vatApplied,
+      source.entertainmentTaxApplied,
+      source.serviceChargeApplied,
+    );
 
     // Existing destination inherits its own settings (mirrors mergeOrders); a brand-new one gets
     // the org's current defaults, same as any other new order.
     const destVatApplied = destination ? destination.vatApplied : organization.vatEnabled;
     const destEntertainmentApplied = destination ? destination.entertainmentTaxApplied : organization.entertainmentTaxEnabled;
+    const destServiceChargeApplied = destination ? destination.serviceChargeApplied : organization.serviceChargeEnabled;
     const destBaseSubtotal = destination ? toNumber(destination.subtotal) : 0;
     const destSubtotal = destBaseSubtotal + movingSubtotal;
-    const destTax = this.computeOrderTax(destSubtotal, organization, destVatApplied, destEntertainmentApplied);
+    const destTax = this.computeOrderCharges(destSubtotal, organization, destVatApplied, destEntertainmentApplied, destServiceChargeApplied);
 
     return this.prisma.$transaction(async (tx) => {
       if (!destination) {
@@ -598,9 +644,11 @@ export class OrdersService {
             taxAmount: destTax.taxAmount,
             vatApplied: destVatApplied,
             entertainmentTaxApplied: destEntertainmentApplied,
+            serviceChargeApplied: destServiceChargeApplied,
             vatAmount: destTax.vatAmount,
             entertainmentTaxAmount: destTax.entertainmentTaxAmount,
-            total: destSubtotal + destTax.taxAmount,
+            serviceChargeAmount: destTax.serviceChargeAmount,
+            total: destSubtotal + destTax.taxAmount + destTax.serviceChargeAmount,
           },
         });
         if (newOrderTableId) {
@@ -614,7 +662,8 @@ export class OrdersService {
             taxAmount: destTax.taxAmount,
             vatAmount: destTax.vatAmount,
             entertainmentTaxAmount: destTax.entertainmentTaxAmount,
-            total: destSubtotal + destTax.taxAmount,
+            serviceChargeAmount: destTax.serviceChargeAmount,
+            total: destSubtotal + destTax.taxAmount + destTax.serviceChargeAmount,
           },
         });
         if (destResult.count === 0) {
@@ -632,7 +681,14 @@ export class OrdersService {
         data:
           remainingItems.length === 0
             ? { status: 'CANCELLED', notes: source.notes ? `${source.notes} — items moved to order ${destination.id}` : `Items moved to order ${destination.id}` }
-            : { subtotal: remainingSubtotal, taxAmount: sourceTax.taxAmount, vatAmount: sourceTax.vatAmount, entertainmentTaxAmount: sourceTax.entertainmentTaxAmount, total: remainingSubtotal + sourceTax.taxAmount },
+            : {
+                subtotal: remainingSubtotal,
+                taxAmount: sourceTax.taxAmount,
+                vatAmount: sourceTax.vatAmount,
+                entertainmentTaxAmount: sourceTax.entertainmentTaxAmount,
+                serviceChargeAmount: sourceTax.serviceChargeAmount,
+                total: remainingSubtotal + sourceTax.taxAmount + sourceTax.serviceChargeAmount,
+              },
       });
       if (sourceResult.count === 0) {
         throw new BadRequestException('This order is no longer available');
@@ -688,6 +744,65 @@ export class OrdersService {
     }
 
     return this.prisma.order.findUniqueOrThrow({ where: { id }, include: this.orderInclude });
+  }
+
+  /**
+   * Applies (or clears, at value 0) a discount at payment time — a manager comping a table, a
+   * loyalty knock-off, etc. Deliberately separate from closeWithPayment: this shrinks the order's
+   * own total before any payment math runs, so the existing partial/split-payment logic (which
+   * only ever reads `total - amountPaid`) needs no changes at all. Pre-tax, mirroring the Invoice
+   * discount pattern: subtotal - discountAmount, then tax/service charge computed on the
+   * remainder. Role-restricted at the controller; reason and applier are required here regardless,
+   * since a till-side discount with no record of who or why is a fraud vector.
+   */
+  async applyDiscount(organizationId: string, id: string, userId: string, dto: ApplyDiscountDto) {
+    const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
+    if (!order) throw new NotFoundException('Order not found');
+    if (!PAYABLE_STATUSES.includes(order.status)) {
+      throw new BadRequestException(`Cannot discount a ${order.status.toLowerCase()} order`);
+    }
+    if (toNumber(order.amountPaid) > 0) {
+      throw new BadRequestException('This order already has a payment recorded — cannot change its discount');
+    }
+
+    const subtotal = toNumber(order.subtotal);
+    if (dto.discountType === 'PERCENTAGE' && dto.value > 100) {
+      throw new BadRequestException('Percentage discount cannot exceed 100%');
+    }
+    if (dto.discountType === 'FIXED' && dto.value > subtotal) {
+      throw new BadRequestException('Discount cannot exceed the order subtotal');
+    }
+
+    const discountPercent = dto.discountType === 'PERCENTAGE' ? dto.value : 0;
+    const discountAmount =
+      dto.discountType === 'FIXED' ? dto.value : Math.round(subtotal * (dto.value / 100) * 100) / 100;
+    const afterDiscount = subtotal - discountAmount;
+
+    const organization = await this.prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
+    const { vatAmount, entertainmentTaxAmount, serviceChargeAmount, taxAmount } = this.computeOrderCharges(
+      afterDiscount,
+      organization,
+      order.vatApplied,
+      order.entertainmentTaxApplied,
+      order.serviceChargeApplied,
+    );
+
+    return this.prisma.order.update({
+      where: { id },
+      data: {
+        discountType: dto.discountType,
+        discountPercent,
+        discountAmount,
+        discountReason: dto.reason,
+        discountAppliedById: userId,
+        taxAmount,
+        vatAmount,
+        entertainmentTaxAmount,
+        serviceChargeAmount,
+        total: afterDiscount + taxAmount + serviceChargeAmount,
+      },
+      include: this.orderInclude,
+    });
   }
 
   /**
@@ -829,7 +944,16 @@ export class OrdersService {
       include: {
         ...this.orderInclude,
         organization: {
-          select: { name: true, email: true, phone: true, address: true, currency: true },
+          select: {
+            name: true,
+            email: true,
+            phone: true,
+            address: true,
+            currency: true,
+            taxRate: true,
+            entertainmentTaxRate: true,
+            serviceChargeRate: true,
+          },
         },
       },
     });
@@ -841,6 +965,7 @@ export class OrdersService {
       closedAt: order.closedAt,
       source: order.source,
       table: order.table,
+      waiter: order.waiter ? { firstName: order.waiter.firstName, lastName: order.waiter.lastName } : null,
       items: order.items.map((i) => ({
         name: i.menuItem?.name ?? i.itemName,
         quantity: toNumber(i.quantity),
@@ -852,6 +977,20 @@ export class OrdersService {
       taxAmount: toNumber(order.taxAmount),
       total: toNumber(order.total),
       amountPaid: toNumber(order.amountPaid),
+      discountType: order.discountType,
+      discountPercent: toNumber(order.discountPercent),
+      discountAmount: toNumber(order.discountAmount),
+      // Rate + base breakdown (e.g. "VAT 7.5% on ₦21,600.00") rather than one lumped tax line —
+      // each only shown by the client when its applied flag is true.
+      vatApplied: order.vatApplied,
+      vatRate: toNumber(order.organization.taxRate),
+      vatAmount: toNumber(order.vatAmount),
+      entertainmentTaxApplied: order.entertainmentTaxApplied,
+      entertainmentTaxRate: toNumber(order.organization.entertainmentTaxRate),
+      entertainmentTaxAmount: toNumber(order.entertainmentTaxAmount),
+      serviceChargeApplied: order.serviceChargeApplied,
+      serviceChargeRate: toNumber(order.organization.serviceChargeRate),
+      serviceChargeAmount: toNumber(order.serviceChargeAmount),
       payments: order.payments.map((p) => ({
         amount: toNumber(p.amount),
         paymentMethod: p.paymentMethod,

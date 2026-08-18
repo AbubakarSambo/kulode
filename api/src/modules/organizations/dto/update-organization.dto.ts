@@ -65,6 +65,18 @@ export class UpdateOrganizationDto {
   @IsBoolean()
   entertainmentTaxEnabled?: boolean;
 
+  @ApiPropertyOptional({ example: 10, description: 'Service charge rate percentage (POS orders only)' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  serviceChargeRate?: number;
+
+  @ApiPropertyOptional({ example: false, description: 'Enable the service charge (POS orders only)' })
+  @IsOptional()
+  @IsBoolean()
+  serviceChargeEnabled?: boolean;
+
   @ApiPropertyOptional({ example: 'Payment due within 30 days of invoice date.' })
   @IsOptional()
   @IsString()

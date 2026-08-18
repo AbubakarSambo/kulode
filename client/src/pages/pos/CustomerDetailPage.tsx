@@ -27,7 +27,7 @@ type CustomerWithOrders = Customer & { orders: CustomerOrderSummary[] }
 
 const customerSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  phone: z.string().min(1, 'Phone is required'),
+  phone: z.string().optional(),
   email: z.string().email('Invalid email').optional().or(z.literal('')),
   notes: z.string().optional(),
 })
@@ -404,7 +404,7 @@ export function CustomerDetailPage() {
               </div>
               <div className="space-y-1 text-sm">
                 <div className="text-muted-foreground">Phone</div>
-                <div className="font-medium text-foreground">{customer.phone}</div>
+                <div className="font-medium text-foreground">{customer.phone || '—'}</div>
               </div>
               {customer.email && (
                 <div className="space-y-1 text-sm">
@@ -508,7 +508,7 @@ export function CustomerDetailPage() {
             <Input {...form.register('name')} />
           </div>
           <div>
-            <Label>Phone</Label>
+            <Label>Phone (optional)</Label>
             <Input {...form.register('phone')} />
           </div>
           <div>

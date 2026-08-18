@@ -23,6 +23,7 @@ export interface CreateOrderData {
   notes?: string
   applyVat?: boolean
   applyEntertainmentTax?: boolean
+  applyServiceCharge?: boolean
 }
 
 export interface CloseOrderData {
@@ -181,6 +182,15 @@ export const ordersApi = {
     return response.data.data
   },
 
+  /** Applies (value > 0) or clears (value 0) a pre-tax discount. Requires a reason for audit. */
+  applyDiscount: async (
+    id: string,
+    data: { discountType: 'PERCENTAGE' | 'FIXED'; value: number; reason: string },
+  ): Promise<Order> => {
+    const response = await apiClient.patch<ApiResponse<Order>>(`/orders/${id}/discount`, data)
+    return response.data.data
+  },
+
   /**
    * Closes an order against an immediate (non-PAYSTACK) payment method — those queue offline the
    * same way addItems does. PAYSTACK never queues (it needs a live checkout redirect); calling it
@@ -247,11 +257,24 @@ export interface ReceiptData {
   closedAt: string | null
   source: string
   table: { name: string } | null
+  waiter: { firstName: string; lastName: string } | null
   items: Array<{ name: string; quantity: number; unitPrice: number; amount: number; notes?: string | null }>
   subtotal: number
   taxAmount: number
   total: number
   amountPaid: number
+  discountType: 'PERCENTAGE' | 'FIXED'
+  discountPercent: number
+  discountAmount: number
+  vatApplied: boolean
+  vatRate: number
+  vatAmount: number
+  entertainmentTaxApplied: boolean
+  entertainmentTaxRate: number
+  entertainmentTaxAmount: number
+  serviceChargeApplied: boolean
+  serviceChargeRate: number
+  serviceChargeAmount: number
   payments: Array<{ amount: number; paymentMethod: string; paymentDate: string }>
   organization: { name: string; email?: string | null; phone?: string | null; address?: string | null; currency: string }
 }

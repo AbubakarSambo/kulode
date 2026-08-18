@@ -20,7 +20,7 @@ function roundCurrency(value: number): number {
 
 const customerSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  phone: z.string().min(1, 'Phone is required'),
+  phone: z.string().optional(),
   email: z.string().email('Invalid email').optional().or(z.literal('')),
   notes: z.string().optional(),
 })
@@ -66,8 +66,11 @@ export function OrderTakingPage() {
   const vatRate = organization?.taxRate ?? 0
   const entertainmentTaxEnabled = !!organization?.entertainmentTaxEnabled
   const entertainmentTaxRate = organization?.entertainmentTaxRate ?? 0
+  const serviceChargeEnabled = !!organization?.serviceChargeEnabled
+  const serviceChargeRate = organization?.serviceChargeRate ?? 0
   const [applyVat, setApplyVat] = useState(true)
   const [applyEntertainmentTax, setApplyEntertainmentTax] = useState(true)
+  const [applyServiceCharge, setApplyServiceCharge] = useState(true)
   const [source, setSource] = useState<OrderSource>(initialSource)
   const [activeCategory, setActiveCategory] = useState<string | 'all'>('all')
   const [search, setSearch] = useState('')
@@ -94,7 +97,7 @@ export function OrderTakingPage() {
     queryFn: () => customersApi.list({ limit: 100 }),
   })
   const customerOptions = useMemo(
-    () => (customersPage?.data ?? []).map((c) => ({ id: c.id, label: `${c.name} (${c.phone})` })),
+    () => (customersPage?.data ?? []).map((c) => ({ id: c.id, label: c.phone ? `${c.name} (${c.phone})` : c.name })),
     [customersPage],
   )
   const { data: waiters } = useQuery({ queryKey: ['waiters-directory'], queryFn: () => usersApi.directory('WAITER') })
@@ -170,7 +173,9 @@ export function OrderTakingPage() {
   const vatAmount = vatEnabled && applyVat ? roundCurrency(subtotal * (vatRate / 100)) : 0
   const entertainmentTaxAmount =
     entertainmentTaxEnabled && applyEntertainmentTax ? roundCurrency(subtotal * (entertainmentTaxRate / 100)) : 0
-  const total = subtotal + vatAmount + entertainmentTaxAmount
+  const serviceChargeAmount =
+    serviceChargeEnabled && applyServiceCharge ? roundCurrency(subtotal * (serviceChargeRate / 100)) : 0
+  const total = subtotal + vatAmount + entertainmentTaxAmount + serviceChargeAmount
 
   const addToCart = (menuItemId: string, name: string, price: number) => {
     setCart((prev) => {
@@ -204,6 +209,7 @@ export function OrderTakingPage() {
         items: cart.map((l) => ({ menuItemId: l.menuItemId, quantity: l.quantity, notes: l.notes || undefined })),
         applyVat,
         applyEntertainmentTax,
+        applyServiceCharge,
       }),
     onSuccess: (result) => {
       if ('__offlinePending' in result) {
@@ -367,7 +373,7 @@ export function OrderTakingPage() {
 
           <Card className="mt-4 p-4">
             <CardContent className="space-y-2 p-0">
-              {(vatEnabled || entertainmentTaxEnabled) && (
+              {(vatEnabled || entertainmentTaxEnabled || serviceChargeEnabled) && (
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Subtotal</span>
                   <span className="font-medium text-foreground">{formatCurrency(subtotal)}</span>
@@ -401,10 +407,24 @@ export function OrderTakingPage() {
                   <span className="font-medium text-foreground">{formatCurrency(entertainmentTaxAmount)}</span>
                 </label>
               )}
+              {serviceChargeEnabled && (
+                <label className="flex items-center justify-between gap-2 text-sm">
+                  <span className="flex items-center gap-2 text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={applyServiceCharge}
+                      onChange={(e) => setApplyServiceCharge(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    Service Charge ({serviceChargeRate}%)
+                  </span>
+                  <span className="font-medium text-foreground">{formatCurrency(serviceChargeAmount)}</span>
+                </label>
+              )}
               <div
                 className={cn(
                   'flex items-center justify-between',
-                  (vatEnabled || entertainmentTaxEnabled) && 'border-t border-border pt-2',
+                  (vatEnabled || entertainmentTaxEnabled || serviceChargeEnabled) && 'border-t border-border pt-2',
                 )}
               >
                 <span className="font-semibold text-muted-foreground">Total</span>

@@ -88,8 +88,9 @@ export function AppLayout() {
   // logic as Sidebar.tsx, kept in lockstep since this is the parallel mobile-nav rendering.
   const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/customers']
   const KITCHEN_ALLOWED_HREFS = ['/pos/kitchen']
-  // Cashiers close out orders and take payment — no need for menu/waiter management or analytics
-  const CASHIER_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift']
+  // Cashiers close out orders and take payment, and can now manage the table list — no need for
+  // menu/waiter management or analytics
+  const CASHIER_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/tables']
   // Supervisors get floor oversight but not menu/category editing, or the Waiters roster — since
   // Waiter is just a User now, managing it needs the same admin-only access as user management.
   const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/kitchen']
@@ -108,6 +109,7 @@ export function AppLayout() {
   const RESTRICTED_NAV_ITEMS_BY_HREF: Record<string, { name: string; icon: typeof ShoppingCart }> = {
     '/pos/order/new': { name: 'Sell', icon: ShoppingCart },
     '/pos/orders': { name: 'Orders', icon: Receipt },
+    '/pos/tables': { name: 'Tables', icon: LayoutGrid },
     '/pos/customers': { name: 'Customers', icon: UserRound },
     '/pos/kitchen': { name: 'Kitchen', icon: Timer },
     '/pos/shift': { name: 'Shift', icon: Clock },

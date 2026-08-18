@@ -328,6 +328,8 @@ export class AuthService {
               taxRate: Number(org.taxRate),
               entertainmentTaxEnabled: org.entertainmentTaxEnabled,
               entertainmentTaxRate: Number(org.entertainmentTaxRate),
+              serviceChargeEnabled: org.serviceChargeEnabled,
+              serviceChargeRate: Number(org.serviceChargeRate),
             },
           },
         };
@@ -405,6 +407,8 @@ export class AuthService {
           taxRate: Number(user.organization.taxRate),
           entertainmentTaxEnabled: user.organization.entertainmentTaxEnabled,
           entertainmentTaxRate: Number(user.organization.entertainmentTaxRate),
+          serviceChargeEnabled: user.organization.serviceChargeEnabled,
+          serviceChargeRate: Number(user.organization.serviceChargeRate),
         },
       },
     };
@@ -480,6 +484,8 @@ export class AuthService {
           taxRate: Number(user.organization.taxRate),
           entertainmentTaxEnabled: user.organization.entertainmentTaxEnabled,
           entertainmentTaxRate: Number(user.organization.entertainmentTaxRate),
+          serviceChargeEnabled: user.organization.serviceChargeEnabled,
+          serviceChargeRate: Number(user.organization.serviceChargeRate),
         },
       },
     };
@@ -811,6 +817,8 @@ export class AuthService {
         taxRate: Number(user.organization.taxRate),
         entertainmentTaxEnabled: user.organization.entertainmentTaxEnabled,
         entertainmentTaxRate: Number(user.organization.entertainmentTaxRate),
+        serviceChargeEnabled: user.organization.serviceChargeEnabled,
+        serviceChargeRate: Number(user.organization.serviceChargeRate),
       },
     };
   }
@@ -860,6 +868,8 @@ export class AuthService {
           taxRate: Number(user.organization.taxRate),
           entertainmentTaxEnabled: user.organization.entertainmentTaxEnabled,
           entertainmentTaxRate: Number(user.organization.entertainmentTaxRate),
+          serviceChargeEnabled: user.organization.serviceChargeEnabled,
+          serviceChargeRate: Number(user.organization.serviceChargeRate),
         },
       },
     };

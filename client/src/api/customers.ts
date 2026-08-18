@@ -9,7 +9,7 @@ export interface CustomerFilters {
 
 export interface CreateCustomerData {
   name: string
-  phone: string
+  phone?: string
   email?: string
   notes?: string
 }

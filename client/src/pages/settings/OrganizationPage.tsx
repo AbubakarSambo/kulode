@@ -25,6 +25,8 @@ const organizationSchema = z.object({
   taxRate: z.number().min(0).max(100).optional(),
   entertainmentTaxEnabled: z.boolean().optional(),
   entertainmentTaxRate: z.number().min(0).max(100).optional(),
+  serviceChargeEnabled: z.boolean().optional(),
+  serviceChargeRate: z.number().min(0).max(100).optional(),
   paymentTerms: z.string().max(2000).optional(),
   defaultNotes: z.string().max(2000).optional(),
   googleSheetId: z.string().optional(),
@@ -93,6 +95,8 @@ export function OrganizationPage() {
       taxRate: 0,
       entertainmentTaxEnabled: false,
       entertainmentTaxRate: 0,
+      serviceChargeEnabled: false,
+      serviceChargeRate: 0,
       paymentTerms: '',
       defaultNotes: '',
       googleSheetId: '',
@@ -114,6 +118,8 @@ export function OrganizationPage() {
         taxRate: Number(organization.taxRate) || 0,
         entertainmentTaxEnabled: organization.entertainmentTaxEnabled,
         entertainmentTaxRate: Number(organization.entertainmentTaxRate) || 0,
+        serviceChargeEnabled: organization.serviceChargeEnabled,
+        serviceChargeRate: Number(organization.serviceChargeRate) || 0,
         paymentTerms: organization.paymentTerms || '',
         defaultNotes: organization.defaultNotes || '',
         googleSheetId: organization.googleSheetId || '',
@@ -131,6 +137,8 @@ export function OrganizationPage() {
         taxRate: Number(data.taxRate) || 0,
         entertainmentTaxEnabled: !!data.entertainmentTaxEnabled,
         entertainmentTaxRate: Number(data.entertainmentTaxRate) || 0,
+        serviceChargeEnabled: !!data.serviceChargeEnabled,
+        serviceChargeRate: Number(data.serviceChargeRate) || 0,
         paymentTerms: data.paymentTerms || '',
         defaultNotes: data.defaultNotes || '',
         googleSheetId: data.googleSheetId || null,
@@ -394,6 +402,43 @@ export function OrganizationPage() {
                       className="max-w-[200px]"
                       {...register('entertainmentTaxRate', { valueAsNumber: true })}
                       error={errors.entertainmentTaxRate?.message}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={watch('serviceChargeEnabled') || false}
+                    onChange={(e) => {
+                      setValue('serviceChargeEnabled', e.target.checked, { shouldDirty: true })
+                      if (e.target.checked && !watch('serviceChargeRate')) {
+                        setValue('serviceChargeRate', 10, { shouldDirty: true })
+                      }
+                    }}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <span className="text-sm font-medium">Enable Service Charge</span>
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  A gratuity/service fee added to POS orders — not a tax, kept separate from VAT
+                  and entertainment tax on receipts. Waiters can toggle it on or off per order on
+                  the Sell screen once enabled here.
+                </p>
+                {watch('serviceChargeEnabled') && (
+                  <div className="space-y-2">
+                    <Label htmlFor="serviceChargeRate">Service Charge Rate (%)</Label>
+                    <Input
+                      id="serviceChargeRate"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      className="max-w-[200px]"
+                      {...register('serviceChargeRate', { valueAsNumber: true })}
+                      error={errors.serviceChargeRate?.message}
                     />
                   </div>
                 )}

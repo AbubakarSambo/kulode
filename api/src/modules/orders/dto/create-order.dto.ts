@@ -76,6 +76,11 @@ export class CreateOrderDto {
   @IsBoolean()
   applyEntertainmentTax?: boolean;
 
+  @ApiPropertyOptional({ description: 'Apply the service charge to this order. Defaults to the org setting when omitted; has no effect if the org hasn\'t enabled it.' })
+  @IsOptional()
+  @IsBoolean()
+  applyServiceCharge?: boolean;
+
   @ApiProperty({ description: 'Client-generated UUID for idempotent retries (e.g. from the offline queue)' })
   @IsNotEmpty()
   @IsUUID()

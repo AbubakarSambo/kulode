@@ -16,7 +16,7 @@ import { formatDate } from '@/lib/utils'
 
 const CSV_COLUMNS: CsvColumn[] = [
   { key: 'name', label: 'Name', required: true },
-  { key: 'phone', label: 'Phone', required: true },
+  { key: 'phone', label: 'Phone' },
   { key: 'email', label: 'Email' },
   { key: 'notes', label: 'Notes' },
 ]
@@ -28,7 +28,7 @@ const CSV_SAMPLE_ROWS = [
 
 const customerSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  phone: z.string().min(1, 'Phone is required'),
+  phone: z.string().optional(),
   email: z.string().email('Invalid email').optional().or(z.literal('')),
   notes: z.string().optional(),
 })
@@ -134,7 +134,7 @@ export function CustomersListPage() {
                         className="cursor-pointer hover:bg-muted/40"
                       >
                         <td className="px-4 py-3 font-semibold text-foreground">{customer.name}</td>
-                        <td className="px-4 py-3 text-sm text-muted-foreground">{customer.phone}</td>
+                        <td className="px-4 py-3 text-sm text-muted-foreground">{customer.phone || '—'}</td>
                         <td className="px-4 py-3 text-sm text-muted-foreground">{customer.email || '—'}</td>
                         <td className="px-4 py-3 text-center text-sm font-medium text-foreground">
                           {customer._count?.orders ?? 0}
@@ -159,7 +159,7 @@ export function CustomersListPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="font-semibold text-foreground">{customer.name}</div>
-                        <div className="text-xs text-muted-foreground">{customer.phone}</div>
+                        <div className="text-xs text-muted-foreground">{customer.phone || '—'}</div>
                       </div>
                       <span className="rounded-full bg-muted px-2 py-1 text-xs font-semibold text-foreground">
                         {customer._count?.orders ?? 0} orders
@@ -199,7 +199,7 @@ export function CustomersListPage() {
             <Input {...form.register('name')} placeholder="e.g. Tunde Bakare" />
           </div>
           <div>
-            <Label>Phone</Label>
+            <Label>Phone (optional)</Label>
             <Input {...form.register('phone')} placeholder="+234 123 456 7890" />
           </div>
           <div>
