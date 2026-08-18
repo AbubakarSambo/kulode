@@ -8,6 +8,7 @@ import {
   CreateOrderDto,
   AddOrderItemsDto,
   UpdateOrderItemStatusDto,
+  UpdateOrderItemDto,
   UpdateOrderCustomerDto,
   UpdateOrderWaiterDto,
   UpdateOrderSourceDto,
@@ -284,6 +285,67 @@ export class OrdersService {
     // Build the response from data already in hand instead of a third round trip — table,
     // customer, waiter and payments are all unaffected by an item status change.
     return { ...order, items, status: willTransitionOrder ? newOrderStatus! : order.status };
+  }
+
+  /**
+   * Edits a line's quantity (or removes it entirely at quantity 0). Restricted to PENDING items —
+   * once the kitchen's actually started on it, changing the order is a cancel/re-add conversation,
+   * not a quiet quantity edit. Same no-payment-yet guard as merge/move; removing the last item
+   * cancels the order rather than leaving it with zero, matching moveItems' behavior.
+   */
+  async updateItem(organizationId: string, orderId: string, itemId: string, dto: UpdateOrderItemDto) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, organizationId },
+      include: { items: true },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (!OPEN_STATUSES.includes(order.status)) {
+      throw new BadRequestException(`Cannot edit items on a ${order.status.toLowerCase()} order`);
+    }
+    if (toNumber(order.amountPaid) > 0) {
+      throw new BadRequestException('This order already has a payment recorded — cannot edit its items');
+    }
+
+    const item = order.items.find((i) => i.id === itemId);
+    if (!item) throw new NotFoundException('Order item not found');
+    if (item.status !== 'PENDING') {
+      throw new BadRequestException('Cannot edit an item once the kitchen has started on it');
+    }
+
+    const remainingItems = order.items.filter((i) => i.id !== itemId);
+    // 0 removes the line entirely — its amount just doesn't get added back in below.
+    const newAmount = Math.round(toNumber(item.unitPrice) * dto.quantity * 100) / 100;
+    const newSubtotal = remainingItems.reduce((sum, i) => sum + toNumber(i.amount), 0) + newAmount;
+
+    const organization = await this.prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
+    const { vatAmount, entertainmentTaxAmount, taxAmount } = this.computeOrderTax(
+      newSubtotal,
+      organization,
+      order.vatApplied,
+      order.entertainmentTaxApplied,
+    );
+
+    return this.prisma.$transaction(async (tx) => {
+      if (dto.quantity === 0) {
+        await tx.orderItem.delete({ where: { id: itemId } });
+      } else {
+        await tx.orderItem.update({ where: { id: itemId }, data: { quantity: dto.quantity, amount: newAmount } });
+      }
+
+      if (dto.quantity === 0 && remainingItems.length === 0) {
+        await tx.order.update({
+          where: { id: orderId },
+          data: { status: 'CANCELLED', notes: order.notes ? `${order.notes} — last item removed` : 'Last item removed' },
+        });
+      } else {
+        await tx.order.update({
+          where: { id: orderId },
+          data: { subtotal: newSubtotal, taxAmount, vatAmount, entertainmentTaxAmount, total: newSubtotal + taxAmount },
+        });
+      }
+
+      return tx.order.findUniqueOrThrow({ where: { id: orderId }, include: this.orderInclude });
+    });
   }
 
   async setCustomer(organizationId: string, id: string, dto: UpdateOrderCustomerDto) {

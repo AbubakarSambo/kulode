@@ -539,6 +539,19 @@ function SyncedOrderView({ id }: { id: string }) {
     onError: () => toast.error('Failed to update item status'),
   })
 
+  const updateItemQuantity = useMutation({
+    mutationFn: ({ itemId, quantity }: { itemId: string; quantity: number }) =>
+      ordersApi.updateItemQuantity(id, itemId, quantity),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['order', id] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to update quantity')
+    },
+  })
+
   const addItems = useMutation({
     mutationFn: (items: CreateOrderItemData[]) => ordersApi.addItems(id, items),
     onSuccess: (result) => {
@@ -801,9 +814,39 @@ function SyncedOrderView({ id }: { id: string }) {
                     )}
                     <div>
                       <div className="font-semibold text-foreground">
-                        {item.quantity}x {item.menuItem?.name ?? item.itemName}
+                        {isOpenStatus && item.status === 'PENDING' ? '' : `${item.quantity}x `}
+                        {item.menuItem?.name ?? item.itemName}
                       </div>
                       {item.notes && <div className="text-xs text-muted-foreground">{item.notes}</div>}
+                      {isOpenStatus && item.status === 'PENDING' && (
+                        <div className="mt-1.5 flex items-center gap-3">
+                          <button
+                            type="button"
+                            disabled={updateItemQuantity.isPending}
+                            onClick={() => {
+                              if (item.quantity <= 1) {
+                                if (window.confirm('Remove this item from the order?')) {
+                                  updateItemQuantity.mutate({ itemId: item.id, quantity: 0 })
+                                }
+                              } else {
+                                updateItemQuantity.mutate({ itemId: item.id, quantity: item.quantity - 1 })
+                              }
+                            }}
+                            className="flex h-7 w-7 items-center justify-center rounded-full bg-muted font-bold text-foreground disabled:opacity-50"
+                          >
+                            −
+                          </button>
+                          <span className="w-5 text-center text-sm font-semibold text-foreground">{item.quantity}</span>
+                          <button
+                            type="button"
+                            disabled={updateItemQuantity.isPending}
+                            onClick={() => updateItemQuantity.mutate({ itemId: item.id, quantity: item.quantity + 1 })}
+                            className="flex h-7 w-7 items-center justify-center rounded-full bg-muted font-bold text-foreground disabled:opacity-50"
+                          >
+                            +
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="font-semibold text-foreground">{formatCurrency(item.amount)}</div>
