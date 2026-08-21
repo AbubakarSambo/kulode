@@ -67,6 +67,7 @@ import {
   CustomersListPage,
   CustomerDetailPage,
   KitchenTicketsPage,
+  PosReportsPage,
 } from '@/pages'
 import { useVersionCheck } from '@/hooks/useVersionCheck'
 import { WhatsNewModal } from '@/components/changelog/WhatsNewModal'
@@ -243,6 +244,9 @@ function App() {
                   }
                 >
                   <Route path="/pos/kitchen" element={<KitchenTicketsPage />} />
+                </Route>
+                <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']} />}>
+                  <Route path="/pos/reports" element={<PosReportsPage />} />
                 </Route>
               </Route>
 

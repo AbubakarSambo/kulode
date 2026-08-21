@@ -76,6 +76,7 @@ export { OrdersListPage } from './pos/OrdersListPage'
 export { ShiftPage } from './pos/ShiftPage'
 export { CustomersListPage } from './pos/CustomersListPage'
 export { CustomerDetailPage } from './pos/CustomerDetailPage'
+export { PosReportsPage } from './pos/PosReportsPage'
 
 // Kitchen (PASS / RUNNER)
 export { KitchenTicketsPage } from './kitchen/KitchenTicketsPage'

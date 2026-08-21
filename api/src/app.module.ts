@@ -29,6 +29,7 @@ import { CustomersModule } from './modules/customers';
 import { WalletModule } from './modules/wallet';
 import { GoogleSheetsModule } from './modules/google-sheets';
 import { SheetSyncModule } from './modules/sheet-sync';
+import { PosReportsModule } from './modules/pos-reports';
 import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor, SubscriptionReadOnlyGuard } from './common';
 
 
@@ -64,6 +65,7 @@ import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor, 
     WalletModule,
     GoogleSheetsModule,
     SheetSyncModule,
+    PosReportsModule,
   ],
   providers: [
     {

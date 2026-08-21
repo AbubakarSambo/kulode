@@ -937,36 +937,10 @@ export class OrdersService {
         include: this.orderInclude,
       });
 
-      const recordedBy = await tx.user.findUnique({
-        where: { id: userId },
-        select: { firstName: true, lastName: true },
-      });
-      await this.sheetSync.enqueue(tx, organizationId, 'PAYMENTS', [
-        payment.id,
-        updated.id,
-        payment.paymentDate.toISOString(),
-        toNumber(payment.amount),
-        payment.paymentMethod,
-        recordedBy ? `${recordedBy.firstName} ${recordedBy.lastName}` : '',
-        payment.reference ?? '',
-      ]);
-
       // Everything below only happens once, on whichever payment actually finishes the order —
       // inventory must not be deducted twice, and a table shouldn't flip to "needs cleaning"
       // after split payment #1 of #3.
       if (isFinalPayment) {
-        await this.sheetSync.enqueue(tx, organizationId, 'ORDERS', [
-          updated.id,
-          (updated.closedAt as Date).toISOString(),
-          updated.source,
-          updated.table?.name ?? '',
-          updated.customer?.name ?? '',
-          toNumber(updated.subtotal),
-          toNumber(updated.taxAmount),
-          toNumber(updated.total),
-          dto.paymentMethod,
-        ]);
-
         const placedAt = updated.createdAt;
         const servedAt = updated.closedAt as Date;
         for (const item of updated.items) {

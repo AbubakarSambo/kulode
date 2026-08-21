@@ -7,7 +7,6 @@ const MAX_ATTEMPTS = 10;
 const FLUSH_BATCH_SIZE = 500;
 
 const TAB_HEADERS: Record<SheetSyncTab, string[]> = {
-  ORDERS: ['Order ID', 'Closed At', 'Source', 'Table', 'Customer', 'Subtotal', 'Tax', 'Total', 'Payment Method'],
   ORDER_ITEMS: [
     'Date 1',
     'Date 2',
@@ -28,7 +27,6 @@ const TAB_HEADERS: Record<SheetSyncTab, string[]> = {
     'Delivery',
     'Payment Method',
   ],
-  PAYMENTS: ['Payment ID', 'Order ID', 'Date', 'Amount', 'Method', 'Recorded By', 'Reference'],
   WALLET_TRANSACTIONS: [
     'Transaction ID',
     'Date',

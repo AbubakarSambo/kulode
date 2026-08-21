@@ -65,6 +65,7 @@ const navigationGroups = [
       { name: 'Customers', href: '/pos/customers', icon: Users, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Waiters', href: '/pos/waiters', icon: UserRound, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Kitchen', href: '/pos/kitchen', icon: Timer, requiresPlan: undefined as PlanTier | undefined },
+      { name: 'Reports', href: '/pos/reports', icon: ReportsIcon, requiresPlan: undefined as PlanTier | undefined },
     ]
   },
   {
@@ -177,6 +178,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         if (restrictedHrefsUnion) return restrictedHrefsUnion.includes(item.href)
         if (INVOICING_ONLY_HREFS.includes(item.href) && !hasInvoicing) return false
         if ((item.href === '/reports' || item.href === '/ai-chat') && !canViewReports) return false
+        if (item.href === '/pos/reports' && !userRoles.includes('SUPER_ADMIN')) return false
         if (
           (item.href === '/payments' ||
             item.href === '/expenses' ||
