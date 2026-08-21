@@ -29,6 +29,37 @@ function toNumber(val: Prisma.Decimal | number): number {
   return typeof val === 'number' ? val : Number(val);
 }
 
+const SALES_AREA_2_LABELS: Record<string, string> = {
+  DINE_IN: 'Dine In',
+  TAKEAWAY: 'Takeaway',
+  DELIVERY: 'Delivery',
+  THIRD_PARTY: 'Third Party',
+};
+
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+// "30/08/2026" — matches the org's spreadsheet export format.
+function formatSheetDate(date: Date): string {
+  return `${pad2(date.getDate())}/${pad2(date.getMonth() + 1)}/${date.getFullYear()}`;
+}
+
+// "Aug 2026"
+function formatSheetMonth(date: Date): string {
+  return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+
+function formatSheetTime(date: Date): string {
+  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
+// v1: string-match the item's first menu category against "bar" — everything else is Kitchen.
+// Revisit with an explicit MenuCategory.prepStation field if categories start overlapping.
+function resolveSalesArea1(categoryName: string | undefined): string {
+  return categoryName?.toLowerCase().includes('bar') ? 'Bar' : 'Kitchen';
+}
+
 @Injectable()
 export class OrdersService {
   constructor(
@@ -48,7 +79,16 @@ export class OrdersService {
       // so they share an identical `createdAt` — sorting on that alone left Postgres free to
       // return them in either order on different query executions (the "swap" on every refetch).
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] as Prisma.OrderItemOrderByWithRelationInput[],
-      include: { menuItem: { select: { id: true, name: true, durationMinutes: true } } },
+      include: {
+        menuItem: {
+          select: {
+            id: true,
+            name: true,
+            durationMinutes: true,
+            categories: { include: { category: { select: { name: true } } } },
+          },
+        },
+      },
     },
     payments: true,
   } as const;
@@ -926,6 +966,32 @@ export class OrdersService {
           toNumber(updated.total),
           dto.paymentMethod,
         ]);
+
+        const placedAt = updated.createdAt;
+        const servedAt = updated.closedAt as Date;
+        for (const item of updated.items) {
+          const categoryName = item.menuItem?.categories[0]?.category.name;
+          await this.sheetSync.enqueue(tx, organizationId, 'ORDER_ITEMS', [
+            formatSheetDate(servedAt),
+            formatSheetMonth(servedAt),
+            formatSheetTime(placedAt),
+            formatSheetTime(servedAt),
+            updated.id,
+            updated.customer?.name ?? '',
+            item.itemName,
+            toNumber(item.quantity),
+            categoryName ?? '',
+            resolveSalesArea1(categoryName),
+            SALES_AREA_2_LABELS[updated.source] ?? updated.source,
+            toNumber(updated.total),
+            toNumber(item.amount),
+            toNumber(updated.vatAmount),
+            toNumber(updated.entertainmentTaxAmount),
+            toNumber(updated.serviceChargeAmount),
+            '',
+            dto.paymentMethod,
+          ]);
+        }
 
         await this.inventoryService.deductForOrder(tx, id, organizationId);
 

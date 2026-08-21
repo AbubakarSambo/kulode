@@ -8,6 +8,26 @@ const FLUSH_BATCH_SIZE = 500;
 
 const TAB_HEADERS: Record<SheetSyncTab, string[]> = {
   ORDERS: ['Order ID', 'Closed At', 'Source', 'Table', 'Customer', 'Subtotal', 'Tax', 'Total', 'Payment Method'],
+  ORDER_ITEMS: [
+    'Date 1',
+    'Date 2',
+    'Time Placed',
+    'Time Served',
+    'UID 1',
+    'Customer Name',
+    'Product Name',
+    'Product Quantity',
+    'Menu Category',
+    'Sales Area 1',
+    'Sales Area 2',
+    'Sale Amount',
+    'Item Amount',
+    'VAT',
+    'ET',
+    'SC 1',
+    'Delivery',
+    'Payment Method',
+  ],
   PAYMENTS: ['Payment ID', 'Order ID', 'Date', 'Amount', 'Method', 'Recorded By', 'Reference'],
   WALLET_TRANSACTIONS: [
     'Transaction ID',

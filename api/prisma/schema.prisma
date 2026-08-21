@@ -408,6 +408,7 @@ model WalletTransaction {
 
 enum SheetSyncTab {
   ORDERS
+  ORDER_ITEMS
   PAYMENTS
   WALLET_TRANSACTIONS
 }
