@@ -1,0 +1,13 @@
+{
+  "name": "kulode-print-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local agent that relays print jobs from Kulode to on-premise kitchen/bar printers.",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

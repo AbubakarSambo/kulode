@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { WalletService } from '../wallet/wallet.service';
 import { SheetSyncService } from '../sheet-sync';
+import { PrintingService } from '../printers';
 
 // ─── Mock helpers ────────────────────────────────────────────────────────────
 
@@ -60,12 +61,14 @@ describe('OrdersService — status transitions across the waiter/cashier split',
   let inventoryService: { deductForOrder: jest.Mock };
   let walletService: { debit: jest.Mock };
   let sheetSync: { enqueue: jest.Mock };
+  let printingService: { dispatchDocketsForNewItems: jest.Mock };
 
   beforeEach(async () => {
     prisma = createMockPrisma();
     inventoryService = { deductForOrder: jest.fn() };
     walletService = { debit: jest.fn() };
     sheetSync = { enqueue: jest.fn() };
+    printingService = { dispatchDocketsForNewItems: jest.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -74,6 +77,7 @@ describe('OrdersService — status transitions across the waiter/cashier split',
         { provide: InventoryService, useValue: inventoryService },
         { provide: WalletService, useValue: walletService },
         { provide: SheetSyncService, useValue: sheetSync },
+        { provide: PrintingService, useValue: printingService },
       ],
     }).compile();
 
