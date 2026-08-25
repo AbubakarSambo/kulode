@@ -68,6 +68,7 @@ import {
   CustomerDetailPage,
   KitchenTicketsPage,
   PosReportsPage,
+  PrintersPage,
 } from '@/pages'
 import { useVersionCheck } from '@/hooks/useVersionCheck'
 import { WhatsNewModal } from '@/components/changelog/WhatsNewModal'
@@ -265,6 +266,9 @@ function App() {
               <Route path="/settings/paystack" element={<PaystackPage />} />
               <Route path="/settings/categories" element={<CategoriesPage />} />
               <Route path="/settings/services" element={<ServiceItemsPage />} />
+              <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']} />}>
+                <Route path="/settings/printers" element={<PrintersPage />} />
+              </Route>
               <Route path="/settings/changelog" element={<ChangelogPage />} />
             </Route>
           </Route>

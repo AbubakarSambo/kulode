@@ -153,6 +153,19 @@ enum ShiftStatus {
   CLOSED
 }
 
+enum PrinterConnectionType {
+  NETWORK
+  USB
+  BLUETOOTH
+}
+
+enum PrintJobStatus {
+  PENDING
+  DISPATCHED
+  SENT
+  FAILED
+}
+
 // Organizations (tenants)
 model Organization {
   id       String  @id @default(uuid())
@@ -174,30 +187,37 @@ model Organization {
   isPaystackVerified     Boolean @default(false) @map("is_paystack_verified")
 
   // Platform settings
-  platformFeePercent    Decimal   @default(0.00) @map("platform_fee_percent") @db.Decimal(5, 2)
-  invoicePrefix         String    @default("INV") @map("invoice_prefix")
-  currency              String    @default("NGN")
-  taxRate               Decimal   @default(0) @map("tax_rate") @db.Decimal(5, 2)
-  vatEnabled            Boolean   @default(false) @map("vat_enabled")
+  platformFeePercent      Decimal   @default(0.00) @map("platform_fee_percent") @db.Decimal(5, 2)
+  invoicePrefix           String    @default("INV") @map("invoice_prefix")
+  currency                String    @default("NGN")
+  taxRate                 Decimal   @default(0) @map("tax_rate") @db.Decimal(5, 2)
+  vatEnabled              Boolean   @default(false) @map("vat_enabled")
   // A second, independent tax type (e.g. Nigerian state consumption/entertainment tax on
   // restaurant/bar bills) — stackable with VAT, toggled per order on the Sell screen.
-  entertainmentTaxRate    Decimal @default(0) @map("entertainment_tax_rate") @db.Decimal(5, 2)
-  entertainmentTaxEnabled Boolean @default(false) @map("entertainment_tax_enabled")
+  entertainmentTaxRate    Decimal   @default(0) @map("entertainment_tax_rate") @db.Decimal(5, 2)
+  entertainmentTaxEnabled Boolean   @default(false) @map("entertainment_tax_enabled")
   // A gratuity/service fee, not a tax — kept out of taxAmount on the order, added to total
   // separately. Same stackable, per-order-toggleable pattern as entertainment tax.
-  serviceChargeRate    Decimal @default(0) @map("service_charge_rate") @db.Decimal(5, 2)
-  serviceChargeEnabled Boolean @default(false) @map("service_charge_enabled")
-  showQrCode            Boolean   @default(false) @map("show_qr_code")
-  paymentTerms          String?   @map("payment_terms")
-  defaultNotes          String?   @map("default_notes")
-  businessType          String?   @map("business_type")
-  organizationSize      String?   @map("organization_size")
-  enabledModules        OrgModule @default(INVOICING) @map("enabled_modules")
-  onboardingDismissedAt DateTime? @map("onboarding_dismissed_at")
-  clientReminderSentAt  DateTime? @map("client_reminder_sent_at")
+  serviceChargeRate       Decimal   @default(0) @map("service_charge_rate") @db.Decimal(5, 2)
+  serviceChargeEnabled    Boolean   @default(false) @map("service_charge_enabled")
+  showQrCode              Boolean   @default(false) @map("show_qr_code")
+  paymentTerms            String?   @map("payment_terms")
+  defaultNotes            String?   @map("default_notes")
+  businessType            String?   @map("business_type")
+  organizationSize        String?   @map("organization_size")
+  enabledModules          OrgModule @default(INVOICING) @map("enabled_modules")
+  onboardingDismissedAt   DateTime? @map("onboarding_dismissed_at")
+  clientReminderSentAt    DateTime? @map("client_reminder_sent_at")
 
   // Google Sheets sync — spreadsheet the org has shared with our service account
   googleSheetId String? @map("google_sheet_id")
+
+  // Bearer token an on-premise print agent uses to poll for/report on print jobs (see
+  // PrintAgentGuard). The backend can't reach printers' private LAN IPs directly, so a small
+  // local process — running on a machine on the same network as the printers — polls for jobs
+  // and does the actual local socket write. Null until an admin generates one from settings;
+  // regenerating invalidates whatever agent instance is running with the old value.
+  printAgentToken String? @unique @map("print_agent_token")
 
   // Subscription
   planTier                  PlanTier           @default(FREE) @map("plan_tier")
@@ -245,40 +265,41 @@ model Organization {
   idempotencyKeys    IdempotencyKey[]
   walletTransactions WalletTransaction[]
   sheetSyncQueue     SheetSyncQueueEntry[]
+  printers           Printer[]
 
   @@map("organizations")
 }
 
 // Users
 model User {
-  id              String   @id @default(uuid())
-  organizationId  String   @map("organization_id")
-  email           String   @unique
-  passwordHash    String?  @map("password_hash")
-  firstName       String   @map("first_name")
-  lastName        String   @map("last_name")
+  id                  String     @id @default(uuid())
+  organizationId      String     @map("organization_id")
+  email               String     @unique
+  passwordHash        String?    @map("password_hash")
+  firstName           String     @map("first_name")
+  lastName            String     @map("last_name")
   // A user can hold more than one role at once (e.g. Cashier + Waiter) — access is the union of
   // whatever each individual role would unlock. Always non-empty; enforced at the service layer
   // since Prisma/Postgres can't express "array must have length >= 1" as a column constraint.
-  roles           UserRole[] @default([STAFF])
-  businessRole    String?  @map("business_role")
+  roles               UserRole[] @default([STAFF])
+  businessRole        String?    @map("business_role")
   // Floor-staff contact info — mirrors what the old standalone Waiter directory held before it
   // was merged into User (a WAITER-role account now doubles as the order-attribution record).
-  phone           String?
-  notes           String?
-  isActive        Boolean  @default(true) @map("is_active")
-  isEmailVerified Boolean  @default(false) @map("is_email_verified")
-  isPlatformAdmin Boolean  @default(false) @map("is_platform_admin")
-  googleId        String?  @unique @map("google_id")
+  phone               String?
+  notes               String?
+  isActive            Boolean    @default(true) @map("is_active")
+  isEmailVerified     Boolean    @default(false) @map("is_email_verified")
+  isPlatformAdmin     Boolean    @default(false) @map("is_platform_admin")
+  googleId            String?    @unique @map("google_id")
   // Quick-login PIN for shared POS terminals (waiter/pass/runner/cashier) — set by an admin, not
   // the user's own password. Hashed with bcrypt; lookup is a compare-loop over the org's active
   // PIN-eligible staff since bcrypt hashes aren't directly queryable (fine at realistic org sizes).
-  pinHash         String?  @map("pin_hash")
-  pinSetAt        DateTime? @map("pin_set_at")
+  pinHash             String?    @map("pin_hash")
+  pinSetAt            DateTime?  @map("pin_set_at")
   // True when `email` is an auto-generated internal placeholder (PIN-eligible roles created
   // without a real email) rather than one the person actually reads — no invite/verification
   // email is ever sent to it, and the UI shouldn't show it as a real address.
-  hasPlaceholderEmail Boolean @default(false) @map("has_placeholder_email")
+  hasPlaceholderEmail Boolean    @default(false) @map("has_placeholder_email")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -914,8 +935,9 @@ model MenuCategory {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   menuItems    MenuItemCategory[]
+  printers     MenuCategoryPrinter[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -962,6 +984,77 @@ model MenuItemCategory {
   @@map("menu_item_categories")
 }
 
+// A physical thermal printer (Kitchen, Bar, etc.) that dockets get routed to.
+// `station` is a freeform label set by the org rather than a fixed enum, since
+// orgs may run more than the usual Kitchen/Bar split (e.g. a dessert or expo station).
+model Printer {
+  id             String                @id @default(uuid())
+  organizationId String                @map("organization_id")
+  name           String
+  station        String
+  connectionType PrinterConnectionType @default(NETWORK) @map("connection_type")
+  ipAddress      String?               @map("ip_address")
+  port           Int?                  @default(9100)
+  // For USB/BLUETOOTH printers, which have no network address — the Windows share name the
+  // print agent sends raw bytes to (e.g. an XP-80C shared as "XP80C", reached by the agent as
+  // \\localhost\XP80C since it runs on the same machine the printer is plugged into).
+  devicePath     String?               @map("device_path")
+  isActive       Boolean               @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  categories   MenuCategoryPrinter[]
+  printJobs    PrintJob[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("printers")
+}
+
+// Which printer(s) a menu category's items should be docketed to. A category with no
+// rows here routes to every active printer for the org (broadcast-to-all default).
+model MenuCategoryPrinter {
+  categoryId String @map("category_id")
+  printerId  String @map("printer_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  category MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  printer  Printer      @relation(fields: [printerId], references: [id], onDelete: Cascade)
+
+  @@id([categoryId, printerId])
+  @@index([printerId])
+  @@map("menu_category_printers")
+}
+
+// One row per (order, printer) docket dispatch, so a printer being offline never blocks
+// the others and staff can see/reprint failures from the order screen.
+model PrintJob {
+  id        String         @id @default(uuid())
+  orderId   String         @map("order_id")
+  printerId String         @map("printer_id")
+  status    PrintJobStatus @default(PENDING)
+  payload   Json
+  error     String?
+  attempts  Int            @default(0)
+  printedAt DateTime?      @map("printed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  printer Printer @relation(fields: [printerId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([printerId])
+  @@index([status])
+  @@map("print_jobs")
+}
+
 model Order {
   id             String      @id @default(uuid())
   organizationId String      @map("organization_id")
@@ -995,12 +1088,12 @@ model Order {
   // the Invoice discount pattern (pre-tax: subtotal - discountAmount, then tax/service charge
   // computed on the remainder). Restricted to oversight roles; reason + who is required for audit,
   // since an unrestricted till-side discount is a fraud vector.
-  discountType        String    @default("PERCENTAGE") @map("discount_type")
-  discountPercent     Decimal   @default(0) @map("discount_percent") @db.Decimal(5, 2)
-  discountAmount      Decimal   @default(0) @map("discount_amount") @db.Decimal(12, 2)
-  discountReason      String?   @map("discount_reason")
-  discountAppliedById String?   @map("discount_applied_by")
-  discountAppliedBy   User?     @relation("OrderDiscountAppliedBy", fields: [discountAppliedById], references: [id], onDelete: SetNull)
+  discountType        String  @default("PERCENTAGE") @map("discount_type")
+  discountPercent     Decimal @default(0) @map("discount_percent") @db.Decimal(5, 2)
+  discountAmount      Decimal @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  discountReason      String? @map("discount_reason")
+  discountAppliedById String? @map("discount_applied_by")
+  discountAppliedBy   User?   @relation("OrderDiscountAppliedBy", fields: [discountAppliedById], references: [id], onDelete: SetNull)
 
   closedAt  DateTime? @map("closed_at")
   createdAt DateTime  @default(now()) @map("created_at")
@@ -1016,6 +1109,7 @@ model Order {
   payments           Payment[]
   stockMovements     StockMovement[]
   walletTransactions WalletTransaction[]
+  printJobs          PrintJob[]
 
   @@index([organizationId])
   @@index([tableId])

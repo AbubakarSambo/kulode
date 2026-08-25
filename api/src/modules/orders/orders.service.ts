@@ -1,9 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma, OrderStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { WalletService } from '../wallet/wallet.service';
 import { SheetSyncService } from '../sheet-sync';
+import { PrintingService } from '../printers';
 import {
   CreateOrderDto,
   AddOrderItemsDto,
@@ -62,12 +63,60 @@ function resolveSalesArea1(categoryName: string | undefined): string {
 
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
+
   constructor(
     private prisma: PrismaService,
     private inventoryService: InventoryService,
     private walletService: WalletService,
     private sheetSync: SheetSyncService,
+    private printingService: PrintingService,
   ) {}
+
+  // Fires kitchen/bar dockets for newly created order items. Run after the DB transaction
+  // commits (never inside it — this does real network I/O) and never awaited by the caller —
+  // a printer being offline must not slow down or fail the waiter's "place order" request.
+  private dispatchPrintDockets(
+    organizationId: string,
+    order: {
+      id: string;
+      source: string;
+      table?: { name: string } | null;
+      waiter?: { firstName: string; lastName: string } | null;
+    },
+    items: Array<{
+      id: string;
+      menuItemId: string | null;
+      itemName: string;
+      quantity: Prisma.Decimal | number;
+      notes: string | null;
+    }>,
+  ): void {
+    if (items.length === 0) return;
+
+    this.printingService
+      .dispatchDocketsForNewItems(
+        organizationId,
+        {
+          id: order.id,
+          tableName: order.table?.name ?? null,
+          waiterName: order.waiter ? `${order.waiter.firstName} ${order.waiter.lastName}` : null,
+          source: order.source,
+        },
+        items.map((i) => ({
+          id: i.id,
+          menuItemId: i.menuItemId,
+          itemName: i.itemName,
+          quantity: toNumber(i.quantity),
+          notes: i.notes,
+        })),
+      )
+      .catch((err) => {
+        this.logger.warn(
+          `Print dispatch failed for order ${order.id}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
+  }
 
   private readonly orderInclude = {
     table: { select: { id: true, name: true, section: true } },
@@ -207,7 +256,9 @@ export class OrdersService {
     );
     const total = subtotal + taxAmount + serviceChargeAmount;
 
-    return runIdempotent(this.prisma, organizationId, 'ORDER_CREATE', dto.clientRequestId, async (tx) => {
+    let isFreshExecution = false;
+    const created = await runIdempotent(this.prisma, organizationId, 'ORDER_CREATE', dto.clientRequestId, async (tx) => {
+      isFreshExecution = true;
       const created = await tx.order.create({
         data: {
           organizationId,
@@ -240,6 +291,14 @@ export class OrdersService {
 
       return created;
     });
+
+    // Skipped on an idempotent replay (isFreshExecution stays false) — a retried
+    // "place order" request must not print the same docket twice.
+    if (isFreshExecution) {
+      this.dispatchPrintDockets(organizationId, created, created.items);
+    }
+
+    return created;
   }
 
   async addItems(organizationId: string, id: string, dto: AddOrderItemsDto) {
@@ -270,10 +329,17 @@ export class OrdersService {
     );
     const newTotal = newSubtotal + newTaxAmount + serviceChargeAmount;
 
-    return runIdempotent(this.prisma, organizationId, 'ORDER_ADD_ITEMS', dto.clientRequestId, async (tx) => {
-      await tx.orderItem.createMany({
-        data: pricedItems.map((i) => ({ ...i, orderId: id })),
-      });
+    let isFreshExecution = false;
+    let newItemIds: string[] = [];
+    const updated = await runIdempotent(this.prisma, organizationId, 'ORDER_ADD_ITEMS', dto.clientRequestId, async (tx) => {
+      isFreshExecution = true;
+      // Created individually (not createMany) so we get each new item's id back — needed to
+      // pick out just the newly added items below for print dispatch, without reprinting the
+      // rest of the order's existing items.
+      const createdItems = await Promise.all(
+        pricedItems.map((i) => tx.orderItem.create({ data: { ...i, orderId: id } })),
+      );
+      newItemIds = createdItems.map((i) => i.id);
 
       return tx.order.update({
         where: { id },
@@ -281,6 +347,13 @@ export class OrdersService {
         include: this.orderInclude,
       });
     });
+
+    if (isFreshExecution) {
+      const newItems = updated.items.filter((i) => newItemIds.includes(i.id));
+      this.dispatchPrintDockets(organizationId, updated, newItems);
+    }
+
+    return updated;
   }
 
   // "Charges" rather than "tax" since service charge is a fee, not a tax — kept out of taxAmount,
