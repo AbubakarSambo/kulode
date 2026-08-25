@@ -93,7 +93,12 @@ export class PrintingService {
           items: items.map((i) => ({ itemName: i.itemName, quantity: i.quantity, notes: i.notes ?? null })),
           station: printer.station,
           printedAt: new Date().toISOString(),
-          escposText: this.formatDocketEscPos(printer.station, order, items),
+          // base64-encoded: the raw ESC/POS bytes include a literal null byte (the
+          // "cut paper" command), which Postgres text/JSON columns reject outright.
+          // Only decoded back to raw bytes by the agent, right before writing to the printer.
+          escposText: Buffer.from(this.formatDocketEscPos(printer.station, order, items), 'binary').toString(
+            'base64',
+          ),
         };
 
         await this.prisma.printJob.create({
