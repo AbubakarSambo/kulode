@@ -62,7 +62,7 @@ function log(...args) {
   console.log(`[${new Date().toISOString()}]`, ...args);
 }
 
-function writeToPrinter(ipAddress, port, text) {
+function writeToPrinter(ipAddress, port, buffer) {
   return new Promise((resolve, reject) => {
     const socket = new net.Socket();
     let settled = false;
@@ -80,7 +80,7 @@ function writeToPrinter(ipAddress, port, text) {
 
     socket.once('error', (err) => finish(err));
     socket.connect(port, ipAddress, () => {
-      socket.write(Buffer.from(text, 'binary'), (err) => {
+      socket.write(buffer, (err) => {
         if (err) return finish(err);
         finish();
       });
@@ -97,7 +97,7 @@ function assertSafeShareName(name) {
   return name;
 }
 
-function writeToUsbPrinter(devicePath, text) {
+function writeToUsbPrinter(devicePath, buffer) {
   return new Promise((resolve, reject) => {
     if (process.platform !== 'win32') {
       return reject(new Error('USB/Bluetooth printing is only supported when the agent runs on Windows'));
@@ -111,7 +111,7 @@ function writeToUsbPrinter(devicePath, text) {
     }
 
     const tempFile = path.join(os.tmpdir(), `kulode-print-${Date.now()}-${Math.round(Math.random() * 1e9)}.bin`);
-    fs.writeFile(tempFile, Buffer.from(text, 'binary'), (writeErr) => {
+    fs.writeFile(tempFile, buffer, (writeErr) => {
       if (writeErr) return reject(writeErr);
 
       execFile('cmd.exe', ['/c', 'copy', '/b', tempFile, `\\\\localhost\\${shareName}`], (execErr, _stdout, stderr) => {
@@ -160,19 +160,23 @@ async function pollOnce() {
   for (const job of jobs) {
     const { printer } = job;
     const isUsbLike = printer.connectionType === 'USB' || printer.connectionType === 'BLUETOOTH';
+    // The backend base64-encodes the docket bytes before storing/transmitting them (raw ESC/POS
+    // control codes include a literal null byte, which breaks JSON/Postgres text storage) —
+    // decode back to the real bytes here, right before writing to the printer.
+    const buffer = Buffer.from(job.escposText, 'base64');
 
     try {
       if (isUsbLike) {
         if (!printer.devicePath) {
           throw new Error('Printer has no Windows share name configured');
         }
-        await writeToUsbPrinter(printer.devicePath, job.escposText);
+        await writeToUsbPrinter(printer.devicePath, buffer);
         log(`Printed job ${job.id} on "${printer.name}" via \\\\localhost\\${printer.devicePath}`);
       } else {
         if (!printer.ipAddress) {
           throw new Error('Printer has no IP address configured');
         }
-        await writeToPrinter(printer.ipAddress, printer.port || 9100, job.escposText);
+        await writeToPrinter(printer.ipAddress, printer.port || 9100, buffer);
         log(`Printed job ${job.id} on "${printer.name}" (${printer.ipAddress}:${printer.port || 9100})`);
       }
       await reportResult(job.id, 'SENT');
