@@ -35,7 +35,7 @@ export class OrganizationsController {
   }
 
   @Patch('current')
-  @Roles(Role.SUPER_ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: 'Update organization settings' })
   @ApiResponse({ status: 200, description: 'Organization updated' })
   async update(

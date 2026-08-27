@@ -7,7 +7,7 @@ import { CurrentUser, Roles, Role } from '../../common';
 @ApiTags('POS Reports')
 @ApiBearerAuth()
 @Controller('pos-reports')
-@Roles(Role.SUPER_ADMIN)
+@Roles(Role.SUPER_ADMIN, Role.ADMIN)
 export class PosReportsController {
   constructor(private readonly posReportsService: PosReportsService) {}
 
