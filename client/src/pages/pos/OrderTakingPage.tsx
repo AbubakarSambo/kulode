@@ -316,9 +316,9 @@ export function OrderTakingPage() {
           </div>
         </div>
 
-        <div className="flex max-h-[45vh] w-full flex-col border-t border-border bg-card p-4 sm:p-6 lg:max-h-none lg:w-96 lg:border-l lg:border-t-0">
+        <div className="flex max-h-[45vh] w-full flex-col overflow-y-auto border-t border-border bg-card p-4 sm:p-6 lg:max-h-none lg:w-96 lg:overflow-y-visible lg:border-l lg:border-t-0">
           <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Order Summary</h2>
-          <div className="flex-1 space-y-3 overflow-y-auto">
+          <div className="space-y-3 lg:flex-1 lg:overflow-y-auto">
             {cart.length === 0 && <p className="text-sm text-muted-foreground">No items added yet</p>}
             {cart.map((line) => (
               <div key={line.menuItemId} className="space-y-1.5">
