@@ -860,6 +860,7 @@ export interface PlatformOrganization {
   createdAt: string
   userCount: number
   invoiceCount: number
+  orderCount: number
   trialStartDate: string | null
   trialEndDate: string | null
   subscriptionStartDate: string | null

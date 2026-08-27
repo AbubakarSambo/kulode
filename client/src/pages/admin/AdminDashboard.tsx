@@ -1233,7 +1233,8 @@ export function AdminDashboardPage() {
                             <td className="px-6 py-4">
                               <div className="text-xs text-[#434655]">
                                 <span className="font-medium text-[#121c28]">{org.userCount}</span> users &middot;{' '}
-                                <span className="font-medium text-[#121c28]">{org.invoiceCount}</span> invoices
+                                <span className="font-medium text-[#121c28]">{org.invoiceCount}</span> invoices &middot;{' '}
+                                <span className="font-medium text-[#121c28]">{org.orderCount}</span> orders
                               </div>
                               {org.isGrandfathered && (
                                 <Badge variant="outline" className="text-[8px] px-1 py-0 mt-1 border-amber-300 text-amber-600 bg-amber-50/20">

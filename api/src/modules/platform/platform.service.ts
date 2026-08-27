@@ -994,6 +994,7 @@ export class PlatformService {
             select: {
               users: true,
               invoices: true,
+              orders: true,
             },
           },
           // Latest invoice date as "last active" proxy
@@ -1022,6 +1023,7 @@ export class PlatformService {
         invoices: undefined, // strip the raw relation from response
         userCount: org._count.users,
         invoiceCount: org._count.invoices,
+        orderCount: org._count.orders,
         platformFeePercent: Number(org.platformFeePercent),
         daysInTrial,
         trialDaysRemaining,
