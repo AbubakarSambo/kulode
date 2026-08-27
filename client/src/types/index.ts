@@ -759,6 +759,70 @@ export interface PlatformDashboard {
   }>
 }
 
+export interface PlatformPosDashboard {
+  organizations: {
+    total: number
+    newThisWeek: number
+    newThisMonth: number
+    active: number
+    inactive: number
+    lastMonth: number
+    changePct: number
+  }
+  revenue: {
+    gmv: number
+    gmvCurrentMonth: number
+    gmvPreviousMonth: number
+    gmvChangePct: number
+    collectedGmv: number
+    collectedGmvCurrentMonth: number
+    collectedGmvPreviousMonth: number
+    collectedGmvChangePct: number
+  }
+  orders: {
+    byStatus: Record<string, { count: number; total: number }>
+    bySource: Record<string, number>
+  }
+  health: {
+    monthlyActiveTenants: number
+    monthlyActiveTenantsRate: number
+    printerAdoption: number
+    printerAdoptionRate: number
+    tableAdoption: number
+    tableAdoptionRate: number
+    avgFulfillmentMinutes: number
+  }
+  recentSignups: Array<{
+    id: string
+    name: string
+    slug: string
+    userCount: number
+    orderCount: number
+    createdAt: string
+    planTier: PlanTier
+    subscriptionStatus: SubscriptionStatus
+    isGrandfathered: boolean
+  }>
+  topOrganizations: Array<{
+    id: string
+    name: string
+    slug: string
+    userCount: number
+    orderCount: number
+    volume: number
+    createdAt: string
+    planTier: PlanTier
+    subscriptionStatus: SubscriptionStatus
+    isGrandfathered: boolean
+  }>
+  trends: Array<{
+    month: string
+    collectedGmv: number
+    orderCount: number
+    activeTenants: number
+  }>
+}
+
 export interface PlatformOrganization {
   id: string
   name: string

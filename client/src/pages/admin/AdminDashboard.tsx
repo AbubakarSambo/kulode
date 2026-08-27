@@ -199,7 +199,7 @@ export function AdminDashboardPage() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'organizations' | 'revenue' | 'vendorPayouts'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'pos' | 'organizations' | 'revenue' | 'vendorPayouts'>('overview')
   const [periodFilter, setPeriodFilter] = useState<'current_month' | 'last_30_days' | 'last_90_days' | 'ytd'>('current_month')
 
   const getComparisonLabel = (filter: typeof periodFilter) => {
@@ -275,7 +275,14 @@ export function AdminDashboardPage() {
   const { data: dashboardData, isLoading: isLoadingDashboard } = useQuery({
     queryKey: ['platform', 'dashboard', { startDate, endDate }],
     queryFn: () => platformApi.getDashboard(startDate, endDate),
-    enabled: !!user?.isPlatformAdmin && activeTab !== 'organizations',
+    enabled: !!user?.isPlatformAdmin && activeTab !== 'organizations' && activeTab !== 'pos',
+  })
+
+  // POS Dashboard Query
+  const { data: posDashboardData, isLoading: isLoadingPosDashboard } = useQuery({
+    queryKey: ['platform', 'pos-dashboard', { startDate, endDate }],
+    queryFn: () => platformApi.getPosDashboard(startDate, endDate),
+    enabled: !!user?.isPlatformAdmin && activeTab === 'pos',
   })
 
   // Organizations List Query
@@ -338,7 +345,7 @@ export function AdminDashboardPage() {
 
   if (!user?.isPlatformAdmin) return null
 
-  const handleTabChange = (tab: 'overview' | 'organizations' | 'revenue' | 'vendorPayouts') => {
+  const handleTabChange = (tab: 'overview' | 'pos' | 'organizations' | 'revenue' | 'vendorPayouts') => {
     setActiveTab(tab)
   }
 
@@ -371,7 +378,7 @@ export function AdminDashboardPage() {
       {/* Tabs Navigation */}
       <div className="px-6 border-b border-slate-200/50 bg-white">
         <div className="flex gap-6">
-          {(['overview', 'organizations', 'revenue', 'vendorPayouts'] as const).map((tab) => (
+          {(['overview', 'pos', 'organizations', 'revenue', 'vendorPayouts'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => handleTabChange(tab)}
@@ -382,6 +389,7 @@ export function AdminDashboardPage() {
               }`}
             >
               {tab === 'overview' && 'Overview'}
+              {tab === 'pos' && 'POS'}
               {tab === 'organizations' && 'Organizations'}
               {tab === 'revenue' && 'Revenue & Billing'}
               {tab === 'vendorPayouts' && 'Vendor Payouts'}
@@ -786,6 +794,297 @@ export function AdminDashboardPage() {
                         </div>
                       )}
                     </CardContent>
+                  </Card>
+                </div>
+              </div>
+            ) : null}
+          </>
+        )}
+
+        {/* POS TAB */}
+        {activeTab === 'pos' && (
+          <>
+            {isLoadingPosDashboard ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#0037b0] border-t-transparent" />
+                  <p className="text-xs text-slate-500 font-semibold">Loading POS analytics...</p>
+                </div>
+              </div>
+            ) : posDashboardData ? (
+              <div className="space-y-6">
+                {/* Stats Cards Row */}
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.12)] rounded-3xl bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.16)] transition-all relative hover:z-20">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-100 flex items-center gap-1">
+                            GMV
+                            <MetricTooltip content="Sum of all non-cancelled order totals across POS/BOTH organizations in the selected period." />
+                          </p>
+                          <p className="mt-1.5 text-2xl font-bold tracking-tight text-white truncate">
+                            {formatCurrency(posDashboardData.revenue.gmvCurrentMonth)}
+                          </p>
+                          <div className="mt-2 flex items-center gap-1.5">
+                            <MoMBadge value={posDashboardData.revenue.gmvChangePct} />
+                            <span className="text-[10px] text-blue-200">{getComparisonLabel(periodFilter)}</span>
+                          </div>
+                        </div>
+                        <div className="rounded-2xl bg-white/10 p-3 shrink-0 ml-2">
+                          <HugeiconsIcon icon={MoneyReceive02Icon} size={18} strokeWidth={1.5} className="text-white" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all relative hover:z-20">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655] flex items-center gap-1">
+                            Collected GMV
+                            <MetricTooltip content="Sum of order totals for orders actually closed and paid (CLOSED_PAID) — cash that has actually landed, not just been ordered." />
+                          </p>
+                          <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28] truncate">
+                            {formatCurrency(posDashboardData.revenue.collectedGmvCurrentMonth)}
+                          </p>
+                          <div className="mt-2 flex items-center gap-1.5">
+                            <MoMBadge value={posDashboardData.revenue.collectedGmvChangePct} />
+                            <span className="text-[10px] text-[#434655]">{getComparisonLabel(periodFilter)}</span>
+                          </div>
+                        </div>
+                        <div className="rounded-2xl bg-[#eef4ff] p-3 shrink-0 ml-2">
+                          <HugeiconsIcon icon={MoneyReceive02Icon} size={18} strokeWidth={1.5} className="text-[#006c49]" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all relative hover:z-20">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655] flex items-center gap-1">
+                            Monthly Active Tenants
+                            <MetricTooltip content="POS/BOTH organizations that have placed at least one order in the last 30 days." />
+                          </p>
+                          <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28]">
+                            {posDashboardData.health.monthlyActiveTenants}
+                          </p>
+                          <div className="mt-2 flex items-center gap-1.5">
+                            {(() => {
+                              const matRate = posDashboardData.health.monthlyActiveTenantsRate
+                              const isMatLow = matRate < 60
+                              return (
+                                <Badge
+                                  className={`text-[9px] px-1.5 py-0 border-0 ${
+                                    isMatLow ? 'bg-amber-50 text-[#b06000]' : 'bg-green-50 text-[#006c49]'
+                                  }`}
+                                >
+                                  {isMatLow ? 'Low Activity' : 'Active'}
+                                </Badge>
+                              )
+                            })()}
+                            <span className="text-[10px] text-[#434655] font-semibold">
+                              {posDashboardData.health.monthlyActiveTenantsRate}%
+                            </span>
+                          </div>
+                        </div>
+                        <div className="rounded-2xl bg-[#eef4ff] p-3 shrink-0 ml-2">
+                          <HugeiconsIcon icon={Building03Icon} size={18} strokeWidth={1.5} className="text-[#0037b0]" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white hover:shadow-[0px_16px_40px_rgba(0,55,176,0.08)] transition-all relative hover:z-20">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655] flex items-center gap-1">
+                            Avg. Fulfillment Time
+                            <MetricTooltip content="Average minutes from order placed to order closed+paid this period — a proxy for how smoothly the floor/kitchen is running." />
+                          </p>
+                          <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28]">
+                            {posDashboardData.health.avgFulfillmentMinutes.toFixed(0)}
+                            <span className="text-sm font-semibold text-[#434655] ml-1">min</span>
+                          </p>
+                          <div className="mt-2 flex items-center gap-1.5">
+                            <span className="text-[10px] text-[#434655]">order placed → closed &amp; paid</span>
+                          </div>
+                        </div>
+                        <div className="rounded-2xl bg-[#eef4ff] p-3 shrink-0 ml-2">
+                          <HugeiconsIcon icon={AnalyticsIcon} size={18} strokeWidth={1.5} className="text-[#0037b0]" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Adoption + Org counts row */}
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white">
+                    <CardContent className="p-6">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655]">POS Organizations</p>
+                      <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28]">{posDashboardData.organizations.total}</p>
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <MoMBadge value={posDashboardData.organizations.changePct} />
+                        <span className="text-[10px] text-[#434655]">
+                          {posDashboardData.organizations.active} active / {posDashboardData.organizations.inactive} never ordered
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white">
+                    <CardContent className="p-6">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655] flex items-center gap-1">
+                        Printer Adoption
+                        <MetricTooltip content="POS/BOTH organizations that have set up at least one active printer — a signal they've actually configured the floor, not just enabled the module." />
+                      </p>
+                      <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28]">
+                        {posDashboardData.health.printerAdoption}
+                        <span className="text-sm font-semibold text-[#434655] ml-1">
+                          ({posDashboardData.health.printerAdoptionRate}%)
+                        </span>
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white">
+                    <CardContent className="p-6">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655] flex items-center gap-1">
+                        Table Adoption
+                        <MetricTooltip content="POS/BOTH organizations that have set up at least one table — dine-in floor is actually configured." />
+                      </p>
+                      <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28]">
+                        {posDashboardData.health.tableAdoption}
+                        <span className="text-sm font-semibold text-[#434655] ml-1">
+                          ({posDashboardData.health.tableAdoptionRate}%)
+                        </span>
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Trend chart */}
+                <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white p-6">
+                  <h3 className="text-sm font-bold text-[#121c28] flex items-center gap-2 mb-4">
+                    <HugeiconsIcon icon={AnalyticsIcon} size={16} strokeWidth={1.5} className="text-[#0037b0]" />
+                    POS Volume Trend (Last 6 Months)
+                  </h3>
+                  {posDashboardData.trends && posDashboardData.trends.length > 0 ? (
+                    <div className="h-64 sm:h-72 w-full mt-4">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={posDashboardData.trends}>
+                          <defs>
+                            <linearGradient id="colorPosGmv" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#006c49" stopOpacity={0.2} />
+                              <stop offset="95%" stopColor="#006c49" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#c4c5d7" opacity={0.15} />
+                          <XAxis dataKey="month" stroke="#434655" fontSize={10} tickLine={false} axisLine={false} />
+                          <YAxis stroke="#434655" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `₦${(v / 1e6).toFixed(0)}M`} />
+                          <RechartsTooltip
+                            contentStyle={{
+                              background: 'rgba(255, 255, 255, 0.9)',
+                              backdropFilter: 'blur(8px)',
+                              border: '1px solid rgba(196, 197, 215, 0.2)',
+                              borderRadius: '12px',
+                              boxShadow: '0px 8px 24px rgba(0, 55, 176, 0.04)',
+                              fontSize: '11px',
+                              color: '#121c28',
+                            }}
+                            formatter={(value: any, name: string | undefined) => [ // eslint-disable-line @typescript-eslint/no-explicit-any
+                              formatCurrency(Number(value || 0)),
+                              name ?? '',
+                            ]}
+                          />
+                          <Legend verticalAlign="top" height={36} iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', fontWeight: 600 }} />
+                          <Area type="monotone" dataKey="collectedGmv" name="Collected GMV" stroke="#006c49" fill="url(#colorPosGmv)" strokeWidth={2} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : null}
+                </Card>
+
+                {/* Order status + source breakdown */}
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white p-6">
+                    <h3 className="text-sm font-bold text-[#121c28] mb-4">Orders by Status</h3>
+                    <div className="space-y-2">
+                      {Object.entries(posDashboardData.orders.byStatus).map(([status, stat]) => (
+                        <div key={status} className="flex items-center justify-between py-1.5">
+                          <span className="text-xs font-semibold text-[#434655]">{status.replace('_', ' ')}</span>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-[#434655]">{stat.count} orders</span>
+                            <span className="text-sm font-semibold text-[#121c28] tabular-nums">{formatCurrency(stat.total)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white p-6">
+                    <h3 className="text-sm font-bold text-[#121c28] mb-4">Orders by Source</h3>
+                    <div className="space-y-2">
+                      {Object.entries(posDashboardData.orders.bySource).map(([source, count]) => (
+                        <div key={source} className="flex items-center justify-between py-1.5">
+                          <span className="text-xs font-semibold text-[#434655]">{source.replace('_', ' ')}</span>
+                          <span className="text-sm font-semibold text-[#121c28] tabular-nums">{count} orders</span>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Top orgs by volume + recent signups */}
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white p-6">
+                    <h3 className="text-sm font-bold text-[#121c28] mb-4">Top POS Orgs by Volume</h3>
+                    {posDashboardData.topOrganizations.length > 0 ? (
+                      <div className="space-y-3">
+                        {posDashboardData.topOrganizations.map((org, i) => (
+                          <div key={org.id} className="flex items-center justify-between">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="text-[10px] font-bold text-[#434655] w-4">{i + 1}</span>
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-[#121c28] truncate">{org.name}</p>
+                                <p className="text-[10px] text-[#434655]">{org.orderCount} orders</p>
+                              </div>
+                            </div>
+                            <span className="text-sm font-semibold text-[#121c28] tabular-nums shrink-0">
+                              {formatCurrency(org.volume)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-[#434655]">No paid POS orders in this range yet.</p>
+                    )}
+                  </Card>
+
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white p-6">
+                    <h3 className="text-sm font-bold text-[#121c28] mb-4">Recent POS Signups</h3>
+                    {posDashboardData.recentSignups.length > 0 ? (
+                      <div className="space-y-3">
+                        {posDashboardData.recentSignups.map((org) => (
+                          <div key={org.id} className="flex items-center justify-between">
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-[#121c28] truncate">{org.name}</p>
+                              <p className="text-[10px] text-[#434655]">{org.userCount} users · {org.orderCount} orders</p>
+                            </div>
+                            <Badge className="text-[9px] px-1.5 py-0 border-0 bg-[#eef4ff] text-[#0037b0] shrink-0">
+                              {org.planTier}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-[#434655]">No POS organizations yet.</p>
+                    )}
                   </Card>
                 </div>
               </div>

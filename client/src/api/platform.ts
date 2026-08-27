@@ -1,6 +1,7 @@
 import apiClient from './client'
 import type {
   PlatformDashboard,
+  PlatformPosDashboard,
   ApiResponse,
   PlatformOrganizationsResponse,
   PlatformOrganizationDetails,
@@ -13,6 +14,13 @@ export const platformApi = {
   getDashboard: async (startDate?: string, endDate?: string): Promise<PlatformDashboard> => {
     const response = await apiClient.get<ApiResponse<PlatformDashboard>>('/platform/dashboard', {
       params: { startDate, endDate }
+    })
+    return response.data.data
+  },
+
+  getPosDashboard: async (startDate?: string, endDate?: string): Promise<PlatformPosDashboard> => {
+    const response = await apiClient.get<ApiResponse<PlatformPosDashboard>>('/platform/pos-dashboard', {
+      params: { startDate, endDate },
     })
     return response.data.data
   },

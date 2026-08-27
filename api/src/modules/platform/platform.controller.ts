@@ -23,6 +23,17 @@ export class PlatformController {
     return this.platformService.getDashboard(startDate, endDate);
   }
 
+  @Get('pos-dashboard')
+  @ApiOperation({ summary: 'Get platform admin dashboard data for POS-enabled organizations' })
+  @ApiResponse({ status: 200, description: 'Platform POS dashboard data' })
+  @ApiResponse({ status: 403, description: 'Not a platform admin' })
+  async getPosDashboard(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.platformService.getPosDashboard(startDate, endDate);
+  }
+
   @Get('organizations')
   @ApiOperation({ summary: 'Get paginated organizations with search and filters' })
   @ApiResponse({ status: 200, description: 'Paginated organizations list' })

@@ -1071,7 +1071,7 @@ export class OrdersService {
             formatSheetMonth(servedAt),
             formatSheetTime(placedAt),
             formatSheetTime(servedAt),
-            updated.id,
+            updated.id.slice(0, 8),
             updated.customer?.name ?? '',
             item.itemName,
             toNumber(item.quantity),

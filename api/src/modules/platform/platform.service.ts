@@ -569,6 +569,344 @@ export class PlatformService {
     };
   }
 
+  /**
+   * POS-side counterpart to getDashboard() — same shape (revenue, orders, health, top orgs,
+   * trends), but scoped to Order/Printer/RestaurantTable instead of Invoice, and to
+   * POS/BOTH orgs only. Deliberately does NOT repeat plan/subscription-status breakdowns
+   * (trialing, churn, MRR) — those are platform-wide and already covered by getDashboard();
+   * duplicating them per-module would double-count the same subscription.
+   */
+  async getPosDashboard(startDateStr?: string, endDateStr?: string) {
+    const now = new Date();
+
+    let currentPeriodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    let currentPeriodEnd = new Date(now);
+    let priorPeriodStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    let priorPeriodEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+
+    if (startDateStr && endDateStr) {
+      currentPeriodStart = new Date(startDateStr);
+      currentPeriodEnd = new Date(endDateStr);
+      const durationMs = currentPeriodEnd.getTime() - currentPeriodStart.getTime();
+      priorPeriodEnd = new Date(currentPeriodStart.getTime() - 1);
+      priorPeriodStart = new Date(currentPeriodStart.getTime() - durationMs);
+    }
+
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(now.getDate() - 30);
+
+    const posOrgWhere = { enabledModules: { in: [OrgModule.POS, OrgModule.BOTH] } };
+    const nonCancelledOrderWhere = { status: { not: 'CANCELLED' as const } };
+
+    const [
+      totalPosOrgs,
+      newPosOrgsThisWeek,
+      newPosOrgsThisMonth,
+      lastMonthPosOrgs,
+      activePosOrgs,
+      gmvResult,
+      currentMonthGmvResult,
+      lastMonthGmvResult,
+      collectedGmvResult,
+      currentMonthCollectedGmvResult,
+      lastMonthCollectedGmvResult,
+      ordersByStatus,
+      ordersBySource,
+      monthlyActiveTenantsCount,
+      printerAdoptionCount,
+      tableAdoptionCount,
+      recentSignups,
+      topOrganizations,
+      avgFulfillmentResult,
+    ] = await Promise.all([
+      this.prisma.organization.count({ where: posOrgWhere }),
+
+      this.prisma.organization.count({
+        where: { ...posOrgWhere, createdAt: { gte: startOfWeek } },
+      }),
+
+      this.prisma.organization.count({
+        where: { ...posOrgWhere, createdAt: { gte: currentPeriodStart, lte: currentPeriodEnd } },
+      }),
+
+      this.prisma.organization.count({
+        where: { ...posOrgWhere, createdAt: { gte: priorPeriodStart, lte: priorPeriodEnd } },
+      }),
+
+      // Active POS orgs — placed at least one order, ever (mirrors invoicing's "has ≥1 invoice")
+      this.prisma.organization.count({
+        where: { ...posOrgWhere, orders: { some: {} } },
+      }),
+
+      // GMV — all non-cancelled order totals (an order can be CLOSED_UNPAID and still count as
+      // volume moving through the org, same as invoicing counts SENT/OVERDUE invoices)
+      this.prisma.order.aggregate({
+        _sum: { total: true },
+        where: { ...nonCancelledOrderWhere, organization: posOrgWhere },
+      }),
+
+      this.prisma.order.aggregate({
+        _sum: { total: true },
+        where: {
+          ...nonCancelledOrderWhere,
+          organization: posOrgWhere,
+          createdAt: { gte: currentPeriodStart, lte: currentPeriodEnd },
+        },
+      }),
+
+      this.prisma.order.aggregate({
+        _sum: { total: true },
+        where: {
+          ...nonCancelledOrderWhere,
+          organization: posOrgWhere,
+          createdAt: { gte: priorPeriodStart, lte: priorPeriodEnd },
+        },
+      }),
+
+      // Collected GMV — CLOSED_PAID only (cash actually taken), mirrors invoicing's "PAID invoices"
+      this.prisma.order.aggregate({
+        _sum: { total: true },
+        where: { status: 'CLOSED_PAID', organization: posOrgWhere },
+      }),
+
+      this.prisma.order.aggregate({
+        _sum: { total: true },
+        where: {
+          status: 'CLOSED_PAID',
+          organization: posOrgWhere,
+          createdAt: { gte: currentPeriodStart, lte: currentPeriodEnd },
+        },
+      }),
+
+      this.prisma.order.aggregate({
+        _sum: { total: true },
+        where: {
+          status: 'CLOSED_PAID',
+          organization: posOrgWhere,
+          createdAt: { gte: priorPeriodStart, lte: priorPeriodEnd },
+        },
+      }),
+
+      this.prisma.order.groupBy({
+        by: ['status'],
+        _count: { id: true },
+        _sum: { total: true },
+        where: { organization: posOrgWhere },
+      }),
+
+      this.prisma.order.groupBy({
+        by: ['source'],
+        _count: { id: true },
+        where: { organization: posOrgWhere },
+      }),
+
+      // Monthly Active Tenants — POS orgs with at least 1 order in the last 30 days
+      this.prisma.organization.count({
+        where: { ...posOrgWhere, orders: { some: { createdAt: { gte: thirtyDaysAgo } } } },
+      }),
+
+      // Adoption: has the org actually set up a printer / a table, or just flipped the module on?
+      this.prisma.organization.count({
+        where: { ...posOrgWhere, printers: { some: { isActive: true } } },
+      }),
+
+      this.prisma.organization.count({
+        where: { ...posOrgWhere, restaurantTables: { some: {} } },
+      }),
+
+      this.prisma.organization.findMany({
+        where: posOrgWhere,
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          createdAt: true,
+          planTier: true,
+          subscriptionStatus: true,
+          isGrandfathered: true,
+          _count: { select: { users: true, orders: true } },
+        },
+      }),
+
+      // Top 10 POS orgs by collected (CLOSED_PAID) order volume
+      this.prisma.$queryRaw<
+        Array<{
+          id: string;
+          name: string;
+          slug: string;
+          createdAt: Date;
+          userCount: number;
+          orderCount: number;
+          volume: number;
+          planTier: string;
+          subscriptionStatus: string;
+          isGrandfathered: boolean;
+        }>
+      >`
+        SELECT
+          o.id,
+          o.name,
+          o.slug,
+          o.created_at AS "createdAt",
+          o.plan_tier AS "planTier",
+          o.subscription_status AS "subscriptionStatus",
+          o.is_grandfathered AS "isGrandfathered",
+          COUNT(DISTINCT u.id)::int AS "userCount",
+          COUNT(DISTINCT ord.id)::int AS "orderCount",
+          COALESCE(SUM(ord.total), 0)::float8 AS volume
+        FROM organizations o
+        LEFT JOIN users u ON u.organization_id = o.id
+        LEFT JOIN orders ord ON ord.organization_id = o.id AND ord.status = 'CLOSED_PAID'
+        WHERE o.enabled_modules IN ('POS', 'BOTH')
+        GROUP BY o.id, o.name, o.slug, o.created_at, o.plan_tier, o.subscription_status, o.is_grandfathered
+        ORDER BY volume DESC
+        LIMIT 10
+      `,
+
+      // Average time from order placed to order closed+paid this month, in minutes — a proxy
+      // for how smoothly an org's floor/kitchen is actually running.
+      this.prisma.$queryRaw<Array<{ avgMinutes: number | null }>>`
+        SELECT AVG(EXTRACT(EPOCH FROM (ord.closed_at - ord.created_at)) / 60)::float8 AS "avgMinutes"
+        FROM orders ord
+        JOIN organizations o ON o.id = ord.organization_id
+        WHERE ord.status = 'CLOSED_PAID'
+          AND ord.closed_at IS NOT NULL
+          AND o.enabled_modules IN ('POS', 'BOTH')
+          AND ord.created_at >= ${currentPeriodStart}
+          AND ord.created_at <= ${currentPeriodEnd}
+      `,
+    ]);
+
+    const orgsMoMChange = this.calculateMoMChange(newPosOrgsThisMonth, lastMonthPosOrgs);
+
+    const curMonthGmv = Number(currentMonthGmvResult._sum.total) || 0;
+    const prevMonthGmv = Number(lastMonthGmvResult._sum.total) || 0;
+    const gmvMoMChange = this.calculateMoMChange(curMonthGmv, prevMonthGmv);
+
+    const curMonthCollectedGmv = Number(currentMonthCollectedGmvResult._sum.total) || 0;
+    const prevMonthCollectedGmv = Number(lastMonthCollectedGmvResult._sum.total) || 0;
+    const collectedGmvChangePct = this.calculateMoMChange(curMonthCollectedGmv, prevMonthCollectedGmv);
+
+    const monthlyActiveTenantsRate =
+      totalPosOrgs > 0 ? Number(((monthlyActiveTenantsCount / totalPosOrgs) * 100).toFixed(1)) : 0;
+    const printerAdoptionRate =
+      totalPosOrgs > 0 ? Number(((printerAdoptionCount / totalPosOrgs) * 100).toFixed(1)) : 0;
+    const tableAdoptionRate =
+      totalPosOrgs > 0 ? Number(((tableAdoptionCount / totalPosOrgs) * 100).toFixed(1)) : 0;
+
+    const orderStatusBreakdown = ordersByStatus.reduce(
+      (acc, item) => {
+        acc[item.status] = { count: item._count.id, total: Number(item._sum.total) || 0 };
+        return acc;
+      },
+      {} as Record<string, { count: number; total: number }>,
+    );
+
+    const orderSourceBreakdown = ordersBySource.reduce(
+      (acc, item) => {
+        acc[item.source] = item._count.id;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
+    const trendMonths: Array<{ start: Date; end: Date; label: string }> = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const start = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
+      const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
+      trendMonths.push({ start, end, label: d.toLocaleString('en-US', { month: 'short' }) });
+    }
+
+    const trends = await Promise.all(
+      trendMonths.map(async (m) => {
+        const [collectedGmvAgg, orderCountResult, activeTenantsCount] = await Promise.all([
+          this.prisma.order.aggregate({
+            _sum: { total: true },
+            where: { status: 'CLOSED_PAID', organization: posOrgWhere, createdAt: { gte: m.start, lte: m.end } },
+          }),
+          this.prisma.order.count({
+            where: { organization: posOrgWhere, createdAt: { gte: m.start, lte: m.end } },
+          }),
+          this.prisma.organization.count({
+            where: { ...posOrgWhere, orders: { some: { createdAt: { gte: m.start, lte: m.end } } } },
+          }),
+        ]);
+
+        return {
+          month: m.label,
+          collectedGmv: Number(collectedGmvAgg._sum.total) || 0,
+          orderCount: orderCountResult,
+          activeTenants: activeTenantsCount,
+        };
+      }),
+    );
+
+    return {
+      organizations: {
+        total: totalPosOrgs,
+        newThisWeek: newPosOrgsThisWeek,
+        newThisMonth: newPosOrgsThisMonth,
+        active: activePosOrgs,
+        inactive: totalPosOrgs - activePosOrgs,
+        lastMonth: lastMonthPosOrgs,
+        changePct: orgsMoMChange,
+      },
+      revenue: {
+        gmv: Number(gmvResult._sum.total) || 0,
+        gmvCurrentMonth: curMonthGmv,
+        gmvPreviousMonth: prevMonthGmv,
+        gmvChangePct: gmvMoMChange,
+        collectedGmv: Number(collectedGmvResult._sum.total) || 0,
+        collectedGmvCurrentMonth: curMonthCollectedGmv,
+        collectedGmvPreviousMonth: prevMonthCollectedGmv,
+        collectedGmvChangePct,
+      },
+      orders: {
+        byStatus: orderStatusBreakdown,
+        bySource: orderSourceBreakdown,
+      },
+      health: {
+        monthlyActiveTenants: monthlyActiveTenantsCount,
+        monthlyActiveTenantsRate,
+        printerAdoption: printerAdoptionCount,
+        printerAdoptionRate,
+        tableAdoption: tableAdoptionCount,
+        tableAdoptionRate,
+        avgFulfillmentMinutes: Number(avgFulfillmentResult[0]?.avgMinutes) || 0,
+      },
+      recentSignups: recentSignups.map((org) => ({
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        userCount: org._count.users,
+        orderCount: org._count.orders,
+        createdAt: org.createdAt,
+        planTier: org.planTier,
+        subscriptionStatus: org.subscriptionStatus,
+        isGrandfathered: org.isGrandfathered,
+      })),
+      topOrganizations: topOrganizations.map((org) => ({
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        userCount: org.userCount,
+        orderCount: org.orderCount,
+        volume: org.volume,
+        createdAt: org.createdAt,
+        planTier: org.planTier,
+        subscriptionStatus: org.subscriptionStatus,
+        isGrandfathered: org.isGrandfathered,
+      })),
+      trends,
+    };
+  }
+
   async getOrganizations(query: {
     search?: string;
     planTier?: PlanTier;
