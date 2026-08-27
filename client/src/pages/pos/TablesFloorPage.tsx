@@ -87,7 +87,7 @@ export function TablesFloorPage() {
         queryKey: ['orders-for-table', table.id],
         queryFn: () => ordersApi.list({ tableId: table.id }),
       })
-      const openOrder = orders.find((o) => ['OPEN', 'IN_KITCHEN', 'READY'].includes(o.status))
+      const openOrder = orders.find((o) => (ACTIVE_ORDER_STATUSES as readonly string[]).includes(o.status))
       if (openOrder) {
         navigate(`/pos/orders/${openOrder.id}`)
       } else {
