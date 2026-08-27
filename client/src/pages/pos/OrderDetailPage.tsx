@@ -706,6 +706,10 @@ function SyncedOrderView({ id }: { id: string }) {
   }
 
   const isOpenStatus = ['OPEN', 'IN_KITCHEN', 'READY'].includes(order.status)
+  // Adding items also pulls the order back out of "awaiting payment" (see addItems on the API
+  // side), so it stays available on CLOSED_UNPAID too — e.g. a guest orders dessert while waiting
+  // to settle up.
+  const canAddItems = isOpenStatus || order.status === 'CLOSED_UNPAID'
   const canEditCustomerOrWaiter = order.status !== 'CANCELLED'
 
   return (
@@ -730,7 +734,7 @@ function SyncedOrderView({ id }: { id: string }) {
               <Download className="mr-1.5 h-4 w-4" /> Receipt
             </Button>
           )}
-          {isOpenStatus && (
+          {canAddItems && (
             <Button variant="outline" size="sm" className="ml-auto" onClick={() => setAddItemsOpen(true)}>
               <Plus className="mr-1.5 h-4 w-4" /> Add Items
             </Button>

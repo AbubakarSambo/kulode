@@ -344,9 +344,14 @@ export class OrdersService {
   async addItems(organizationId: string, id: string, dto: AddOrderItemsDto) {
     const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
     if (!order) throw new NotFoundException('Order not found');
-    if (!OPEN_STATUSES.includes(order.status)) {
+    // CLOSED_UNPAID (marked "awaiting payment") is still addable — e.g. a guest orders dessert
+    // while waiting to settle up. Reverting it to OPEN below is what actually matters: it pulls
+    // the order back out of the cashier's "ready to collect" queue until the kitchen genuinely
+    // finishes the new items, so no one takes payment on food that isn't out yet.
+    if (!VOIDABLE_STATUSES.includes(order.status)) {
       throw new BadRequestException(`Cannot add items to a ${order.status.toLowerCase()} order`);
     }
+    const reopening = order.status === OrderStatus.CLOSED_UNPAID;
     if (toNumber(order.discountAmount) > 0) {
       throw new BadRequestException('This order has a discount applied — clear it before adding items');
     }
@@ -383,7 +388,15 @@ export class OrdersService {
 
       return tx.order.update({
         where: { id },
-        data: { subtotal: newSubtotal, taxAmount: newTaxAmount, vatAmount, entertainmentTaxAmount, serviceChargeAmount, total: newTotal },
+        data: {
+          subtotal: newSubtotal,
+          taxAmount: newTaxAmount,
+          vatAmount,
+          entertainmentTaxAmount,
+          serviceChargeAmount,
+          total: newTotal,
+          ...(reopening && { status: OrderStatus.OPEN, closedAt: null }),
+        },
         include: this.orderInclude,
       });
     });
@@ -1116,6 +1129,9 @@ export class OrdersService {
             taxRate: true,
             entertainmentTaxRate: true,
             serviceChargeRate: true,
+            receiptBankName: true,
+            receiptBankAccountNumber: true,
+            receiptBankAccountName: true,
           },
         },
       },

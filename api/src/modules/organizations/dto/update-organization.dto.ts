@@ -140,4 +140,22 @@ export class UpdateOrganizationDto {
   @IsString()
   @MaxLength(255)
   googleSheetId?: string | null;
+
+  @ApiPropertyOptional({ example: 'Moniepoint', description: 'Bank name shown on the printed pro forma receipt' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  receiptBankName?: string;
+
+  @ApiPropertyOptional({ example: '8254866750', description: 'Account number shown on the printed pro forma receipt' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  receiptBankAccountNumber?: string;
+
+  @ApiPropertyOptional({ example: 'CleanTex Ltd', description: 'Account name shown on the printed pro forma receipt' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  receiptBankAccountName?: string;
 }

@@ -14,7 +14,8 @@ type TxMock = ReturnType<typeof createTxMock>;
 
 function createTxMock() {
   return {
-    order: { updateMany: jest.fn(), findUniqueOrThrow: jest.fn() },
+    order: { updateMany: jest.fn(), findUniqueOrThrow: jest.fn(), update: jest.fn() },
+    orderItem: { create: jest.fn() },
     restaurantTable: { update: jest.fn() },
     payment: { create: jest.fn() },
     user: { findUnique: jest.fn() },
@@ -31,6 +32,8 @@ function createMockPrisma() {
       updateMany: jest.fn(),
       findUniqueOrThrow: jest.fn(),
     },
+    menuItem: { findMany: jest.fn() },
+    organization: { findUniqueOrThrow: jest.fn() },
     // Both `cancel` (direct $transaction) and `runIdempotent` (via closeWithPayment) drive
     // everything through this same tx mock, so assertions can check either surface.
     $transaction: jest.fn((callback: (tx: TxMock) => Promise<unknown>) => callback(tx)),
@@ -194,6 +197,72 @@ describe('OrdersService — status transitions across the waiter/cashier split',
         expect.objectContaining({ id: ORDER_ID }),
         expect.arrayContaining([expect.objectContaining({ itemName: 'Burger', quantity: 2 })]),
       );
+    });
+  });
+
+  // ─── addItems ───────────────────────────────────────────────────────────────
+
+  describe('addItems', () => {
+    const dto = {
+      items: [{ menuItemId: 'menu-1', quantity: 1 }],
+      clientRequestId: 'req-add-1',
+    };
+
+    beforeEach(() => {
+      prisma.menuItem.findMany.mockResolvedValue([
+        { id: 'menu-1', name: 'Burger', price: 2000, isAvailable: true },
+      ]);
+      prisma.organization.findUniqueOrThrow.mockResolvedValue({
+        taxRate: 0,
+        entertainmentTaxRate: 0,
+        serviceChargeRate: 0,
+      });
+      prisma.__tx.orderItem.create.mockImplementation((args: { data: object }) =>
+        Promise.resolve({ id: 'item-new-1', ...args.data }),
+      );
+    });
+
+    it('rejects adding items to a CLOSED_PAID order', async () => {
+      prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'CLOSED_PAID', discountAmount: 0 }));
+      await expect(service.addItems(ORG_ID, ORDER_ID, dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects adding items to a CANCELLED order', async () => {
+      prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'CANCELLED', discountAmount: 0 }));
+      await expect(service.addItems(ORG_ID, ORDER_ID, dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('allows adding items to a CLOSED_UNPAID order and reopens it to OPEN', async () => {
+      prisma.order.findFirst.mockResolvedValue(
+        orderWith({ status: 'CLOSED_UNPAID', discountAmount: 0, subtotal: 5000, closedAt: new Date() }),
+      );
+      prisma.__tx.order.update.mockResolvedValue(
+        orderWith({
+          status: 'OPEN',
+          items: [{ id: 'item-new-1', menuItemId: 'menu-1', itemName: 'Burger', quantity: 1, notes: undefined }],
+        }),
+      );
+
+      await service.addItems(ORG_ID, ORDER_ID, dto);
+
+      expect(prisma.__tx.order.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'OPEN', closedAt: null }),
+        }),
+      );
+    });
+
+    it('does not touch status when adding items to a plain OPEN order', async () => {
+      prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'OPEN', discountAmount: 0, subtotal: 5000 }));
+      prisma.__tx.order.update.mockResolvedValue(
+        orderWith({ status: 'OPEN', items: [{ id: 'item-new-1', menuItemId: 'menu-1', itemName: 'Burger', quantity: 1, notes: undefined }] }),
+      );
+
+      await service.addItems(ORG_ID, ORDER_ID, dto);
+
+      const updateCall = prisma.__tx.order.update.mock.calls[0][0];
+      expect(updateCall.data).not.toHaveProperty('status');
+      expect(updateCall.data).not.toHaveProperty('closedAt');
     });
   });
 

@@ -276,7 +276,16 @@ export interface ReceiptData {
   serviceChargeRate: number
   serviceChargeAmount: number
   payments: Array<{ amount: number; paymentMethod: string; paymentDate: string }>
-  organization: { name: string; email?: string | null; phone?: string | null; address?: string | null; currency: string }
+  organization: {
+    name: string
+    email?: string | null
+    phone?: string | null
+    address?: string | null
+    currency: string
+    receiptBankName?: string | null
+    receiptBankAccountNumber?: string | null
+    receiptBankAccountName?: string | null
+  }
 }
 
 export { flushOfflineQueue }

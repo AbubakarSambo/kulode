@@ -179,6 +179,13 @@ model Organization {
   settlementBank         String? @map("settlement_bank")
   isPaystackVerified     Boolean @default(false) @map("is_paystack_verified")
 
+  // Bank details shown on the printed pro forma receipt for guests paying by transfer —
+  // deliberately separate from the Paystack fields above, which drive actual settlement/payout
+  // and shouldn't be conflated with "what account do I read out to a customer."
+  receiptBankName          String? @map("receipt_bank_name")
+  receiptBankAccountNumber String? @map("receipt_bank_account_number")
+  receiptBankAccountName   String? @map("receipt_bank_account_name")
+
   // Platform settings
   platformFeePercent      Decimal   @default(0.00) @map("platform_fee_percent") @db.Decimal(5, 2)
   invoicePrefix           String    @default("INV") @map("invoice_prefix")

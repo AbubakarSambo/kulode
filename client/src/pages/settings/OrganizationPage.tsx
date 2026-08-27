@@ -30,6 +30,9 @@ const organizationSchema = z.object({
   paymentTerms: z.string().max(2000).optional(),
   defaultNotes: z.string().max(2000).optional(),
   googleSheetId: z.string().optional(),
+  receiptBankName: z.string().max(255).optional(),
+  receiptBankAccountNumber: z.string().max(50).optional(),
+  receiptBankAccountName: z.string().max(255).optional(),
 })
 
 type OrganizationFormData = z.infer<typeof organizationSchema>
@@ -100,6 +103,9 @@ export function OrganizationPage() {
       paymentTerms: '',
       defaultNotes: '',
       googleSheetId: '',
+      receiptBankName: '',
+      receiptBankAccountNumber: '',
+      receiptBankAccountName: '',
     },
   })
 
@@ -123,6 +129,9 @@ export function OrganizationPage() {
         paymentTerms: organization.paymentTerms || '',
         defaultNotes: organization.defaultNotes || '',
         googleSheetId: organization.googleSheetId || '',
+        receiptBankName: organization.receiptBankName || '',
+        receiptBankAccountNumber: organization.receiptBankAccountNumber || '',
+        receiptBankAccountName: organization.receiptBankAccountName || '',
       })
     }
   }, [organization, reset])
@@ -534,6 +543,49 @@ export function OrganizationPage() {
                   The long ID in your Sheet's URL, between <code>/d/</code> and <code>/edit</code>.
                   Leave blank to turn sync off.
                 </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Receipt Bank Details */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Receipt Bank Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Shown on the printed pro forma receipt so guests can pay by transfer. Separate from your Paystack
+                payout account — this is just what gets read out or printed for a customer.
+              </p>
+
+              <div className="space-y-2">
+                <Label htmlFor="receiptBankName">Bank Name</Label>
+                <Input
+                  id="receiptBankName"
+                  placeholder="e.g. Moniepoint"
+                  {...register('receiptBankName')}
+                  error={errors.receiptBankName?.message}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="receiptBankAccountNumber">Account Number</Label>
+                <Input
+                  id="receiptBankAccountNumber"
+                  placeholder="e.g. 8254866750"
+                  {...register('receiptBankAccountNumber')}
+                  error={errors.receiptBankAccountNumber?.message}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="receiptBankAccountName">Account Name</Label>
+                <Input
+                  id="receiptBankAccountName"
+                  placeholder="e.g. CleanTex Ltd"
+                  {...register('receiptBankAccountName')}
+                  error={errors.receiptBankAccountName?.message}
+                />
               </div>
             </CardContent>
           </Card>
