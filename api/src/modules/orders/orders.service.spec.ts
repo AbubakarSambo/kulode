@@ -47,8 +47,13 @@ function orderWith(overrides: object) {
     organizationId: ORG_ID,
     status: 'OPEN',
     total: 5000,
+    // Matches the DB column default (Decimal @default(0)) — a real order row is never missing
+    // this, so the mock shouldn't be either.
+    amountPaid: 0,
     customerId: null,
     tableId: null,
+    // orderInclude always returns items as an array (empty at minimum), never undefined.
+    items: [],
     ...overrides,
   };
 }
