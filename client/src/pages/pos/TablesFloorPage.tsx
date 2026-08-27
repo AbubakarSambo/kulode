@@ -43,6 +43,7 @@ export function TablesFloorPage() {
   const queryClient = useQueryClient()
   const [createOpen, setCreateOpen] = useState(false)
   const [navigatingTableId, setNavigatingTableId] = useState<string | null>(null)
+  const [stuckTable, setStuckTable] = useState<RestaurantTable | null>(null)
 
   const { data: tables, isLoading } = useQuery({
     queryKey: ['restaurant-tables'],
@@ -76,6 +77,15 @@ export function TablesFloorPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['restaurant-tables'] }),
   })
 
+  const releaseTable = useMutation({
+    mutationFn: (id: string) => tablesApi.updateStatus(id, 'AVAILABLE'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['restaurant-tables'] })
+      toast.success('Table released')
+      setStuckTable(null)
+    },
+  })
+
   const handleTableClick = async (table: RestaurantTable) => {
     if (table.status === 'NEEDS_CLEANING') {
       markCleaned.mutate(table.id)
@@ -90,6 +100,10 @@ export function TablesFloorPage() {
       const openOrder = orders.find((o) => (ACTIVE_ORDER_STATUSES as readonly string[]).includes(o.status))
       if (openOrder) {
         navigate(`/pos/orders/${openOrder.id}`)
+      } else if (table.status === 'OCCUPIED') {
+        // Table is marked occupied but no active order points back to it (e.g. its order
+        // was merged into a bill on a different table). Don't silently start a new order.
+        setStuckTable(table)
       } else {
         navigate(`/pos/order/new?tableId=${table.id}`)
       }
@@ -167,6 +181,34 @@ export function TablesFloorPage() {
             Add Table
           </Button>
         </form>
+      </Modal>
+
+      <Modal isOpen={!!stuckTable} onClose={() => setStuckTable(null)} title="No active order found">
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            {stuckTable?.name} is marked occupied, but it has no active order — it may have been merged into a bill
+            on another table. Release it if the guests have left, or start a new order for this table.
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              variant="outline"
+              className="flex-1"
+              isLoading={releaseTable.isPending}
+              onClick={() => stuckTable && releaseTable.mutate(stuckTable.id)}
+            >
+              Release Table
+            </Button>
+            <Button
+              className="flex-1"
+              onClick={() => {
+                if (stuckTable) navigate(`/pos/order/new?tableId=${stuckTable.id}`)
+                setStuckTable(null)
+              }}
+            >
+              Start New Order
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   )
