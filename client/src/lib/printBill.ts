@@ -24,6 +24,11 @@ export function printBill(receipt: ReceiptData) {
   // Tax/service charge are computed pre-tax, on subtotal minus any discount — shown here rather
   // than the raw subtotal so the printed rate breakdown's math actually adds up.
   const taxableBase = receipt.subtotal - receipt.discountAmount
+  const hasReceiptBankDetails = !!(
+    receipt.organization.receiptBankName ||
+    receipt.organization.receiptBankAccountNumber ||
+    receipt.organization.receiptBankAccountName
+  )
 
   const itemRows = receipt.items
     .map(
@@ -129,7 +134,15 @@ export function printBill(receipt: ReceiptData) {
             ? `<div class="divider"></div><table class="totals">${paymentRows}</table>
                <div class="divider"></div>
                <table class="totals bold"><tr><td>Paid</td><td></td><td class="right">${formatCurrency(receipt.amountPaid)}</td></tr></table>`
-            : ''
+            : hasReceiptBankDetails
+              ? `<div class="divider"></div>
+                 <div class="center bold">Pay by Transfer</div>
+                 <table class="totals">
+                   ${receipt.organization.receiptBankName ? `<tr><td>Bank</td><td></td><td class="right">${escapeHtml(receipt.organization.receiptBankName)}</td></tr>` : ''}
+                   ${receipt.organization.receiptBankAccountNumber ? `<tr><td>Account No.</td><td></td><td class="right">${escapeHtml(receipt.organization.receiptBankAccountNumber)}</td></tr>` : ''}
+                   ${receipt.organization.receiptBankAccountName ? `<tr><td>Account Name</td><td></td><td class="right">${escapeHtml(receipt.organization.receiptBankAccountName)}</td></tr>` : ''}
+                 </table>`
+              : ''
         }
         <div class="divider"></div>
         <div class="center">Thank you for dining with us!</div>

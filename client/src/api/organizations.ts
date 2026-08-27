@@ -22,6 +22,9 @@ export interface UpdateOrganizationData {
   rcNumber?: string
   tin?: string
   googleSheetId?: string | null
+  receiptBankName?: string
+  receiptBankAccountNumber?: string
+  receiptBankAccountName?: string
 }
 
 export const organizationsApi = {

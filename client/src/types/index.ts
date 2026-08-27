@@ -153,6 +153,9 @@ export interface Organization {
   bankAccountName?: string
   bankAccountNumber?: string
   settlementBank?: string
+  receiptBankName?: string
+  receiptBankAccountNumber?: string
+  receiptBankAccountName?: string
   businessType?: string
   organizationSize?: string
   enabledModules?: OrgModule
