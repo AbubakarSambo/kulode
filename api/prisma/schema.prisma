@@ -125,13 +125,6 @@ enum TableStatus {
   NEEDS_CLEANING
 }
 
-enum OrderSource {
-  DINE_IN
-  TAKEAWAY
-  DELIVERY
-  THIRD_PARTY
-}
-
 enum OrderStatus {
   OPEN
   IN_KITCHEN
@@ -261,6 +254,7 @@ model Organization {
   menuCategories     MenuCategory[]
   menuItems          MenuItem[]
   orders             Order[]
+  orderTypes         OrderType[]
   shifts             Shift[]
   idempotencyKeys    IdempotencyKey[]
   walletTransactions WalletTransaction[]
@@ -944,6 +938,30 @@ model MenuCategory {
   @@map("menu_categories")
 }
 
+// Per-org order types (e.g. Dine In, Takeaway, or something org-specific like "Hotel Room
+// Service" for a restaurant with an attached hotel). Order.source stores this row's `name`
+// directly as a plain string — no separate translation layer, same as Printer.station.
+model OrderType {
+  id             String  @id @default(uuid())
+  organizationId String  @map("organization_id")
+  name           String
+  sortOrder      Int     @default(0) @map("sort_order")
+  isActive       Boolean @default(true) @map("is_active")
+  // Whether an order placed under this type requires a table (occupies it, frees it when the
+  // order moves off this type) — generalizes what used to be a hardcoded `source === 'DINE_IN'` check.
+  requiresTable  Boolean @default(false) @map("requires_table")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("order_types")
+}
+
 model MenuItem {
   id              String  @id @default(uuid())
   organizationId  String  @map("organization_id")
@@ -1062,7 +1080,9 @@ model Order {
   customerId     String?     @map("customer_id")
   waiterId       String?     @map("waiter_id")
   createdById    String      @map("created_by")
-  source         OrderSource @default(DINE_IN)
+  // The OrderType.name this order was placed under (e.g. "Dine In", "Hotel Room Service") —
+  // a plain string, not an enum, since order types are org-configurable. See OrderType above.
+  source         String      @default("Dine In")
   status         OrderStatus @default(OPEN)
 
   subtotal   Decimal @db.Decimal(12, 2)

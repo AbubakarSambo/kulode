@@ -17,13 +17,6 @@ const ITEM_STATUS_LABELS: Record<OrderItemStatus, string> = {
   SERVED: 'Served',
 }
 
-const SOURCE_LABELS: Record<Order['source'], string> = {
-  DINE_IN: 'Dine In',
-  TAKEAWAY: 'Take Out',
-  DELIVERY: 'Delivery',
-  THIRD_PARTY: 'Third Party',
-}
-
 const URGENT_THRESHOLD_MS = 3 * 60_000
 
 function orderMaxDurationMinutes(order: Order): number | null {
@@ -112,7 +105,7 @@ function TicketCard({ order, now }: { order: Order; now: number }) {
         {/* Timer / order type / waiter+table, anchored to the right */}
         <div className="flex flex-row items-center gap-3 border-t border-border pt-3 sm:ml-auto sm:flex-col sm:items-end sm:gap-2 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0 sm:text-right">
           <CountdownTimer order={order} now={now} />
-          <Badge variant="default">{SOURCE_LABELS[order.source]}</Badge>
+          <Badge variant="default">{order.source}</Badge>
           <div className="text-xs font-semibold text-muted-foreground">{waiterOrTable}</div>
         </div>
       </CardContent>

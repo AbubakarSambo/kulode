@@ -1,7 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ArrayMinSize, IsArray, IsIn, IsNotEmpty, IsOptional, IsUUID } from 'class-validator';
-
-const ORDER_SOURCES = ['DINE_IN', 'TAKEAWAY', 'DELIVERY', 'THIRD_PARTY'] as const;
+import { ArrayMinSize, IsArray, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class MoveOrderItemsDto {
   @ApiProperty({ type: [String], description: 'Item ids on this order to move off it' })
@@ -20,9 +18,9 @@ export class MoveOrderItemsDto {
   @IsUUID()
   tableId?: string;
 
-  @ApiPropertyOptional({ enum: ORDER_SOURCES, description: 'Only used when creating a new order — defaults to the source order\'s own type' })
+  @ApiPropertyOptional({ description: 'Name of an active OrderType for this org — only used when creating a new order — defaults to the source order\'s own type' })
   @IsOptional()
   @IsNotEmpty()
-  @IsIn(ORDER_SOURCES)
-  source?: (typeof ORDER_SOURCES)[number];
+  @IsString()
+  source?: string;
 }

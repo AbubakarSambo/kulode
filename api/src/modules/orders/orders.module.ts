@@ -9,9 +9,10 @@ import { PaystackModule } from '../paystack/paystack.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { SheetSyncModule } from '../sheet-sync';
 import { PrintersModule } from '../printers';
+import { OrderTypesModule } from '../order-types';
 
 @Module({
-  imports: [InventoryModule, WalletModule, SheetSyncModule, PrintersModule, forwardRef(() => PaystackModule)],
+  imports: [InventoryModule, WalletModule, SheetSyncModule, PrintersModule, OrderTypesModule, forwardRef(() => PaystackModule)],
   controllers: [OrdersController, PosDashboardController],
   providers: [OrdersService, OrderReceiptPdfService, PosDashboardService],
   exports: [OrdersService],

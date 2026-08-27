@@ -18,7 +18,7 @@ export interface CreateOrderData {
   tableId?: string
   customerId?: string
   waiterId?: string
-  source?: 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY' | 'THIRD_PARTY'
+  source?: string
   items: CreateOrderItemData[]
   notes?: string
   applyVat?: boolean
@@ -152,7 +152,7 @@ export const ordersApi = {
     return response.data.data
   },
 
-  /** Reclassifies an order (e.g. dine-in -> takeaway). tableId is required when switching to DINE_IN. */
+  /** Reclassifies an order (e.g. dine-in -> takeaway). tableId is required when switching to an order type that requiresTable. */
   setSource: async (id: string, source: Order['source'], tableId?: string): Promise<Order> => {
     const response = await apiClient.patch<ApiResponse<Order>>(`/orders/${id}/source`, { source, tableId })
     return response.data.data

@@ -5,6 +5,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { WalletService } from '../wallet/wallet.service';
 import { SheetSyncService } from '../sheet-sync';
 import { PrintingService } from '../printers';
+import { OrderTypesService } from '../order-types';
 import {
   CreateOrderDto,
   AddOrderItemsDto,
@@ -29,13 +30,6 @@ const PAYABLE_STATUSES: OrderStatus[] = [...OPEN_STATUSES, OrderStatus.CLOSED_UN
 function toNumber(val: Prisma.Decimal | number): number {
   return typeof val === 'number' ? val : Number(val);
 }
-
-const SALES_AREA_2_LABELS: Record<string, string> = {
-  DINE_IN: 'Dine In',
-  TAKEAWAY: 'Takeaway',
-  DELIVERY: 'Delivery',
-  THIRD_PARTY: 'Third Party',
-};
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
@@ -71,6 +65,7 @@ export class OrdersService {
     private walletService: WalletService,
     private sheetSync: SheetSyncService,
     private printingService: PrintingService,
+    private orderTypesService: OrderTypesService,
   ) {}
 
   // Fires kitchen/bar dockets for newly created order items. Run after the DB transaction
@@ -252,10 +247,11 @@ export class OrdersService {
   }
 
   async create(organizationId: string, userId: string, dto: CreateOrderDto) {
-    const source = dto.source ?? 'DINE_IN';
+    const source = dto.source ?? 'Dine In';
+    const sourceRequiresTable = await this.orderTypesService.requiresTable(organizationId, source);
 
-    if (source === 'DINE_IN' && !dto.tableId) {
-      throw new BadRequestException('tableId is required for dine-in orders');
+    if (sourceRequiresTable && !dto.tableId) {
+      throw new BadRequestException(`tableId is required for ${source} orders`);
     }
 
     if (dto.tableId) {
@@ -578,8 +574,9 @@ export class OrdersService {
 
   /**
    * Reclassifies an order (e.g. a dine-in party decides to take it to go instead). Switching away
-   * from DINE_IN frees whatever table it was on — the whole point of the change is that no one's
-   * sitting there anymore. Switching to DINE_IN requires a table and occupies it, same as at
+   * from a table-requiring type frees whatever table it was on — the whole point of the change is
+   * that no one's sitting there anymore. Switching to a table-requiring type requires a table and
+   * occupies it, same as at
    * order creation.
    */
   async setSource(organizationId: string, id: string, dto: UpdateOrderSourceDto) {
@@ -589,9 +586,11 @@ export class OrdersService {
       throw new BadRequestException('Cannot change the type of a cancelled order');
     }
 
-    if (dto.source === 'DINE_IN') {
+    const sourceRequiresTable = await this.orderTypesService.requiresTable(organizationId, dto.source);
+
+    if (sourceRequiresTable) {
       if (!dto.tableId) {
-        throw new BadRequestException('tableId is required when switching an order to dine-in');
+        throw new BadRequestException(`tableId is required when switching an order to ${dto.source}`);
       }
       const table = await this.prisma.restaurantTable.findFirst({
         where: { id: dto.tableId, organizationId, isActive: true },
@@ -603,7 +602,7 @@ export class OrdersService {
       if (order.tableId && order.tableId !== dto.tableId) {
         await tx.restaurantTable.update({ where: { id: order.tableId }, data: { status: 'AVAILABLE' } });
       }
-      if (dto.source === 'DINE_IN' && dto.tableId) {
+      if (sourceRequiresTable && dto.tableId) {
         await tx.restaurantTable.update({ where: { id: dto.tableId }, data: { status: 'OCCUPIED' } });
       }
 
@@ -611,7 +610,7 @@ export class OrdersService {
         where: { id },
         data: {
           source: dto.source,
-          tableId: dto.source === 'DINE_IN' ? dto.tableId : null,
+          tableId: sourceRequiresTable ? dto.tableId : null,
         },
         include: this.orderInclude,
       });
@@ -756,8 +755,11 @@ export class OrdersService {
     // common case is splitting one table's tab into two checks, not relocating items elsewhere.
     const newOrderSource = destination ? undefined : dto.source ?? source.source;
     const newOrderTableId = destination ? undefined : dto.tableId ?? source.tableId ?? undefined;
-    if (!destination && newOrderSource === 'DINE_IN' && !newOrderTableId) {
-      throw new BadRequestException('tableId is required for a new dine-in order');
+    if (!destination) {
+      const newSourceRequiresTable = await this.orderTypesService.requiresTable(organizationId, newOrderSource!);
+      if (newSourceRequiresTable && !newOrderTableId) {
+        throw new BadRequestException(`tableId is required for a new ${newOrderSource} order`);
+      }
     }
     if (!destination && newOrderTableId) {
       const table = await this.prisma.restaurantTable.findFirst({
@@ -1077,7 +1079,7 @@ export class OrdersService {
             toNumber(item.quantity),
             categoryName ?? '',
             resolveSalesArea1(categoryName),
-            SALES_AREA_2_LABELS[updated.source] ?? updated.source,
+            updated.source,
             toNumber(updated.total),
             toNumber(item.amount),
             toNumber(updated.vatAmount),
