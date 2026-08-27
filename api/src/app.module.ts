@@ -31,6 +31,7 @@ import { GoogleSheetsModule } from './modules/google-sheets';
 import { SheetSyncModule } from './modules/sheet-sync';
 import { PosReportsModule } from './modules/pos-reports';
 import { PrintersModule } from './modules/printers';
+import { OrderTypesModule } from './modules/order-types';
 import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor, SubscriptionReadOnlyGuard } from './common';
 
 
@@ -68,6 +69,7 @@ import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor, 
     SheetSyncModule,
     PosReportsModule,
     PrintersModule,
+    OrderTypesModule,
   ],
   providers: [
     {

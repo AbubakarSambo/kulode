@@ -28,7 +28,9 @@ const DOUBLE_HEIGHT_OFF = `${GS}!\x00`;
 const CENTER = `${ESC}a\x01`;
 const LEFT = `${ESC}a\x00`;
 const CUT = `${GS}V\x00`;
-const FEED_LINES = '\n\n\n';
+// Generous feed before the cut — a docket handed off with its last line right at the tear edge
+// gets its text sliced or crumpled; this leaves clean blank paper to hold/tear by.
+const FEED_LINES = '\n\n\n\n\n\n';
 
 // Stale-job cutoff: if a print agent has been offline long enough that a pending job is this
 // old, it's no longer "immediate" — surface it as failed instead of silently printing a
@@ -224,16 +226,20 @@ export class PrintingService {
       lines.push(BOLD_ON, DOUBLE_HEIGHT_ON, '*** CANCELLED ***\n', DOUBLE_HEIGHT_OFF, BOLD_OFF);
     }
     lines.push(LEFT);
+    lines.push('\n');
     if (order.tableName) lines.push(`Table: ${order.tableName}\n`);
     if (order.waiterName) lines.push(`Waiter: ${order.waiterName}\n`);
     lines.push(`Order: ${order.id.slice(0, 8)}\n`);
     lines.push(`${new Date().toLocaleString()}\n`);
-    lines.push('--------------------------------\n');
+    lines.push('\n--------------------------------\n\n');
 
     for (const item of items) {
       const prefix = isCancelled ? 'VOID ' : '';
-      lines.push(BOLD_ON, `${prefix}${item.quantity} x ${item.itemName}\n`, BOLD_OFF);
+      // Double-height item lines — this is the one thing kitchen/bar staff actually need to read
+      // at a glance from across the station, everything else here is just context.
+      lines.push(BOLD_ON, DOUBLE_HEIGHT_ON, `${prefix}${item.quantity} x ${item.itemName}\n`, DOUBLE_HEIGHT_OFF, BOLD_OFF);
       if (item.notes) lines.push(`  Note: ${item.notes}\n`);
+      lines.push('\n');
     }
 
     lines.push('--------------------------------\n');

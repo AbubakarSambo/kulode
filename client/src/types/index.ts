@@ -401,7 +401,9 @@ export interface StockMovement {
 
 // Restaurant POS types
 export type TableStatus = 'AVAILABLE' | 'OCCUPIED' | 'RESERVED' | 'NEEDS_CLEANING'
-export type OrderSource = 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY' | 'THIRD_PARTY'
+// The name of an org's OrderType (e.g. "Dine In", "Takeaway", or a custom type like "Hotel Room
+// Service") — a free-form per-org string, not a fixed set. See OrderType below.
+export type OrderSource = string
 export type OrderStatus = 'OPEN' | 'IN_KITCHEN' | 'READY' | 'CLOSED_PAID' | 'CLOSED_UNPAID' | 'CANCELLED'
 export type OrderItemStatus = 'PENDING' | 'ON_IT' | 'PASS' | 'SERVED'
 export type ShiftStatus = 'OPEN' | 'CLOSED'
@@ -411,6 +413,14 @@ export interface MenuCategory {
   name: string
   sortOrder: number
   isActive: boolean
+}
+
+export interface OrderType {
+  id: string
+  name: string
+  sortOrder: number
+  isActive: boolean
+  requiresTable: boolean
 }
 
 export interface MenuItem {

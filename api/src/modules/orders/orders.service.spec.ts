@@ -6,6 +6,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { WalletService } from '../wallet/wallet.service';
 import { SheetSyncService } from '../sheet-sync';
 import { PrintingService } from '../printers';
+import { OrderTypesService } from '../order-types';
 
 // ─── Mock helpers ────────────────────────────────────────────────────────────
 
@@ -67,6 +68,7 @@ describe('OrdersService — status transitions across the waiter/cashier split',
   let walletService: { debit: jest.Mock };
   let sheetSync: { enqueue: jest.Mock };
   let printingService: { dispatchDocketsForNewItems: jest.Mock; dispatchDocketsForCancellation: jest.Mock };
+  let orderTypesService: { requiresTable: jest.Mock };
 
   beforeEach(async () => {
     prisma = createMockPrisma();
@@ -77,6 +79,9 @@ describe('OrdersService — status transitions across the waiter/cashier split',
       dispatchDocketsForNewItems: jest.fn().mockResolvedValue(undefined),
       dispatchDocketsForCancellation: jest.fn().mockResolvedValue(undefined),
     };
+    // Only create/setSource/moveItems consult this — defaults to "Dine In behaves like the old
+    // DINE_IN enum value" for any test that happens to exercise those paths.
+    orderTypesService = { requiresTable: jest.fn().mockResolvedValue(false) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -86,6 +91,7 @@ describe('OrdersService — status transitions across the waiter/cashier split',
         { provide: WalletService, useValue: walletService },
         { provide: SheetSyncService, useValue: sheetSync },
         { provide: PrintingService, useValue: printingService },
+        { provide: OrderTypesService, useValue: orderTypesService },
       ],
     }).compile();
 

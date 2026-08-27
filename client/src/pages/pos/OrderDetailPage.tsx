@@ -6,7 +6,7 @@ import { ArrowLeft, Download, Plus, X, UserPlus, Pencil } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Badge, Input, Label, SearchableSelect } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
-import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, usersApi, tablesApi } from '@/api'
+import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, usersApi, tablesApi, orderTypesApi } from '@/api'
 import { getQueuedActionsForLocalOrder, discardFailedAction, LOCAL_ORDER_PREFIX } from '@/lib/offlineOrderQueue'
 import { formatCurrency, cn } from '@/lib/utils'
 import { printBill } from '@/lib/printBill'
@@ -18,14 +18,6 @@ import type { CreateOrderItemData } from '@/api/orders'
 const PAYMENT_CAPABLE_ROLES = ['STAFF', 'ACCOUNTANT', 'CASHIER', 'ADMIN', 'SUPER_ADMIN']
 // Matches the backend's @Roles list on POST /orders/:id/cancel.
 const VOID_CAPABLE_ROLES = ['STAFF', 'ACCOUNTANT', 'SUPERVISOR', 'MANAGER', 'ADMIN', 'SUPER_ADMIN']
-const ORDER_SOURCES: OrderSource[] = ['DINE_IN', 'TAKEAWAY', 'DELIVERY', 'THIRD_PARTY']
-const SOURCE_LABELS: Record<OrderSource, string> = {
-  DINE_IN: 'Dine In',
-  TAKEAWAY: 'Takeaway',
-  DELIVERY: 'Delivery',
-  THIRD_PARTY: 'Third Party',
-}
-
 const ITEM_STATUS_FLOW: OrderItemStatus[] = ['PENDING', 'ON_IT', 'PASS', 'SERVED']
 const ITEM_STATUS_LABELS: Record<OrderItemStatus, string> = {
   PENDING: 'Pending',
@@ -389,7 +381,7 @@ function SyncedOrderView({ id }: { id: string }) {
   const [selectedWaiterId, setSelectedWaiterId] = useState('')
   const [mergeModalOpen, setMergeModalOpen] = useState(false)
   const [sourceModalOpen, setSourceModalOpen] = useState(false)
-  const [selectedSource, setSelectedSource] = useState<OrderSource>('DINE_IN')
+  const [selectedSource, setSelectedSource] = useState<OrderSource>('Dine In')
   const [selectedSourceTableId, setSelectedSourceTableId] = useState('')
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set())
   const [moveModalOpen, setMoveModalOpen] = useState(false)
@@ -406,6 +398,14 @@ function SyncedOrderView({ id }: { id: string }) {
     queryFn: () => ordersApi.get(id),
     refetchInterval: 10_000,
   })
+
+  const { data: orderTypes } = useQuery({
+    queryKey: ['order-types'],
+    queryFn: () => orderTypesApi.list(),
+    enabled: sourceModalOpen,
+  })
+  const sortedOrderTypes = useMemo(() => (orderTypes ?? []).slice().sort((a, b) => a.sortOrder - b.sortOrder), [orderTypes])
+  const selectedSourceRequiresTable = sortedOrderTypes.find((t) => t.name === selectedSource)?.requiresTable ?? false
 
   const { data: walletBalance } = useQuery({
     queryKey: ['wallet-balance', order?.customer?.id],
@@ -521,7 +521,7 @@ function SyncedOrderView({ id }: { id: string }) {
   })
 
   const setSource = useMutation({
-    mutationFn: () => ordersApi.setSource(id, selectedSource, selectedSource === 'DINE_IN' ? selectedSourceTableId : undefined),
+    mutationFn: () => ordersApi.setSource(id, selectedSource, selectedSourceRequiresTable ? selectedSourceTableId : undefined),
     onSuccess: () => {
       toast.success('Order type updated')
       setSourceModalOpen(false)
@@ -739,7 +739,7 @@ function SyncedOrderView({ id }: { id: string }) {
 
         <div className="mb-4 flex items-center justify-between rounded-xl border border-border p-3">
           <span className="text-sm font-medium text-foreground">
-            {SOURCE_LABELS[order.source]}{order.table ? ` · ${order.table.name}` : ''}
+            {order.source}{order.table ? ` · ${order.table.name}` : ''}
           </span>
           {isOpenStatus && (
             <button
@@ -1342,22 +1342,22 @@ function SyncedOrderView({ id }: { id: string }) {
           <div>
             <Label>Order Type</Label>
             <div className="mt-1 flex flex-wrap gap-2">
-              {ORDER_SOURCES.map((s) => (
+              {sortedOrderTypes.map((t) => (
                 <button
-                  key={s}
+                  key={t.id}
                   type="button"
-                  onClick={() => setSelectedSource(s)}
+                  onClick={() => setSelectedSource(t.name)}
                   className={cn(
                     'shrink-0 cursor-pointer rounded-full px-4 py-2 text-sm font-medium',
-                    selectedSource === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                    selectedSource === t.name ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
                   )}
                 >
-                  {SOURCE_LABELS[s]}
+                  {t.name}
                 </button>
               ))}
             </div>
           </div>
-          {selectedSource === 'DINE_IN' && (
+          {selectedSourceRequiresTable && (
             <div>
               <Label>Table</Label>
               <SearchableSelect
@@ -1370,7 +1370,7 @@ function SyncedOrderView({ id }: { id: string }) {
           )}
           <Button
             className="w-full"
-            disabled={selectedSource === 'DINE_IN' && !selectedSourceTableId}
+            disabled={selectedSourceRequiresTable && !selectedSourceTableId}
             isLoading={setSource.isPending}
             onClick={() => setSource.mutate()}
           >

@@ -57,6 +57,7 @@ import {
   MenuItemDetailPage,
   PosDashboardPage,
   MenuCategoriesPage,
+  OrderTypesPage,
   WaitersPage,
   WaiterDetailPage,
   TablesFloorPage,
@@ -228,6 +229,7 @@ function App() {
                 <Route path="/pos/menu" element={<MenuManagementPage />} />
                 <Route path="/pos/menu/:id" element={<MenuItemDetailPage />} />
                 <Route path="/pos/categories" element={<MenuCategoriesPage />} />
+                <Route path="/pos/order-types" element={<OrderTypesPage />} />
                 <Route path="/pos/waiters" element={<WaitersPage />} />
                 <Route path="/pos/waiters/:id" element={<WaiterDetailPage />} />
                 <Route path="/pos/tables" element={<TablesFloorPage />} />

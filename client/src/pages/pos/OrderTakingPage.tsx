@@ -10,7 +10,7 @@ import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Label, Input, SearchableSelect } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { BottomSheet } from '@/components/shared/BottomSheet'
-import { menuCategoriesApi, menuItemsApi, ordersApi, customersApi, tablesApi, usersApi, organizationsApi } from '@/api'
+import { menuCategoriesApi, menuItemsApi, ordersApi, customersApi, tablesApi, usersApi, organizationsApi, orderTypesApi } from '@/api'
 import { formatCurrency, cn } from '@/lib/utils'
 import type { OrderSource } from '@/types'
 
@@ -41,18 +41,11 @@ interface CartLine {
   notes?: string
 }
 
-const SOURCE_LABELS: Record<OrderSource, string> = {
-  DINE_IN: 'Dine In',
-  TAKEAWAY: 'Takeaway',
-  DELIVERY: 'Delivery',
-  THIRD_PARTY: 'Third Party',
-}
-
 export function OrderTakingPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const tableId = searchParams.get('tableId') || undefined
-  const initialSource = (searchParams.get('source') as OrderSource) || 'DINE_IN'
+  const initialSource = (searchParams.get('source') as OrderSource) || 'Dine In'
 
   const queryClient = useQueryClient()
   // Fresh, not the auth store's login-time snapshot — an admin can flip these settings mid-shift
@@ -88,7 +81,11 @@ export function OrderTakingPage() {
     enabled: !tableId,
   })
   const availableTables = useMemo(() => (tables ?? []).filter((t) => t.status === 'AVAILABLE'), [tables])
-  const effectiveTableId = tableId ?? (source === 'DINE_IN' ? selectedTableId || undefined : undefined)
+
+  const { data: orderTypes } = useQuery({ queryKey: ['order-types'], queryFn: () => orderTypesApi.list() })
+  const sortedOrderTypes = useMemo(() => (orderTypes ?? []).slice().sort((a, b) => a.sortOrder - b.sortOrder), [orderTypes])
+  const sourceRequiresTable = sortedOrderTypes.find((t) => t.name === source)?.requiresTable ?? false
+  const effectiveTableId = tableId ?? (sourceRequiresTable ? selectedTableId || undefined : undefined)
 
   const { data: categories } = useQuery({ queryKey: ['menu-categories'], queryFn: () => menuCategoriesApi.list() })
   const { data: items } = useQuery({ queryKey: ['menu-items'], queryFn: () => menuItemsApi.list() })
@@ -124,7 +121,7 @@ export function OrderTakingPage() {
     () => tableOptions.find((t) => t.id === selectedTableId)?.label,
     [tableOptions, selectedTableId],
   )
-  const showTablePicker = !tableId && source === 'DINE_IN'
+  const showTablePicker = !tableId && sourceRequiresTable
 
   const customerForm = useForm<CustomerFormData>({ resolver: zodResolver(customerSchema) })
   const createCustomer = useMutation({
@@ -231,7 +228,7 @@ export function OrderTakingPage() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Header
-        title={tableId ? 'New Order' : `New ${SOURCE_LABELS[source]} Order`}
+        title={tableId ? 'New Order' : `New ${source} Order`}
         description={tableId ? undefined : 'Select order type and add items'}
         action={
           tableId ? (
@@ -248,19 +245,19 @@ export function OrderTakingPage() {
             <div className="mb-4">
               <Label>Order Type</Label>
               <div className="mt-1 flex gap-2 overflow-x-auto pb-1">
-                {(Object.keys(SOURCE_LABELS) as OrderSource[]).map((s) => (
+                {sortedOrderTypes.map((t) => (
                   <button
-                    key={s}
+                    key={t.id}
                     onClick={() => {
-                      setSource(s)
+                      setSource(t.name)
                       setSelectedTableId('')
                     }}
                     className={cn(
                       'shrink-0 cursor-pointer rounded-full px-4 py-2 text-sm font-medium',
-                      source === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                      source === t.name ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
                     )}
                   >
-                    {SOURCE_LABELS[s]}
+                    {t.name}
                   </button>
                 ))}
               </div>
@@ -438,7 +435,7 @@ export function OrderTakingPage() {
 
           <Button
             className="mt-4 h-14 text-base"
-            disabled={cart.length === 0 || (source === 'DINE_IN' && !effectiveTableId)}
+            disabled={cart.length === 0 || (sourceRequiresTable && !effectiveTableId)}
             isLoading={createOrder.isPending}
             onClick={() => createOrder.mutate()}
           >

@@ -4,7 +4,6 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
-  IsIn,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -13,8 +12,6 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-
-const ORDER_SOURCES = ['DINE_IN', 'TAKEAWAY', 'DELIVERY', 'THIRD_PARTY'] as const;
 
 export class CreateOrderItemDto {
   @ApiProperty()
@@ -34,7 +31,7 @@ export class CreateOrderItemDto {
 }
 
 export class CreateOrderDto {
-  @ApiPropertyOptional({ description: 'Required for DINE_IN orders' })
+  @ApiPropertyOptional({ description: 'Required for order types with requiresTable set (e.g. Dine In)' })
   @IsOptional()
   @IsUUID()
   tableId?: string;
@@ -49,10 +46,11 @@ export class CreateOrderDto {
   @IsUUID()
   waiterId?: string;
 
-  @ApiPropertyOptional({ enum: ORDER_SOURCES, default: 'DINE_IN' })
+  @ApiPropertyOptional({ description: 'Name of an active OrderType for this org', default: 'Dine In' })
   @IsOptional()
-  @IsIn(ORDER_SOURCES)
-  source?: (typeof ORDER_SOURCES)[number];
+  @IsString()
+  @IsNotEmpty()
+  source?: string;
 
   @ApiProperty({ type: [CreateOrderItemDto] })
   @IsArray()
