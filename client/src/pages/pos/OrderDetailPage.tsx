@@ -440,7 +440,7 @@ function SyncedOrderView({ id }: { id: string }) {
 
   const { data: waiters } = useQuery({
     queryKey: ['waiters-directory'],
-    queryFn: () => usersApi.directory('WAITER'),
+    queryFn: () => usersApi.directory(['WAITER', 'CASHIER']),
     enabled: waiterModalOpen,
   })
   const waiterOptions = useMemo(

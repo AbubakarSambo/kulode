@@ -59,10 +59,13 @@ export const usersApi = {
     const response = await apiClient.get<ApiResponse<PaginatedResponse<UserData>>>('/users')
     return response.data.data
   },
-  // Lightweight, broadly-accessible staff picker for a given role (e.g. assigning a waiter to an
-  // order) — unlike list() above, any authenticated staff member can call this.
-  directory: async (role: UserRole): Promise<DirectoryEntry[]> => {
-    const response = await apiClient.get<ApiResponse<DirectoryEntry[]>>('/users/directory', { params: { role } })
+  // Lightweight, broadly-accessible staff picker for one or more roles (e.g. assigning a waiter
+  // to an order) — unlike list() above, any authenticated staff member can call this.
+  directory: async (role: UserRole | UserRole[]): Promise<DirectoryEntry[]> => {
+    const roleParam = Array.isArray(role) ? role.join(',') : role
+    const response = await apiClient.get<ApiResponse<DirectoryEntry[]>>('/users/directory', {
+      params: { role: roleParam },
+    })
     return response.data.data
   },
   getOrderHistory: async (id: string): Promise<StaffOrderHistory> => {

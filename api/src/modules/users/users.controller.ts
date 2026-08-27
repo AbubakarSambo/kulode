@@ -8,7 +8,7 @@ import {
   Param,
   Query,
   ParseUUIDPipe,
-  ParseEnumPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { UsersService } from './users.service';
@@ -34,17 +34,22 @@ export class UsersController {
 
   @Get('directory')
   @ApiOperation({
-    summary: 'Lightweight staff directory for a given role, e.g. assigning a waiter to an order',
+    summary: 'Lightweight staff directory for one or more roles, e.g. assigning a waiter to an order',
     description: 'Unrestricted by role — any authenticated staff member needs this to assign a colleague to an order.',
   })
-  @ApiQuery({ name: 'role', enum: Role })
-  @ApiResponse({ status: 200, description: 'Active staff holding the given role' })
+  @ApiQuery({ name: 'role', enum: Role, isArray: true, description: 'Comma-separated list of roles' })
+  @ApiResponse({ status: 200, description: 'Active staff holding any of the given roles' })
   @ApiResponse({ status: 400, description: 'Unknown role' })
   async findDirectory(
     @CurrentUser('organizationId') organizationId: string,
-    @Query('role', new ParseEnumPipe(Role)) role: Role,
+    @Query('role') roleParam: string,
   ) {
-    return this.usersService.findDirectory(organizationId, role);
+    const roles = (roleParam ?? '').split(',').map((r) => r.trim()).filter(Boolean) as Role[];
+    const invalid = roles.filter((r) => !Object.values(Role).includes(r));
+    if (roles.length === 0 || invalid.length > 0) {
+      throw new BadRequestException(`Unknown role(s): ${invalid.join(', ') || roleParam}`);
+    }
+    return this.usersService.findDirectory(organizationId, roles);
   }
 
   @Get(':id/waiter-history')

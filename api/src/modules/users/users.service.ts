@@ -105,9 +105,9 @@ export class UsersService {
   // Deliberately unrestricted by @Roles at the controller — any authenticated POS user needs
   // this to assign a waiter to an order (mirrors the old standalone Waiters directory, which had
   // no role guard either). Returns only what's needed for a picker, never email/PIN/admin fields.
-  async findDirectory(organizationId: string, role: Role) {
+  async findDirectory(organizationId: string, roles: Role[]) {
     return this.prisma.user.findMany({
-      where: { organizationId, isActive: true, roles: { has: role } },
+      where: { organizationId, isActive: true, roles: { hasSome: roles } },
       orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
       select: { id: true, firstName: true, lastName: true, phone: true },
     });

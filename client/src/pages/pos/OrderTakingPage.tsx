@@ -100,7 +100,10 @@ export function OrderTakingPage() {
     () => (customersPage?.data ?? []).map((c) => ({ id: c.id, label: c.phone ? `${c.name} (${c.phone})` : c.name })),
     [customersPage],
   )
-  const { data: waiters } = useQuery({ queryKey: ['waiters-directory'], queryFn: () => usersApi.directory('WAITER') })
+  const { data: waiters } = useQuery({
+    queryKey: ['waiters-directory'],
+    queryFn: () => usersApi.directory(['WAITER', 'CASHIER']),
+  })
   const waiterOptions = useMemo(
     () => (waiters ?? []).map((w) => ({ id: w.id, label: `${w.firstName} ${w.lastName}` })),
     [waiters],
