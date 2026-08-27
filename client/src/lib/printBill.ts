@@ -32,15 +32,15 @@ export function printBill(receipt: ReceiptData) {
 
   const itemRows = receipt.items
     .map(
-      (item, index) => `
+      (item) => `
         <tr class="item-row">
-          <td class="item-no">${index + 1}</td>
+          <td class="item-no">${item.quantity}</td>
           <td>
             <div class="item-name">${escapeHtml(item.name)}</div>
             ${item.quantity > 1 ? `<div class="item-sub">${formatCurrency(item.unitPrice)} / unit</div>` : ''}
             ${item.notes ? `<div class="item-sub">${escapeHtml(item.notes)}</div>` : ''}
           </td>
-          <td class="right">${item.quantity > 1 ? `${item.quantity} × ` : ''}${formatCurrency(item.amount)}</td>
+          <td class="right">${formatCurrency(item.amount)}</td>
         </tr>`,
     )
     .join('')
