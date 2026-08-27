@@ -16,6 +16,8 @@ export interface DocketItem {
   notes?: string | null;
 }
 
+type DocketType = 'NEW' | 'CANCELLED';
+
 const ESC = '\x1b';
 const GS = '\x1d';
 const INIT = `${ESC}@`; // reset printer state
@@ -49,7 +51,26 @@ export class PrintingService {
     order: DocketOrderContext,
     newItems: DocketItem[],
   ): Promise<void> {
-    if (newItems.length === 0) return;
+    return this.dispatchDockets(organizationId, order, newItems, 'NEW');
+  }
+
+  // Same routing/filtering as a new-order docket, but the ticket is visibly marked CANCELLED so
+  // kitchen/bar staff know to stop or discard the items rather than start them.
+  async dispatchDocketsForCancellation(
+    organizationId: string,
+    order: DocketOrderContext,
+    cancelledItems: DocketItem[],
+  ): Promise<void> {
+    return this.dispatchDockets(organizationId, order, cancelledItems, 'CANCELLED');
+  }
+
+  private async dispatchDockets(
+    organizationId: string,
+    order: DocketOrderContext,
+    items: DocketItem[],
+    docketType: DocketType,
+  ): Promise<void> {
+    if (items.length === 0) return;
 
     const printers = await this.prisma.printer.findMany({
       where: { organizationId, isActive: true },
@@ -57,7 +78,7 @@ export class PrintingService {
     });
     if (printers.length === 0) return;
 
-    const menuItemIds = [...new Set(newItems.map((i) => i.menuItemId).filter((id): id is string => !!id))];
+    const menuItemIds = [...new Set(items.map((i) => i.menuItemId).filter((id): id is string => !!id))];
     const menuItemCategories =
       menuItemIds.length > 0
         ? await this.prisma.menuItemCategory.findMany({
@@ -74,31 +95,33 @@ export class PrintingService {
 
     await Promise.all(
       printers.map(async (printer) => {
-        const items =
+        const printerItems =
           printer.categories.length === 0
-            ? newItems
-            : newItems.filter((item) => {
+            ? items
+            : items.filter((item) => {
                 const categoryIds = item.menuItemId ? categoryIdsByMenuItem.get(item.menuItemId) : undefined;
                 if (!categoryIds) return false;
                 return printer.categories.some((c) => categoryIds.has(c.categoryId));
               });
 
-        if (items.length === 0) return;
+        if (printerItems.length === 0) return;
 
         const payload = {
           orderId: order.id,
           tableName: order.tableName ?? null,
           waiterName: order.waiterName ?? null,
           source: order.source,
-          items: items.map((i) => ({ itemName: i.itemName, quantity: i.quantity, notes: i.notes ?? null })),
+          type: docketType,
+          items: printerItems.map((i) => ({ itemName: i.itemName, quantity: i.quantity, notes: i.notes ?? null })),
           station: printer.station,
           printedAt: new Date().toISOString(),
           // base64-encoded: the raw ESC/POS bytes include a literal null byte (the
           // "cut paper" command), which Postgres text/JSON columns reject outright.
           // Only decoded back to raw bytes by the agent, right before writing to the printer.
-          escposText: Buffer.from(this.formatDocketEscPos(printer.station, order, items), 'binary').toString(
-            'base64',
-          ),
+          escposText: Buffer.from(
+            this.formatDocketEscPos(printer.station, order, printerItems, docketType),
+            'binary',
+          ).toString('base64'),
         };
 
         await this.prisma.printJob.create({
@@ -186,11 +209,20 @@ export class PrintingService {
     }
   }
 
-  private formatDocketEscPos(station: string, order: DocketOrderContext, items: DocketItem[]): string {
+  private formatDocketEscPos(
+    station: string,
+    order: DocketOrderContext,
+    items: DocketItem[],
+    docketType: DocketType,
+  ): string {
     const lines: string[] = [];
+    const isCancelled = docketType === 'CANCELLED';
 
     lines.push(INIT);
     lines.push(CENTER, BOLD_ON, DOUBLE_HEIGHT_ON, `${station}\n`, DOUBLE_HEIGHT_OFF, BOLD_OFF);
+    if (isCancelled) {
+      lines.push(BOLD_ON, DOUBLE_HEIGHT_ON, '*** CANCELLED ***\n', DOUBLE_HEIGHT_OFF, BOLD_OFF);
+    }
     lines.push(LEFT);
     if (order.tableName) lines.push(`Table: ${order.tableName}\n`);
     if (order.waiterName) lines.push(`Waiter: ${order.waiterName}\n`);
@@ -199,7 +231,8 @@ export class PrintingService {
     lines.push('--------------------------------\n');
 
     for (const item of items) {
-      lines.push(BOLD_ON, `${item.quantity} x ${item.itemName}\n`, BOLD_OFF);
+      const prefix = isCancelled ? 'VOID ' : '';
+      lines.push(BOLD_ON, `${prefix}${item.quantity} x ${item.itemName}\n`, BOLD_OFF);
       if (item.notes) lines.push(`  Note: ${item.notes}\n`);
     }
 

@@ -118,6 +118,50 @@ export class OrdersService {
       });
   }
 
+  // Same fire-and-forget contract as dispatchPrintDockets — run after the transaction commits,
+  // never awaited, so a printer outage can't slow down or fail the "cancel order" request.
+  private dispatchCancellationDocket(
+    organizationId: string,
+    order: {
+      id: string;
+      source: string;
+      table?: { name: string } | null;
+      waiter?: { firstName: string; lastName: string } | null;
+    },
+    items: Array<{
+      id: string;
+      menuItemId: string | null;
+      itemName: string;
+      quantity: Prisma.Decimal | number;
+      notes: string | null;
+    }>,
+  ): void {
+    if (items.length === 0) return;
+
+    this.printingService
+      .dispatchDocketsForCancellation(
+        organizationId,
+        {
+          id: order.id,
+          tableName: order.table?.name ?? null,
+          waiterName: order.waiter ? `${order.waiter.firstName} ${order.waiter.lastName}` : null,
+          source: order.source,
+        },
+        items.map((i) => ({
+          id: i.id,
+          menuItemId: i.menuItemId,
+          itemName: i.itemName,
+          quantity: toNumber(i.quantity),
+          notes: i.notes,
+        })),
+      )
+      .catch((err) => {
+        this.logger.warn(
+          `Cancellation print dispatch failed for order ${order.id}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
+  }
+
   private readonly orderInclude = {
     table: { select: { id: true, name: true, section: true } },
     customer: { select: { id: true, name: true, phone: true } },
@@ -818,7 +862,7 @@ export class OrdersService {
       throw new BadRequestException(`Cannot cancel a ${order.status.toLowerCase()} order`);
     }
 
-    await this.prisma.$transaction(async (tx) => {
+    const cancelled = await this.prisma.$transaction(async (tx) => {
       // Conditional update guards against a concurrent close/cancel racing past the check above —
       // only an order still in a voidable status actually transitions.
       const result = await tx.order.updateMany({
@@ -831,7 +875,11 @@ export class OrdersService {
       if (order.tableId) {
         await tx.restaurantTable.update({ where: { id: order.tableId }, data: { status: 'AVAILABLE' } });
       }
+
+      return tx.order.findUniqueOrThrow({ where: { id }, include: this.orderInclude });
     });
+
+    this.dispatchCancellationDocket(organizationId, cancelled, cancelled.items);
 
     return { message: 'Order cancelled successfully' };
   }

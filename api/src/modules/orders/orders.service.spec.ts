@@ -61,14 +61,17 @@ describe('OrdersService — status transitions across the waiter/cashier split',
   let inventoryService: { deductForOrder: jest.Mock };
   let walletService: { debit: jest.Mock };
   let sheetSync: { enqueue: jest.Mock };
-  let printingService: { dispatchDocketsForNewItems: jest.Mock };
+  let printingService: { dispatchDocketsForNewItems: jest.Mock; dispatchDocketsForCancellation: jest.Mock };
 
   beforeEach(async () => {
     prisma = createMockPrisma();
     inventoryService = { deductForOrder: jest.fn() };
     walletService = { debit: jest.fn() };
     sheetSync = { enqueue: jest.fn() };
-    printingService = { dispatchDocketsForNewItems: jest.fn().mockResolvedValue(undefined) };
+    printingService = {
+      dispatchDocketsForNewItems: jest.fn().mockResolvedValue(undefined),
+      dispatchDocketsForCancellation: jest.fn().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -141,6 +144,7 @@ describe('OrdersService — status transitions across the waiter/cashier split',
     it('allows cancelling a CLOSED_UNPAID order (voiding before payment was taken)', async () => {
       prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'CLOSED_UNPAID', tableId: 'table-1' }));
       prisma.__tx.order.updateMany.mockResolvedValue({ count: 1 });
+      prisma.__tx.order.findUniqueOrThrow.mockResolvedValue(orderWith({ status: 'CANCELLED', items: [] }));
 
       const result = await service.cancel(ORG_ID, ORDER_ID);
 
@@ -159,10 +163,26 @@ describe('OrdersService — status transitions across the waiter/cashier split',
     it('allows cancelling an OPEN order (unchanged prior behavior)', async () => {
       prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'OPEN' }));
       prisma.__tx.order.updateMany.mockResolvedValue({ count: 1 });
+      prisma.__tx.order.findUniqueOrThrow.mockResolvedValue(orderWith({ status: 'CANCELLED', items: [] }));
 
       await expect(service.cancel(ORG_ID, ORDER_ID)).resolves.toMatchObject({
         message: 'Order cancelled successfully',
       });
+    });
+
+    it('dispatches a CANCELLED docket for the order\'s items after commit', async () => {
+      const items = [{ id: 'item-1', menuItemId: 'menu-1', itemName: 'Burger', quantity: 2, notes: null }];
+      prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'OPEN', tableId: 'table-1' }));
+      prisma.__tx.order.updateMany.mockResolvedValue({ count: 1 });
+      prisma.__tx.order.findUniqueOrThrow.mockResolvedValue(orderWith({ status: 'CANCELLED', items }));
+
+      await service.cancel(ORG_ID, ORDER_ID);
+
+      expect(printingService.dispatchDocketsForCancellation).toHaveBeenCalledWith(
+        ORG_ID,
+        expect.objectContaining({ id: ORDER_ID }),
+        expect.arrayContaining([expect.objectContaining({ itemName: 'Burger', quantity: 2 })]),
+      );
     });
   });
 
