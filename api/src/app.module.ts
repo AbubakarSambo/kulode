@@ -32,6 +32,7 @@ import { SheetSyncModule } from './modules/sheet-sync';
 import { PosReportsModule } from './modules/pos-reports';
 import { PrintersModule } from './modules/printers';
 import { OrderTypesModule } from './modules/order-types';
+import { PaymentTypesModule } from './modules/payment-types';
 import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor, SubscriptionReadOnlyGuard } from './common';
 
 
@@ -70,6 +71,7 @@ import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor, 
     PosReportsModule,
     PrintersModule,
     OrderTypesModule,
+    PaymentTypesModule,
   ],
   providers: [
     {

@@ -27,7 +27,7 @@ export interface CreateOrderData {
 }
 
 export interface CloseOrderData {
-  paymentMethod: 'CASH' | 'BANK_TRANSFER' | 'CARD' | 'PAYSTACK' | 'WALLET' | 'OTHER'
+  paymentMethod: string
   amount?: number
   customerEmail?: string
   reference?: string

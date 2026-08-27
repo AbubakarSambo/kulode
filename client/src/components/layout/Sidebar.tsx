@@ -61,6 +61,7 @@ const navigationGroups = [
       { name: 'Menu', href: '/pos/menu', icon: ChefHat, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Categories', href: '/pos/categories', icon: Tag, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Order Types', href: '/pos/order-types', icon: ListOrdered, requiresPlan: undefined as PlanTier | undefined },
+      { name: 'Payment Types', href: '/pos/payment-types', icon: CreditCard, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Shift', href: '/pos/shift', icon: Clock, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Orders', href: '/pos/orders', icon: Receipt, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Customers', href: '/pos/customers', icon: Users, requiresPlan: undefined as PlanTier | undefined },

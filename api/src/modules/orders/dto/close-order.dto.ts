@@ -1,12 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
-
-const PAYMENT_METHODS = ['CASH', 'BANK_TRANSFER', 'CARD', 'PAYSTACK', 'WALLET', 'OTHER'] as const;
+import { IsEmail, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
 export class CloseOrderDto {
-  @ApiProperty({ enum: PAYMENT_METHODS })
-  @IsIn(PAYMENT_METHODS)
-  paymentMethod: (typeof PAYMENT_METHODS)[number];
+  @ApiProperty({ description: 'Name of an active PaymentType for this org, or the reserved "PAYSTACK"/"WALLET"' })
+  @IsString()
+  @IsNotEmpty()
+  paymentMethod: string;
 
   @ApiPropertyOptional({
     description:

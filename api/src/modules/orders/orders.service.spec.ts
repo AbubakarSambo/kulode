@@ -7,6 +7,7 @@ import { WalletService } from '../wallet/wallet.service';
 import { SheetSyncService } from '../sheet-sync';
 import { PrintingService } from '../printers';
 import { OrderTypesService } from '../order-types';
+import { PaymentTypesService } from '../payment-types';
 
 // ─── Mock helpers ────────────────────────────────────────────────────────────
 
@@ -72,6 +73,7 @@ describe('OrdersService — status transitions across the waiter/cashier split',
   let sheetSync: { enqueue: jest.Mock };
   let printingService: { dispatchDocketsForNewItems: jest.Mock; dispatchDocketsForCancellation: jest.Mock };
   let orderTypesService: { requiresTable: jest.Mock };
+  let paymentTypesService: { exists: jest.Mock };
 
   beforeEach(async () => {
     prisma = createMockPrisma();
@@ -85,6 +87,9 @@ describe('OrdersService — status transitions across the waiter/cashier split',
     // Only create/setSource/moveItems consult this — defaults to "Dine In behaves like the old
     // DINE_IN enum value" for any test that happens to exercise those paths.
     orderTypesService = { requiresTable: jest.fn().mockResolvedValue(false) };
+    // Only closeWithPayment consults this — defaults to "any payment method is valid" so
+    // existing tests don't need to know about it unless they're testing this specifically.
+    paymentTypesService = { exists: jest.fn().mockResolvedValue(true) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -95,6 +100,7 @@ describe('OrdersService — status transitions across the waiter/cashier split',
         { provide: SheetSyncService, useValue: sheetSync },
         { provide: PrintingService, useValue: printingService },
         { provide: OrderTypesService, useValue: orderTypesService },
+        { provide: PaymentTypesService, useValue: paymentTypesService },
       ],
     }).compile();
 
@@ -308,6 +314,16 @@ describe('OrdersService — status transitions across the waiter/cashier split',
 
       expect(prisma.__tx.payment.create).toHaveBeenCalled();
       expect(inventoryService.deductForOrder).toHaveBeenCalled();
+    });
+
+    it('rejects a paymentMethod that is not an active PaymentType for the org', async () => {
+      prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'OPEN' }));
+      paymentTypesService.exists.mockResolvedValue(false);
+
+      await expect(
+        service.closeWithPayment(ORG_ID, ORDER_ID, USER_ID, { ...dto, paymentMethod: 'CRYPTO' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.__tx.payment.create).not.toHaveBeenCalled();
     });
   });
 });

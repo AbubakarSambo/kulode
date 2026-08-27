@@ -6,6 +6,7 @@ import { WalletService } from '../wallet/wallet.service';
 import { SheetSyncService } from '../sheet-sync';
 import { PrintingService } from '../printers';
 import { OrderTypesService } from '../order-types';
+import { PaymentTypesService } from '../payment-types';
 import {
   CreateOrderDto,
   AddOrderItemsDto,
@@ -66,6 +67,7 @@ export class OrdersService {
     private sheetSync: SheetSyncService,
     private printingService: PrintingService,
     private orderTypesService: OrderTypesService,
+    private paymentTypesService: PaymentTypesService,
   ) {}
 
   // Fires kitchen/bar dockets for newly created order items. Run after the DB transaction
@@ -1013,6 +1015,9 @@ export class OrdersService {
     }
     if (dto.paymentMethod === 'WALLET' && !order.customerId) {
       throw new BadRequestException('A customer must be attached to the order to pay from their wallet');
+    }
+    if (!(await this.paymentTypesService.exists(organizationId, dto.paymentMethod))) {
+      throw new BadRequestException(`"${dto.paymentMethod}" is not a valid payment method for this organization`);
     }
 
     const remaining = Math.round((toNumber(order.total) - toNumber(order.amountPaid)) * 100) / 100;

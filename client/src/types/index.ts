@@ -305,7 +305,9 @@ export interface WhatsappMessage {
 }
 
 // Payment types
-export type PaymentMethod = 'CASH' | 'BANK_TRANSFER' | 'CARD' | 'PAYSTACK' | 'WALLET' | 'OTHER'
+// Name of a per-org PaymentType (e.g. "CASH", "BANK_TRANSFER", or a custom one), or the
+// reserved "PAYSTACK"/"WALLET" — a free-form per-org string, not a fixed set. See PaymentType below.
+export type PaymentMethod = string
 
 export interface Payment {
   id: string
@@ -424,6 +426,13 @@ export interface OrderType {
   sortOrder: number
   isActive: boolean
   requiresTable: boolean
+}
+
+export interface PaymentType {
+  id: string
+  name: string
+  sortOrder: number
+  isActive: boolean
 }
 
 export interface MenuItem {

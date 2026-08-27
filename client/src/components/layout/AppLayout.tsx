@@ -13,6 +13,7 @@ import {
   UserCog,
   LayoutGrid,
   ListOrdered,
+  CreditCard,
 } from 'lucide-react'
 import {
   DashboardIcon,
@@ -75,6 +76,7 @@ export function AppLayout() {
     if (path.startsWith('/pos/menu')) return 'Menu'
     if (path.startsWith('/pos/categories')) return 'Categories'
     if (path.startsWith('/pos/order-types')) return 'Order Types'
+    if (path.startsWith('/pos/payment-types')) return 'Payment Types'
     if (path.startsWith('/pos/waiters')) return 'Waiters'
     if (path.startsWith('/pos/shift')) return 'Shift'
     if (path.startsWith('/pos/order')) return 'Order'
@@ -168,6 +170,7 @@ export function AppLayout() {
         { name: 'Menu', href: '/pos/menu', icon: ChefHat, visible: hasPos },
         { name: 'Categories', href: '/pos/categories', icon: Tag, visible: hasPos },
         { name: 'Order Types', href: '/pos/order-types', icon: ListOrdered, visible: hasPos },
+        { name: 'Payment Types', href: '/pos/payment-types', icon: CreditCard, visible: hasPos },
         { name: 'Waiters', href: '/pos/waiters', icon: UserRound, visible: hasPos },
         { name: 'Shift', href: '/pos/shift', icon: Clock, visible: hasPos },
         { name: 'Customers', href: '/pos/customers', icon: UserRound, visible: hasPos },

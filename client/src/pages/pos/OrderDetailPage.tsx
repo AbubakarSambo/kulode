@@ -6,7 +6,7 @@ import { ArrowLeft, Download, Plus, X, UserPlus, Pencil } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Badge, Input, Label, SearchableSelect } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
-import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, usersApi, tablesApi, orderTypesApi } from '@/api'
+import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, usersApi, tablesApi, orderTypesApi, paymentTypesApi } from '@/api'
 import { getQueuedActionsForLocalOrder, discardFailedAction, LOCAL_ORDER_PREFIX } from '@/lib/offlineOrderQueue'
 import { formatCurrency, cn } from '@/lib/utils'
 import { printBill } from '@/lib/printBill'
@@ -38,6 +38,15 @@ const PAYMENT_METHODS = [
 const OFFLINE_PAYMENT_METHODS = PAYMENT_METHODS.filter(
   (m) => m.value !== 'PAYSTACK' && m.value !== 'WALLET',
 )
+
+// Display labels for the legacy built-in codes (still stored verbatim, never renamed — see the
+// PaymentType migration). Anything else (a custom org type) is already a pretty name, no lookup needed.
+const LEGACY_PAYMENT_METHOD_LABELS: Record<string, string> = {
+  CASH: 'Cash',
+  BANK_TRANSFER: 'Bank Transfer',
+  CARD: 'Card',
+  OTHER: 'Other',
+}
 
 interface AddItemsModalProps {
   isOpen: boolean
@@ -365,7 +374,7 @@ function SyncedOrderView({ id }: { id: string }) {
   const canApplyDiscount = canVoid
   const [addItemsOpen, setAddItemsOpen] = useState(false)
   const [closeModalOpen, setCloseModalOpen] = useState(false)
-  const [paymentMethod, setPaymentMethod] = useState<(typeof PAYMENT_METHODS)[number]['value']>('CASH')
+  const [paymentMethod, setPaymentMethod] = useState<string>('CASH')
   const [customerEmail, setCustomerEmail] = useState('')
   const [otherPaymentNote, setOtherPaymentNote] = useState('')
   // Bill splitting: no split state is persisted server-side — each split is just another partial
@@ -412,6 +421,26 @@ function SyncedOrderView({ id }: { id: string }) {
     queryFn: () => walletApi.getBalance(order!.customer!.id),
     enabled: closeModalOpen && !!order?.customer,
   })
+
+  const { data: paymentTypes } = useQuery({
+    queryKey: ['payment-types'],
+    queryFn: () => paymentTypesApi.list(),
+    enabled: closeModalOpen,
+  })
+  // Org-managed methods first, Paystack/Wallet always tacked on last — those two are hardcoded/
+  // protected, never part of the editable PaymentType list (Wallet only offered when a customer
+  // is attached, same as before).
+  const paymentMethodOptions = useMemo(() => {
+    const managed = (paymentTypes ?? [])
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((t) => ({ value: t.name, label: LEGACY_PAYMENT_METHOD_LABELS[t.name] ?? t.name }))
+    const fixed = [
+      { value: 'PAYSTACK', label: 'Paystack (checkout link)' },
+      ...(order?.customer ? [{ value: 'WALLET', label: 'Customer Wallet' }] : []),
+    ]
+    return [...managed, ...fixed]
+  }, [paymentTypes, order?.customer])
 
   const { data: customersPage } = useQuery({
     queryKey: ['customers', { limit: 100 }],
@@ -1056,7 +1085,7 @@ function SyncedOrderView({ id }: { id: string }) {
           <div>
             <Label>Payment Method</Label>
             <div className="mt-1 flex flex-wrap gap-2">
-              {(order.customer ? PAYMENT_METHODS : PAYMENT_METHODS.filter((m) => m.value !== 'WALLET')).map((m) => (
+              {paymentMethodOptions.map((m) => (
                 <button
                   key={m.value}
                   type="button"
