@@ -40,4 +40,12 @@ export class UpdatePlatformOrgDto {
   @IsOptional()
   @IsEnum(OrgModule)
   enabledModules?: OrgModule;
+
+  @ApiPropertyOptional({
+    example: false,
+    description: 'Internal/QA org — excluded from platform-admin analytics (GMV, org counts, top orgs, etc.)',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isTestAccount?: boolean;
 }

@@ -77,6 +77,7 @@ export function AppLayout() {
     if (path.startsWith('/pos/categories')) return 'Categories'
     if (path.startsWith('/pos/order-types')) return 'Order Types'
     if (path.startsWith('/pos/payment-types')) return 'Payment Types'
+    if (path.startsWith('/pos/reports')) return 'POS Reports'
     if (path.startsWith('/pos/waiters')) return 'Waiters'
     if (path.startsWith('/pos/shift')) return 'Shift'
     if (path.startsWith('/pos/order')) return 'Order'
@@ -180,6 +181,7 @@ export function AppLayout() {
       label: 'Insights',
       items: [
         { name: 'Reports', href: '/reports', icon: ReportsIcon, requiresPlan: 'PRO' as PlanTier, visible: canViewReports && hasInvoicing },
+        { name: 'POS Reports', href: '/pos/reports', icon: ReportsIcon, visible: isAdmin && hasPos },
         { name: 'AI Chat', href: '/ai-chat', icon: AiChatIcon, requiresPlan: 'PRO' as PlanTier, visible: canViewReports && hasInvoicing },
       ] as MoreItem[],
     },

@@ -854,6 +854,7 @@ export interface PlatformOrganization {
   planTier: PlanTier
   subscriptionStatus: SubscriptionStatus
   isGrandfathered: boolean
+  isTestAccount: boolean
   platformFeePercent: number
   enabledModules: OrgModule
   createdAt: string

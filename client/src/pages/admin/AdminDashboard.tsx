@@ -1710,6 +1710,7 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
   const [planTier, setPlanTier] = useState<string>(org.planTier)
   const [subscriptionStatus, setSubscriptionStatus] = useState<string>(org.subscriptionStatus)
   const [isGrandfathered, setIsGrandfathered] = useState<boolean>(org.isGrandfathered)
+  const [isTestAccount, setIsTestAccount] = useState<boolean>(org.isTestAccount)
   const [platformFeePercent] = useState<number>(org.platformFeePercent)
   const [enabledModules, setEnabledModules] = useState<string>(org.enabledModules)
 
@@ -1720,11 +1721,13 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
       isGrandfathered?: boolean
       platformFeePercent?: number
       enabledModules?: OrgModule
+      isTestAccount?: boolean
     }) => platformApi.updateOrganization(org.id, data),
     onSuccess: () => {
       toast.success('Organization config updated successfully')
       queryClient.invalidateQueries({ queryKey: ['platform', 'organizations'] })
       queryClient.invalidateQueries({ queryKey: ['platform', 'dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['platform', 'pos-dashboard'] })
       onClose()
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1741,6 +1744,7 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
       isGrandfathered,
       platformFeePercent: Number(platformFeePercent),
       enabledModules: enabledModules as OrgModule,
+      isTestAccount,
     })
   }
 
@@ -1840,6 +1844,20 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
                   type="checkbox"
                   checked={isGrandfathered}
                   onChange={(e) => setIsGrandfathered(e.target.checked)}
+                  className="h-5 w-5 rounded border-slate-300 text-primary focus:ring-primary/20 accent-[#0037b0] cursor-pointer"
+                />
+              </div>
+
+              <div className="flex items-center justify-between py-2">
+                <div className="space-y-0.5">
+                  <Label htmlFor="isTestAccount" className="text-xs font-semibold text-[#121c28]">Test Account</Label>
+                  <p className="text-[10px] text-[#434655]">Internal/QA org — excluded from all platform-admin analytics</p>
+                </div>
+                <input
+                  id="isTestAccount"
+                  type="checkbox"
+                  checked={isTestAccount}
+                  onChange={(e) => setIsTestAccount(e.target.checked)}
                   className="h-5 w-5 rounded border-slate-300 text-primary focus:ring-primary/20 accent-[#0037b0] cursor-pointer"
                 />
               </div>

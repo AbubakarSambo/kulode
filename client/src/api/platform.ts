@@ -52,6 +52,7 @@ export const platformApi = {
       isGrandfathered?: boolean
       platformFeePercent?: number
       enabledModules?: OrgModule
+      isTestAccount?: boolean
     }
   ): Promise<PlatformOrganization> => {
     const response = await apiClient.patch<ApiResponse<PlatformOrganization>>(`/platform/organizations/${id}`, data)

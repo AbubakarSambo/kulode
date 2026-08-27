@@ -47,6 +47,11 @@ export class PlatformService {
     const thirtyDaysAgo = new Date(now);
     thirtyDaysAgo.setDate(now.getDate() - 30);
 
+    // Excludes the team's own internal/QA orgs (see Organization.isTestAccount) from every
+    // platform-wide metric, so test data never pollutes real GMV/org-count/top-orgs numbers.
+    const nonTestOrgWhere = { isTestAccount: false };
+    const nonTestOrgRelationWhere = { organization: { isTestAccount: false } };
+
     const [
       totalOrgs,
       newOrgsThisWeek,
@@ -84,25 +89,25 @@ export class PlatformService {
       payingByPlanGroup,
     ] = await Promise.all([
       // Total organizations
-      this.prisma.organization.count(),
+      this.prisma.organization.count({ where: nonTestOrgWhere }),
 
       // New orgs this week
       this.prisma.organization.count({
-        where: { createdAt: { gte: startOfWeek } },
+        where: { ...nonTestOrgWhere, createdAt: { gte: startOfWeek } },
       }),
 
       // New orgs this month
       this.prisma.organization.count({
-        where: { createdAt: { gte: currentPeriodStart, lte: currentPeriodEnd } },
+        where: { ...nonTestOrgWhere, createdAt: { gte: currentPeriodStart, lte: currentPeriodEnd } },
       }),
 
       // Active orgs (have at least one invoice)
       this.prisma.organization.count({
-        where: { invoices: { some: {} } },
+        where: { ...nonTestOrgWhere, invoices: { some: {} } },
       }),
 
       // Total users
-      this.prisma.user.count(),
+      this.prisma.user.count({ where: nonTestOrgRelationWhere }),
 
       // GMV - sum of invoice totals excluding draft/cancelled
       this.prisma.invoice.aggregate({
@@ -110,12 +115,14 @@ export class PlatformService {
         where: {
           status: { notIn: ['DRAFT', 'CANCELLED'] },
           deletedAt: null,
+          ...nonTestOrgRelationWhere,
         },
       }),
 
       // Platform fee revenue
       this.prisma.payment.aggregate({
         _sum: { platformFees: true },
+        where: nonTestOrgRelationWhere,
       }),
 
       // Invoice count by status
@@ -123,11 +130,12 @@ export class PlatformService {
         by: ['status'],
         _count: { id: true },
         _sum: { total: true },
-        where: { deletedAt: null },
+        where: { deletedAt: null, ...nonTestOrgRelationWhere },
       }),
 
       // Recent 10 signups (organizations) with user/invoice counts
       this.prisma.organization.findMany({
+        where: nonTestOrgWhere,
         take: 10,
         orderBy: { createdAt: 'desc' },
         select: {
@@ -176,6 +184,7 @@ export class PlatformService {
         LEFT JOIN invoices i ON i.organization_id = o.id
           AND i.status = 'PAID'
           AND i.deleted_at IS NULL
+        WHERE o.is_test_account = false
         GROUP BY o.id, o.name, o.slug, o.created_at, o.plan_tier, o.subscription_status, o.is_grandfathered
         ORDER BY volume DESC
         LIMIT 10
@@ -185,27 +194,30 @@ export class PlatformService {
       this.prisma.organization.groupBy({
         by: ['planTier'],
         _count: { id: true },
+        where: nonTestOrgWhere,
       }),
 
       // Orgs grouped by subscription status
       this.prisma.organization.groupBy({
         by: ['subscriptionStatus'],
         _count: { id: true },
+        where: nonTestOrgWhere,
       }),
 
       // Count of grandfathered orgs
       this.prisma.organization.count({
-        where: { isGrandfathered: true },
+        where: { isGrandfathered: true, ...nonTestOrgWhere },
       }),
 
       // Total subscription payment revenue
       this.prisma.subscriptionPayment.aggregate({
         _sum: { amount: true },
+        where: nonTestOrgRelationWhere,
       }),
 
       // Last month organizations
       this.prisma.organization.count({
-        where: { createdAt: { gte: priorPeriodStart, lte: priorPeriodEnd } },
+        where: { ...nonTestOrgWhere, createdAt: { gte: priorPeriodStart, lte: priorPeriodEnd } },
       }),
 
       // Current month GMV
@@ -215,6 +227,7 @@ export class PlatformService {
           status: { notIn: ['DRAFT', 'CANCELLED'] },
           deletedAt: null,
           createdAt: { gte: currentPeriodStart, lte: currentPeriodEnd },
+          ...nonTestOrgRelationWhere,
         },
       }),
 
@@ -225,31 +238,32 @@ export class PlatformService {
           status: { notIn: ['DRAFT', 'CANCELLED'] },
           deletedAt: null,
           createdAt: { gte: priorPeriodStart, lte: priorPeriodEnd },
+          ...nonTestOrgRelationWhere,
         },
       }),
 
       // Current month platform fees
       this.prisma.payment.aggregate({
         _sum: { platformFees: true },
-        where: { createdAt: { gte: currentPeriodStart, lte: currentPeriodEnd } },
+        where: { createdAt: { gte: currentPeriodStart, lte: currentPeriodEnd }, ...nonTestOrgRelationWhere },
       }),
 
       // Last month platform fees
       this.prisma.payment.aggregate({
         _sum: { platformFees: true },
-        where: { createdAt: { gte: priorPeriodStart, lte: priorPeriodEnd } },
+        where: { createdAt: { gte: priorPeriodStart, lte: priorPeriodEnd }, ...nonTestOrgRelationWhere },
       }),
 
       // Current month subscription payments (MRR proxy)
       this.prisma.subscriptionPayment.aggregate({
         _sum: { amount: true },
-        where: { createdAt: { gte: currentPeriodStart, lte: currentPeriodEnd } },
+        where: { createdAt: { gte: currentPeriodStart, lte: currentPeriodEnd }, ...nonTestOrgRelationWhere },
       }),
 
       // Last month subscription payments
       this.prisma.subscriptionPayment.aggregate({
         _sum: { amount: true },
-        where: { createdAt: { gte: priorPeriodStart, lte: priorPeriodEnd } },
+        where: { createdAt: { gte: priorPeriodStart, lte: priorPeriodEnd }, ...nonTestOrgRelationWhere },
       }),
 
       // ── Health metrics ──
@@ -257,6 +271,7 @@ export class PlatformService {
       // Trials expiring this week (action list)
       this.prisma.organization.findMany({
         where: {
+          ...nonTestOrgWhere,
           subscriptionStatus: 'TRIALING',
           trialEndDate: { gte: now, lte: nextWeek },
         },
@@ -275,6 +290,7 @@ export class PlatformService {
       // Trials expiring this month (count for alert)
       this.prisma.organization.count({
         where: {
+          ...nonTestOrgWhere,
           subscriptionStatus: 'TRIALING',
           trialEndDate: { gte: now, lte: nextMonth },
         },
@@ -283,6 +299,7 @@ export class PlatformService {
       // Monthly Active Tenants — orgs with at least 1 invoice in the last 30 days
       this.prisma.organization.count({
         where: {
+          ...nonTestOrgWhere,
           invoices: {
             some: {
               createdAt: { gte: thirtyDaysAgo },
@@ -295,7 +312,7 @@ export class PlatformService {
       // Collected GMV — PAID invoices only (all-time)
       this.prisma.invoice.aggregate({
         _sum: { total: true },
-        where: { status: 'PAID', deletedAt: null },
+        where: { status: 'PAID', deletedAt: null, ...nonTestOrgRelationWhere },
       }),
 
       // Current month collected GMV
@@ -305,6 +322,7 @@ export class PlatformService {
           status: 'PAID',
           deletedAt: null,
           createdAt: { gte: currentPeriodStart, lte: currentPeriodEnd },
+          ...nonTestOrgRelationWhere,
         },
       }),
 
@@ -315,12 +333,14 @@ export class PlatformService {
           status: 'PAID',
           deletedAt: null,
           createdAt: { gte: priorPeriodStart, lte: priorPeriodEnd },
+          ...nonTestOrgRelationWhere,
         },
       }),
 
       // Churned orgs (CANCELLED + EXPIRED)
       this.prisma.organization.count({
         where: {
+          ...nonTestOrgWhere,
           subscriptionStatus: { in: ['CANCELLED', 'EXPIRED'] },
         },
       }),
@@ -329,17 +349,18 @@ export class PlatformService {
       this.prisma.organization.groupBy({
         by: ['planTier', 'subscriptionStatus'],
         _count: { id: true },
+        where: nonTestOrgWhere,
       }),
 
       // Genuinely paying orgs — ACTIVE and not grandfathered
       this.prisma.organization.count({
-        where: { subscriptionStatus: 'ACTIVE', isGrandfathered: false },
+        where: { subscriptionStatus: 'ACTIVE', isGrandfathered: false, ...nonTestOrgWhere },
       }),
 
       // Same, grouped by plan tier, for the Plan Distribution "paying" sub-label
       this.prisma.organization.groupBy({
         by: ['planTier'],
-        where: { subscriptionStatus: 'ACTIVE', isGrandfathered: false },
+        where: { subscriptionStatus: 'ACTIVE', isGrandfathered: false, ...nonTestOrgWhere },
         _count: { id: true },
       }),
     ]);
@@ -454,7 +475,7 @@ export class PlatformService {
       const [mrrAgg, gmvAgg, payingCount, trialingCount] = await Promise.all([
         this.prisma.subscriptionPayment.aggregate({
           _sum: { amount: true },
-          where: { createdAt: { gte: m.start, lte: m.end } },
+          where: { createdAt: { gte: m.start, lte: m.end }, ...nonTestOrgRelationWhere },
         }),
         this.prisma.invoice.aggregate({
           _sum: { total: true },
@@ -462,10 +483,12 @@ export class PlatformService {
             status: 'PAID',
             deletedAt: null,
             createdAt: { gte: m.start, lte: m.end },
+            ...nonTestOrgRelationWhere,
           },
         }),
         this.prisma.organization.count({
           where: {
+            ...nonTestOrgWhere,
             createdAt: { lte: m.end },
             planTier: { in: ['STARTER', 'PRO', 'BUSINESS'] },
             subscriptionStatus: 'ACTIVE',
@@ -473,6 +496,7 @@ export class PlatformService {
         }),
         this.prisma.organization.count({
           where: {
+            ...nonTestOrgWhere,
             createdAt: { lte: m.end },
             subscriptionStatus: 'TRIALING',
           },
@@ -598,7 +622,8 @@ export class PlatformService {
     const thirtyDaysAgo = new Date(now);
     thirtyDaysAgo.setDate(now.getDate() - 30);
 
-    const posOrgWhere = { enabledModules: { in: [OrgModule.POS, OrgModule.BOTH] } };
+    // isTestAccount excludes the team's own internal/QA orgs from every POS metric below.
+    const posOrgWhere = { enabledModules: { in: [OrgModule.POS, OrgModule.BOTH] }, isTestAccount: false };
     const nonCancelledOrderWhere = { status: { not: 'CANCELLED' as const } };
 
     const [
@@ -762,7 +787,7 @@ export class PlatformService {
         FROM organizations o
         LEFT JOIN users u ON u.organization_id = o.id
         LEFT JOIN orders ord ON ord.organization_id = o.id AND ord.status = 'CLOSED_PAID'
-        WHERE o.enabled_modules IN ('POS', 'BOTH')
+        WHERE o.enabled_modules IN ('POS', 'BOTH') AND o.is_test_account = false
         GROUP BY o.id, o.name, o.slug, o.created_at, o.plan_tier, o.subscription_status, o.is_grandfathered
         ORDER BY volume DESC
         LIMIT 10
@@ -777,6 +802,7 @@ export class PlatformService {
         WHERE ord.status = 'CLOSED_PAID'
           AND ord.closed_at IS NOT NULL
           AND o.enabled_modules IN ('POS', 'BOTH')
+          AND o.is_test_account = false
           AND ord.created_at >= ${currentPeriodStart}
           AND ord.created_at <= ${currentPeriodEnd}
       `,
@@ -957,6 +983,7 @@ export class PlatformService {
           planTier: true,
           subscriptionStatus: true,
           isGrandfathered: true,
+          isTestAccount: true,
           platformFeePercent: true,
           enabledModules: true,
           trialStartDate: true,
@@ -1079,6 +1106,7 @@ export class PlatformService {
     isGrandfathered?: boolean;
     platformFeePercent?: number;
     enabledModules?: OrgModule;
+    isTestAccount?: boolean;
   }) {
     const updateData: any = {};
 
@@ -1100,6 +1128,10 @@ export class PlatformService {
 
     if (data.enabledModules !== undefined) {
       updateData.enabledModules = data.enabledModules;
+    }
+
+    if (data.isTestAccount !== undefined) {
+      updateData.isTestAccount = data.isTestAccount;
     }
 
     const updated = await this.prisma.organization.update({

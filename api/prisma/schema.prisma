@@ -234,6 +234,9 @@ model Organization {
   paystackCardType          String?            @map("paystack_card_type")
   autoRenew                 Boolean            @default(true) @map("auto_renew")
   isGrandfathered           Boolean            @default(false) @map("is_grandfathered")
+  // Internal/QA org (e.g. the team's own testing account) — excluded from platform-admin
+  // analytics (GMV, org counts, top orgs, etc.) so test data never pollutes real metrics.
+  isTestAccount             Boolean            @default(false) @map("is_test_account")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
