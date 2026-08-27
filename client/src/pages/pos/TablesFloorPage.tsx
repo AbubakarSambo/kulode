@@ -58,6 +58,11 @@ export function TablesFloorPage() {
   })
   // A table has at most one running order at a time in practice — first match is enough.
   const totalByTableId = new Map((activeOrdersPage?.data ?? []).filter((o) => o.tableId).map((o) => [o.tableId!, o.total]))
+  const waiterByTableId = new Map(
+    (activeOrdersPage?.data ?? [])
+      .filter((o) => o.tableId && o.waiter)
+      .map((o) => [o.tableId!, `${o.waiter!.firstName} ${o.waiter!.lastName}`]),
+  )
 
   const form = useForm<TableFormData>({ resolver: zodResolver(tableSchema) })
 
@@ -151,6 +156,9 @@ export function TablesFloorPage() {
                 <span className="text-xs font-semibold uppercase tracking-wide">{STATUS_LABELS[table.status]}</span>
                 {totalByTableId.has(table.id) && (
                   <span className="text-sm font-bold">{formatCurrency(totalByTableId.get(table.id)!)}</span>
+                )}
+                {waiterByTableId.has(table.id) && (
+                  <span className="text-[11px] opacity-70">{waiterByTableId.get(table.id)}</span>
                 )}
                 <span className="text-[11px] opacity-70">{table.capacity} seats</span>
               </button>
