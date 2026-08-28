@@ -140,19 +140,19 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const INVOICING_ONLY_HREFS = ['/clients', '/invoices', '/tax', '/reports', '/ai-chat', '/inventory', '/payments', '/dashboard', '/settings/services', '/vendors', '/expenses']
 
   // Waiters only handle selling, order tracking, and customer lookup
-  const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/customers']
+  const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/customers', '/pos/reports']
 
   // Pass/Runner are kitchen-only roles — the ticket board is the only page they can see
-  const KITCHEN_ALLOWED_HREFS = ['/pos/kitchen']
+  const KITCHEN_ALLOWED_HREFS = ['/pos/kitchen', '/pos/reports']
 
   // Cashiers close out orders and take payment, and can now manage the table list — no need for
   // menu/waiter management or analytics
-  const CASHIER_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/tables']
+  const CASHIER_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/tables', '/pos/reports']
 
   // Supervisors get floor oversight (orders, customers, shift, kitchen) but not menu/category
   // editing or the Waiters roster — since Waiter is just a User now, managing it requires the
   // same admin-only access as the rest of user management.
-  const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/kitchen']
+  const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/kitchen', '/pos/reports']
 
   // Roles that get a tight nav allowlist rather than the broader access every other role has.
   // A user with multiple roles sees the UNION of what each individually unlocks — e.g. a
@@ -180,7 +180,6 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         if (restrictedHrefsUnion) return restrictedHrefsUnion.includes(item.href)
         if (INVOICING_ONLY_HREFS.includes(item.href) && !hasInvoicing) return false
         if ((item.href === '/reports' || item.href === '/ai-chat') && !canViewReports) return false
-        if (item.href === '/pos/reports' && !isAdmin) return false
         if (
           (item.href === '/payments' ||
             item.href === '/expenses' ||

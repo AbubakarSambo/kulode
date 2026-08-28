@@ -91,14 +91,14 @@ export function AppLayout() {
   // Waiters only handle selling, order tracking, and customer lookup; Pass/Runner only see the
   // kitchen ticket board. A user with multiple roles gets the UNION of what each unlocks — same
   // logic as Sidebar.tsx, kept in lockstep since this is the parallel mobile-nav rendering.
-  const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/customers']
-  const KITCHEN_ALLOWED_HREFS = ['/pos/kitchen']
+  const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/customers', '/pos/reports']
+  const KITCHEN_ALLOWED_HREFS = ['/pos/kitchen', '/pos/reports']
   // Cashiers close out orders and take payment, and can now manage the table list — no need for
   // menu/waiter management or analytics
-  const CASHIER_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/tables']
+  const CASHIER_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/tables', '/pos/reports']
   // Supervisors get floor oversight but not menu/category editing, or the Waiters roster — since
   // Waiter is just a User now, managing it needs the same admin-only access as user management.
-  const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/kitchen']
+  const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/kitchen', '/pos/reports']
   const RESTRICTED_ROLE_HREFS: Partial<Record<UserRole, string[]>> = {
     WAITER: WAITER_ALLOWED_HREFS,
     PASS: KITCHEN_ALLOWED_HREFS,
@@ -119,6 +119,7 @@ export function AppLayout() {
     '/pos/kitchen': { name: 'Kitchen', icon: Timer },
     '/pos/shift': { name: 'Shift', icon: Clock },
     '/pos/waiters': { name: 'Waiters', icon: UserRound },
+    '/pos/reports': { name: 'POS Reports', icon: ReportsIcon },
   }
 
   const navItems = restrictedHrefsUnion
@@ -181,7 +182,7 @@ export function AppLayout() {
       label: 'Insights',
       items: [
         { name: 'Reports', href: '/reports', icon: ReportsIcon, requiresPlan: 'PRO' as PlanTier, visible: canViewReports && hasInvoicing },
-        { name: 'POS Reports', href: '/pos/reports', icon: ReportsIcon, visible: isAdmin && hasPos },
+        { name: 'POS Reports', href: '/pos/reports', icon: ReportsIcon, visible: hasPos },
         { name: 'AI Chat', href: '/ai-chat', icon: AiChatIcon, requiresPlan: 'PRO' as PlanTier, visible: canViewReports && hasInvoicing },
       ] as MoreItem[],
     },

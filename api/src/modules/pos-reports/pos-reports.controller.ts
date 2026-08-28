@@ -2,12 +2,11 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { PosReportsService } from './pos-reports.service';
 import { ItemSalesReportQueryDto } from './dto';
-import { CurrentUser, Roles, Role } from '../../common';
+import { CurrentUser } from '../../common';
 
 @ApiTags('POS Reports')
 @ApiBearerAuth()
 @Controller('pos-reports')
-@Roles(Role.SUPER_ADMIN, Role.ADMIN)
 export class PosReportsController {
   constructor(private readonly posReportsService: PosReportsService) {}
 
