@@ -119,7 +119,7 @@ export function AppLayout() {
     '/pos/kitchen': { name: 'Kitchen', icon: Timer },
     '/pos/shift': { name: 'Shift', icon: Clock },
     '/pos/waiters': { name: 'Waiters', icon: UserRound },
-    '/pos/reports': { name: 'POS Reports', icon: ReportsIcon },
+    '/pos/reports': { name: 'POS Reports', icon: Receipt },
   }
 
   const navItems = restrictedHrefsUnion
