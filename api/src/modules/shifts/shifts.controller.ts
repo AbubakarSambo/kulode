@@ -1,6 +1,8 @@
-import { Controller, Get, Post, Body, Param, ParseUUIDPipe } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Param, ParseUUIDPipe, Res } from '@nestjs/common';
+import { Response } from 'express';
+import { ApiTags, ApiBearerAuth, ApiProduces } from '@nestjs/swagger';
 import { ShiftsService } from './shifts.service';
+import { ShiftReportPdfService } from './shift-report-pdf.service';
 import { OpenShiftDto, CloseShiftDto } from './dto';
 import { CurrentUser, CurrentUserData } from '../../common';
 
@@ -8,7 +10,10 @@ import { CurrentUser, CurrentUserData } from '../../common';
 @ApiBearerAuth()
 @Controller('shifts')
 export class ShiftsController {
-  constructor(private readonly shiftsService: ShiftsService) {}
+  constructor(
+    private readonly shiftsService: ShiftsService,
+    private readonly shiftReportPdfService: ShiftReportPdfService,
+  ) {}
 
   @Get()
   findAll(@CurrentUser('organizationId') organizationId: string) {
@@ -34,6 +39,23 @@ export class ShiftsController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.shiftsService.previewClose(organizationId, id);
+  }
+
+  @Get(':id/report')
+  @ApiProduces('application/pdf')
+  async downloadReport(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+  ) {
+    const shift = await this.shiftsService.getReportData(organizationId, id);
+    const pdfBuffer = await this.shiftReportPdfService.generatePdf(shift);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="shift-report-${shift.id.slice(0, 8)}.pdf"`,
+      'Content-Length': pdfBuffer.length,
+    });
+    res.send(pdfBuffer);
   }
 
   @Post('open')

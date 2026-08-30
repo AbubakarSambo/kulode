@@ -45,6 +45,35 @@ export class ShiftsService {
     return shift;
   }
 
+  async getReportData(organizationId: string, id: string) {
+    const shift = await this.prisma.shift.findFirst({
+      where: { id, organizationId },
+      include: {
+        openedBy: { select: { id: true, firstName: true, lastName: true } },
+        closedBy: { select: { id: true, firstName: true, lastName: true } },
+        breakdowns: true,
+        organization: {
+          select: { name: true, address: true, phone: true, currency: true },
+        },
+      },
+    });
+    if (!shift) throw new NotFoundException('Shift not found');
+
+    return {
+      ...shift,
+      openingFloat: toNumber(shift.openingFloat),
+      expectedCash: shift.expectedCash ? toNumber(shift.expectedCash) : null,
+      countedCash: shift.countedCash ? toNumber(shift.countedCash) : null,
+      variance: shift.variance ? toNumber(shift.variance) : null,
+      breakdowns: shift.breakdowns.map((b) => ({
+        paymentMethod: b.paymentMethod,
+        expectedAmount: toNumber(b.expectedAmount),
+        countedAmount: toNumber(b.countedAmount),
+        variance: toNumber(b.variance),
+      })),
+    };
+  }
+
   // Live per-payment-method totals for the currently open shift, so the close form can be
   // pre-populated before the till is actually closed.
   async previewClose(organizationId: string, id: string) {

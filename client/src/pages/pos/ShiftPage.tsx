@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Clock } from 'lucide-react'
+import { Clock, Download } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, Badge } from '@/components/ui'
 import { shiftsApi } from '@/api'
@@ -66,6 +66,20 @@ export function ShiftPage() {
     },
     onError: () => toast.error('Failed to close shift'),
   })
+
+  const downloadReport = async (shiftId: string) => {
+    try {
+      const blob = await shiftsApi.downloadReport(shiftId)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `shift-report-${shiftId.slice(0, 8)}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.error('Failed to download shift report')
+    }
+  }
 
   if (isLoading) {
     return (
@@ -209,6 +223,16 @@ export function ShiftPage() {
                         ))}
                       </div>
                     )}
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => downloadReport(shift.id)}
+                    >
+                      <Download className="mr-2 h-3.5 w-3.5" />
+                      Download Report
+                    </Button>
                   </CardContent>
                 </Card>
               ))}

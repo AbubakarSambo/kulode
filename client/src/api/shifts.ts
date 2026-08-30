@@ -37,4 +37,8 @@ export const shiftsApi = {
     const response = await apiClient.post<ApiResponse<Shift>>(`/shifts/${id}/close`, data)
     return response.data.data
   },
+  downloadReport: async (id: string): Promise<Blob> => {
+    const response = await apiClient.get(`/shifts/${id}/report`, { responseType: 'blob' })
+    return response.data
+  },
 }
