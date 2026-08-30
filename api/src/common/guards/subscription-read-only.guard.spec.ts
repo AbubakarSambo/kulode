@@ -33,6 +33,9 @@ describe('SubscriptionReadOnlyGuard', () => {
     subscriptionStatus: 'ACTIVE' as const,
     trialEndDate: null,
     isGrandfathered: false,
+    // Onboarding already completed — otherwise the guard's onboarding bypass (below) short-
+    // circuits before the expiration check ever runs.
+    businessType: 'Restaurant',
   };
   const baseUser = { id: 'user-1', organizationId: ORG_ID, isPlatformAdmin: false };
 
@@ -141,5 +144,16 @@ describe('SubscriptionReadOnlyGuard', () => {
     });
     const ctx = makeContext(baseUser, 'POST', '/invoices');
     await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('allows write methods for an expired org that has not finished onboarding yet', async () => {
+    reflector.getAllAndOverride.mockReturnValue(false);
+    prisma.organization.findUnique.mockResolvedValue({
+      ...baseOrg,
+      subscriptionStatus: 'EXPIRED',
+      businessType: null,
+    });
+    const ctx = makeContext(baseUser, 'POST', '/invoices');
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
   });
 });
