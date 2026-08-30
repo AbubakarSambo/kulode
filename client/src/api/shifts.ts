@@ -7,7 +7,13 @@ export interface OpenShiftData {
 
 export interface CloseShiftData {
   countedCash: number
+  countedAmounts?: Record<string, number>
   notes?: string
+}
+
+export interface ShiftClosePreview {
+  openingFloat: number
+  breakdown: { paymentMethod: string; expectedAmount: number }[]
 }
 
 export const shiftsApi = {
@@ -17,6 +23,10 @@ export const shiftsApi = {
   },
   current: async (): Promise<Shift | null> => {
     const response = await apiClient.get<ApiResponse<Shift | null>>('/shifts/current')
+    return response.data.data
+  },
+  previewClose: async (id: string): Promise<ShiftClosePreview> => {
+    const response = await apiClient.get<ApiResponse<ShiftClosePreview>>(`/shifts/${id}/preview-close`)
     return response.data.data
   },
   open: async (data: OpenShiftData): Promise<Shift> => {

@@ -16,6 +16,7 @@ const closeSchema = z.object({ countedCash: z.number().min(0), notes: z.string()
 export function ShiftPage() {
   const queryClient = useQueryClient()
   const [showCloseForm, setShowCloseForm] = useState(false)
+  const [countedAmounts, setCountedAmounts] = useState<Record<string, number>>({})
 
   const { data: currentShift, isLoading } = useQuery({
     queryKey: ['current-shift'],
@@ -26,6 +27,14 @@ export function ShiftPage() {
     queryKey: ['shifts'],
     queryFn: () => shiftsApi.list(),
   })
+
+  const { data: closePreview } = useQuery({
+    queryKey: ['shift-close-preview', currentShift?.id],
+    queryFn: () => shiftsApi.previewClose(currentShift!.id),
+    enabled: showCloseForm && !!currentShift,
+  })
+
+  const nonCashBreakdown = (closePreview?.breakdown ?? []).filter((b) => b.paymentMethod !== 'CASH')
 
   const openForm = useForm<z.infer<typeof openSchema>>({ resolver: zodResolver(openSchema) })
   const closeForm = useForm<z.infer<typeof closeSchema>>({ resolver: zodResolver(closeSchema) })
@@ -45,12 +54,14 @@ export function ShiftPage() {
   })
 
   const closeShift = useMutation({
-    mutationFn: (data: z.infer<typeof closeSchema>) => shiftsApi.close(currentShift!.id, data),
+    mutationFn: (data: z.infer<typeof closeSchema>) =>
+      shiftsApi.close(currentShift!.id, { ...data, countedAmounts }),
     onSuccess: (closed) => {
       queryClient.invalidateQueries({ queryKey: ['current-shift'] })
       queryClient.invalidateQueries({ queryKey: ['shifts'] })
       toast.success(`Shift closed — variance ${formatCurrency(closed.variance ?? 0)}`)
       setShowCloseForm(false)
+      setCountedAmounts({})
       closeForm.reset()
     },
     onError: () => toast.error('Failed to close shift'),
@@ -120,6 +131,32 @@ export function ShiftPage() {
                       placeholder="0"
                     />
                   </div>
+
+                  {nonCashBreakdown.length > 0 && (
+                    <div className="space-y-3 rounded-md border border-border p-3">
+                      <p className="text-xs font-semibold text-muted-foreground">
+                        Other Payment Methods (defaults to expected — edit to note a discrepancy)
+                      </p>
+                      {nonCashBreakdown.map((row) => (
+                        <div key={row.paymentMethod} className="flex items-center justify-between gap-3">
+                          <Label className="flex-1 text-sm font-normal">{row.paymentMethod}</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            className="w-36"
+                            defaultValue={row.expectedAmount}
+                            onChange={(e) =>
+                              setCountedAmounts((prev) => ({
+                                ...prev,
+                                [row.paymentMethod]: e.target.value === '' ? row.expectedAmount : Number(e.target.value),
+                              }))
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <div>
                     <Label>Notes (optional)</Label>
                     <Textarea {...closeForm.register('notes')} placeholder="Any discrepancy notes" />
@@ -139,18 +176,39 @@ export function ShiftPage() {
             <div className="space-y-2">
               {recentShifts.filter((s) => s.status === 'CLOSED').slice(0, 10).map((shift) => (
                 <Card key={shift.id} className="p-4">
-                  <CardContent className="flex items-center justify-between p-0">
-                    <div>
-                      <div className="text-sm font-medium text-foreground">
-                        {new Date(shift.openedAt).toLocaleDateString()}
+                  <CardContent className="space-y-3 p-0">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-medium text-foreground">
+                          {new Date(shift.openedAt).toLocaleDateString()}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Expected {formatCurrency(shift.expectedCash ?? 0)} · Counted {formatCurrency(shift.countedCash ?? 0)}
+                        </div>
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        Expected {formatCurrency(shift.expectedCash ?? 0)} · Counted {formatCurrency(shift.countedCash ?? 0)}
-                      </div>
+                      <Badge variant={Math.abs(shift.variance ?? 0) < 1 ? 'success' : 'warning'}>
+                        {(shift.variance ?? 0) >= 0 ? '+' : ''}{formatCurrency(shift.variance ?? 0)}
+                      </Badge>
                     </div>
-                    <Badge variant={Math.abs(shift.variance ?? 0) < 1 ? 'success' : 'warning'}>
-                      {(shift.variance ?? 0) >= 0 ? '+' : ''}{formatCurrency(shift.variance ?? 0)}
-                    </Badge>
+
+                    {shift.breakdowns && shift.breakdowns.length > 0 && (
+                      <div className="space-y-1 border-t border-border pt-2">
+                        {shift.breakdowns.map((row) => (
+                          <div key={row.id} className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground">{row.paymentMethod}</span>
+                            <span className="text-foreground">
+                              {formatCurrency(row.countedAmount)}
+                              {Math.abs(row.variance) >= 1 && (
+                                <span className={row.variance > 0 ? 'text-success' : 'text-warning'}>
+                                  {' '}({row.variance > 0 ? '+' : ''}
+                                  {formatCurrency(row.variance)})
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}

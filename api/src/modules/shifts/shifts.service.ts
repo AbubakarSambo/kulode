@@ -18,6 +18,7 @@ export class ShiftsService {
       include: {
         openedBy: { select: { id: true, firstName: true, lastName: true } },
         closedBy: { select: { id: true, firstName: true, lastName: true } },
+        breakdowns: true,
       },
     });
   }
@@ -37,10 +38,24 @@ export class ShiftsService {
       include: {
         openedBy: { select: { id: true, firstName: true, lastName: true } },
         closedBy: { select: { id: true, firstName: true, lastName: true } },
+        breakdowns: true,
       },
     });
     if (!shift) throw new NotFoundException('Shift not found');
     return shift;
+  }
+
+  // Live per-payment-method totals for the currently open shift, so the close form can be
+  // pre-populated before the till is actually closed.
+  async previewClose(organizationId: string, id: string) {
+    const shift = await this.prisma.shift.findFirst({ where: { id, organizationId } });
+    if (!shift) throw new NotFoundException('Shift not found');
+    if (shift.status !== 'OPEN') {
+      throw new BadRequestException('Shift is already closed');
+    }
+
+    const breakdown = await this.paymentBreakdownDuringShift(organizationId, shift.openedAt, new Date());
+    return { openingFloat: toNumber(shift.openingFloat), breakdown };
   }
 
   async open(organizationId: string, userId: string, dto: OpenShiftDto) {
@@ -60,16 +75,21 @@ export class ShiftsService {
     });
   }
 
-  private async cashTakenDuringShift(organizationId: string, openedAt: Date, until: Date) {
-    const result = await this.prisma.payment.aggregate({
-      where: {
-        organizationId,
-        paymentMethod: 'CASH',
-        createdAt: { gte: openedAt, lte: until },
-      },
+  private async paymentBreakdownDuringShift(organizationId: string, openedAt: Date, until: Date) {
+    const grouped = await this.prisma.payment.groupBy({
+      by: ['paymentMethod'],
+      where: { organizationId, createdAt: { gte: openedAt, lte: until } },
       _sum: { amount: true },
     });
-    return toNumber(result._sum.amount ?? 0);
+    const breakdown = grouped.map((row) => ({
+      paymentMethod: row.paymentMethod,
+      expectedAmount: toNumber(row._sum.amount ?? 0),
+    }));
+    // Cash always needs reconciling against the opening float, even with zero cash sales.
+    if (!breakdown.some((b) => b.paymentMethod === 'CASH')) {
+      breakdown.unshift({ paymentMethod: 'CASH', expectedAmount: 0 });
+    }
+    return breakdown;
   }
 
   async close(organizationId: string, id: string, userId: string, dto: CloseShiftDto) {
@@ -80,21 +100,43 @@ export class ShiftsService {
     }
 
     const closedAt = new Date();
-    const cashTaken = await this.cashTakenDuringShift(organizationId, shift.openedAt, closedAt);
+    const breakdown = await this.paymentBreakdownDuringShift(organizationId, shift.openedAt, closedAt);
+
+    const cashTaken = breakdown.find((b) => b.paymentMethod === 'CASH')?.expectedAmount ?? 0;
     const expectedCash = toNumber(shift.openingFloat) + cashTaken;
     const variance = dto.countedCash - expectedCash;
 
-    return this.prisma.shift.update({
-      where: { id },
-      data: {
-        status: 'CLOSED',
-        closedById: userId,
-        closedAt,
-        expectedCash,
-        countedCash: dto.countedCash,
-        variance,
-        notes: dto.notes,
-      },
+    const breakdownRows = breakdown.map(({ paymentMethod, expectedAmount }) => {
+      const isCash = paymentMethod === 'CASH';
+      // countedCash is the full till count (float + cash taken), matching expectedCash.
+      const countedAmount = isCash ? dto.countedCash : dto.countedAmounts?.[paymentMethod] ?? expectedAmount;
+      const rowExpected = isCash ? expectedCash : expectedAmount;
+      return {
+        shiftId: id,
+        paymentMethod,
+        expectedAmount: rowExpected,
+        countedAmount,
+        variance: countedAmount - rowExpected,
+      };
     });
+
+    const [, , updatedShift] = await this.prisma.$transaction([
+      this.prisma.shiftPaymentBreakdown.deleteMany({ where: { shiftId: id } }),
+      this.prisma.shiftPaymentBreakdown.createMany({ data: breakdownRows }),
+      this.prisma.shift.update({
+        where: { id },
+        data: {
+          status: 'CLOSED',
+          closedById: userId,
+          closedAt,
+          expectedCash,
+          countedCash: dto.countedCash,
+          variance,
+          notes: dto.notes,
+        },
+      }),
+    ]);
+
+    return this.findOne(organizationId, updatedShift.id);
   }
 }

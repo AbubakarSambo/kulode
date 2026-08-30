@@ -28,6 +28,14 @@ export class ShiftsController {
     return this.shiftsService.findOne(organizationId, id);
   }
 
+  @Get(':id/preview-close')
+  previewClose(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.shiftsService.previewClose(organizationId, id);
+  }
+
   @Post('open')
   open(
     @Body() dto: OpenShiftDto,

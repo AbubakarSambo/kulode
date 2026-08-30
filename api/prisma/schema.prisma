@@ -1192,13 +1192,33 @@ model Shift {
   closedAt DateTime? @map("closed_at")
 
   // Relations
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  openedBy     User         @relation("ShiftOpenedByUser", fields: [openedById], references: [id])
-  closedBy     User?        @relation("ShiftClosedByUser", fields: [closedById], references: [id])
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  openedBy     User                    @relation("ShiftOpenedByUser", fields: [openedById], references: [id])
+  closedBy     User?                   @relation("ShiftClosedByUser", fields: [closedById], references: [id])
+  breakdowns   ShiftPaymentBreakdown[]
 
   @@index([organizationId])
   @@index([status])
   @@map("shifts")
+}
+
+// Per-payment-method reconciliation captured at shift close, mirroring the till's payment
+// methods (Cash, Card, Transfer, Complementary, etc). Cash is physically counted; other
+// methods default their counted amount to the expected total unless overridden at close.
+model ShiftPaymentBreakdown {
+  id             String  @id @default(uuid())
+  shiftId        String  @map("shift_id")
+  paymentMethod  String  @map("payment_method")
+  expectedAmount Decimal @default(0) @map("expected_amount") @db.Decimal(12, 2)
+  countedAmount  Decimal @default(0) @map("counted_amount") @db.Decimal(12, 2)
+  variance       Decimal @default(0) @db.Decimal(12, 2)
+
+  // Relations
+  shift Shift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  @@unique([shiftId, paymentMethod])
+  @@index([shiftId])
+  @@map("shift_payment_breakdowns")
 }
 
 // Generic idempotency guard for client-retried POS mutations (offline queue flush, double-tap,

@@ -510,6 +510,14 @@ export interface Order {
   payments: OrderPayment[]
 }
 
+export interface ShiftPaymentBreakdown {
+  id: string
+  paymentMethod: string
+  expectedAmount: number
+  countedAmount: number
+  variance: number
+}
+
 export interface Shift {
   id: string
   status: ShiftStatus
@@ -522,6 +530,7 @@ export interface Shift {
   closedAt?: string
   openedBy?: { id: string; firstName: string; lastName: string }
   closedBy?: { id: string; firstName: string; lastName: string }
+  breakdowns?: ShiftPaymentBreakdown[]
 }
 
 // Tax types
