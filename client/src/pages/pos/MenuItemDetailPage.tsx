@@ -17,7 +17,7 @@ const itemSchema = z.object({
   description: z.string().optional(),
   price: z.number().min(0, 'Price must be 0 or greater'),
   categoryIds: z.array(z.string()),
-  durationMinutes: z.number({ required_error: 'Prep time is required', invalid_type_error: 'Prep time is required' }).min(0, 'Duration must be 0 or greater'),
+  durationMinutes: z.number({ error: 'Prep time is required' }).min(0, 'Duration must be 0 or greater'),
 })
 type ItemFormData = z.infer<typeof itemSchema>
 
