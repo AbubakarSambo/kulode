@@ -41,7 +41,7 @@ function loadEnvFile() {
     if (eq === -1) continue;
     const key = trimmed.slice(0, eq).trim();
     const value = trimmed.slice(eq + 1).trim();
-    if (!(key in process.env)) process.env[key] = value;
+    process.env[key] = value;
   }
 }
 loadEnvFile();
@@ -135,6 +135,7 @@ async function reportResult(jobId, status, error) {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
       body: JSON.stringify({ status, error }),
+      signal: AbortSignal.timeout(SOCKET_TIMEOUT_MS),
     });
     if (!response.ok) {
       const body = await response.text().catch(() => '');
@@ -148,6 +149,7 @@ async function reportResult(jobId, status, error) {
 async function pollOnce() {
   const response = await fetch(`${API_URL}/print-agent/jobs`, {
     headers: { Authorization: `Bearer ${TOKEN}` },
+    signal: AbortSignal.timeout(SOCKET_TIMEOUT_MS),
   });
 
   if (!response.ok) {

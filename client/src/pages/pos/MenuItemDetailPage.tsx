@@ -17,7 +17,7 @@ const itemSchema = z.object({
   description: z.string().optional(),
   price: z.number().min(0, 'Price must be 0 or greater'),
   categoryIds: z.array(z.string()),
-  durationMinutes: z.number().min(0, 'Duration must be 0 or greater').optional(),
+  durationMinutes: z.number({ required_error: 'Prep time is required', invalid_type_error: 'Prep time is required' }).min(0, 'Duration must be 0 or greater'),
 })
 type ItemFormData = z.infer<typeof itemSchema>
 
@@ -252,7 +252,8 @@ export function MenuItemDetailPage() {
             <Input
               type="number"
               step="1"
-              placeholder="Optional — drives the kitchen ticket countdown"
+              placeholder="Drives the kitchen ticket countdown"
+              error={form.formState.errors.durationMinutes?.message}
               {...form.register('durationMinutes', { valueAsNumber: true })}
             />
           </div>
