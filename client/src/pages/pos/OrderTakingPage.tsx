@@ -222,7 +222,10 @@ export function OrderTakingPage() {
       queryClient.invalidateQueries({ queryKey: ['orders'] })
       navigate(`/pos/orders/${result.id}`)
     },
-    onError: () => toast.error('Failed to create order'),
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to create order')
+    },
   })
 
   return (
