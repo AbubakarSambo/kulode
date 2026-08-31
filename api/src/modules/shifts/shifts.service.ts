@@ -53,11 +53,24 @@ export class ShiftsService {
         closedBy: { select: { id: true, firstName: true, lastName: true } },
         breakdowns: true,
         organization: {
-          select: { name: true, address: true, phone: true, currency: true },
+          select: {
+            name: true,
+            address: true,
+            phone: true,
+            currency: true,
+            taxRate: true,
+            entertainmentTaxRate: true,
+            serviceChargeRate: true,
+          },
         },
       },
     });
     if (!shift) throw new NotFoundException('Shift not found');
+
+    const [categoryTotals, taxTotals] = await Promise.all([
+      this.categorySalesDuringShift(organizationId, shift.openedAt, shift.closedAt ?? new Date()),
+      this.taxSummaryDuringShift(organizationId, shift.openedAt, shift.closedAt ?? new Date()),
+    ]);
 
     return {
       ...shift,
@@ -71,6 +84,53 @@ export class ShiftsService {
         countedAmount: toNumber(b.countedAmount),
         variance: toNumber(b.variance),
       })),
+      categoryTotals,
+      taxTotals: {
+        ...taxTotals,
+        vatRate: toNumber(shift.organization.taxRate),
+        entertainmentTaxRate: toNumber(shift.organization.entertainmentTaxRate),
+        serviceChargeRate: toNumber(shift.organization.serviceChargeRate),
+      },
+    };
+  }
+
+  // Sales-by-category breakdown for the "Items Detail" section of the shift report — mirrors
+  // paymentBreakdownDuringShift but sourced from orders closed (paid) during the shift window
+  // rather than payments, since a category lives on the order's items, not its payment.
+  private async categorySalesDuringShift(organizationId: string, openedAt: Date, until: Date) {
+    const items = await this.prisma.orderItem.findMany({
+      where: {
+        order: { organizationId, status: 'CLOSED_PAID', closedAt: { gte: openedAt, lte: until } },
+      },
+      select: {
+        amount: true,
+        menuItem: {
+          select: { categories: { select: { category: { select: { name: true } } }, take: 1 } },
+        },
+      },
+    });
+
+    const totals = new Map<string, number>();
+    for (const item of items) {
+      const category = item.menuItem?.categories[0]?.category.name ?? 'Uncategorized';
+      totals.set(category, (totals.get(category) ?? 0) + toNumber(item.amount));
+    }
+
+    return Array.from(totals, ([category, amount]) => ({ category, amount }));
+  }
+
+  // Tax/service-charge totals for the "Taxes Detail" section, summed off the same closed-orders
+  // window as categorySalesDuringShift.
+  private async taxSummaryDuringShift(organizationId: string, openedAt: Date, until: Date) {
+    const result = await this.prisma.order.aggregate({
+      where: { organizationId, status: 'CLOSED_PAID', closedAt: { gte: openedAt, lte: until } },
+      _sum: { vatAmount: true, entertainmentTaxAmount: true, serviceChargeAmount: true },
+    });
+
+    return {
+      vatAmount: toNumber(result._sum.vatAmount ?? 0),
+      entertainmentTaxAmount: toNumber(result._sum.entertainmentTaxAmount ?? 0),
+      serviceChargeAmount: toNumber(result._sum.serviceChargeAmount ?? 0),
     };
   }
 

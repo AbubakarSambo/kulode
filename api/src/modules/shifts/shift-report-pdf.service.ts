@@ -14,6 +14,15 @@ interface ShiftReportData {
   openedBy?: { firstName: string; lastName: string } | null;
   closedBy?: { firstName: string; lastName: string } | null;
   breakdowns: Array<{ paymentMethod: string; expectedAmount: number; countedAmount: number; variance: number }>;
+  categoryTotals: Array<{ category: string; amount: number }>;
+  taxTotals: {
+    vatAmount: number;
+    entertainmentTaxAmount: number;
+    serviceChargeAmount: number;
+    vatRate: number;
+    entertainmentTaxRate: number;
+    serviceChargeRate: number;
+  };
   organization: { name: string; address?: string | null; phone?: string | null; currency: string };
 }
 
@@ -56,6 +65,41 @@ export class ShiftReportPdfService {
 
       this.row(doc, width, 'Opening Float', this.formatCurrency(shift.openingFloat, currency));
       this.divider(doc, width);
+
+      if (shift.categoryTotals.length > 0) {
+        doc.font('Helvetica-Bold').fontSize(8).text('Items Detail', { width });
+        doc.font('Helvetica');
+        let totalItems = 0;
+        for (const { category, amount } of shift.categoryTotals) {
+          totalItems += amount;
+          this.row(doc, width, category, this.formatCurrency(amount, currency));
+        }
+        doc.font('Helvetica-Bold');
+        this.row(doc, width, 'Total Items', this.formatCurrency(totalItems, currency));
+        doc.font('Helvetica');
+        this.divider(doc, width);
+      }
+
+      const { vatAmount, entertainmentTaxAmount, serviceChargeAmount, vatRate, entertainmentTaxRate, serviceChargeRate } =
+        shift.taxTotals;
+      if (vatAmount || entertainmentTaxAmount || serviceChargeAmount) {
+        doc.font('Helvetica-Bold').fontSize(8).text('Taxes Detail', { width });
+        doc.font('Helvetica');
+        if (vatAmount) this.row(doc, width, `VAT ${vatRate}%`, this.formatCurrency(vatAmount, currency));
+        if (entertainmentTaxAmount)
+          this.row(doc, width, `Ent. Tax ${entertainmentTaxRate}%`, this.formatCurrency(entertainmentTaxAmount, currency));
+        if (serviceChargeAmount)
+          this.row(doc, width, `Service ${serviceChargeRate}%`, this.formatCurrency(serviceChargeAmount, currency));
+        doc.font('Helvetica-Bold');
+        this.row(
+          doc,
+          width,
+          'Total Tax',
+          this.formatCurrency(vatAmount + entertainmentTaxAmount + serviceChargeAmount, currency),
+        );
+        doc.font('Helvetica');
+        this.divider(doc, width);
+      }
 
       let totalExpected = 0;
       let totalCounted = 0;
