@@ -230,7 +230,7 @@ export class PrintingService {
     if (order.tableName) lines.push(`Table: ${order.tableName}\n`);
     if (order.waiterName) lines.push(`Waiter: ${order.waiterName}\n`);
     lines.push(`Order: ${order.id.slice(0, 8)}\n`);
-    lines.push(`${new Date().toLocaleString()}\n`);
+    lines.push(`${new Date().toLocaleString('en-GB', { timeZone: 'Africa/Lagos' })}\n`);
     lines.push('\n--------------------------------\n\n');
 
     for (const item of items) {
