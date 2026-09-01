@@ -81,6 +81,7 @@ export class OrdersService {
       source: string;
       table?: { name: string } | null;
       waiter?: { firstName: string; lastName: string } | null;
+      createdBy?: { firstName: string; lastName: string } | null;
     },
     items: Array<{
       id: string;
@@ -98,7 +99,12 @@ export class OrdersService {
         {
           id: order.id,
           tableName: order.table?.name ?? null,
-          waiterName: order.waiter ? `${order.waiter.firstName} ${order.waiter.lastName}` : null,
+          // Falls back to whoever placed the order when no waiter was assigned.
+          waiterName: order.waiter
+            ? `${order.waiter.firstName} ${order.waiter.lastName}`
+            : order.createdBy
+              ? `${order.createdBy.firstName} ${order.createdBy.lastName}`
+              : null,
           source: order.source,
         },
         items.map((i) => ({
@@ -125,6 +131,7 @@ export class OrdersService {
       source: string;
       table?: { name: string } | null;
       waiter?: { firstName: string; lastName: string } | null;
+      createdBy?: { firstName: string; lastName: string } | null;
     },
     items: Array<{
       id: string;
@@ -142,7 +149,12 @@ export class OrdersService {
         {
           id: order.id,
           tableName: order.table?.name ?? null,
-          waiterName: order.waiter ? `${order.waiter.firstName} ${order.waiter.lastName}` : null,
+          // Falls back to whoever placed the order when no waiter was assigned.
+          waiterName: order.waiter
+            ? `${order.waiter.firstName} ${order.waiter.lastName}`
+            : order.createdBy
+              ? `${order.createdBy.firstName} ${order.createdBy.lastName}`
+              : null,
           source: order.source,
         },
         items.map((i) => ({
@@ -1164,7 +1176,13 @@ export class OrdersService {
       closedAt: order.closedAt,
       source: order.source,
       table: order.table,
-      waiter: order.waiter ? { firstName: order.waiter.firstName, lastName: order.waiter.lastName } : null,
+      // Falls back to whoever placed the order when no waiter was assigned, so the receipt always
+      // shows a name for "who to ask" rather than going blank.
+      waiter: order.waiter
+        ? { firstName: order.waiter.firstName, lastName: order.waiter.lastName }
+        : order.createdBy
+          ? { firstName: order.createdBy.firstName, lastName: order.createdBy.lastName }
+          : null,
       items: order.items.map((i) => ({
         name: i.menuItem?.name ?? i.itemName,
         quantity: toNumber(i.quantity),

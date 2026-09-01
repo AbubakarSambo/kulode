@@ -139,8 +139,8 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   // Which invoicing-only nav items to hide from POS-only orgs
   const INVOICING_ONLY_HREFS = ['/clients', '/invoices', '/tax', '/reports', '/ai-chat', '/inventory', '/payments', '/dashboard', '/settings/services', '/vendors', '/expenses']
 
-  // Waiters only handle selling, order tracking, and customer lookup
-  const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/customers', '/pos/reports']
+  // Waiters handle selling, order tracking, customer lookup, and the table list
+  const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/customers', '/pos/tables', '/pos/reports']
 
   // Pass/Runner are kitchen-only roles — the ticket board is the only page they can see
   const KITCHEN_ALLOWED_HREFS = ['/pos/kitchen', '/pos/reports']
