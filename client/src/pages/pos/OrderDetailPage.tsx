@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { ArrowLeft, Download, Plus, X, UserPlus, Pencil } from 'lucide-react'
+import { ArrowLeft, Download, Plus, X, UserPlus, Pencil, Search } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Badge, Input, Label, SearchableSelect, Textarea } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
@@ -60,12 +60,16 @@ function AddItemsModal({ isOpen, onClose, onSubmit, isSubmitting }: AddItemsModa
   const { data: categories } = useQuery({ queryKey: ['menu-categories'], queryFn: () => menuCategoriesApi.list(), enabled: isOpen })
   const { data: items } = useQuery({ queryKey: ['menu-items'], queryFn: () => menuItemsApi.list(), enabled: isOpen })
   const [activeCategory, setActiveCategory] = useState<string | 'all'>('all')
+  const [search, setSearch] = useState('')
 
   const visibleItems = useMemo(() => {
     if (!items) return []
     const available = items.filter((i) => i.isAvailable)
-    return activeCategory === 'all' ? available : available.filter((i) => i.categories.some((c) => c.id === activeCategory))
-  }, [items, activeCategory])
+    const byCategory =
+      activeCategory === 'all' ? available : available.filter((i) => i.categories.some((c) => c.id === activeCategory))
+    const query = search.trim().toLowerCase()
+    return query ? byCategory.filter((i) => i.name.toLowerCase().includes(query)) : byCategory
+  }, [items, activeCategory, search])
 
   const lines = Object.values(cart)
   const total = lines.reduce((sum, l) => sum + l.menuItem.price * l.quantity, 0)
@@ -102,11 +106,22 @@ function AddItemsModal({ isOpen, onClose, onSubmit, isSubmitting }: AddItemsModa
   const handleSubmit = () => {
     onSubmit(lines.map((l) => ({ menuItemId: l.menuItem.id, quantity: l.quantity, notes: l.notes || undefined })))
     setCart({})
+    setSearch('')
   }
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Add Items">
       <div className="max-h-[70vh] space-y-4 overflow-y-auto">
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search menu items..."
+            className="pl-11"
+          />
+        </div>
+
         <div className="flex gap-2 overflow-x-auto pb-1">
           <button
             onClick={() => setActiveCategory('all')}
@@ -131,24 +146,28 @@ function AddItemsModal({ isOpen, onClose, onSubmit, isSubmitting }: AddItemsModa
           ))}
         </div>
 
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {visibleItems.map((item) => {
-            const inCart = cart[item.id]
-            return (
-              <button
-                key={item.id}
-                onClick={() => addToCart(item)}
-                className="rounded-xl border border-border bg-card p-3 text-left"
-              >
-                <div className="truncate text-sm font-semibold text-foreground">{item.name}</div>
-                <div className="mt-0.5 flex items-center justify-between text-xs">
-                  <span className="font-bold text-primary">{formatCurrency(item.price)}</span>
-                  {inCart && <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">{inCart.quantity}</span>}
-                </div>
-              </button>
-            )
-          })}
-        </div>
+        {visibleItems.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">No menu items match your search.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {visibleItems.map((item) => {
+              const inCart = cart[item.id]
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => addToCart(item)}
+                  className="rounded-xl border border-border bg-card p-3 text-left"
+                >
+                  <div className="truncate text-sm font-semibold text-foreground">{item.name}</div>
+                  <div className="mt-0.5 flex items-center justify-between text-xs">
+                    <span className="font-bold text-primary">{formatCurrency(item.price)}</span>
+                    {inCart && <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">{inCart.quantity}</span>}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {lines.length > 0 && (
           <div className="space-y-2 rounded-xl bg-muted p-3">
