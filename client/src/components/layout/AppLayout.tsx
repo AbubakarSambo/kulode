@@ -91,7 +91,7 @@ export function AppLayout() {
   // Waiters only handle selling, order tracking, and customer lookup; Pass/Runner only see the
   // kitchen ticket board. A user with multiple roles gets the UNION of what each unlocks — same
   // logic as Sidebar.tsx, kept in lockstep since this is the parallel mobile-nav rendering.
-  const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/customers', '/pos/reports']
+  const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/customers', '/pos/tables', '/pos/reports']
   const KITCHEN_ALLOWED_HREFS = ['/pos/kitchen', '/pos/reports']
   // Cashiers close out orders and take payment, and can now manage the table list — no need for
   // menu/waiter management or analytics
