@@ -170,7 +170,7 @@ export class OrdersController {
   }
 
   @Patch(':id/discount')
-  @Roles(Role.STAFF, Role.ACCOUNTANT, Role.SUPERVISOR, Role.MANAGER, Role.ADMIN, Role.SUPER_ADMIN)
+  @Roles(Role.STAFF, Role.ACCOUNTANT, Role.SUPERVISOR, Role.MANAGER, Role.CASHIER, Role.ADMIN, Role.SUPER_ADMIN)
   applyDiscount(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ApplyDiscountDto,

@@ -18,9 +18,8 @@ import type { CreateOrderItemData } from '@/api/orders'
 const PAYMENT_CAPABLE_ROLES = ['STAFF', 'ACCOUNTANT', 'CASHIER', 'ADMIN', 'SUPER_ADMIN']
 // Matches the backend's @Roles list on POST /orders/:id/cancel.
 const VOID_CAPABLE_ROLES = ['STAFF', 'ACCOUNTANT', 'SUPERVISOR', 'MANAGER', 'CASHIER', 'ADMIN', 'SUPER_ADMIN']
-// Matches the backend's @Roles list on PATCH /orders/:id/discount — kept separate from void so
-// giving cashiers void access doesn't also open up an unrestricted till-side discount.
-const DISCOUNT_CAPABLE_ROLES = ['STAFF', 'ACCOUNTANT', 'SUPERVISOR', 'MANAGER', 'ADMIN', 'SUPER_ADMIN']
+// Matches the backend's @Roles list on PATCH /orders/:id/discount.
+const DISCOUNT_CAPABLE_ROLES = ['STAFF', 'ACCOUNTANT', 'SUPERVISOR', 'MANAGER', 'CASHIER', 'ADMIN', 'SUPER_ADMIN']
 const ITEM_STATUS_FLOW: OrderItemStatus[] = ['PENDING', 'ON_IT', 'PASS', 'SERVED']
 const ITEM_STATUS_LABELS: Record<OrderItemStatus, string> = {
   PENDING: 'Pending',
