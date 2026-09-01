@@ -1,21 +1,24 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, UtensilsCrossed } from 'lucide-react'
+import { Pencil, Plus, UtensilsCrossed } from 'lucide-react'
 import { DiningTableIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, EmptyState } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { tablesApi, ordersApi } from '@/api'
 import { cn, formatCurrency } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth'
 import type { RestaurantTable, TableStatus } from '@/types'
 
 // Statuses where a table still has a running, unpaid tab worth showing on its card.
 const ACTIVE_ORDER_STATUSES = ['OPEN', 'IN_KITCHEN', 'READY', 'CLOSED_UNPAID'] as const
+// Matches the backend's @Roles list on POST/PATCH /restaurant-tables.
+const TABLE_MANAGE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'CASHIER']
 
 const tableSchema = z.object({
   name: z.string().min(1, 'Table name is required'),
@@ -41,6 +44,8 @@ const STATUS_LABELS: Record<TableStatus, string> = {
 export function TablesFloorPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const currentUser = useAuthStore((s) => s.user)
+  const canManageTables = !!currentUser && currentUser.roles.some((r) => TABLE_MANAGE_ROLES.includes(r))
   const [createOpen, setCreateOpen] = useState(false)
   const [navigatingTableId, setNavigatingTableId] = useState<string | null>(null)
   const [stuckTable, setStuckTable] = useState<RestaurantTable | null>(null)
@@ -64,6 +69,39 @@ export function TablesFloorPage() {
       .map((o) => [o.tableId!, `${o.waiter!.firstName} ${o.waiter!.lastName}`]),
   )
 
+  // Groups tables by section, normalizing case/whitespace so "Patio", "patio", and " Patio " land
+  // in the same bucket (each group keeps the first-seen casing as its display label). Tables with
+  // no section fall into "Unassigned", always shown last.
+  const sectionGroups = useMemo(() => {
+    const groups = new Map<string, { label: string; tables: RestaurantTable[] }>()
+    for (const table of tables ?? []) {
+      const trimmed = table.section?.trim()
+      const key = trimmed ? trimmed.toLowerCase() : ''
+      const existing = groups.get(key)
+      if (existing) {
+        existing.tables.push(table)
+      } else {
+        groups.set(key, { label: trimmed || 'Unassigned', tables: [table] })
+      }
+    }
+    return Array.from(groups.values()).sort((a, b) => {
+      if (a.label === 'Unassigned') return 1
+      if (b.label === 'Unassigned') return -1
+      return a.label.localeCompare(b.label)
+    })
+  }, [tables])
+
+  // Distinct sections already in use, for quick-pick chips instead of retyping one that exists —
+  // sections aren't a separate managed entity, just free text on each table.
+  const existingSections = useMemo(() => {
+    const seen = new Map<string, string>()
+    for (const table of tables ?? []) {
+      const trimmed = table.section?.trim()
+      if (trimmed && !seen.has(trimmed.toLowerCase())) seen.set(trimmed.toLowerCase(), trimmed)
+    }
+    return Array.from(seen.values()).sort((a, b) => a.localeCompare(b))
+  }, [tables])
+
   const form = useForm<TableFormData>({ resolver: zodResolver(tableSchema) })
 
   const createTable = useMutation({
@@ -76,6 +114,24 @@ export function TablesFloorPage() {
     },
     onError: () => toast.error('Failed to add table'),
   })
+
+  const [editingTable, setEditingTable] = useState<RestaurantTable | null>(null)
+  const editForm = useForm<TableFormData>({ resolver: zodResolver(tableSchema) })
+
+  const updateTable = useMutation({
+    mutationFn: (data: TableFormData) => tablesApi.update(editingTable!.id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['restaurant-tables'] })
+      toast.success('Table updated')
+      setEditingTable(null)
+    },
+    onError: () => toast.error('Failed to update table'),
+  })
+
+  const openEdit = (table: RestaurantTable) => {
+    editForm.reset({ name: table.name, section: table.section ?? '', capacity: table.capacity ?? undefined })
+    setEditingTable(table)
+  }
 
   const markCleaned = useMutation({
     mutationFn: (id: string) => tablesApi.updateStatus(id, 'AVAILABLE'),
@@ -124,9 +180,11 @@ export function TablesFloorPage() {
         description="Tap a table to start or resume an order"
         icon={UtensilsCrossed}
         action={
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-1.5 h-4 w-4" /> Add Table
-          </Button>
+          canManageTables ? (
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus className="mr-1.5 h-4 w-4" /> Add Table
+            </Button>
+          ) : undefined
         }
       />
 
@@ -136,32 +194,62 @@ export function TablesFloorPage() {
             icon={DiningTableIcon}
             title="No tables yet"
             description="Add your restaurant's tables to start taking dine-in orders"
-            actionLabel="Add Table"
-            onAction={() => setCreateOpen(true)}
+            actionLabel={canManageTables ? 'Add Table' : undefined}
+            onAction={canManageTables ? () => setCreateOpen(true) : undefined}
           />
         ) : (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {tables?.map((table) => (
-              <button
-                key={table.id}
-                onClick={() => handleTableClick(table)}
-                disabled={navigatingTableId === table.id}
-                className={cn(
-                  'flex flex-col items-center justify-center gap-2 rounded-2xl border p-6 text-center transition-all active:scale-95 disabled:opacity-60',
-                  STATUS_STYLES[table.status],
+          <div className="space-y-6">
+            {sectionGroups.map((group) => (
+              <div key={group.label}>
+                {sectionGroups.length > 1 && (
+                  <h2 className="mb-3 text-sm font-semibold text-muted-foreground">{group.label}</h2>
                 )}
-              >
-                <span className="text-lg font-bold">{table.name}</span>
-                {table.section && <span className="text-xs opacity-70">{table.section}</span>}
-                <span className="text-xs font-semibold uppercase tracking-wide">{STATUS_LABELS[table.status]}</span>
-                {totalByTableId.has(table.id) && (
-                  <span className="text-sm font-bold">{formatCurrency(totalByTableId.get(table.id)!)}</span>
-                )}
-                {waiterByTableId.has(table.id) && (
-                  <span className="text-[11px] opacity-70">{waiterByTableId.get(table.id)}</span>
-                )}
-                <span className="text-[11px] opacity-70">{table.capacity} seats</span>
-              </button>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                  {group.tables.map((table) => (
+                    <div
+                      key={table.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => handleTableClick(table)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          handleTableClick(table)
+                        }
+                      }}
+                      aria-disabled={navigatingTableId === table.id}
+                      className={cn(
+                        'relative flex flex-col items-center justify-center gap-2 rounded-2xl border p-6 text-center transition-all active:scale-95',
+                        navigatingTableId === table.id ? 'pointer-events-none opacity-60' : 'cursor-pointer',
+                        STATUS_STYLES[table.status],
+                      )}
+                    >
+                      {canManageTables && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openEdit(table)
+                          }}
+                          aria-label={`Edit ${table.name}`}
+                          className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-background/70 text-foreground/70 hover:bg-background"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                      )}
+                      <span className="text-lg font-bold">{table.name}</span>
+                      <span className="text-xs font-semibold uppercase tracking-wide">{STATUS_LABELS[table.status]}</span>
+                      {totalByTableId.has(table.id) && (
+                        <span className="text-sm font-bold">{formatCurrency(totalByTableId.get(table.id)!)}</span>
+                      )}
+                      {waiterByTableId.has(table.id) && (
+                        <span className="text-[11px] opacity-70">{waiterByTableId.get(table.id)}</span>
+                      )}
+                      <span className="text-[11px] opacity-70">{table.capacity} seats</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         )}
@@ -175,6 +263,20 @@ export function TablesFloorPage() {
           </div>
           <div>
             <Label>Section (optional)</Label>
+            {existingSections.length > 0 && (
+              <div className="mb-1.5 flex flex-wrap gap-1.5">
+                {existingSections.map((section) => (
+                  <button
+                    key={section}
+                    type="button"
+                    onClick={() => form.setValue('section', section, { shouldDirty: true })}
+                    className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted/70"
+                  >
+                    {section}
+                  </button>
+                ))}
+              </div>
+            )}
             <Input {...form.register('section')} placeholder="e.g. Patio" />
           </div>
           <div>
@@ -187,6 +289,44 @@ export function TablesFloorPage() {
           </div>
           <Button type="submit" className="w-full" isLoading={createTable.isPending}>
             Add Table
+          </Button>
+        </form>
+      </Modal>
+
+      <Modal isOpen={!!editingTable} onClose={() => setEditingTable(null)} title="Edit Table">
+        <form onSubmit={editForm.handleSubmit((data) => updateTable.mutate(data))} className="space-y-4">
+          <div>
+            <Label>Name</Label>
+            <Input {...editForm.register('name')} placeholder="e.g. Table 5" />
+          </div>
+          <div>
+            <Label>Section (optional)</Label>
+            {existingSections.length > 0 && (
+              <div className="mb-1.5 flex flex-wrap gap-1.5">
+                {existingSections.map((section) => (
+                  <button
+                    key={section}
+                    type="button"
+                    onClick={() => editForm.setValue('section', section, { shouldDirty: true })}
+                    className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted/70"
+                  >
+                    {section}
+                  </button>
+                ))}
+              </div>
+            )}
+            <Input {...editForm.register('section')} placeholder="e.g. Patio" />
+          </div>
+          <div>
+            <Label>Capacity (optional)</Label>
+            <Input
+              type="number"
+              {...editForm.register('capacity', { setValueAs: (v) => (v === '' ? undefined : Number(v)) })}
+              placeholder="2"
+            />
+          </div>
+          <Button type="submit" className="w-full" isLoading={updateTable.isPending}>
+            Save Changes
           </Button>
         </form>
       </Modal>
