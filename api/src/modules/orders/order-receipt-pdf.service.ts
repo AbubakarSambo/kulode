@@ -7,6 +7,7 @@ interface OrderReceiptData {
   closedAt?: Date | null;
   source: string;
   table?: { name: string } | null;
+  customer?: { name: string; phone?: string | null } | null;
   items: Array<{ name: string; quantity: number; unitPrice: number; amount: number; notes?: string | null }>;
   subtotal: number;
   taxAmount: number;
@@ -48,6 +49,9 @@ export class OrderReceiptPdfService {
       doc.text(`Date: ${this.formatDate(receipt.closedAt ?? receipt.createdAt)}`, { width });
       doc.text(`Source: ${receipt.source.replace('_', ' ')}`, { width });
       if (receipt.table) doc.text(`Table: ${receipt.table.name}`, { width });
+      if (receipt.customer) {
+        doc.text(`Customer: ${receipt.customer.phone ? `${receipt.customer.name} (${receipt.customer.phone})` : receipt.customer.name}`, { width });
+      }
       this.divider(doc, width);
 
       const itemColX = 12;

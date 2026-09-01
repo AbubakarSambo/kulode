@@ -101,6 +101,7 @@ export function printBill(receipt: ReceiptData) {
           ${waiterName ? `<tr><td class="meta">Served by</td><td class="right meta">${escapeHtml(waiterName)}</td></tr>` : ''}
           <tr><td class="meta">${escapeHtml(receipt.source.replace('_', ' '))}</td><td class="right meta"></td></tr>
           ${receipt.table ? `<tr><td class="meta">Table</td><td class="right meta">${escapeHtml(receipt.table.name)}</td></tr>` : ''}
+          ${receipt.customer ? `<tr><td class="meta">Customer</td><td class="right meta">${escapeHtml(receipt.customer.phone ? `${receipt.customer.name} (${receipt.customer.phone})` : receipt.customer.name)}</td></tr>` : ''}
         </table>
         <div class="divider"></div>
         <div class="center title">${title}</div>

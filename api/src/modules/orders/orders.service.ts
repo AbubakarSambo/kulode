@@ -1226,6 +1226,7 @@ export class OrdersService {
       closedAt: order.closedAt,
       source: order.source,
       table: order.table,
+      customer: order.customer ? { name: order.customer.name, phone: order.customer.phone } : null,
       // Falls back to whoever placed the order when no waiter was assigned, so the receipt always
       // shows a name for "who to ask" rather than going blank.
       waiter: order.waiter

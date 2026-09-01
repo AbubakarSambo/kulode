@@ -268,6 +268,7 @@ export interface ReceiptData {
   closedAt: string | null
   source: string
   table: { name: string } | null
+  customer: { name: string; phone: string | null } | null
   waiter: { firstName: string; lastName: string } | null
   items: Array<{ name: string; quantity: number; unitPrice: number; amount: number; notes?: string | null }>
   subtotal: number

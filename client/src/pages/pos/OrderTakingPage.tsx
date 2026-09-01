@@ -184,6 +184,7 @@ export function OrderTakingPage() {
     [tables, effectiveTableId],
   )
   const selectedWaiter = waiters?.find((w) => w.id === waiterId)
+  const selectedCustomer = customersPage?.data.find((c) => c.id === customerId)
 
   const handlePrintPreview = () => {
     if (!organization) return
@@ -193,6 +194,7 @@ export function OrderTakingPage() {
       closedAt: null,
       source,
       table: effectiveTableName ? { name: effectiveTableName } : null,
+      customer: selectedCustomer ? { name: selectedCustomer.name, phone: selectedCustomer.phone ?? null } : null,
       waiter: selectedWaiter ? { firstName: selectedWaiter.firstName, lastName: selectedWaiter.lastName } : null,
       items: cart.map((l) => ({ name: l.name, quantity: l.quantity, unitPrice: l.price, amount: l.price * l.quantity, notes: l.notes })),
       subtotal,
