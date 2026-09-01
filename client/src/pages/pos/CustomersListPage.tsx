@@ -226,7 +226,7 @@ export function CustomersListPage() {
         onImportRow={async (row) => {
           await customersApi.create({
             name: row.name,
-            phone: row.phone,
+            phone: row.phone || undefined,
             email: row.email || undefined,
             notes: row.notes || undefined,
           })
