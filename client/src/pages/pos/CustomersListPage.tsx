@@ -41,7 +41,7 @@ export function CustomersListPage() {
   const [page, setPage] = useState(1)
   const [createOpen, setCreateOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
-  const limit = 20
+  const limit = 100
 
   const { data, isLoading } = useQuery({
     queryKey: ['customers', { search, page }],

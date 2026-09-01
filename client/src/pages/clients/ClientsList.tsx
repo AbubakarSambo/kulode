@@ -40,7 +40,7 @@ export function ClientsListPage() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<'active' | 'inactive' | ''>('')
   const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(10)
+  const [limit, setLimit] = useState(100)
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
   const [limitOpen, setLimitOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)

@@ -101,7 +101,7 @@ export function InventoryPage() {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false)
   const [tempStockFilter, setTempStockFilter] = useState<'all' | 'low'>('all')
   const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(10)
+  const [limit, setLimit] = useState(100)
   const [limitOpen, setLimitOpen] = useState(false)
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
   const { isReadOnlyMode: isExpired } = useSubscription()

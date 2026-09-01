@@ -33,7 +33,7 @@ export function OrdersListPage() {
   const [status, setStatus] = useState<OrderStatus | ''>(customerId || waiterId ? '' : 'OPEN')
   const [tableId, setTableId] = useState('')
   const [page, setPage] = useState(1)
-  const limit = 20
+  const limit = 100
 
   const currentUser = useAuthStore((s) => s.user)
   const isCashier = !!currentUser?.roles.includes('CASHIER')

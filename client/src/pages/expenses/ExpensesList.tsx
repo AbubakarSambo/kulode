@@ -92,7 +92,7 @@ const getInitials = (name: string) => {
 export function ExpensesListPage() {
   const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
   const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(10)
+  const [limit, setLimit] = useState(100)
   const [limitOpen, setLimitOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [period, setPeriod] = useState<ReportPeriod>('THIS_MONTH')

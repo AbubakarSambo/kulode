@@ -251,7 +251,7 @@ export function AdminDashboardPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [grandfatheredFilter, setGrandfatheredFilter] = useState<string>('all')
   const [page, setPage] = useState(1)
-  const limit = 10
+  const limit = 100
 
   const [debouncedSearch, setDebouncedSearch] = useState('')
   useEffect(() => {

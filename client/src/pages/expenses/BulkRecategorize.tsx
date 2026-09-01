@@ -24,7 +24,7 @@ export function BulkRecategorizePage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['expenses', 'bulk', page],
-    queryFn: () => expensesApi.list({ page, limit: 50, taxCategory: 'UNCATEGORIZED' }),
+    queryFn: () => expensesApi.list({ page, limit: 100, taxCategory: 'UNCATEGORIZED' }),
   })
 
   const expenses = data?.data ?? []

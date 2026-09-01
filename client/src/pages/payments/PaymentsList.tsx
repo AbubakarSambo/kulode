@@ -64,7 +64,7 @@ export function PaymentsListPage() {
   const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(10)
+  const [limit, setLimit] = useState(100)
   const [limitOpen, setLimitOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('')
   const [methodDropdownOpen, setMethodDropdownOpen] = useState(false)

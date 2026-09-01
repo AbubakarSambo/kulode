@@ -74,7 +74,7 @@ function WalletSection({ customerId, balance, creditLimit }: { customerId: strin
 
   const { data: transactions, isLoading } = useQuery({
     queryKey: ['wallet-transactions', customerId, page],
-    queryFn: () => walletApi.listTransactions(customerId, { page, limit: 10 }),
+    queryFn: () => walletApi.listTransactions(customerId, { page, limit: 100 }),
   })
 
   const invalidateWallet = () => {
