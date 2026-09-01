@@ -39,11 +39,13 @@ export function PosDashboardPage() {
   const { data: summary } = useQuery({
     queryKey: ['pos-dashboard', 'summary', period, startDate, endDate],
     queryFn: () => posDashboardApi.getSummary(filters),
+    refetchInterval: 15_000,
   })
 
   const { data: trend } = useQuery({
     queryKey: ['pos-dashboard', 'trend', period, startDate, endDate],
     queryFn: () => posDashboardApi.getTrend(filters),
+    refetchInterval: 15_000,
   })
 
   const activeOption = periodOptions.find((opt) => opt.value === period)
