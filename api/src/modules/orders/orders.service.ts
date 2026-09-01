@@ -1171,7 +1171,7 @@ export class OrdersService {
     if (!order) throw new NotFoundException('Order not found');
 
     return {
-      receiptNumber: `ORD-${order.id.slice(0, 8).toUpperCase()}`,
+      receiptNumber: `ORD-${order.id.slice(0, 5).toUpperCase()}`,
       createdAt: order.createdAt,
       closedAt: order.closedAt,
       source: order.source,
