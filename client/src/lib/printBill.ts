@@ -99,7 +99,8 @@ export function printBill(receipt: ReceiptData) {
           <tr><td class="meta">Ticket</td><td class="right meta">${escapeHtml(receipt.receiptNumber)}</td></tr>
           <tr><td class="meta">Date</td><td class="right meta">${formatDate(receipt.closedAt ?? receipt.createdAt)}</td></tr>
           ${waiterName ? `<tr><td class="meta">Served by</td><td class="right meta">${escapeHtml(waiterName)}</td></tr>` : ''}
-          <tr><td class="meta">${escapeHtml(receipt.source.replace('_', ' '))}</td><td class="right meta">${receipt.table ? escapeHtml(receipt.table.name) : ''}</td></tr>
+          <tr><td class="meta">${escapeHtml(receipt.source.replace('_', ' '))}</td><td class="right meta"></td></tr>
+          ${receipt.table ? `<tr><td class="meta">Table</td><td class="right meta">${escapeHtml(receipt.table.name)}</td></tr>` : ''}
         </table>
         <div class="divider"></div>
         <div class="center title">${title}</div>

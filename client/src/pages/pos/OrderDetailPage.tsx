@@ -17,7 +17,10 @@ import type { CreateOrderItemData } from '@/api/orders'
 // Matches the backend's @Roles list on POST /orders/:id/close — only these roles can accept payment.
 const PAYMENT_CAPABLE_ROLES = ['STAFF', 'ACCOUNTANT', 'CASHIER', 'ADMIN', 'SUPER_ADMIN']
 // Matches the backend's @Roles list on POST /orders/:id/cancel.
-const VOID_CAPABLE_ROLES = ['STAFF', 'ACCOUNTANT', 'SUPERVISOR', 'MANAGER', 'ADMIN', 'SUPER_ADMIN']
+const VOID_CAPABLE_ROLES = ['STAFF', 'ACCOUNTANT', 'SUPERVISOR', 'MANAGER', 'CASHIER', 'ADMIN', 'SUPER_ADMIN']
+// Matches the backend's @Roles list on PATCH /orders/:id/discount — kept separate from void so
+// giving cashiers void access doesn't also open up an unrestricted till-side discount.
+const DISCOUNT_CAPABLE_ROLES = ['STAFF', 'ACCOUNTANT', 'SUPERVISOR', 'MANAGER', 'ADMIN', 'SUPER_ADMIN']
 const ITEM_STATUS_FLOW: OrderItemStatus[] = ['PENDING', 'ON_IT', 'PASS', 'SERVED']
 const ITEM_STATUS_LABELS: Record<OrderItemStatus, string> = {
   PENDING: 'Pending',
@@ -389,8 +392,7 @@ function SyncedOrderView({ id }: { id: string }) {
   const currentUser = useAuthStore((s) => s.user)
   const canAcceptPayment = !!currentUser && currentUser.roles.some((r) => PAYMENT_CAPABLE_ROLES.includes(r))
   const canVoid = !!currentUser && currentUser.roles.some((r) => VOID_CAPABLE_ROLES.includes(r))
-  // Same oversight roles as void — an unrestricted till-side discount is a fraud vector.
-  const canApplyDiscount = canVoid
+  const canApplyDiscount = !!currentUser && currentUser.roles.some((r) => DISCOUNT_CAPABLE_ROLES.includes(r))
   const [addItemsOpen, setAddItemsOpen] = useState(false)
   const [closeModalOpen, setCloseModalOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<string>('CASH')

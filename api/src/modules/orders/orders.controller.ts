@@ -161,7 +161,7 @@ export class OrdersController {
   }
 
   @Post(':id/cancel')
-  @Roles(Role.STAFF, Role.ACCOUNTANT, Role.SUPERVISOR, Role.MANAGER, Role.ADMIN, Role.SUPER_ADMIN)
+  @Roles(Role.STAFF, Role.ACCOUNTANT, Role.SUPERVISOR, Role.MANAGER, Role.CASHIER, Role.ADMIN, Role.SUPER_ADMIN)
   cancel(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
