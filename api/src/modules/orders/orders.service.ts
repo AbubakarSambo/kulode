@@ -532,7 +532,10 @@ export class OrdersService {
       if (dto.quantity === 0) {
         await tx.orderItem.delete({ where: { id: itemId } });
       } else {
-        await tx.orderItem.update({ where: { id: itemId }, data: { quantity: dto.quantity, amount: newAmount } });
+        await tx.orderItem.update({
+          where: { id: itemId },
+          data: { quantity: dto.quantity, amount: newAmount, ...(dto.notes !== undefined && { notes: dto.notes || null }) },
+        });
       }
 
       if (dto.quantity === 0 && remainingItems.length === 0) {

@@ -634,7 +634,7 @@ function SyncedOrderView({ id }: { id: string }) {
 
   const updateItemQuantity = useMutation({
     mutationFn: ({ itemId, quantity }: { itemId: string; quantity: number }) =>
-      ordersApi.updateItemQuantity(id, itemId, quantity),
+      ordersApi.updateItem(id, itemId, { quantity }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['order', id] })
       queryClient.invalidateQueries({ queryKey: ['orders'] })
@@ -642,6 +642,24 @@ function SyncedOrderView({ id }: { id: string }) {
     onError: (err: unknown) => {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
       toast.error(message || 'Failed to update quantity')
+    },
+  })
+
+  const [itemNotesModalOpen, setItemNotesModalOpen] = useState(false)
+  const [editingItemId, setEditingItemId] = useState('')
+  const [editingItemNotes, setEditingItemNotes] = useState('')
+  const updateItemNotes = useMutation({
+    mutationFn: ({ itemId, quantity, notes }: { itemId: string; quantity: number; notes: string }) =>
+      ordersApi.updateItem(id, itemId, { quantity, notes }),
+    onSuccess: () => {
+      toast.success('Note updated')
+      setItemNotesModalOpen(false)
+      queryClient.invalidateQueries({ queryKey: ['order', id] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to update note')
     },
   })
 
@@ -951,7 +969,24 @@ function SyncedOrderView({ id }: { id: string }) {
                         {isOpenStatus && item.status === 'PENDING' ? '' : `${item.quantity}x `}
                         {item.menuItem?.name ?? item.itemName}
                       </div>
-                      {item.notes && <div className="text-xs text-muted-foreground">{item.notes}</div>}
+                      {(item.notes || (isOpenStatus && item.status === 'PENDING')) && (
+                        <div className="flex items-center gap-2">
+                          {item.notes && <div className="text-xs text-muted-foreground">{item.notes}</div>}
+                          {isOpenStatus && item.status === 'PENDING' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingItemId(item.id)
+                                setEditingItemNotes(item.notes ?? '')
+                                setItemNotesModalOpen(true)
+                              }}
+                              className="text-xs font-medium text-primary hover:underline"
+                            >
+                              {item.notes ? 'Edit note' : 'Add note'}
+                            </button>
+                          )}
+                        </div>
+                      )}
                       {isOpenStatus && item.status === 'PENDING' && (
                         <div className="mt-1.5 flex items-center gap-3">
                           <button
@@ -1450,6 +1485,39 @@ function SyncedOrderView({ id }: { id: string }) {
               className="flex-1"
               isLoading={setNotes.isPending}
               onClick={() => setNotes.mutate(selectedNotes)}
+            >
+              Save
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={itemNotesModalOpen} onClose={() => setItemNotesModalOpen(false)} title="Item Note">
+        <div className="space-y-4">
+          <div>
+            <Label>Note</Label>
+            <Textarea
+              value={editingItemNotes}
+              onChange={(e) => setEditingItemNotes(e.target.value)}
+              placeholder="e.g. boiled, no onions"
+              className="mt-1 text-sm"
+              rows={3}
+            />
+          </div>
+          <div className="flex gap-3">
+            {editingItemNotes && (
+              <Button variant="outline" className="flex-1" onClick={() => setEditingItemNotes('')}>
+                Clear
+              </Button>
+            )}
+            <Button
+              className="flex-1"
+              isLoading={updateItemNotes.isPending}
+              onClick={() => {
+                const item = order.items.find((i) => i.id === editingItemId)
+                if (!item) return
+                updateItemNotes.mutate({ itemId: editingItemId, quantity: Number(item.quantity), notes: editingItemNotes })
+              }}
             >
               Save
             </Button>
