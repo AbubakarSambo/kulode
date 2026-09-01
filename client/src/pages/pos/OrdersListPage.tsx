@@ -27,7 +27,10 @@ export function OrdersListPage() {
   const customerId = searchParams.get('customerId') || undefined
   const waiterId = searchParams.get('waiterId') || undefined
 
-  const [status, setStatus] = useState<OrderStatus | ''>('')
+  // Defaults to Open on the plain orders list — the common case is checking what's currently
+  // active. A customer/waiter history view (arrived via query param) defaults to All Statuses
+  // instead, since that's meant to show their full order history, not just what's running now.
+  const [status, setStatus] = useState<OrderStatus | ''>(customerId || waiterId ? '' : 'OPEN')
   const [tableId, setTableId] = useState('')
   const [page, setPage] = useState(1)
   const limit = 20

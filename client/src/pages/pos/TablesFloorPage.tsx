@@ -112,7 +112,10 @@ export function TablesFloorPage() {
       setCreateOpen(false)
       form.reset()
     },
-    onError: () => toast.error('Failed to add table'),
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to add table')
+    },
   })
 
   const [editingTable, setEditingTable] = useState<RestaurantTable | null>(null)
@@ -125,7 +128,10 @@ export function TablesFloorPage() {
       toast.success('Table updated')
       setEditingTable(null)
     },
-    onError: () => toast.error('Failed to update table'),
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to update table')
+    },
   })
 
   const openEdit = (table: RestaurantTable) => {
