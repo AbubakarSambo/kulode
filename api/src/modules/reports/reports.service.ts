@@ -37,10 +37,17 @@ export class ReportsService {
         startDate = new Date(now.getFullYear() - 1, 0, 1);
         endDate = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59);
         break;
-      case ReportPeriod.CUSTOM:
-        startDate = filter.startDate || new Date(now.getFullYear(), now.getMonth(), 1);
-        endDate = filter.endDate || now;
+      case ReportPeriod.CUSTOM: {
+        // Normalize to local calendar-day bounds — filter.startDate/endDate come from a
+        // date-only picker, so they parse to midnight. Using them as-is would make a
+        // "today to today" range a near-zero-width [midnight, midnight] window instead of
+        // covering the whole day.
+        const customStart = filter.startDate ?? new Date(now.getFullYear(), now.getMonth(), 1);
+        const customEnd = filter.endDate ?? now;
+        startDate = new Date(customStart.getFullYear(), customStart.getMonth(), customStart.getDate());
+        endDate = new Date(customEnd.getFullYear(), customEnd.getMonth(), customEnd.getDate(), 23, 59, 59);
         break;
+      }
       default:
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
     }
