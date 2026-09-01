@@ -262,7 +262,7 @@ export function PosDashboardPage() {
                         <p className="text-sm font-semibold text-foreground">{PAYMENT_METHOD_LABELS[m.method] ?? m.method}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">{m.count} payments</p>
                       </div>
-                      <span className="text-sm font-semibold text-foreground tabular-nums">{formatCurrency(m.total)}</span>
+                      <span className="text-sm font-semibold text-foreground tabular-nums">{formatCurrency(Math.round(m.total))}</span>
                     </div>
                   ))}
                 </div>
