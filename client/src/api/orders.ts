@@ -146,6 +146,11 @@ export const ordersApi = {
     return response.data.data
   },
 
+  setNotes: async (id: string, notes: string): Promise<Order> => {
+    const response = await apiClient.patch<ApiResponse<Order>>(`/orders/${id}/notes`, { notes })
+    return response.data.data
+  },
+
   /** Folds another still-open, unpaid order's items into this one; the source order is cancelled. */
   merge: async (id: string, sourceOrderId: string): Promise<Order> => {
     const response = await apiClient.post<ApiResponse<Order>>(`/orders/${id}/merge`, { sourceOrderId })

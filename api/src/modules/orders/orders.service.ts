@@ -14,6 +14,7 @@ import {
   UpdateOrderItemDto,
   UpdateOrderCustomerDto,
   UpdateOrderWaiterDto,
+  UpdateOrderNotesDto,
   UpdateOrderSourceDto,
   CloseOrderDto,
   OrderFilterDto,
@@ -583,6 +584,20 @@ export class OrdersService {
     return this.prisma.order.update({
       where: { id },
       data: { waiterId: dto.waiterId ?? null },
+      include: this.orderInclude,
+    });
+  }
+
+  async setNotes(organizationId: string, id: string, dto: UpdateOrderNotesDto) {
+    const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.status === OrderStatus.CANCELLED) {
+      throw new BadRequestException('Cannot change notes on a cancelled order');
+    }
+
+    return this.prisma.order.update({
+      where: { id },
+      data: { notes: dto.notes || null },
       include: this.orderInclude,
     });
   }

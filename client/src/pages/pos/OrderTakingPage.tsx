@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import { Minus, Plus, ArrowLeft, UserPlus, X, Search, ChevronDown } from 'lucide-react'
 import { Header } from '@/components/layout'
-import { Button, Card, CardContent, Label, Input, SearchableSelect } from '@/components/ui'
+import { Button, Card, CardContent, Label, Input, Textarea, SearchableSelect } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { BottomSheet } from '@/components/shared/BottomSheet'
 import { menuCategoriesApi, menuItemsApi, ordersApi, customersApi, tablesApi, usersApi, organizationsApi, orderTypesApi } from '@/api'
@@ -72,6 +72,7 @@ export function OrderTakingPage() {
   const [newCustomerOpen, setNewCustomerOpen] = useState(false)
   const [selectedTableId, setSelectedTableId] = useState('')
   const [waiterId, setWaiterId] = useState('')
+  const [orderNotes, setOrderNotes] = useState('')
   const [assignmentsOpen, setAssignmentsOpen] = useState(false)
   const [newTableOpen, setNewTableOpen] = useState(false)
 
@@ -207,6 +208,7 @@ export function OrderTakingPage() {
         waiterId: waiterId || undefined,
         source,
         items: cart.map((l) => ({ menuItemId: l.menuItemId, quantity: l.quantity, notes: l.notes || undefined })),
+        notes: orderNotes || undefined,
         applyVat,
         applyEntertainmentTax,
         applyServiceCharge,
@@ -363,11 +365,13 @@ export function OrderTakingPage() {
           >
             <div className="min-w-0">
               <div className="text-xs font-medium text-muted-foreground">
-                {showTablePicker ? 'Table, Customer & Waiter' : 'Customer & Waiter'}
+                {showTablePicker ? 'Table, Customer, Waiter & Notes' : 'Customer, Waiter & Notes'}
               </div>
               <div className="truncate text-sm font-semibold text-foreground">
-                {selectedTableLabel || selectedCustomerLabel || selectedWaiterLabel
-                  ? [selectedTableLabel, selectedCustomerLabel, selectedWaiterLabel].filter(Boolean).join(' · ')
+                {selectedTableLabel || selectedCustomerLabel || selectedWaiterLabel || orderNotes
+                  ? [selectedTableLabel, selectedCustomerLabel, selectedWaiterLabel, orderNotes]
+                      .filter(Boolean)
+                      .join(' · ')
                   : 'Not set (optional)'}
               </div>
             </div>
@@ -450,7 +454,7 @@ export function OrderTakingPage() {
       <BottomSheet
         isOpen={assignmentsOpen}
         onClose={() => setAssignmentsOpen(false)}
-        title={showTablePicker ? 'Table, Customer & Waiter' : 'Customer & Waiter'}
+        title={showTablePicker ? 'Table, Customer, Waiter & Notes' : 'Customer, Waiter & Notes'}
         mobileOnly={false}
         panelClassName="sm:max-w-md sm:mx-auto sm:rounded-b-[32px]"
       >
@@ -548,6 +552,17 @@ export function OrderTakingPage() {
                 </button>
               )}
             </div>
+          </div>
+
+          <div>
+            <Label>Notes (optional)</Label>
+            <Textarea
+              value={orderNotes}
+              onChange={(e) => setOrderNotes(e.target.value)}
+              placeholder="Add a note for this order (e.g. birthday, allergy, special request)"
+              className="mt-1 text-sm"
+              rows={3}
+            />
           </div>
 
           <Button className="w-full" onClick={() => setAssignmentsOpen(false)}>

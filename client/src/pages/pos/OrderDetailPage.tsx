@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { ArrowLeft, Download, Plus, X, UserPlus, Pencil } from 'lucide-react'
 import { Header } from '@/components/layout'
-import { Button, Card, CardContent, Badge, Input, Label, SearchableSelect } from '@/components/ui'
+import { Button, Card, CardContent, Badge, Input, Label, SearchableSelect, Textarea } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, usersApi, tablesApi, orderTypesApi, paymentTypesApi } from '@/api'
 import { getQueuedActionsForLocalOrder, discardFailedAction, LOCAL_ORDER_PREFIX } from '@/lib/offlineOrderQueue'
@@ -388,6 +388,8 @@ function SyncedOrderView({ id }: { id: string }) {
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [waiterModalOpen, setWaiterModalOpen] = useState(false)
   const [selectedWaiterId, setSelectedWaiterId] = useState('')
+  const [notesModalOpen, setNotesModalOpen] = useState(false)
+  const [selectedNotes, setSelectedNotes] = useState('')
   const [mergeModalOpen, setMergeModalOpen] = useState(false)
   const [sourceModalOpen, setSourceModalOpen] = useState(false)
   const [selectedSource, setSelectedSource] = useState<OrderSource>('Dine In')
@@ -488,6 +490,20 @@ function SyncedOrderView({ id }: { id: string }) {
     onError: (err: unknown) => {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
       toast.error(message || 'Failed to update waiter')
+    },
+  })
+
+  const setNotes = useMutation({
+    mutationFn: (notes: string) => ordersApi.setNotes(id, notes),
+    onSuccess: () => {
+      toast.success('Notes updated')
+      setNotesModalOpen(false)
+      queryClient.invalidateQueries({ queryKey: ['order', id] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to update notes')
     },
   })
 
@@ -829,6 +845,29 @@ function SyncedOrderView({ id }: { id: string }) {
             >
               {order.waiter ? <Pencil className="h-3.5 w-3.5" /> : <UserPlus className="h-3.5 w-3.5" />}
               {order.waiter ? 'Change' : 'Assign'}
+            </button>
+          )}
+        </div>
+
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-border p-3">
+          <div className="min-w-0">
+            <span className="text-xs font-medium text-muted-foreground">Notes</span>
+            {order.notes ? (
+              <p className="mt-0.5 text-sm text-foreground">{order.notes}</p>
+            ) : (
+              <p className="mt-0.5 text-sm text-muted-foreground">No notes</p>
+            )}
+          </div>
+          {canEditCustomerOrWaiter && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedNotes(order.notes ?? '')
+                setNotesModalOpen(true)
+              }}
+              className="flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline"
+            >
+              <Pencil className="h-3.5 w-3.5" /> {order.notes ? 'Edit' : 'Add'}
             </button>
           )}
         </div>
@@ -1308,6 +1347,40 @@ function SyncedOrderView({ id }: { id: string }) {
               disabled={!selectedWaiterId}
               isLoading={setWaiter.isPending}
               onClick={() => setWaiter.mutate(selectedWaiterId)}
+            >
+              Save
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={notesModalOpen} onClose={() => setNotesModalOpen(false)} title="Order Notes">
+        <div className="space-y-4">
+          <div>
+            <Label>Notes</Label>
+            <Textarea
+              value={selectedNotes}
+              onChange={(e) => setSelectedNotes(e.target.value)}
+              placeholder="Add a note for this order (e.g. birthday, allergy, special request)"
+              className="mt-1 text-sm"
+              rows={3}
+            />
+          </div>
+          <div className="flex gap-3">
+            {order.notes && (
+              <Button
+                variant="outline"
+                className="flex-1"
+                isLoading={setNotes.isPending}
+                onClick={() => setNotes.mutate('')}
+              >
+                Clear
+              </Button>
+            )}
+            <Button
+              className="flex-1"
+              isLoading={setNotes.isPending}
+              onClick={() => setNotes.mutate(selectedNotes)}
             >
               Save
             </Button>

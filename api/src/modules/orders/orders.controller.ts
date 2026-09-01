@@ -22,6 +22,7 @@ import {
   UpdateOrderItemDto,
   UpdateOrderCustomerDto,
   UpdateOrderWaiterDto,
+  UpdateOrderNotesDto,
   UpdateOrderSourceDto,
   CloseOrderDto,
   OrderFilterDto,
@@ -110,6 +111,15 @@ export class OrdersController {
     @Body() dto: UpdateOrderWaiterDto,
   ) {
     return this.ordersService.setWaiter(organizationId, id, dto);
+  }
+
+  @Patch(':id/notes')
+  setNotes(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateOrderNotesDto,
+  ) {
+    return this.ordersService.setNotes(organizationId, id, dto);
   }
 
   @Patch(':id/source')
