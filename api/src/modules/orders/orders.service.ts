@@ -770,12 +770,38 @@ export class OrdersService {
       throw new BadRequestException('This order has a discount applied — clear it before moving items off it');
     }
 
-    const movingItems = source.items.filter((i) => dto.itemIds.includes(i.id));
-    if (movingItems.length !== dto.itemIds.length) {
-      throw new NotFoundException('One or more items were not found on this order');
+    const requestedIds = dto.items.map((l) => l.itemId);
+    if (new Set(requestedIds).size !== requestedIds.length) {
+      throw new BadRequestException('Duplicate item in move request');
     }
-    const remainingItems = source.items.filter((i) => !dto.itemIds.includes(i.id));
-    const movingSubtotal = movingItems.reduce((sum, i) => sum + toNumber(i.amount), 0);
+    const itemsById = new Map(source.items.map((i) => [i.id, i]));
+
+    // For each requested line, decide whether it's a full move (whole item changes orderId,
+    // keeping its id/status/notes intact) or a partial split (source line's quantity/amount
+    // shrinks, and a new item — same status, so nothing needs re-cooking — is created on the
+    // destination for the moved units).
+    const fullMoveIds: string[] = [];
+    const splits: Array<{ item: (typeof source.items)[number]; moveQty: number; moveAmount: number }> = [];
+    for (const line of dto.items) {
+      const item = itemsById.get(line.itemId);
+      if (!item) throw new NotFoundException('One or more items were not found on this order');
+      const fullQty = toNumber(item.quantity);
+      const moveQty = line.quantity ?? fullQty;
+      if (moveQty <= 0) throw new BadRequestException(`Quantity to move for "${item.itemName}" must be greater than zero`);
+      if (moveQty > fullQty + 1e-9) {
+        throw new BadRequestException(`Cannot move ${moveQty} of "${item.itemName}" — only ${fullQty} available`);
+      }
+      if (moveQty >= fullQty - 1e-9) {
+        fullMoveIds.push(item.id);
+      } else {
+        splits.push({ item, moveQty, moveAmount: Math.round(toNumber(item.unitPrice) * moveQty * 100) / 100 });
+      }
+    }
+
+    const remainingItems = source.items.filter((i) => !fullMoveIds.includes(i.id));
+    const movingSubtotal =
+      fullMoveIds.reduce((sum, id) => sum + toNumber(itemsById.get(id)!.amount), 0) +
+      splits.reduce((sum, s) => sum + s.moveAmount, 0);
 
     let destination = dto.destinationOrderId
       ? await this.prisma.order.findFirst({ where: { id: dto.destinationOrderId, organizationId } })
@@ -872,10 +898,34 @@ export class OrdersService {
         }
       }
 
-      await tx.orderItem.updateMany({
-        where: { id: { in: dto.itemIds } },
-        data: { orderId: destination.id },
-      });
+      if (fullMoveIds.length > 0) {
+        await tx.orderItem.updateMany({
+          where: { id: { in: fullMoveIds } },
+          data: { orderId: destination.id },
+        });
+      }
+
+      for (const split of splits) {
+        await tx.orderItem.update({
+          where: { id: split.item.id },
+          data: {
+            quantity: { decrement: split.moveQty },
+            amount: { decrement: split.moveAmount },
+          },
+        });
+        await tx.orderItem.create({
+          data: {
+            orderId: destination.id,
+            menuItemId: split.item.menuItemId,
+            itemName: split.item.itemName,
+            quantity: split.moveQty,
+            unitPrice: split.item.unitPrice,
+            amount: split.moveAmount,
+            notes: split.item.notes,
+            status: split.item.status,
+          },
+        });
+      }
 
       const sourceResult = await tx.order.updateMany({
         where: { id: sourceOrderId, organizationId, status: { in: OPEN_STATUSES } },

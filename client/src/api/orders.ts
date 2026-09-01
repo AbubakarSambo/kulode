@@ -164,13 +164,19 @@ export const ordersApi = {
   },
 
   /**
-   * Moves specific items off this order onto another one — an existing open order
+   * Moves specific items (or a partial quantity of a line — the rest stays behind, split into a
+   * new item on the destination) off this order onto another one — an existing open order
    * (`destinationOrderId`), or a fresh order (defaults to this order's own table/type if
    * `tableId`/`source` aren't given). Returns the destination order.
    */
   moveItems: async (
     id: string,
-    data: { itemIds: string[]; destinationOrderId?: string; tableId?: string; source?: Order['source'] },
+    data: {
+      items: Array<{ itemId: string; quantity?: number }>
+      destinationOrderId?: string
+      tableId?: string
+      source?: Order['source']
+    },
   ): Promise<Order> => {
     const response = await apiClient.post<ApiResponse<Order>>(`/orders/${id}/move-items`, data)
     return response.data.data

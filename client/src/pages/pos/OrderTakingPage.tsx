@@ -11,7 +11,9 @@ import { Button, Card, CardContent, Label, Input, Textarea, SearchableSelect } f
 import { Modal } from '@/components/shared/Modal'
 import { BottomSheet } from '@/components/shared/BottomSheet'
 import { menuCategoriesApi, menuItemsApi, ordersApi, customersApi, tablesApi, usersApi, organizationsApi, orderTypesApi } from '@/api'
+import type { ReceiptData } from '@/api/orders'
 import { formatCurrency, cn } from '@/lib/utils'
+import { printBill } from '@/lib/printBill'
 import type { OrderSource } from '@/types'
 
 function roundCurrency(value: number): number {
@@ -79,7 +81,6 @@ export function OrderTakingPage() {
   const { data: tables } = useQuery({
     queryKey: ['restaurant-tables'],
     queryFn: () => tablesApi.list(),
-    enabled: !tableId,
   })
   const availableTables = useMemo(() => (tables ?? []).filter((t) => t.status === 'AVAILABLE'), [tables])
 
@@ -177,6 +178,53 @@ export function OrderTakingPage() {
   const serviceChargeAmount =
     serviceChargeEnabled && applyServiceCharge ? roundCurrency(subtotal * (serviceChargeRate / 100)) : 0
   const total = subtotal + vatAmount + entertainmentTaxAmount + serviceChargeAmount
+
+  const effectiveTableName = useMemo(
+    () => tables?.find((t) => t.id === effectiveTableId)?.name ?? null,
+    [tables, effectiveTableId],
+  )
+  const selectedWaiter = waiters?.find((w) => w.id === waiterId)
+
+  const handlePrintPreview = () => {
+    if (!organization) return
+    const receipt: ReceiptData = {
+      receiptNumber: 'PREVIEW',
+      createdAt: new Date().toISOString(),
+      closedAt: null,
+      source,
+      table: effectiveTableName ? { name: effectiveTableName } : null,
+      waiter: selectedWaiter ? { firstName: selectedWaiter.firstName, lastName: selectedWaiter.lastName } : null,
+      items: cart.map((l) => ({ name: l.name, quantity: l.quantity, unitPrice: l.price, amount: l.price * l.quantity, notes: l.notes })),
+      subtotal,
+      taxAmount: vatAmount + entertainmentTaxAmount + serviceChargeAmount,
+      total,
+      amountPaid: 0,
+      discountType: 'FIXED',
+      discountPercent: 0,
+      discountAmount: 0,
+      vatApplied: vatEnabled && applyVat,
+      vatRate,
+      vatAmount,
+      entertainmentTaxApplied: entertainmentTaxEnabled && applyEntertainmentTax,
+      entertainmentTaxRate,
+      entertainmentTaxAmount,
+      serviceChargeApplied: serviceChargeEnabled && applyServiceCharge,
+      serviceChargeRate,
+      serviceChargeAmount,
+      payments: [],
+      organization: {
+        name: organization.name,
+        email: organization.email,
+        phone: organization.phone,
+        address: organization.address,
+        currency: organization.currency,
+        receiptBankName: organization.receiptBankName,
+        receiptBankAccountNumber: organization.receiptBankAccountNumber,
+        receiptBankAccountName: organization.receiptBankAccountName,
+      },
+    }
+    printBill(receipt)
+  }
 
   const addToCart = (menuItemId: string, name: string, price: number) => {
     setCart((prev) => {
@@ -440,14 +488,24 @@ export function OrderTakingPage() {
             </CardContent>
           </Card>
 
-          <Button
-            className="mt-4 h-14 text-base"
-            disabled={cart.length === 0 || (sourceRequiresTable && !effectiveTableId)}
-            isLoading={createOrder.isPending}
-            onClick={() => createOrder.mutate()}
-          >
-            Send Order
-          </Button>
+          <div className="mt-4 flex gap-2">
+            <Button
+              variant="outline"
+              className="h-14 shrink-0 px-4 text-base"
+              disabled={cart.length === 0}
+              onClick={handlePrintPreview}
+            >
+              Print
+            </Button>
+            <Button
+              className="h-14 flex-1 text-base"
+              disabled={cart.length === 0 || (sourceRequiresTable && !effectiveTableId)}
+              isLoading={createOrder.isPending}
+              onClick={() => createOrder.mutate()}
+            >
+              Send Order
+            </Button>
+          </div>
         </div>
       </div>
 

@@ -416,6 +416,9 @@ function SyncedOrderView({ id }: { id: string }) {
   const [selectedSource, setSelectedSource] = useState<OrderSource>('Dine In')
   const [selectedSourceTableId, setSelectedSourceTableId] = useState('')
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set())
+  // How many units of each selected line to move — defaults to the full quantity on selection;
+  // moving fewer than that splits the line, leaving the rest behind on this order.
+  const [moveQuantities, setMoveQuantities] = useState<Record<string, number>>({})
   const [moveModalOpen, setMoveModalOpen] = useState(false)
   const [moveMode, setMoveMode] = useState<'new' | 'existing'>('new')
   const [moveTableId, setMoveTableId] = useState('')
@@ -565,7 +568,7 @@ function SyncedOrderView({ id }: { id: string }) {
   const moveItems = useMutation({
     mutationFn: () =>
       ordersApi.moveItems(id, {
-        itemIds: Array.from(selectedItemIds),
+        items: Array.from(selectedItemIds).map((itemId) => ({ itemId, quantity: moveQuantities[itemId] })),
         destinationOrderId: moveMode === 'existing' ? moveDestinationOrderId : undefined,
         tableId: moveMode === 'new' && moveTableId ? moveTableId : undefined,
       }),
@@ -573,6 +576,7 @@ function SyncedOrderView({ id }: { id: string }) {
       toast.success('Items moved')
       setMoveModalOpen(false)
       setSelectedItemIds(new Set())
+      setMoveQuantities({})
       setMoveTableId('')
       setMoveDestinationOrderId('')
       queryClient.invalidateQueries({ queryKey: ['order', id] })
@@ -897,7 +901,14 @@ function SyncedOrderView({ id }: { id: string }) {
           <div className="mb-3 flex items-center justify-between rounded-xl border border-border bg-muted/50 px-4 py-2.5">
             <span className="text-sm font-medium text-foreground">{selectedItemIds.size} item{selectedItemIds.size === 1 ? '' : 's'} selected</span>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setSelectedItemIds(new Set())}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedItemIds(new Set())
+                  setMoveQuantities({})
+                }}
+              >
                 Cancel
               </Button>
               <Button size="sm" onClick={() => { setMoveMode('new'); setMoveTableId(order.tableId ?? ''); setMoveDestinationOrderId(''); setMoveModalOpen(true) }}>
@@ -918,10 +929,17 @@ function SyncedOrderView({ id }: { id: string }) {
                         type="checkbox"
                         checked={selectedItemIds.has(item.id)}
                         onChange={() => {
+                          const wasSelected = selectedItemIds.has(item.id)
                           setSelectedItemIds((prev) => {
                             const next = new Set(prev)
-                            if (next.has(item.id)) next.delete(item.id)
+                            if (wasSelected) next.delete(item.id)
                             else next.add(item.id)
+                            return next
+                          })
+                          setMoveQuantities((prev) => {
+                            const next = { ...prev }
+                            if (wasSelected) delete next[item.id]
+                            else next[item.id] = Number(item.quantity)
                             return next
                           })
                         }}
@@ -961,6 +979,36 @@ function SyncedOrderView({ id }: { id: string }) {
                           >
                             +
                           </button>
+                        </div>
+                      )}
+                      {selectedItemIds.has(item.id) && Number(item.quantity) > 1 && (
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">Move</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setMoveQuantities((prev) => ({ ...prev, [item.id]: Math.max(1, (prev[item.id] ?? 1) - 1) }))
+                            }
+                            className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-bold text-foreground"
+                          >
+                            −
+                          </button>
+                          <span className="w-5 text-center text-xs font-semibold text-foreground">
+                            {moveQuantities[item.id] ?? Number(item.quantity)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setMoveQuantities((prev) => ({
+                                ...prev,
+                                [item.id]: Math.min(Number(item.quantity), (prev[item.id] ?? Number(item.quantity)) + 1),
+                              }))
+                            }
+                            className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-bold text-foreground"
+                          >
+                            +
+                          </button>
+                          <span className="text-xs text-muted-foreground">of {item.quantity}</span>
                         </div>
                       )}
                     </div>
@@ -1539,8 +1587,14 @@ function SyncedOrderView({ id }: { id: string }) {
       <Modal isOpen={moveModalOpen} onClose={() => setMoveModalOpen(false)} title="Move Selected Items">
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Moving {selectedItemIds.size} item{selectedItemIds.size === 1 ? '' : 's'} off this order. The rest of
-            this order is untouched — if you move everything, this order is cancelled.
+            Moving {selectedItemIds.size} item{selectedItemIds.size === 1 ? '' : 's'} off this order
+            {Array.from(selectedItemIds).some((itemId) => {
+              const full = Number(order.items.find((it) => it.id === itemId)?.quantity ?? 0)
+              return (moveQuantities[itemId] ?? full) < full
+            })
+              ? ' (a partial quantity splits into the destination — the rest stays here)'
+              : ''}
+            . The rest of this order is untouched — if you move everything, this order is cancelled.
           </p>
           <div className="flex flex-wrap gap-2">
             {(

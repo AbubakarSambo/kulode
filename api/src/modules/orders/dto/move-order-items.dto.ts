@@ -1,12 +1,30 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ArrayMinSize, IsArray, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ArrayMinSize, IsArray, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, IsUUID, ValidateNested } from 'class-validator';
+
+export class MoveOrderItemLineDto {
+  @ApiProperty({ description: 'Order item id on the source order' })
+  @IsUUID()
+  itemId: string;
+
+  @ApiPropertyOptional({
+    description: 'How many units of this item to move — omit to move the item\'s full remaining quantity. ' +
+      'Moving fewer than the full quantity splits the line: the moved units become a new item on the ' +
+      'destination, and the source line keeps the rest.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  quantity?: number;
+}
 
 export class MoveOrderItemsDto {
-  @ApiProperty({ type: [String], description: 'Item ids on this order to move off it' })
+  @ApiProperty({ type: [MoveOrderItemLineDto], description: 'Items (and optionally partial quantities) to move off this order' })
   @IsArray()
   @ArrayMinSize(1)
-  @IsUUID(undefined, { each: true })
-  itemIds: string[];
+  @ValidateNested({ each: true })
+  @Type(() => MoveOrderItemLineDto)
+  items: MoveOrderItemLineDto[];
 
   @ApiPropertyOptional({ description: 'Move onto this existing open order instead of creating a new one' })
   @IsOptional()
