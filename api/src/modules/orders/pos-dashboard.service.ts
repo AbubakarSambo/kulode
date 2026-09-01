@@ -65,7 +65,7 @@ export class PosDashboardService {
     const { startDate, endDate } = this.getDateRange(filter);
     const prevRange = this.getPreviousDateRange(startDate, endDate);
 
-    const [sales, prevSales, orderCount, byMethod, topItems, topWaiters] = await Promise.all([
+    const [sales, prevSales, orderCount, byMethod, topItems, topStaff] = await Promise.all([
       this.prisma.payment.aggregate({
         where: { organizationId, orderId: { not: null }, paymentDate: { gte: startDate, lte: endDate } },
         _sum: { amount: true },
@@ -87,6 +87,8 @@ export class PosDashboardService {
         where: { organizationId, orderId: { not: null }, paymentDate: { gte: startDate, lte: endDate } },
         _sum: { amount: true },
         _count: true,
+        // Descending by total — the client reads index 0 as "Top Method", so order matters here.
+        orderBy: { _sum: { amount: 'desc' } },
       }),
       this.prisma.$queryRaw<{ id: string; name: string; quantity: number; revenue: number; orders: number }[]>`
         SELECT
@@ -106,19 +108,22 @@ export class PosDashboardService {
         ORDER BY revenue DESC
         LIMIT 10
       `,
+      // Attributed to the waiter when one's assigned, else whoever created the order (e.g. a
+      // cashier ringing up a walk-in with no waiter) — every closed order has a createdById, so
+      // this sums to the same total as the orders count above, unlike a waiter-only breakdown.
       this.prisma.$queryRaw<{ id: string; name: string; revenue: number; orders: number }[]>`
         SELECT
-          o.waiter_id as id,
+          COALESCE(o.waiter_id, o.created_by) as id,
           u.first_name || ' ' || u.last_name as name,
           SUM(o.total)::numeric as revenue,
           COUNT(*)::integer as orders
         FROM orders o
-        JOIN users u ON o.waiter_id = u.id
+        JOIN users u ON u.id = COALESCE(o.waiter_id, o.created_by)
         WHERE o.organization_id = ${organizationId}
           AND o.status IN ('CLOSED_PAID', 'CLOSED_UNPAID')
           AND o.closed_at >= ${startDate}
           AND o.closed_at <= ${endDate}
-        GROUP BY o.waiter_id, u.first_name, u.last_name
+        GROUP BY COALESCE(o.waiter_id, o.created_by), u.first_name, u.last_name
         ORDER BY revenue DESC
         LIMIT 10
       `,
@@ -148,7 +153,7 @@ export class PosDashboardService {
         revenue: Number(i.revenue),
         orders: Number(i.orders),
       })),
-      topWaiters: topWaiters.map((w) => ({
+      topStaff: topStaff.map((w) => ({
         id: w.id,
         name: w.name,
         revenue: Number(w.revenue),

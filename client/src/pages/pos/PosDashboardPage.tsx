@@ -220,13 +220,13 @@ export function PosDashboardPage() {
             <CardHeader className="p-8 pb-4">
               <CardTitle className="flex items-center gap-2.5 text-base font-semibold text-foreground">
                 <Users className="h-5 w-5 text-muted-foreground" />
-                Top Waiters
+                Top Staff
               </CardTitle>
             </CardHeader>
             <CardContent className="p-8 pt-0">
-              {summary?.topWaiters && summary.topWaiters.length > 0 ? (
+              {summary?.topStaff && summary.topStaff.length > 0 ? (
                 <div className="space-y-3">
-                  {summary.topWaiters.map((w) => (
+                  {summary.topStaff.map((w) => (
                     <Link
                       key={w.id}
                       to={`/pos/waiters/${w.id}`}
@@ -241,7 +241,7 @@ export function PosDashboardPage() {
                   ))}
                 </div>
               ) : (
-                <EmptyState icon={ReceiptTextIcon} title="No orders yet" description="Top waiters will appear once orders close in this period." />
+                <EmptyState icon={ReceiptTextIcon} title="No orders yet" description="Top staff will appear once orders close in this period." />
               )}
             </CardContent>
           </Card>
