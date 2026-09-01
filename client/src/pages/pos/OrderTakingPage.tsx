@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
@@ -91,9 +91,18 @@ export function OrderTakingPage() {
 
   const { data: categories } = useQuery({ queryKey: ['menu-categories'], queryFn: () => menuCategoriesApi.list() })
   const { data: items } = useQuery({ queryKey: ['menu-items'], queryFn: () => menuItemsApi.list() })
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState('')
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedCustomerSearch(customerSearch), 300)
+    return () => clearTimeout(handler)
+  }, [customerSearch])
+  // Only the 100 most-recently-created customers load by default — once a search is typed, this
+  // hits the server instead so it's not limited to searching within that initial batch (e.g. an
+  // org with thousands of customers imported at once would otherwise never find older ones here).
   const { data: customersPage } = useQuery({
-    queryKey: ['customers', { limit: 100 }],
-    queryFn: () => customersApi.list({ limit: 100 }),
+    queryKey: ['customers', { limit: 100, search: debouncedCustomerSearch || undefined }],
+    queryFn: () => customersApi.list({ limit: 100, search: debouncedCustomerSearch || undefined }),
   })
   const customerOptions = useMemo(
     () => (customersPage?.data ?? []).map((c) => ({ id: c.id, label: c.phone ? `${c.name} (${c.phone})` : c.name })),
@@ -574,6 +583,7 @@ export function OrderTakingPage() {
                   options={customerOptions}
                   value={customerId}
                   onChange={setCustomerId}
+                  onSearchChange={setCustomerSearch}
                   placeholder="Attach a customer"
                 />
               </div>

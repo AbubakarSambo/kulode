@@ -23,6 +23,13 @@ export interface SearchableSelectProps {
   disabled?: boolean;
   error?: string;
   className?: string;
+  /**
+   * Called with the raw search text on every keystroke — for a caller backing this select with a
+   * paginated/capped list (e.g. only the most recent 100 records), wire this up to refetch options
+   * server-side. Local filtering below still runs on top of whatever `options` currently holds, so
+   * results stay reasonable while a debounced refetch catches up.
+   */
+  onSearchChange?: (search: string) => void;
 }
 
 export function SearchableSelect({
@@ -34,6 +41,7 @@ export function SearchableSelect({
   disabled = false,
   error,
   className,
+  onSearchChange,
 }: SearchableSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -53,6 +61,7 @@ export function SearchableSelect({
       ) {
         setIsOpen(false);
         setSearch("");
+        onSearchChange?.("");
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -131,6 +140,7 @@ export function SearchableSelect({
       }
     } else if (!nextState) {
       setSearch("");
+      onSearchChange?.("");
     }
   };
 
@@ -138,6 +148,7 @@ export function SearchableSelect({
     onChange(optionId);
     setIsOpen(false);
     setSearch("");
+    onSearchChange?.("");
   };
 
   return (
@@ -193,7 +204,10 @@ export function SearchableSelect({
               type="text"
               placeholder="Search..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                onSearchChange?.(e.target.value);
+              }}
               className="w-full h-8 text-[16px] sm:text-xs font-semibold text-slate-700 outline-none border-0 p-0 bg-transparent placeholder-slate-400 focus:ring-0 focus:outline-none"
             />
           </div>

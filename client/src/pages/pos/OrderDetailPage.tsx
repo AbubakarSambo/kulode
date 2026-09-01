@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -467,9 +467,18 @@ function SyncedOrderView({ id }: { id: string }) {
     return [...managed, ...fixed]
   }, [paymentTypes, order?.customer])
 
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState('')
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedCustomerSearch(customerSearch), 300)
+    return () => clearTimeout(handler)
+  }, [customerSearch])
+  // Only the 100 most-recently-created customers load by default — once a search is typed, this
+  // hits the server instead of just filtering that initial batch (see OrderTakingPage for the
+  // same pattern — otherwise an org with thousands of customers could never find older ones here).
   const { data: customersPage } = useQuery({
-    queryKey: ['customers', { limit: 100 }],
-    queryFn: () => customersApi.list({ limit: 100 }),
+    queryKey: ['customers', { limit: 100, search: debouncedCustomerSearch || undefined }],
+    queryFn: () => customersApi.list({ limit: 100, search: debouncedCustomerSearch || undefined }),
     enabled: customerModalOpen,
   })
   const customerOptions = useMemo(
@@ -1397,6 +1406,7 @@ function SyncedOrderView({ id }: { id: string }) {
               options={customerOptions}
               value={selectedCustomerId}
               onChange={setSelectedCustomerId}
+              onSearchChange={setCustomerSearch}
               placeholder="Search customers"
             />
           </div>

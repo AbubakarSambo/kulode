@@ -12,7 +12,7 @@ export class CustomersService {
     const { page = 1, limit = 20, search } = filter;
     const skip = (page - 1) * limit;
 
-    const where: any = { organizationId };
+    const where: any = { organizationId, isActive: true };
 
     if (search) {
       where.OR = [

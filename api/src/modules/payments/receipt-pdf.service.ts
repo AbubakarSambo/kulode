@@ -29,8 +29,12 @@ interface ReceiptData {
   };
 }
 
+const LOGO_CACHE_TTL_MS = 15 * 60 * 1000;
+
 @Injectable()
 export class ReceiptPdfService {
+  private readonly logoCache = new Map<string, { buffer: Buffer; expiresAt: number }>();
+
   async generatePdf(receipt: ReceiptData): Promise<Buffer> {
     let logoBuffer: Buffer | null = null;
     if (receipt.organization.logo) {
@@ -300,8 +304,13 @@ export class ReceiptPdfService {
     return `NGN ${formatted}`;
   }
 
-  private fetchImageBuffer(url: string): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
+  private async fetchImageBuffer(url: string): Promise<Buffer> {
+    const cached = this.logoCache.get(url);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.buffer;
+    }
+
+    const buffer = await new Promise<Buffer>((resolve, reject) => {
       const client = url.startsWith('https') ? https : http;
       client.get(url, (res) => {
         const chunks: Buffer[] = [];
@@ -310,5 +319,8 @@ export class ReceiptPdfService {
         res.on('error', reject);
       }).on('error', reject);
     });
+
+    this.logoCache.set(url, { buffer, expiresAt: Date.now() + LOGO_CACHE_TTL_MS });
+    return buffer;
   }
 }
