@@ -940,12 +940,12 @@ function SyncedOrderView({ id }: { id: string }) {
                             type="button"
                             disabled={updateItemQuantity.isPending}
                             onClick={() => {
-                              if (item.quantity <= 1) {
+                              if (Number(item.quantity) <= 1) {
                                 if (window.confirm('Remove this item from the order?')) {
                                   updateItemQuantity.mutate({ itemId: item.id, quantity: 0 })
                                 }
                               } else {
-                                updateItemQuantity.mutate({ itemId: item.id, quantity: item.quantity - 1 })
+                                updateItemQuantity.mutate({ itemId: item.id, quantity: Number(item.quantity) - 1 })
                               }
                             }}
                             className="flex h-7 w-7 items-center justify-center rounded-full bg-muted font-bold text-foreground disabled:opacity-50"
@@ -956,7 +956,7 @@ function SyncedOrderView({ id }: { id: string }) {
                           <button
                             type="button"
                             disabled={updateItemQuantity.isPending}
-                            onClick={() => updateItemQuantity.mutate({ itemId: item.id, quantity: item.quantity + 1 })}
+                            onClick={() => updateItemQuantity.mutate({ itemId: item.id, quantity: Number(item.quantity) + 1 })}
                             className="flex h-7 w-7 items-center justify-center rounded-full bg-muted font-bold text-foreground disabled:opacity-50"
                           >
                             +
