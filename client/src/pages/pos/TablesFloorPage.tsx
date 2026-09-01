@@ -208,7 +208,7 @@ export function TablesFloorPage() {
             {sectionGroups.map((group) => (
               <div key={group.label}>
                 {sectionGroups.length > 1 && (
-                  <h2 className="mb-3 text-sm font-semibold text-muted-foreground">{group.label}</h2>
+                  <h2 className="mb-3 text-lg font-bold text-foreground">{group.label}</h2>
                 )}
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                   {group.tables.map((table) => (
