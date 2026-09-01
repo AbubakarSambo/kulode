@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
@@ -49,6 +49,10 @@ export function TablesFloorPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [navigatingTableId, setNavigatingTableId] = useState<string | null>(null)
   const [stuckTable, setStuckTable] = useState<RestaurantTable | null>(null)
+  // '' means the "All" pill — every section shown, grouped with headings. Picking a specific
+  // section's pill narrows to just that section's flat grid (no heading needed, the pill itself
+  // shows what's selected).
+  const [sectionFilter, setSectionFilter] = useState('')
 
   const { data: tables, isLoading } = useQuery({
     queryKey: ['restaurant-tables'],
@@ -90,6 +94,16 @@ export function TablesFloorPage() {
       return a.label.localeCompare(b.label)
     })
   }, [tables])
+
+  const visibleGroups = sectionFilter ? sectionGroups.filter((g) => g.label === sectionFilter) : sectionGroups
+
+  // A table's section can change (or its last table can be removed) out from under a selected
+  // pill — fall back to "All" rather than silently showing an empty grid.
+  useEffect(() => {
+    if (sectionFilter && !sectionGroups.some((g) => g.label === sectionFilter)) {
+      setSectionFilter('')
+    }
+  }, [sectionFilter, sectionGroups])
 
   // Distinct sections already in use, for quick-pick chips instead of retyping one that exists —
   // sections aren't a separate managed entity, just free text on each table.
@@ -205,9 +219,38 @@ export function TablesFloorPage() {
           />
         ) : (
           <div className="space-y-6">
-            {sectionGroups.map((group) => (
+            {sectionGroups.length > 1 && (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSectionFilter('')}
+                  className={cn(
+                    'shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors',
+                    sectionFilter === '' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/70',
+                  )}
+                >
+                  All
+                </button>
+                {sectionGroups.map((group) => (
+                  <button
+                    key={group.label}
+                    type="button"
+                    onClick={() => setSectionFilter(group.label)}
+                    className={cn(
+                      'shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors',
+                      sectionFilter === group.label
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/70',
+                    )}
+                  >
+                    {group.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {visibleGroups.map((group) => (
               <div key={group.label}>
-                {sectionGroups.length > 1 && (
+                {sectionFilter === '' && sectionGroups.length > 1 && (
                   <h2 className="mb-3 text-lg font-bold text-foreground">{group.label}</h2>
                 )}
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
