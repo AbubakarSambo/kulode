@@ -182,9 +182,13 @@ export function TablesFloorPage() {
     }
     setNavigatingTableId(table.id)
     try {
+      // Scoped to active statuses server-side — without this, the query has to sort/load that
+      // table's entire order history (every closed/cancelled order it's ever had) just to answer
+      // "is there an active order right now", which gets slow for a table with a long history
+      // (e.g. a reused Delivery slot).
       const { data: orders } = await queryClient.fetchQuery({
         queryKey: ['orders-for-table', table.id],
-        queryFn: () => ordersApi.list({ tableId: table.id }),
+        queryFn: () => ordersApi.list({ tableId: table.id, statuses: [...ACTIVE_ORDER_STATUSES] }),
       })
       const openOrder = orders.find((o) => (ACTIVE_ORDER_STATUSES as readonly string[]).includes(o.status))
       if (openOrder) {

@@ -52,7 +52,7 @@ export function CustomersListPage() {
 
   const createCustomer = useMutation({
     mutationFn: (data: CustomerFormData) =>
-      customersApi.create({ ...data, email: data.email || undefined }),
+      customersApi.create({ ...data, phone: data.phone || undefined, email: data.email || undefined }),
     onSuccess: (customer) => {
       queryClient.invalidateQueries({ queryKey: ['customers'] })
       toast.success('Customer added')

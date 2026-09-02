@@ -203,7 +203,8 @@ export function OrderTakingPage() {
 
   const customerForm = useForm<CustomerFormData>({ resolver: zodResolver(customerSchema) })
   const createCustomer = useMutation({
-    mutationFn: (data: CustomerFormData) => customersApi.create({ ...data, email: data.email || undefined }),
+    mutationFn: (data: CustomerFormData) =>
+      customersApi.create({ ...data, phone: data.phone || undefined, email: data.email || undefined }),
     onSuccess: (customer) => {
       queryClient.invalidateQueries({ queryKey: ['customers'] })
       setCustomerId(customer.id)
