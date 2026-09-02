@@ -168,6 +168,9 @@ export class PlatformService {
           isGrandfathered: boolean;
         }>
       >`
+        -- Each side pre-aggregated in its own subquery before joining to organizations — joining
+        -- users and invoices directly in one query fans out every invoice row once per user in
+        -- that org, so SUM(i.total) would come out multiplied by the org's user count.
         SELECT
           o.id,
           o.name,
@@ -176,17 +179,21 @@ export class PlatformService {
           o.plan_tier AS "planTier",
           o.subscription_status AS "subscriptionStatus",
           o.is_grandfathered AS "isGrandfathered",
-          COUNT(DISTINCT u.id)::int AS "userCount",
-          COUNT(DISTINCT i.id)::int AS "invoiceCount",
-          COALESCE(SUM(i.total), 0)::float8 AS volume
+          COALESCE(u.user_count, 0)::int AS "userCount",
+          COALESCE(i.invoice_count, 0)::int AS "invoiceCount",
+          COALESCE(i.volume, 0)::float8 AS volume
         FROM organizations o
-        LEFT JOIN users u ON u.organization_id = o.id
-        LEFT JOIN invoices i ON i.organization_id = o.id
-          AND i.status = 'PAID'
-          AND i.deleted_at IS NULL
+        LEFT JOIN (
+          SELECT organization_id, COUNT(*) AS user_count FROM users GROUP BY organization_id
+        ) u ON u.organization_id = o.id
+        LEFT JOIN (
+          SELECT organization_id, COUNT(*) AS invoice_count, SUM(total) AS volume
+          FROM invoices
+          WHERE status = 'PAID' AND deleted_at IS NULL
+          GROUP BY organization_id
+        ) i ON i.organization_id = o.id
         WHERE o.is_test_account = false
-        GROUP BY o.id, o.name, o.slug, o.created_at, o.plan_tier, o.subscription_status, o.is_grandfathered
-        ORDER BY volume DESC
+        ORDER BY volume DESC NULLS LAST
         LIMIT 10
       `,
 
@@ -781,6 +788,9 @@ export class PlatformService {
           isGrandfathered: boolean;
         }>
       >`
+        -- Each side pre-aggregated in its own subquery before joining to organizations — joining
+        -- users and orders directly in one query (as this used to) fans out every order row once
+        -- per user in that org, so SUM(ord.total) came out multiplied by the org's user count.
         SELECT
           o.id,
           o.name,
@@ -789,15 +799,21 @@ export class PlatformService {
           o.plan_tier AS "planTier",
           o.subscription_status AS "subscriptionStatus",
           o.is_grandfathered AS "isGrandfathered",
-          COUNT(DISTINCT u.id)::int AS "userCount",
-          COUNT(DISTINCT ord.id)::int AS "orderCount",
-          COALESCE(SUM(ord.total), 0)::float8 AS volume
+          COALESCE(u.user_count, 0)::int AS "userCount",
+          COALESCE(ord.order_count, 0)::int AS "orderCount",
+          COALESCE(ord.volume, 0)::float8 AS volume
         FROM organizations o
-        LEFT JOIN users u ON u.organization_id = o.id
-        LEFT JOIN orders ord ON ord.organization_id = o.id AND ord.status = 'CLOSED_PAID' AND ord.created_at >= ${STATS_CUTOFF}
+        LEFT JOIN (
+          SELECT organization_id, COUNT(*) AS user_count FROM users GROUP BY organization_id
+        ) u ON u.organization_id = o.id
+        LEFT JOIN (
+          SELECT organization_id, COUNT(*) AS order_count, SUM(total) AS volume
+          FROM orders
+          WHERE status = 'CLOSED_PAID' AND created_at >= ${STATS_CUTOFF}
+          GROUP BY organization_id
+        ) ord ON ord.organization_id = o.id
         WHERE o.enabled_modules IN ('POS', 'BOTH') AND o.is_test_account = false
-        GROUP BY o.id, o.name, o.slug, o.created_at, o.plan_tier, o.subscription_status, o.is_grandfathered
-        ORDER BY volume DESC
+        ORDER BY volume DESC NULLS LAST
         LIMIT 10
       `,
 
