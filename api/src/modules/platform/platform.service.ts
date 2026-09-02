@@ -603,6 +603,11 @@ export class PlatformService {
   async getPosDashboard(startDateStr?: string, endDateStr?: string) {
     const now = new Date();
 
+    // Every POS platform-admin figure is scoped to start no earlier than this — mainly to keep
+    // pre-launch/seed/test activity out of the headline numbers. Applied both to the previously
+    // unbounded all-time aggregates below and as a floor on any requested/default period.
+    const STATS_CUTOFF = new Date('2026-09-01T00:00:00.000Z');
+
     let currentPeriodStart = new Date(now.getFullYear(), now.getMonth(), 1);
     let currentPeriodEnd = new Date(now);
     let priorPeriodStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -615,6 +620,9 @@ export class PlatformService {
       priorPeriodEnd = new Date(currentPeriodStart.getTime() - 1);
       priorPeriodStart = new Date(currentPeriodStart.getTime() - durationMs);
     }
+
+    if (currentPeriodStart < STATS_CUTOFF) currentPeriodStart = STATS_CUTOFF;
+    if (priorPeriodStart < STATS_CUTOFF) priorPeriodStart = STATS_CUTOFF;
 
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay());
@@ -670,7 +678,7 @@ export class PlatformService {
       // volume moving through the org, same as invoicing counts SENT/OVERDUE invoices)
       this.prisma.order.aggregate({
         _sum: { total: true },
-        where: { ...nonCancelledOrderWhere, organization: posOrgWhere },
+        where: { ...nonCancelledOrderWhere, organization: posOrgWhere, createdAt: { gte: STATS_CUTOFF } },
       }),
 
       this.prisma.order.aggregate({
@@ -694,7 +702,7 @@ export class PlatformService {
       // Collected GMV — CLOSED_PAID only (cash actually taken), mirrors invoicing's "PAID invoices"
       this.prisma.order.aggregate({
         _sum: { total: true },
-        where: { status: 'CLOSED_PAID', organization: posOrgWhere },
+        where: { status: 'CLOSED_PAID', organization: posOrgWhere, createdAt: { gte: STATS_CUTOFF } },
       }),
 
       this.prisma.order.aggregate({
@@ -719,13 +727,13 @@ export class PlatformService {
         by: ['status'],
         _count: { id: true },
         _sum: { total: true },
-        where: { organization: posOrgWhere },
+        where: { organization: posOrgWhere, createdAt: { gte: STATS_CUTOFF } },
       }),
 
       this.prisma.order.groupBy({
         by: ['source'],
         _count: { id: true },
-        where: { organization: posOrgWhere },
+        where: { organization: posOrgWhere, createdAt: { gte: STATS_CUTOFF } },
       }),
 
       // Monthly Active Tenants — POS orgs with at least 1 order in the last 30 days
@@ -786,7 +794,7 @@ export class PlatformService {
           COALESCE(SUM(ord.total), 0)::float8 AS volume
         FROM organizations o
         LEFT JOIN users u ON u.organization_id = o.id
-        LEFT JOIN orders ord ON ord.organization_id = o.id AND ord.status = 'CLOSED_PAID'
+        LEFT JOIN orders ord ON ord.organization_id = o.id AND ord.status = 'CLOSED_PAID' AND ord.created_at >= ${STATS_CUTOFF}
         WHERE o.enabled_modules IN ('POS', 'BOTH') AND o.is_test_account = false
         GROUP BY o.id, o.name, o.slug, o.created_at, o.plan_tier, o.subscription_status, o.is_grandfathered
         ORDER BY volume DESC
