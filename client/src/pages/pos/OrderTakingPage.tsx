@@ -58,11 +58,14 @@ export function OrderTakingPage() {
     staleTime: 60_000,
   })
   const vatEnabled = !!organization?.vatEnabled
-  const vatRate = organization?.taxRate ?? 0
+  // Rates come back from the API as numeric-looking strings (Prisma Decimal serializes to string
+  // over JSON) — coerced here so downstream .toFixed() calls (e.g. in the print receipt) don't
+  // throw "toFixed is not a function" on what's actually still a string.
+  const vatRate = Number(organization?.taxRate ?? 0)
   const entertainmentTaxEnabled = !!organization?.entertainmentTaxEnabled
-  const entertainmentTaxRate = organization?.entertainmentTaxRate ?? 0
+  const entertainmentTaxRate = Number(organization?.entertainmentTaxRate ?? 0)
   const serviceChargeEnabled = !!organization?.serviceChargeEnabled
-  const serviceChargeRate = organization?.serviceChargeRate ?? 0
+  const serviceChargeRate = Number(organization?.serviceChargeRate ?? 0)
   const [applyVat, setApplyVat] = useState(true)
   const [applyEntertainmentTax, setApplyEntertainmentTax] = useState(true)
   const [applyServiceCharge, setApplyServiceCharge] = useState(true)
