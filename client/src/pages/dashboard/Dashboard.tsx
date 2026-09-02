@@ -32,6 +32,8 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { useOverscrollBounce } from "@/hooks";
 
 const prevPeriodMap: Record<ReportPeriod, ReportPeriod> = {
+  TODAY: "TODAY",
+  LAST_WEEK: "LAST_WEEK",
   THIS_MONTH: "LAST_MONTH",
   LAST_MONTH: "LAST_MONTH",
   THIS_QUARTER: "LAST_QUARTER",
@@ -42,6 +44,8 @@ const prevPeriodMap: Record<ReportPeriod, ReportPeriod> = {
 };
 
 const periodLabels: Record<ReportPeriod, string> = {
+  TODAY: "today",
+  LAST_WEEK: "last week",
   THIS_MONTH: "this month",
   LAST_MONTH: "last month",
   THIS_QUARTER: "this quarter",

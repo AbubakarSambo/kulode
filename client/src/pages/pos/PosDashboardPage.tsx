@@ -20,6 +20,8 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
 }
 
 const periodOptions: Array<{ value: ReportPeriod; label: string }> = [
+  { value: 'TODAY', label: 'Today' },
+  { value: 'LAST_WEEK', label: 'Last Week' },
   { value: 'THIS_MONTH', label: 'This Month' },
   { value: 'LAST_MONTH', label: 'Last Month' },
   { value: 'THIS_QUARTER', label: 'This Quarter' },
@@ -28,7 +30,7 @@ const periodOptions: Array<{ value: ReportPeriod; label: string }> = [
 ]
 
 export function PosDashboardPage() {
-  const [period, setPeriod] = useState<ReportPeriod>('THIS_MONTH')
+  const [period, setPeriod] = useState<ReportPeriod>('TODAY')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -238,7 +240,7 @@ export function PosDashboardPage() {
                         <p className="text-sm font-semibold text-foreground">{w.name}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">{w.orders} orders</p>
                       </div>
-                      <span className="text-sm font-semibold text-foreground tabular-nums">{formatCurrency(w.revenue)}</span>
+                      <span className="text-sm font-semibold text-foreground tabular-nums">{formatCurrency(Math.round(w.revenue))}</span>
                     </Link>
                   ))}
                 </div>

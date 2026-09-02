@@ -3,8 +3,10 @@ import { IsOptional, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum ReportPeriod {
+  TODAY = 'TODAY',
   THIS_MONTH = 'THIS_MONTH',
   LAST_MONTH = 'LAST_MONTH',
+  LAST_WEEK = 'LAST_WEEK',
   THIS_QUARTER = 'THIS_QUARTER',
   LAST_QUARTER = 'LAST_QUARTER',
   THIS_YEAR = 'THIS_YEAR',

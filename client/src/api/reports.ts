@@ -1,13 +1,15 @@
 import apiClient from './client'
 import type { FinancialSummary, CashflowReport, ApiResponse } from '@/types'
 
-export type ReportPeriod = 
-  | 'THIS_MONTH' 
-  | 'LAST_MONTH' 
-  | 'THIS_QUARTER' 
-  | 'LAST_QUARTER' 
-  | 'THIS_YEAR' 
-  | 'LAST_YEAR' 
+export type ReportPeriod =
+  | 'TODAY'
+  | 'THIS_MONTH'
+  | 'LAST_MONTH'
+  | 'LAST_WEEK'
+  | 'THIS_QUARTER'
+  | 'LAST_QUARTER'
+  | 'THIS_YEAR'
+  | 'LAST_YEAR'
   | 'CUSTOM'
 
 export interface ReportFilters {

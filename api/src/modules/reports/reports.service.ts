@@ -12,6 +12,16 @@ export class ReportsService {
     let endDate: Date = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
     switch (filter.period) {
+      case ReportPeriod.TODAY:
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        break;
+      case ReportPeriod.LAST_WEEK: {
+        // Sunday-start weeks, matching the convention used elsewhere in this app.
+        const startOfThisWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+        startDate = new Date(startOfThisWeek.getFullYear(), startOfThisWeek.getMonth(), startOfThisWeek.getDate() - 7);
+        endDate = new Date(startOfThisWeek.getFullYear(), startOfThisWeek.getMonth(), startOfThisWeek.getDate() - 1, 23, 59, 59);
+        break;
+      }
       case ReportPeriod.THIS_MONTH:
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
         break;
