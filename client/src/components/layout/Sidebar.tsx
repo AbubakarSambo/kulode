@@ -212,7 +212,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         onMouseEnter={() => collapsedPref && setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
         className={cn(
-        'fixed inset-y-0 left-0 z-50 flex h-dvh flex-col bg-[#fcfdff] transition-all duration-300 ease-in-out lg:static lg:h-screen lg:translate-x-0 shadow-[4px_0_24px_rgba(0,55,176,0.02)] lg:relative lg:overflow-visible overflow-x-hidden',
+        'fixed inset-y-0 left-0 z-50 flex h-dvh flex-col bg-[#fcfdff] transition-all duration-300 ease-in-out lg:static lg:h-screen lg:translate-x-0 shadow-[4px_0_24px_rgba(0,55,176,0.02)] lg:relative lg:overflow-visible overflow-x-hidden print:hidden',
         effectiveCollapsed ? 'lg:w-20 w-64' : 'lg:w-64 w-64',
         isOpen ? 'translate-x-0' : '-translate-x-full'
       )}>

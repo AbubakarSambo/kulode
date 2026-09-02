@@ -335,6 +335,32 @@ input[type="number"] {
   border-color: var(--color-border) !important;
 }
 
+/*
+ * The app shell is a fixed-viewport-height layout (`h-dvh overflow-hidden`, with nested
+ * `overflow-hidden`/`overflow-auto` panels for internal scrolling) so it behaves like a native
+ * app on screen. That's wrong for `window.print()`: the browser paginates whatever is in the DOM
+ * as rendered, so any content clipped by an ancestor's overflow/fixed height at "one screen's
+ * worth" never makes it onto the page at all — it isn't cut across print pages, it's just gone.
+ * Printing a page (e.g. POS Reports) needs the whole document to flow naturally instead.
+ */
+@media print {
+  html,
+  body,
+  #root {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .overflow-hidden,
+  .overflow-auto,
+  .overflow-y-auto,
+  .overflow-x-auto {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+}
+
 
 
 

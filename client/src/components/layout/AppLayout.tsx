@@ -219,7 +219,7 @@ export function AppLayout() {
       <main className="flex flex-1 flex-col overflow-hidden relative">
         <SubscriptionExpiredBanner />
         {/* Mobile header with brand mark (with top notch safe-area support) */}
-        <div className="flex h-[calc(3.5rem+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] items-center justify-between bg-background/80 backdrop-blur-md px-6 lg:hidden border-b border-[#eef4ff]/50 z-30">
+        <div className="flex h-[calc(3.5rem+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] items-center justify-between bg-background/80 backdrop-blur-md px-6 lg:hidden border-b border-[#eef4ff]/50 z-30 print:hidden">
           <div className="flex items-center gap-2">
             <img src="/favicon.svg" alt="Tari1 Logo" className="w-7 h-7 object-contain" />
             <span className="text-base font-bold tracking-tight text-slate-900">
@@ -237,7 +237,7 @@ export function AppLayout() {
 
         {/* Floating Mobile Bottom Navigation Dock */}
         {!isHideMobileNav && (
-          <div className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-md lg:hidden">
+          <div className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-md lg:hidden print:hidden">
             <div className="bg-card/95 backdrop-blur-lg border border-border rounded-full px-2 py-1.5 shadow-[0_16px_40px_rgba(0,55,176,0.12)] flex justify-between items-center">
               {navItems.map((item) => {
                 const isActive = location.pathname.startsWith(item.href)
