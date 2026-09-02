@@ -27,11 +27,14 @@ const tableSchema = z.object({
 })
 type TableFormData = z.infer<typeof tableSchema>
 
+// Solid, saturated fills rather than washed-out tints — with this many same-size cards on
+// screen at once, a pale 10%-opacity background reads as "barely tinted white" and every status
+// blurs together at a glance. A bold fill is scannable from across the room.
 const STATUS_STYLES: Record<TableStatus, string> = {
-  AVAILABLE: 'bg-success/10 text-success border-success/20',
-  OCCUPIED: 'bg-primary/10 text-primary border-primary/20',
-  RESERVED: 'bg-warning/40 text-warning-foreground border-warning/50',
-  NEEDS_CLEANING: 'bg-destructive/10 text-destructive border-destructive/20',
+  AVAILABLE: 'bg-success text-success-foreground border-success',
+  OCCUPIED: 'bg-primary text-primary-foreground border-primary',
+  RESERVED: 'bg-warning text-warning-foreground border-warning',
+  NEEDS_CLEANING: 'bg-destructive text-destructive-foreground border-destructive',
 }
 
 const STATUS_LABELS: Record<TableStatus, string> = {
@@ -291,15 +294,15 @@ export function TablesFloorPage() {
                           <Pencil className="h-3 w-3" />
                         </button>
                       )}
-                      <span className="text-lg font-bold">{table.name}</span>
-                      <span className="text-xs font-semibold uppercase tracking-wide">{STATUS_LABELS[table.status]}</span>
+                      <span className="text-xl font-extrabold">{table.name}</span>
+                      <span className="text-sm font-bold uppercase tracking-wide">{STATUS_LABELS[table.status]}</span>
                       {totalByTableId.has(table.id) && (
-                        <span className="text-sm font-bold">{formatCurrency(totalByTableId.get(table.id)!)}</span>
+                        <span className="text-base font-bold">{formatCurrency(totalByTableId.get(table.id)!)}</span>
                       )}
                       {waiterByTableId.has(table.id) && (
-                        <span className="text-[11px] opacity-70">{waiterByTableId.get(table.id)}</span>
+                        <span className="text-xs font-medium opacity-90">{waiterByTableId.get(table.id)}</span>
                       )}
-                      <span className="text-[11px] opacity-70">{table.capacity} seats</span>
+                      <span className="text-xs font-medium opacity-90">{table.capacity} seats</span>
                     </div>
                   ))}
                 </div>
