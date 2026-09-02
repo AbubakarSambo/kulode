@@ -250,9 +250,7 @@ function App() {
                 >
                   <Route path="/pos/kitchen" element={<KitchenTicketsPage />} />
                 </Route>
-                <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']} />}>
-                  <Route path="/pos/reports" element={<PosReportsPage />} />
-                </Route>
+                <Route path="/pos/reports" element={<PosReportsPage />} />
               </Route>
 
 
