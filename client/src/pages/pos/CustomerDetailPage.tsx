@@ -5,12 +5,13 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { ArrowLeft, Pencil, Trash2, Wallet, PlusCircle, Settings2, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, Wallet, PlusCircle, Settings2, ShieldCheck, Printer } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Select, Card, CardContent, Badge, ConfirmDialog } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
-import { customersApi, walletApi } from '@/api'
+import { customersApi, walletApi, organizationsApi } from '@/api'
 import { formatCurrency, formatDate, cn } from '@/lib/utils'
+import { printWalletReceipt } from '@/lib/printWalletReceipt'
 import { useAuthStore } from '@/stores/auth'
 import type { Customer, OrderStatus, OrderSource, WalletTransactionType } from '@/types'
 
@@ -51,12 +52,28 @@ function errorMessage(err: unknown, fallback: string) {
   return (err as { response?: { data?: { message?: string } } })?.response?.data?.message || fallback
 }
 
-function WalletSection({ customerId, balance, creditLimit }: { customerId: string; balance: number; creditLimit: number }) {
+function WalletSection({
+  customerId,
+  customerName,
+  balance,
+  creditLimit,
+}: {
+  customerId: string
+  customerName: string
+  balance: number
+  creditLimit: number
+}) {
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const canTopUp = !!user?.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN' || r === 'ACCOUNTANT' || r === 'CASHIER')
   const canAdjust = !!user?.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN' || r === 'CASHIER')
   const canGrantCredit = !!user?.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN' || r === 'CASHIER')
+
+  const { data: organization } = useQuery({
+    queryKey: ['organization'],
+    queryFn: () => organizationsApi.getCurrent(),
+    staleTime: 60_000,
+  })
 
   const [topUpOpen, setTopUpOpen] = useState(false)
   const [adjustOpen, setAdjustOpen] = useState(false)
@@ -200,12 +217,24 @@ function WalletSection({ customerId, balance, creditLimit }: { customerId: strin
                     {tx.notes && ` · ${tx.notes}`}
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className={cn('text-sm font-semibold', tx.amount < 0 ? 'text-destructive' : 'text-emerald-600')}>
-                    {tx.amount > 0 ? '+' : ''}
-                    {formatCurrency(tx.amount)}
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <div className={cn('text-sm font-semibold', tx.amount < 0 ? 'text-destructive' : 'text-emerald-600')}>
+                      {tx.amount > 0 ? '+' : ''}
+                      {formatCurrency(tx.amount)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">Bal: {formatCurrency(tx.balanceAfter)}</div>
                   </div>
-                  <div className="text-xs text-muted-foreground">Bal: {formatCurrency(tx.balanceAfter)}</div>
+                  {tx.type === 'TOPUP' && organization && (
+                    <button
+                      type="button"
+                      onClick={() => printWalletReceipt(tx, customerName, organization)}
+                      aria-label="Print receipt"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                    >
+                      <Printer className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -498,7 +527,12 @@ export function CustomerDetailPage() {
           </Card>
         </div>
 
-        <WalletSection customerId={customer.id} balance={customer.walletBalance} creditLimit={customer.creditLimit} />
+        <WalletSection
+          customerId={customer.id}
+          customerName={customer.name}
+          balance={customer.walletBalance}
+          creditLimit={customer.creditLimit}
+        />
       </div>
 
       <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title="Edit Customer">
