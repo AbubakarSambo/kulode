@@ -126,6 +126,10 @@ enum TableStatus {
 }
 
 enum OrderStatus {
+  // No longer written by any app code (the draft-order feature was reverted) — kept here only
+  // because real rows with this status already exist in the database from when it was briefly
+  // live, and Prisma errors deserializing a status value it doesn't know about.
+  DRAFT
   OPEN
   IN_KITCHEN
   READY
