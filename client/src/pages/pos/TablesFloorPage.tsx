@@ -67,10 +67,15 @@ export function TablesFloorPage() {
   })
   // A table has at most one running order at a time in practice — first match is enough.
   const totalByTableId = new Map((activeOrdersPage?.data ?? []).filter((o) => o.tableId).map((o) => [o.tableId!, o.total]))
+  // Falls back to whoever placed the order when no waiter was explicitly assigned — same
+  // convention as the receipt/docket, so the card isn't left blank for a self-served waiter order.
   const waiterByTableId = new Map(
     (activeOrdersPage?.data ?? [])
-      .filter((o) => o.tableId && o.waiter)
-      .map((o) => [o.tableId!, `${o.waiter!.firstName} ${o.waiter!.lastName}`]),
+      .filter((o) => o.tableId && (o.waiter || o.createdBy))
+      .map((o) => {
+        const person = o.waiter ?? o.createdBy!
+        return [o.tableId!, `${person.firstName} ${person.lastName}`]
+      }),
   )
 
   // Groups tables by section, normalizing case/whitespace so "Patio", "patio", and " Patio " land

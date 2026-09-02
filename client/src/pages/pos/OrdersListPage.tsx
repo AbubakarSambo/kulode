@@ -7,7 +7,7 @@ import { ReceiptTextIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Select, Card, CardContent, Badge, EmptyState, Button } from '@/components/ui'
 import { ordersApi, tablesApi } from '@/api'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDateTime } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import type { OrderStatus } from '@/types'
 
@@ -174,7 +174,7 @@ export function OrdersListPage() {
                         <td className="px-4 py-3 text-right font-semibold text-foreground">
                           {formatCurrency(order.total)}
                         </td>
-                        <td className="px-4 py-3 text-sm text-muted-foreground">{formatDate(order.createdAt)}</td>
+                        <td className="px-4 py-3 text-sm text-muted-foreground">{formatDateTime(order.createdAt)}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -528,7 +528,7 @@ export class OrdersService {
       order.serviceChargeApplied,
     );
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       if (dto.quantity === 0) {
         await tx.orderItem.delete({ where: { id: itemId } });
       } else {
@@ -559,6 +559,18 @@ export class OrdersService {
 
       return tx.order.findUniqueOrThrow({ where: { id: orderId }, include: this.orderInclude });
     });
+
+    // The kitchen/bar already has a docket for this item from the moment the order was placed
+    // (dockets print on creation, not on "On It") — so pulling any of it back out, in full or in
+    // part, needs its own cancellation docket or the station just keeps making it.
+    const removedQty = toNumber(item.quantity) - dto.quantity;
+    if (removedQty > 0) {
+      this.dispatchCancellationDocket(organizationId, updated, [
+        { id: item.id, menuItemId: item.menuItemId, itemName: item.itemName, quantity: removedQty, notes: item.notes },
+      ]);
+    }
+
+    return updated;
   }
 
   async setCustomer(organizationId: string, id: string, dto: UpdateOrderCustomerDto) {
