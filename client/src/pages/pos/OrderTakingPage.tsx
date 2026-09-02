@@ -14,6 +14,7 @@ import { menuCategoriesApi, menuItemsApi, ordersApi, customersApi, tablesApi, us
 import type { ReceiptData } from '@/api/orders'
 import { formatCurrency, cn } from '@/lib/utils'
 import { printBill } from '@/lib/printBill'
+import { useAuthStore } from '@/stores/auth'
 import type { OrderSource } from '@/types'
 
 function roundCurrency(value: number): number {
@@ -66,20 +67,83 @@ export function OrderTakingPage() {
   const entertainmentTaxRate = Number(organization?.entertainmentTaxRate ?? 0)
   const serviceChargeEnabled = !!organization?.serviceChargeEnabled
   const serviceChargeRate = Number(organization?.serviceChargeRate ?? 0)
-  const [applyVat, setApplyVat] = useState(true)
-  const [applyEntertainmentTax, setApplyEntertainmentTax] = useState(true)
-  const [applyServiceCharge, setApplyServiceCharge] = useState(true)
-  const [source, setSource] = useState<OrderSource>(initialSource)
+
+  // Draft persistence — lets a cashier navigate away mid-order (e.g. to check Tables) and come
+  // back to find the cart exactly as they left it. Scoped per org+table (or "new" when this page
+  // wasn't opened for a specific table) so drafts for different tables don't clobber each other.
+  // The whole app blocks rendering until auth hydration completes (see App.tsx's `_hasHydrated`
+  // check), so `authUser` — and therefore this key — is already available on the very first
+  // render, which is what makes restoring via lazy useState initializers below safe.
+  const authUser = useAuthStore((s) => s.user)
+  const draftKey = authUser ? `pos-draft:${authUser.organizationId}:${tableId ?? 'new'}` : null
+  const initialDraft = useMemo(() => {
+    if (!draftKey) return null
+    try {
+      const raw = localStorage.getItem(draftKey)
+      if (!raw) return null
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed?.cart) && parsed.cart.length > 0 ? parsed : null
+    } catch {
+      return null // corrupt or inaccessible storage (e.g. private browsing) — just start fresh
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only ever needs to be read once, at mount, for whatever key this instance opened with
+  }, [])
+
+  const [applyVat, setApplyVat] = useState(() => (typeof initialDraft?.applyVat === 'boolean' ? initialDraft.applyVat : true))
+  const [applyEntertainmentTax, setApplyEntertainmentTax] = useState(() =>
+    typeof initialDraft?.applyEntertainmentTax === 'boolean' ? initialDraft.applyEntertainmentTax : true,
+  )
+  const [applyServiceCharge, setApplyServiceCharge] = useState(() =>
+    typeof initialDraft?.applyServiceCharge === 'boolean' ? initialDraft.applyServiceCharge : true,
+  )
+  const [source, setSource] = useState<OrderSource>(() =>
+    typeof initialDraft?.source === 'string' ? initialDraft.source : initialSource,
+  )
   const [activeCategory, setActiveCategory] = useState<string | 'all'>('all')
   const [search, setSearch] = useState('')
-  const [cart, setCart] = useState<CartLine[]>([])
-  const [customerId, setCustomerId] = useState('')
+  const [cart, setCart] = useState<CartLine[]>(() => initialDraft?.cart ?? [])
+  const [customerId, setCustomerId] = useState(() => (typeof initialDraft?.customerId === 'string' ? initialDraft.customerId : ''))
   const [newCustomerOpen, setNewCustomerOpen] = useState(false)
-  const [selectedTableId, setSelectedTableId] = useState('')
-  const [waiterId, setWaiterId] = useState('')
-  const [orderNotes, setOrderNotes] = useState('')
+  const [selectedTableId, setSelectedTableId] = useState(() =>
+    typeof initialDraft?.selectedTableId === 'string' ? initialDraft.selectedTableId : '',
+  )
+  const [waiterId, setWaiterId] = useState(() => (typeof initialDraft?.waiterId === 'string' ? initialDraft.waiterId : ''))
+  const [orderNotes, setOrderNotes] = useState(() => (typeof initialDraft?.orderNotes === 'string' ? initialDraft.orderNotes : ''))
   const [assignmentsOpen, setAssignmentsOpen] = useState(false)
   const [newTableOpen, setNewTableOpen] = useState(false)
+
+  // Side effect only (a toast, not state) — fine inside an effect. Empty deps: announce once, for
+  // whatever `initialDraft` this instance mounted with.
+  useEffect(() => {
+    if (initialDraft) toast.message('Restored your unsent order')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if (!draftKey) return
+    try {
+      if (cart.length === 0) {
+        localStorage.removeItem(draftKey)
+      } else {
+        localStorage.setItem(
+          draftKey,
+          JSON.stringify({
+            cart,
+            customerId,
+            waiterId,
+            orderNotes,
+            selectedTableId,
+            source,
+            applyVat,
+            applyEntertainmentTax,
+            applyServiceCharge,
+          }),
+        )
+      }
+    } catch {
+      // Storage unavailable (private browsing, quota) — draft just won't persist this time.
+    }
+  }, [draftKey, cart, customerId, waiterId, orderNotes, selectedTableId, source, applyVat, applyEntertainmentTax, applyServiceCharge])
 
   const { data: tables } = useQuery({
     queryKey: ['restaurant-tables'],
@@ -276,6 +340,13 @@ export function OrderTakingPage() {
         applyServiceCharge,
       }),
     onSuccess: (result) => {
+      if (draftKey) {
+        try {
+          localStorage.removeItem(draftKey)
+        } catch {
+          // ignore
+        }
+      }
       if ('__offlinePending' in result) {
         toast.success('No connection — order saved and will sync automatically', { duration: 4000 })
         navigate(`/pos/orders/${result.localOrderId}`)
