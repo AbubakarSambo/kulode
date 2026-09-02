@@ -28,7 +28,7 @@ export class WalletController {
   }
 
   @Post('topup')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.ACCOUNTANT)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.ACCOUNTANT, Role.CASHIER)
   topUp(
     @Param('customerId', ParseUUIDPipe) customerId: string,
     @Body() dto: TopUpWalletDto,
@@ -38,7 +38,7 @@ export class WalletController {
   }
 
   @Post('adjust')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.CASHIER)
   adjust(
     @Param('customerId', ParseUUIDPipe) customerId: string,
     @Body() dto: AdjustWalletDto,

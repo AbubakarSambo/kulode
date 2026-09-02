@@ -64,7 +64,7 @@ export class CustomersController {
   }
 
   @Patch(':id/credit')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.MANAGER)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.MANAGER, Role.CASHIER)
   @ApiOperation({ summary: 'Set a customer credit limit (how far their wallet may go negative)' })
   @ApiResponse({ status: 200, description: 'Credit limit updated' })
   @ApiResponse({ status: 404, description: 'Customer not found' })
