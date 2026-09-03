@@ -55,54 +55,67 @@ export function PosDashboardPage() {
   const change = summary?.sales.change ?? null
 
   const breakdown = summary?.orderBreakdown
-  const totalOrders = breakdown?.total ?? 0
+  // "Open" is a live snapshot of what's currently open, not scoped to the selected period (it has
+  // no closedAt to bucket by) — showing it next to e.g. Last Month's numbers would misleadingly
+  // imply it's last month's open orders, so it only makes sense alongside Today.
+  const showOpen = period === 'TODAY'
+  const closedCount = (breakdown?.closedPaid.count ?? 0) + (breakdown?.closedUnpaid.count ?? 0)
+  const closedValue = (breakdown?.closedPaid.amount ?? 0) + (breakdown?.closedUnpaid.amount ?? 0)
+  const totalOrders = showOpen ? (breakdown?.total ?? 0) : closedCount
+  const totalValue = showOpen ? closedValue + (breakdown?.open.amount ?? 0) : closedValue
   const paidPct = totalOrders > 0 ? (breakdown!.closedPaid.count / totalOrders) * 100 : 0
   const unpaidPct = totalOrders > 0 ? (breakdown!.closedUnpaid.count / totalOrders) * 100 : 0
-  const openPct = totalOrders > 0 ? (breakdown!.open.count / totalOrders) * 100 : 0
-  const totalValue = (breakdown?.closedPaid.amount ?? 0) + (breakdown?.closedUnpaid.amount ?? 0) + (breakdown?.open.amount ?? 0)
+  const openPct = showOpen && totalOrders > 0 ? (breakdown!.open.count / totalOrders) * 100 : 0
+
+  // Header's action slot is hidden on mobile (the shared Header component only renders at sm+),
+  // so this filter is rendered a second time below for small screens — otherwise it's simply
+  // unreachable there.
+  const periodFilter = (
+    <div className="flex items-center gap-2">
+      <div className="relative inline-block text-left w-full sm:w-auto">
+        <button
+          onClick={() => setDropdownOpen(!dropdownOpen)}
+          className="h-11 px-4 rounded-xl border border-border bg-card text-xs font-semibold text-foreground hover:bg-muted/50 transition-all flex items-center justify-between gap-2.5 min-w-[150px] w-full sm:w-auto"
+        >
+          <span>{activeOption?.label}</span>
+          <ChevronDown className={cn('h-3.5 w-3.5 text-muted-foreground transition-transform', dropdownOpen && 'rotate-180')} />
+        </button>
+        <DropdownPanel isOpen={dropdownOpen} onClose={() => setDropdownOpen(false)} align="right" widthClass="w-full sm:w-48" zIndexClass="z-20">
+          {periodOptions.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => {
+                setPeriod(opt.value)
+                setDropdownOpen(false)
+              }}
+              className={cn(
+                'w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors block',
+                period === opt.value ? 'bg-primary/5 text-primary' : 'text-foreground hover:bg-muted/50',
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </DropdownPanel>
+      </div>
+      {period === 'CUSTOM' && (
+        <>
+          <DatePicker value={startDate} onChange={setStartDate} className="w-36" align="right" />
+          <DatePicker value={endDate} onChange={setEndDate} className="w-36" align="right" />
+        </>
+      )}
+    </div>
+  )
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <Header
         title="Dashboard"
         description="Sales, top items, and waiter performance for your restaurant"
-        action={
-          <div className="flex items-center gap-2">
-            <div className="relative inline-block text-left w-full sm:w-auto">
-              <button
-                onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="h-11 px-4 rounded-xl border border-border bg-card text-xs font-semibold text-foreground hover:bg-muted/50 transition-all flex items-center justify-between gap-2.5 min-w-[150px] w-full sm:w-auto"
-              >
-                <span>{activeOption?.label}</span>
-                <ChevronDown className={cn('h-3.5 w-3.5 text-muted-foreground transition-transform', dropdownOpen && 'rotate-180')} />
-              </button>
-              <DropdownPanel isOpen={dropdownOpen} onClose={() => setDropdownOpen(false)} align="right" widthClass="w-full sm:w-48" zIndexClass="z-20">
-                {periodOptions.map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => {
-                      setPeriod(opt.value)
-                      setDropdownOpen(false)
-                    }}
-                    className={cn(
-                      'w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors block',
-                      period === opt.value ? 'bg-primary/5 text-primary' : 'text-foreground hover:bg-muted/50',
-                    )}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </DropdownPanel>
-            </div>
-            {period === 'CUSTOM' && (
-              <>
-                <DatePicker value={startDate} onChange={setStartDate} className="w-36" align="right" />
-                <DatePicker value={endDate} onChange={setEndDate} className="w-36" align="right" />
-              </>
-            )}
-          </div>
-        }
+        action={periodFilter}
       />
+
+      <div className="border-b border-border p-4 sm:hidden">{periodFilter}</div>
 
       <div className="flex-1 overflow-auto p-4 sm:p-6">
         <div className="mb-8 grid gap-4 grid-cols-2 lg:grid-cols-4">
@@ -130,7 +143,10 @@ export function PosDashboardPage() {
               </div>
               <div
                 className="mt-3 flex h-2 w-full gap-0.5 overflow-hidden rounded-full bg-muted"
-                title={`${breakdown?.closedPaid.count ?? 0} paid · ${breakdown?.closedUnpaid.count ?? 0} unpaid · ${breakdown?.open.count ?? 0} open`}
+                title={
+                  `${breakdown?.closedPaid.count ?? 0} paid · ${breakdown?.closedUnpaid.count ?? 0} unpaid` +
+                  (showOpen ? ` · ${breakdown?.open.count ?? 0} open` : '')
+                }
               >
                 {paidPct > 0 && <div className="h-full bg-success" style={{ width: `${paidPct}%` }} />}
                 {unpaidPct > 0 && <div className="h-full bg-amber-500" style={{ width: `${unpaidPct}%` }} />}
@@ -151,13 +167,15 @@ export function PosDashboardPage() {
                   </span>
                   <span className="tabular-nums text-foreground">{formatCurrency(breakdown?.closedUnpaid.outstanding ?? 0)} owed</span>
                 </div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
-                    Open ({breakdown?.open.count ?? 0})
-                  </span>
-                  <span className="tabular-nums text-foreground">{formatCurrency(breakdown?.open.amount ?? 0)}</span>
-                </div>
+                {showOpen && (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                      Open ({breakdown?.open.count ?? 0})
+                    </span>
+                    <span className="tabular-nums text-foreground">{formatCurrency(breakdown?.open.amount ?? 0)}</span>
+                  </div>
+                )}
               </div>
               <div className="mt-2 flex items-center justify-between border-t border-border pt-2 text-[9px] sm:text-[10px] font-bold text-foreground">
                 <span>{totalOrders} orders total</span>
@@ -173,7 +191,10 @@ export function PosDashboardPage() {
               </p>
               <div
                 className="mt-2 sm:mt-3 flex h-2 w-full gap-0.5 overflow-hidden rounded-full bg-muted"
-                title={`${breakdown?.closedPaid.count ?? 0} paid · ${breakdown?.closedUnpaid.count ?? 0} unpaid · ${breakdown?.open.count ?? 0} open`}
+                title={
+                  `${breakdown?.closedPaid.count ?? 0} paid · ${breakdown?.closedUnpaid.count ?? 0} unpaid` +
+                  (showOpen ? ` · ${breakdown?.open.count ?? 0} open` : '')
+                }
               >
                 {paidPct > 0 && <div className="h-full bg-success" style={{ width: `${paidPct}%` }} />}
                 {unpaidPct > 0 && <div className="h-full bg-amber-500" style={{ width: `${unpaidPct}%` }} />}
@@ -189,10 +210,12 @@ export function PosDashboardPage() {
                   {breakdown?.closedUnpaid.count ?? 0} unpaid
                   {!!breakdown?.closedUnpaid.outstanding && ` (${formatCurrency(breakdown.closedUnpaid.outstanding)})`}
                 </span>
-                <span className="flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
-                  {breakdown?.open.count ?? 0} open
-                </span>
+                {showOpen && (
+                  <span className="flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                    {breakdown?.open.count ?? 0} open
+                  </span>
+                )}
               </div>
             </CardContent>
           </Card>
