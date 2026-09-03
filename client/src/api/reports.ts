@@ -3,6 +3,7 @@ import type { FinancialSummary, CashflowReport, ApiResponse } from '@/types'
 
 export type ReportPeriod =
   | 'TODAY'
+  | 'YESTERDAY'
   | 'THIS_MONTH'
   | 'LAST_MONTH'
   | 'LAST_WEEK'

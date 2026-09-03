@@ -33,6 +33,7 @@ import { useOverscrollBounce } from "@/hooks";
 
 const prevPeriodMap: Record<ReportPeriod, ReportPeriod> = {
   TODAY: "TODAY",
+  YESTERDAY: "YESTERDAY",
   LAST_WEEK: "LAST_WEEK",
   THIS_MONTH: "LAST_MONTH",
   LAST_MONTH: "LAST_MONTH",
@@ -45,6 +46,7 @@ const prevPeriodMap: Record<ReportPeriod, ReportPeriod> = {
 
 const periodLabels: Record<ReportPeriod, string> = {
   TODAY: "today",
+  YESTERDAY: "yesterday",
   LAST_WEEK: "last week",
   THIS_MONTH: "this month",
   LAST_MONTH: "last month",

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, ShoppingCart, Users } from 'lucide-react'
+import { ChevronDown, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Users } from 'lucide-react'
 import { ReceiptTextIcon } from '@hugeicons/core-free-icons'
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { Link } from 'react-router-dom'
@@ -21,6 +21,7 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
 
 const periodOptions: Array<{ value: ReportPeriod; label: string }> = [
   { value: 'TODAY', label: 'Today' },
+  { value: 'YESTERDAY', label: 'Yesterday' },
   { value: 'LAST_WEEK', label: 'Last Week' },
   { value: 'THIS_MONTH', label: 'This Month' },
   { value: 'LAST_MONTH', label: 'Last Month' },
@@ -92,12 +93,6 @@ export function PosDashboardPage() {
                 <DatePicker value={endDate} onChange={setEndDate} className="w-36" align="right" />
               </>
             )}
-            <Link to="/pos/order/new">
-              <button className="h-11 px-4 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:opacity-95 transition-opacity flex items-center gap-2">
-                <ShoppingCart className="h-4 w-4" />
-                New Sale
-              </button>
-            </Link>
           </div>
         }
       />

@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 
 export enum ReportPeriod {
   TODAY = 'TODAY',
+  YESTERDAY = 'YESTERDAY',
   THIS_MONTH = 'THIS_MONTH',
   LAST_MONTH = 'LAST_MONTH',
   LAST_WEEK = 'LAST_WEEK',

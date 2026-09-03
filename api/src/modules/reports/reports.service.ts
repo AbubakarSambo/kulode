@@ -24,6 +24,12 @@ export class ReportsService {
       case ReportPeriod.TODAY:
         startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         break;
+      case ReportPeriod.YESTERDAY: {
+        const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+        startDate = yesterday;
+        endDate = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59);
+        break;
+      }
       case ReportPeriod.LAST_WEEK: {
         // Sunday-start weeks, matching the convention used elsewhere in this app.
         const startOfThisWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
