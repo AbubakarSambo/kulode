@@ -304,7 +304,7 @@ export function TablesFloorPage() {
                         <span className="text-base font-bold">{formatCurrency(totalByTableId.get(table.id)!)}</span>
                       )}
                       {waiterByTableId.has(table.id) && (
-                        <span className="text-3xl font-extrabold">{waiterByTableId.get(table.id)}</span>
+                        <span className="text-2xl font-extrabold">{waiterByTableId.get(table.id)}</span>
                       )}
                       <span className="text-base font-bold opacity-90">{table.capacity} seats</span>
                     </div>
