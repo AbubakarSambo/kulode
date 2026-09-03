@@ -11,6 +11,7 @@ import { Button, Input, Label, Textarea, Card, CardContent, Badge, ConfirmDialog
 import { Modal } from '@/components/shared/Modal'
 import { menuCategoriesApi, menuItemsApi } from '@/api'
 import { formatCurrency, formatDate, cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth'
 
 const itemSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -31,6 +32,10 @@ export function MenuItemDetailPage() {
   const queryClient = useQueryClient()
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const user = useAuthStore((s) => s.user)
+  // Cashiers can add menu items but not edit/delete existing ones — admin-only on the backend
+  // too, so hide those controls here rather than let the request 403.
+  const canManage = !!user?.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')
 
   const { data: item, isLoading } = useQuery({
     queryKey: ['menu-items', id],
@@ -136,28 +141,30 @@ export function MenuItemDetailPage() {
                 </div>
               )}
 
-              <div className="flex gap-2 pt-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => {
-                    form.reset({
-                      name: item.name,
-                      description: item.description,
-                      price: item.price,
-                      categoryIds: item.categories.map((c) => c.id),
-                      durationMinutes: item.durationMinutes,
-                    })
-                    setEditOpen(true)
-                  }}
-                >
-                  <Pencil className="mr-1.5 h-4 w-4" /> Edit
-                </Button>
-                <Button variant="outline" size="sm" className="flex-1" onClick={() => setDeleteOpen(true)}>
-                  <Trash2 className="mr-1.5 h-4 w-4" /> Delete
-                </Button>
-              </div>
+              {canManage && (
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => {
+                      form.reset({
+                        name: item.name,
+                        description: item.description,
+                        price: item.price,
+                        categoryIds: item.categories.map((c) => c.id),
+                        durationMinutes: item.durationMinutes,
+                      })
+                      setEditOpen(true)
+                    }}
+                  >
+                    <Pencil className="mr-1.5 h-4 w-4" /> Edit
+                  </Button>
+                  <Button variant="outline" size="sm" className="flex-1" onClick={() => setDeleteOpen(true)}>
+                    <Trash2 className="mr-1.5 h-4 w-4" /> Delete
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
 

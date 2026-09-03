@@ -31,7 +31,7 @@ export class MenuCategoriesController {
   }
 
   @Post()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.CASHIER)
   create(
     @CurrentUser('organizationId') organizationId: string,
     @Body() dto: CreateMenuCategoryDto,
@@ -90,7 +90,7 @@ export class MenuItemsController {
   }
 
   @Post()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.CASHIER)
   create(
     @CurrentUser('organizationId') organizationId: string,
     @Body() dto: CreateMenuItemDto,

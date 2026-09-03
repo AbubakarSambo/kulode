@@ -15,6 +15,7 @@ import { menuCategoriesApi, menuItemsApi } from '@/api'
 import { formatCurrency, cn } from '@/lib/utils'
 import type { MenuItem } from '@/types'
 import { InventoryIcon } from '@/components/ui/CustomIcons'
+import { useAuthStore } from '@/stores/auth'
 
 const itemSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -42,6 +43,10 @@ const CSV_SAMPLE_ROWS = [
 export function MenuManagementPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const user = useAuthStore((s) => s.user)
+  // Cashiers can add menu items but not edit/delete existing ones — those actions are
+  // admin-only on the backend too, so hide them here rather than let the request 403.
+  const canManage = !!user?.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')
 
   const [itemModalOpen, setItemModalOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
@@ -225,7 +230,7 @@ export function MenuManagementPage() {
             />
           </div>
         )}
-        {!!filteredItems?.length && (
+        {canManage && !!filteredItems?.length && (
           <div className="mb-4 flex items-center justify-between rounded-xl border border-border bg-muted/50 px-4 py-2.5">
             <label className="flex items-center gap-2 text-sm font-medium text-foreground">
               <input
@@ -267,13 +272,15 @@ export function MenuManagementPage() {
                   onClick={() => navigate(`/pos/menu/${item.id}`)}
                   className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-muted/50"
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(item.id)}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={() => toggleSelected(item.id)}
-                    className="h-4 w-4 shrink-0 rounded border-border accent-primary"
-                  />
+                  {canManage && (
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(item.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => toggleSelected(item.id)}
+                      className="h-4 w-4 shrink-0 rounded border-border accent-primary"
+                    />
+                  )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className="truncate font-semibold text-foreground">{item.name}</h3>
@@ -286,71 +293,25 @@ export function MenuManagementPage() {
                     )}
                   </div>
                   <span className="shrink-0 font-semibold text-foreground">{formatCurrency(item.price)}</span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      toggleAvailability.mutate({ id: item.id, isAvailable: !item.isAvailable })
-                    }}
-                    className="shrink-0"
-                  >
-                    <Badge variant={item.isAvailable ? 'success' : 'secondary'}>
+                  {canManage ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleAvailability.mutate({ id: item.id, isAvailable: !item.isAvailable })
+                      }}
+                      className="shrink-0"
+                    >
+                      <Badge variant={item.isAvailable ? 'success' : 'secondary'}>
+                        {item.isAvailable ? 'Available' : 'Unavailable'}
+                      </Badge>
+                    </button>
+                  ) : (
+                    <Badge variant={item.isAvailable ? 'success' : 'secondary'} className="shrink-0">
                       {item.isAvailable ? 'Available' : 'Unavailable'}
                     </Badge>
-                  </button>
-                  <div className="flex shrink-0 gap-1">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        openEditItem(item)
-                      }}
-                      className="rounded-lg p-2 hover:bg-muted"
-                    >
-                      <Pencil className="h-4 w-4 text-muted-foreground" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setDeleteTarget({ id: item.id, name: item.name })
-                      }}
-                      className="rounded-lg p-2 hover:bg-muted"
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredItems?.map((item) => (
-              <Card
-                key={item.id}
-                onClick={() => navigate(`/pos/menu/${item.id}`)}
-                className="flex h-full cursor-pointer flex-col p-4"
-              >
-                <CardContent className="flex h-full flex-col p-0">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-2">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(item.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={() => toggleSelected(item.id)}
-                        className="mt-1 h-4 w-4 shrink-0 rounded border-border accent-primary"
-                      />
-                      <div>
-                        <h3 className="font-semibold text-foreground">{item.name}</h3>
-                        {item.categories.length > 0 && (
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            {item.categories.map((cat) => (
-                              <Badge key={cat.id} variant="secondary">{cat.name}</Badge>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex gap-1">
+                  )}
+                  {canManage && (
+                    <div className="flex shrink-0 gap-1">
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
@@ -370,20 +331,84 @@ export function MenuManagementPage() {
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </button>
                     </div>
+                  )}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredItems?.map((item) => (
+              <Card
+                key={item.id}
+                onClick={() => navigate(`/pos/menu/${item.id}`)}
+                className="flex h-full cursor-pointer flex-col p-4"
+              >
+                <CardContent className="flex h-full flex-col p-0">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-2">
+                      {canManage && (
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(item.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={() => toggleSelected(item.id)}
+                          className="mt-1 h-4 w-4 shrink-0 rounded border-border accent-primary"
+                        />
+                      )}
+                      <div>
+                        <h3 className="font-semibold text-foreground">{item.name}</h3>
+                        {item.categories.length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {item.categories.map((cat) => (
+                              <Badge key={cat.id} variant="secondary">{cat.name}</Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {canManage && (
+                      <div className="flex gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openEditItem(item)
+                          }}
+                          className="rounded-lg p-2 hover:bg-muted"
+                        >
+                          <Pencil className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setDeleteTarget({ id: item.id, name: item.name })
+                          }}
+                          className="rounded-lg p-2 hover:bg-muted"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                   {item.description && <p className="mt-2 text-sm text-muted-foreground">{item.description}</p>}
                   <div className="mt-auto flex items-center justify-between pt-3">
                     <span className="text-lg font-bold text-foreground">{formatCurrency(item.price)}</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        toggleAvailability.mutate({ id: item.id, isAvailable: !item.isAvailable })
-                      }}
-                    >
+                    {canManage ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleAvailability.mutate({ id: item.id, isAvailable: !item.isAvailable })
+                        }}
+                      >
+                        <Badge variant={item.isAvailable ? 'success' : 'secondary'}>
+                          {item.isAvailable ? 'Available' : 'Unavailable'}
+                        </Badge>
+                      </button>
+                    ) : (
                       <Badge variant={item.isAvailable ? 'success' : 'secondary'}>
                         {item.isAvailable ? 'Available' : 'Unavailable'}
                       </Badge>
-                    </button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
