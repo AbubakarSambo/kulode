@@ -16,6 +16,6 @@ export class PosReportsController {
     @CurrentUser('organizationId') organizationId: string,
     @Query() query: ItemSalesReportQueryDto,
   ) {
-    return this.posReportsService.getItemSalesReport(organizationId, query.from, query.to);
+    return this.posReportsService.getItemSalesReport(organizationId, query.from, query.to, query.fromTime, query.toTime);
   }
 }

@@ -22,6 +22,7 @@ export interface ItemSalesProductRow {
 export interface ItemSalesReport {
   from: string
   to: string
+  period: { startDate: string; endDate: string }
   totalSales: number
   totalQuantity: number
   orders: number
@@ -32,9 +33,9 @@ export interface ItemSalesReport {
 }
 
 export const posReportsApi = {
-  getItemSales: async (from: string, to?: string): Promise<ItemSalesReport> => {
+  getItemSales: async (from: string, to?: string, fromTime?: string, toTime?: string): Promise<ItemSalesReport> => {
     const response = await apiClient.get<ApiResponse<ItemSalesReport>>('/pos-reports/item-sales', {
-      params: { from, to },
+      params: { from, to, fromTime, toTime },
     })
     return response.data.data
   },

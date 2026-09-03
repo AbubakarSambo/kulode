@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { applyShiftHours, DEFAULT_SHIFT_HOURS, ShiftHours } from '../../common';
+import { applyShiftHours, dateAtTime, DEFAULT_SHIFT_HOURS, ShiftHours } from '../../common';
 
 function toNumber(val: Prisma.Decimal | number): number {
   return typeof val === 'number' ? val : Number(val);
@@ -28,10 +28,15 @@ export class PosReportsService {
    * order/cashier counts, for an inclusive day (or day range). Only fully paid orders count
    * as "sales" — CLOSED_UNPAID orders never get a closedAt, so they fall outside any range.
    */
-  async getItemSalesReport(organizationId: string, from: string, to?: string) {
+  async getItemSalesReport(organizationId: string, from: string, to?: string, fromTime?: string, toTime?: string) {
     const rangeEnd = to ?? from;
     const shift = await this.getOrgShiftHours(organizationId);
-    const { startDate, endDate } = applyShiftHours(new Date(from), new Date(rangeEnd), shift);
+    // fromTime/toTime let a user drill into a specific window within the range (e.g. "6am-2pm on
+    // Sep 3") instead of always getting the org's full shift day — each falls back independently
+    // to the shift boundary for that side when not given.
+    const { startDate: shiftStart, endDate: shiftEnd } = applyShiftHours(new Date(from), new Date(rangeEnd), shift);
+    const startDate = fromTime ? dateAtTime(new Date(from), fromTime) : shiftStart;
+    const endDate = toTime ? dateAtTime(new Date(rangeEnd), toTime, true) : shiftEnd;
 
     const orders = await this.prisma.order.findMany({
       where: {
@@ -92,6 +97,7 @@ export class PosReportsService {
     return {
       from,
       to: rangeEnd,
+      period: { startDate, endDate },
       totalSales: round2(totalSales),
       totalQuantity,
       orders: orders.length,

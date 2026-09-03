@@ -15,6 +15,16 @@ function parseTime(time: string): { hours: number; minutes: number } {
   return { hours, minutes };
 }
 
+/**
+ * The given calendar date at an explicit "HH:mm" time — for reports that let a user pick their
+ * own time-of-day bounds instead of the org's shift hours. `endOfMinute` rounds up to :59.999,
+ * matching how shiftEndFor treats an inclusive end time.
+ */
+export function dateAtTime(date: Date, time: string, endOfMinute = false): Date {
+  const { hours, minutes } = parseTime(time);
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), hours, minutes, endOfMinute ? 59 : 0, endOfMinute ? 999 : 0);
+}
+
 // A shift "crosses midnight" whenever its end time is at or before its start time on the clock
 // (e.g. 18:00 -> 02:00). A same-day shift (06:00 -> 18:00) never satisfies this.
 function isOvernightShift(shift: ShiftHours): boolean {

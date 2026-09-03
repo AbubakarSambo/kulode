@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, Printer } from 'lucide-react'
 import { ReceiptTextIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
-import { Card, CardContent, CardHeader, CardTitle, DatePicker, DropdownPanel, EmptyState } from '@/components/ui'
+import { Card, CardContent, CardHeader, CardTitle, DatePicker, DropdownPanel, EmptyState, Input } from '@/components/ui'
 import { posReportsApi } from '@/api'
 import { formatCurrency, cn } from '@/lib/utils'
 
@@ -34,11 +34,23 @@ function startOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1)
 }
 
+function formatDateTime(iso: string) {
+  return new Date(iso).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
 export function PosReportsPage() {
   const today = formatDateToYmd(new Date())
   const [period, setPeriod] = useState<ReportsPeriod>('THIS_WEEK')
   const [customFrom, setCustomFrom] = useState(today)
   const [customTo, setCustomTo] = useState(today)
+  const [fromTime, setFromTime] = useState('')
+  const [toTime, setToTime] = useState('')
   const [dropdownOpen, setDropdownOpen] = useState(false)
 
   const { from, to } = useMemo(() => {
@@ -55,9 +67,14 @@ export function PosReportsPage() {
     }
   }, [period, today, customFrom, customTo])
 
+  // Time-of-day bounds only make sense once you've picked a specific day/range — reset them
+  // whenever the period changes away from Custom so a stale time filter doesn't silently apply.
+  const effectiveFromTime = period === 'CUSTOM' && fromTime ? fromTime : undefined
+  const effectiveToTime = period === 'CUSTOM' && toTime ? toTime : undefined
+
   const { data: report, isLoading } = useQuery({
-    queryKey: ['pos-reports', 'item-sales', from, to],
-    queryFn: () => posReportsApi.getItemSales(from, to),
+    queryKey: ['pos-reports', 'item-sales', from, to, effectiveFromTime, effectiveToTime],
+    queryFn: () => posReportsApi.getItemSales(from, to, effectiveFromTime, effectiveToTime),
     enabled: !!from,
   })
 
@@ -100,7 +117,21 @@ export function PosReportsPage() {
             {period === 'CUSTOM' && (
               <>
                 <DatePicker value={customFrom} onChange={setCustomFrom} className="w-36" align="right" placeholder="From" />
+                <Input
+                  type="time"
+                  value={fromTime}
+                  onChange={(e) => setFromTime(e.target.value)}
+                  className="h-11 w-32"
+                  aria-label="From time"
+                />
                 <DatePicker value={customTo} onChange={setCustomTo} className="w-36" align="right" placeholder="To" />
+                <Input
+                  type="time"
+                  value={toTime}
+                  onChange={(e) => setToTime(e.target.value)}
+                  className="h-11 w-32"
+                  aria-label="To time"
+                />
               </>
             )}
             {hasSales && (
@@ -130,7 +161,7 @@ export function PosReportsPage() {
             <div className="text-center print:block hidden">
               <p className="text-sm font-bold">Item Sales Report</p>
               <p className="text-xs text-muted-foreground">
-                {report.from === report.to ? report.from : `${report.from} – ${report.to}`}
+                {formatDateTime(report.period.startDate)} – {formatDateTime(report.period.endDate)}
               </p>
             </div>
 

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { OrderStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { applyShiftHours, DEFAULT_SHIFT_HOURS, ShiftHours } from '../../common';
 import { ReportFilterDto, ReportPeriod } from '../reports/dto';
@@ -92,14 +93,31 @@ export class PosDashboardService {
     const { startDate, endDate } = await this.getDateRange(organizationId, filter);
     const prevRange = this.getPreviousDateRange(startDate, endDate);
 
+    // Sales/byPaymentMethod are keyed off the *order's* closedAt (not the payment's own
+    // paymentDate) and restricted to actually-closed orders — the same universe orderCount,
+    // topItems and topStaff use below. Otherwise a partial payment recorded against an order
+    // that's still OPEN (or was later reopened, clearing closedAt) would inflate "Sales" for a
+    // period that shows 0 orders, since payment.paymentDate and order.closedAt can diverge.
+    const closedOrderFilter = {
+      status: { in: [OrderStatus.CLOSED_PAID, OrderStatus.CLOSED_UNPAID] },
+    };
+
     const [sales, prevSales, orderCount, byMethod, topItems, topStaff] = await Promise.all([
       this.prisma.payment.aggregate({
-        where: { organizationId, orderId: { not: null }, paymentDate: { gte: startDate, lte: endDate } },
+        where: {
+          organizationId,
+          orderId: { not: null },
+          order: { ...closedOrderFilter, closedAt: { gte: startDate, lte: endDate } },
+        },
         _sum: { amount: true },
         _count: true,
       }),
       this.prisma.payment.aggregate({
-        where: { organizationId, orderId: { not: null }, paymentDate: { gte: prevRange.startDate, lte: prevRange.endDate } },
+        where: {
+          organizationId,
+          orderId: { not: null },
+          order: { ...closedOrderFilter, closedAt: { gte: prevRange.startDate, lte: prevRange.endDate } },
+        },
         _sum: { amount: true },
       }),
       this.prisma.order.count({
@@ -111,7 +129,11 @@ export class PosDashboardService {
       }),
       this.prisma.payment.groupBy({
         by: ['paymentMethod'],
-        where: { organizationId, orderId: { not: null }, paymentDate: { gte: startDate, lte: endDate } },
+        where: {
+          organizationId,
+          orderId: { not: null },
+          order: { ...closedOrderFilter, closedAt: { gte: startDate, lte: endDate } },
+        },
         _sum: { amount: true },
         _count: true,
         // Descending by total — the client reads index 0 as "Top Method", so order matters here.
@@ -192,17 +214,20 @@ export class PosDashboardService {
   async getTrend(organizationId: string, filter: ReportFilterDto) {
     const { startDate, endDate } = await this.getDateRange(organizationId, filter);
 
+    // Bucketed by the order's closed_at (not the payment's own payment_date) so the trend line
+    // sums to the same totals getSummary reports for the same range — see the comment there.
     const daily = await this.prisma.$queryRaw<{ day: string; total: number; count: number }[]>`
       SELECT
-        TO_CHAR(payment_date, 'YYYY-MM-DD') as day,
-        SUM(amount)::numeric as total,
+        TO_CHAR(o.closed_at, 'YYYY-MM-DD') as day,
+        SUM(p.amount)::numeric as total,
         COUNT(*)::integer as count
-      FROM payments
-      WHERE organization_id = ${organizationId}
-        AND order_id IS NOT NULL
-        AND payment_date >= ${startDate}
-        AND payment_date <= ${endDate}
-      GROUP BY TO_CHAR(payment_date, 'YYYY-MM-DD')
+      FROM payments p
+      JOIN orders o ON o.id = p.order_id
+      WHERE p.organization_id = ${organizationId}
+        AND o.status IN ('CLOSED_PAID', 'CLOSED_UNPAID')
+        AND o.closed_at >= ${startDate}
+        AND o.closed_at <= ${endDate}
+      GROUP BY TO_CHAR(o.closed_at, 'YYYY-MM-DD')
       ORDER BY day
     `;
 

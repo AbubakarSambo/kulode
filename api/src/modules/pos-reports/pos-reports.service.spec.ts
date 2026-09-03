@@ -2,7 +2,10 @@ import { PosReportsService } from './pos-reports.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 function createMockPrisma() {
-  return { order: { findMany: jest.fn() } };
+  return {
+    order: { findMany: jest.fn() },
+    organization: { findUnique: jest.fn().mockResolvedValue({ shiftStartTime: '00:00', shiftEndTime: '23:59' }) },
+  };
 }
 
 const ORG_ID = 'org-abc-123';
