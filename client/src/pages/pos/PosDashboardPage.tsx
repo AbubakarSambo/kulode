@@ -59,6 +59,7 @@ export function PosDashboardPage() {
   const paidPct = totalOrders > 0 ? (breakdown!.closedPaid.count / totalOrders) * 100 : 0
   const unpaidPct = totalOrders > 0 ? (breakdown!.closedUnpaid.count / totalOrders) * 100 : 0
   const openPct = totalOrders > 0 ? (breakdown!.open.count / totalOrders) * 100 : 0
+  const totalValue = (breakdown?.closedPaid.amount ?? 0) + (breakdown?.closedUnpaid.amount ?? 0) + (breakdown?.open.amount ?? 0)
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -126,6 +127,41 @@ export function PosDashboardPage() {
                     {Math.abs(change).toFixed(0)}%
                   </span>
                 )}
+              </div>
+              <div
+                className="mt-3 flex h-2 w-full gap-0.5 overflow-hidden rounded-full bg-muted"
+                title={`${breakdown?.closedPaid.count ?? 0} paid · ${breakdown?.closedUnpaid.count ?? 0} unpaid · ${breakdown?.open.count ?? 0} open`}
+              >
+                {paidPct > 0 && <div className="h-full bg-success" style={{ width: `${paidPct}%` }} />}
+                {unpaidPct > 0 && <div className="h-full bg-amber-500" style={{ width: `${unpaidPct}%` }} />}
+                {openPct > 0 && <div className="h-full bg-slate-400" style={{ width: `${openPct}%` }} />}
+              </div>
+              <div className="mt-2 space-y-1 text-[9px] sm:text-[10px] font-medium text-muted-foreground">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success" />
+                    Paid ({breakdown?.closedPaid.count ?? 0})
+                  </span>
+                  <span className="tabular-nums text-foreground">{formatCurrency(breakdown?.closedPaid.amount ?? 0)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                    Unpaid ({breakdown?.closedUnpaid.count ?? 0})
+                  </span>
+                  <span className="tabular-nums text-foreground">{formatCurrency(breakdown?.closedUnpaid.outstanding ?? 0)} owed</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                    Open ({breakdown?.open.count ?? 0})
+                  </span>
+                  <span className="tabular-nums text-foreground">{formatCurrency(breakdown?.open.amount ?? 0)}</span>
+                </div>
+              </div>
+              <div className="mt-2 flex items-center justify-between border-t border-border pt-2 text-[9px] sm:text-[10px] font-bold text-foreground">
+                <span>{totalOrders} orders total</span>
+                <span className="tabular-nums">{formatCurrency(totalValue)}</span>
               </div>
             </CardContent>
           </Card>
