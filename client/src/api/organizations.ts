@@ -14,6 +14,8 @@ export interface UpdateOrganizationData {
   serviceChargeRate?: number
   serviceChargeEnabled?: boolean
   showQrCode?: boolean
+  shiftStartTime?: string
+  shiftEndTime?: string
   paymentTerms?: string
   defaultNotes?: string
   businessType?: string

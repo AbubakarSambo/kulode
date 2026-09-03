@@ -6,3 +6,4 @@ export * from './dto';
 export * from './plan-limits';
 export * from './idempotent';
 export * from './pin';
+export * from './shift-hours';

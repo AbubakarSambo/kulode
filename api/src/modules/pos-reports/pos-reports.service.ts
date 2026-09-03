@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { applyShiftHours, DEFAULT_SHIFT_HOURS, ShiftHours } from '../../common';
 
 function toNumber(val: Prisma.Decimal | number): number {
   return typeof val === 'number' ? val : Number(val);
@@ -10,21 +11,17 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-function startOfDay(dateStr: string): Date {
-  const d = new Date(dateStr);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function endOfDay(dateStr: string): Date {
-  const d = new Date(dateStr);
-  d.setHours(23, 59, 59, 999);
-  return d;
-}
-
 @Injectable()
 export class PosReportsService {
   constructor(private prisma: PrismaService) {}
+
+  private async getOrgShiftHours(organizationId: string): Promise<ShiftHours> {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { shiftStartTime: true, shiftEndTime: true },
+    });
+    return org ?? DEFAULT_SHIFT_HOURS;
+  }
 
   /**
    * Mirrors a POS Z-report: sales/quantity by menu category, per-product totals, and
@@ -33,12 +30,14 @@ export class PosReportsService {
    */
   async getItemSalesReport(organizationId: string, from: string, to?: string) {
     const rangeEnd = to ?? from;
+    const shift = await this.getOrgShiftHours(organizationId);
+    const { startDate, endDate } = applyShiftHours(new Date(from), new Date(rangeEnd), shift);
 
     const orders = await this.prisma.order.findMany({
       where: {
         organizationId,
         status: OrderStatus.CLOSED_PAID,
-        closedAt: { gte: startOfDay(from), lte: endOfDay(rangeEnd) },
+        closedAt: { gte: startDate, lte: endDate },
       },
       select: {
         id: true,

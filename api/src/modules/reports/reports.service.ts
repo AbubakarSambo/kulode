@@ -1,12 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { applyShiftHours, DEFAULT_SHIFT_HOURS, ShiftHours } from '../../common';
 import { ReportFilterDto, ReportPeriod } from './dto';
 
 @Injectable()
 export class ReportsService {
   constructor(private prisma: PrismaService) {}
 
-  private getDateRange(filter: ReportFilterDto): { startDate: Date; endDate: Date } {
+  private async getOrgShiftHours(organizationId: string): Promise<ShiftHours> {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { shiftStartTime: true, shiftEndTime: true },
+    });
+    return org ?? DEFAULT_SHIFT_HOURS;
+  }
+
+  private async getDateRange(organizationId: string, filter: ReportFilterDto): Promise<{ startDate: Date; endDate: Date }> {
     const now = new Date();
     let startDate: Date;
     let endDate: Date = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
@@ -62,7 +71,8 @@ export class ReportsService {
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
     }
 
-    return { startDate, endDate };
+    const shift = await this.getOrgShiftHours(organizationId);
+    return applyShiftHours(startDate, endDate, shift);
   }
 
   private getPreviousDateRange(startDate: Date, endDate: Date, period: ReportPeriod | string): { startDate: Date; endDate: Date } {
@@ -97,7 +107,7 @@ export class ReportsService {
   }
 
   async getSummary(organizationId: string, filter: ReportFilterDto) {
-    const { startDate, endDate } = this.getDateRange(filter);
+    const { startDate, endDate } = await this.getDateRange(organizationId, filter);
 
     // Get previous period range for PoP calculations
     const prevRange = this.getPreviousDateRange(startDate, endDate, filter.period || 'THIS_MONTH');
@@ -309,7 +319,7 @@ export class ReportsService {
   }
 
   async getIncomeBreakdown(organizationId: string, filter: ReportFilterDto) {
-    const { startDate, endDate } = this.getDateRange(filter);
+    const { startDate, endDate } = await this.getDateRange(organizationId, filter);
 
     // Income by month
     const monthlyIncome = await this.prisma.$queryRaw<
@@ -376,7 +386,7 @@ export class ReportsService {
   }
 
   async getExpenseBreakdown(organizationId: string, filter: ReportFilterDto) {
-    const { startDate, endDate } = this.getDateRange(filter);
+    const { startDate, endDate } = await this.getDateRange(organizationId, filter);
 
     // Expenses by month
     const monthlyExpenses = await this.prisma.$queryRaw<
@@ -480,7 +490,7 @@ export class ReportsService {
   }
 
   async getTopServices(organizationId: string, filter: ReportFilterDto) {
-    const { startDate, endDate } = this.getDateRange(filter);
+    const { startDate, endDate } = await this.getDateRange(organizationId, filter);
 
     const services = await this.prisma.$queryRaw<
       { id: string; label: string; revenue: number; volume: number; count: number }[]
@@ -517,7 +527,7 @@ export class ReportsService {
   }
 
   async getTopProducts(organizationId: string, filter: ReportFilterDto) {
-    const { startDate, endDate } = this.getDateRange(filter);
+    const { startDate, endDate } = await this.getDateRange(organizationId, filter);
 
     const products = await this.prisma.$queryRaw<
       { id: string; label: string; revenue: number; volume: number; count: number }[]
@@ -554,7 +564,7 @@ export class ReportsService {
   }
 
   async getCashflow(organizationId: string, filter: ReportFilterDto) {
-    const { startDate, endDate } = this.getDateRange(filter);
+    const { startDate, endDate } = await this.getDateRange(organizationId, filter);
 
     // Monthly income
     const monthlyIncome = await this.prisma.$queryRaw<{ month: string; total: number }[]>`

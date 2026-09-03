@@ -1,12 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { applyShiftHours, DEFAULT_SHIFT_HOURS, ShiftHours } from '../../common';
 import { ReportFilterDto, ReportPeriod } from '../reports/dto';
 
 @Injectable()
 export class PosDashboardService {
   constructor(private prisma: PrismaService) {}
 
-  private getDateRange(filter: ReportFilterDto): { startDate: Date; endDate: Date } {
+  private async getOrgShiftHours(organizationId: string): Promise<ShiftHours> {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { shiftStartTime: true, shiftEndTime: true },
+    });
+    return org ?? DEFAULT_SHIFT_HOURS;
+  }
+
+  private async getDateRange(organizationId: string, filter: ReportFilterDto): Promise<{ startDate: Date; endDate: Date }> {
     const now = new Date();
     let startDate: Date;
     let endDate: Date = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
@@ -62,7 +71,8 @@ export class PosDashboardService {
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
     }
 
-    return { startDate, endDate };
+    const shift = await this.getOrgShiftHours(organizationId);
+    return applyShiftHours(startDate, endDate, shift);
   }
 
   private getPreviousDateRange(startDate: Date, endDate: Date): { startDate: Date; endDate: Date } {
@@ -79,7 +89,7 @@ export class PosDashboardService {
   }
 
   async getSummary(organizationId: string, filter: ReportFilterDto) {
-    const { startDate, endDate } = this.getDateRange(filter);
+    const { startDate, endDate } = await this.getDateRange(organizationId, filter);
     const prevRange = this.getPreviousDateRange(startDate, endDate);
 
     const [sales, prevSales, orderCount, byMethod, topItems, topStaff] = await Promise.all([
@@ -180,7 +190,7 @@ export class PosDashboardService {
   }
 
   async getTrend(organizationId: string, filter: ReportFilterDto) {
-    const { startDate, endDate } = this.getDateRange(filter);
+    const { startDate, endDate } = await this.getDateRange(organizationId, filter);
 
     const daily = await this.prisma.$queryRaw<{ day: string; total: number; count: number }[]>`
       SELECT

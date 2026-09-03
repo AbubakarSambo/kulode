@@ -22,6 +22,8 @@ const organizationSchema = z.object({
   invoicePrefix: z.string().max(10).optional(),
   vatEnabled: z.boolean().optional(),
   showQrCode: z.boolean().optional(),
+  shiftStartTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Use HH:mm format').optional(),
+  shiftEndTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Use HH:mm format').optional(),
   taxRate: z.number().min(0).max(100).optional(),
   entertainmentTaxEnabled: z.boolean().optional(),
   entertainmentTaxRate: z.number().min(0).max(100).optional(),
@@ -95,6 +97,8 @@ export function OrganizationPage() {
       invoicePrefix: '',
       vatEnabled: false,
       showQrCode: false,
+      shiftStartTime: '00:00',
+      shiftEndTime: '23:59',
       taxRate: 0,
       entertainmentTaxEnabled: false,
       entertainmentTaxRate: 0,
@@ -121,6 +125,8 @@ export function OrganizationPage() {
         invoicePrefix: organization.invoicePrefix,
         vatEnabled: organization.vatEnabled,
         showQrCode: organization.showQrCode ?? false,
+        shiftStartTime: organization.shiftStartTime || '00:00',
+        shiftEndTime: organization.shiftEndTime || '23:59',
         taxRate: Number(organization.taxRate) || 0,
         entertainmentTaxEnabled: organization.entertainmentTaxEnabled,
         entertainmentTaxRate: Number(organization.entertainmentTaxRate) || 0,
@@ -495,6 +501,43 @@ export function OrganizationPage() {
                   These notes will be automatically added to new invoices.
                 </p>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Business Hours */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Business Hours</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Defines what counts as one business day for your reports and dashboards — e.g. sales
+                made at 1am under a 6:00 PM start time still count toward the previous day's shift.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="shiftStartTime">Shift Start Time</Label>
+                  <Input
+                    id="shiftStartTime"
+                    type="time"
+                    {...register('shiftStartTime')}
+                    error={errors.shiftStartTime?.message}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="shiftEndTime">Shift End Time</Label>
+                  <Input
+                    id="shiftEndTime"
+                    type="time"
+                    {...register('shiftEndTime')}
+                    error={errors.shiftEndTime?.message}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                If the end time is earlier than (or equal to) the start time, the shift is treated as
+                running overnight into the next calendar day.
+              </p>
             </CardContent>
           </Card>
 

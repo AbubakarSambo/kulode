@@ -205,6 +205,11 @@ model Organization {
   serviceChargeRate       Decimal   @default(0) @map("service_charge_rate") @db.Decimal(5, 2)
   serviceChargeEnabled    Boolean   @default(false) @map("service_charge_enabled")
   showQrCode              Boolean   @default(false) @map("show_qr_code")
+  // What this restaurant considers one business day, e.g. "06:00"-"18:00" for a lunch spot or
+  // "18:00"-"02:00" for a bar (end <= start means the shift crosses midnight). Reports and
+  // dashboards bucket "today"/daily figures against this window instead of literal midnight.
+  shiftStartTime          String    @default("00:00") @map("shift_start_time")
+  shiftEndTime            String    @default("23:59") @map("shift_end_time")
   paymentTerms            String?   @map("payment_terms")
   defaultNotes            String?   @map("default_notes")
   businessType            String?   @map("business_type")

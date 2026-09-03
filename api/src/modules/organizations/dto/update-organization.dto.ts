@@ -7,10 +7,13 @@ import {
   IsNumber,
   IsBoolean,
   IsEnum,
+  Matches,
   Min,
   Max,
 } from 'class-validator';
 import { OrgModule } from '@prisma/client';
+
+const TIME_OF_DAY_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 export class UpdateOrganizationDto {
   @ApiPropertyOptional({ example: 'CleanTex' })
@@ -93,6 +96,25 @@ export class UpdateOrganizationDto {
   @IsOptional()
   @IsBoolean()
   showQrCode?: boolean;
+
+  @ApiPropertyOptional({
+    example: '06:00',
+    description: 'Start of the business day ("HH:mm", 24-hour) that reports/dashboards bucket "today" against',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(TIME_OF_DAY_PATTERN, { message: 'shiftStartTime must be in HH:mm format' })
+  shiftStartTime?: string;
+
+  @ApiPropertyOptional({
+    example: '18:00',
+    description:
+      'End of the business day ("HH:mm", 24-hour). A value at or before shiftStartTime means the shift crosses midnight.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(TIME_OF_DAY_PATTERN, { message: 'shiftEndTime must be in HH:mm format' })
+  shiftEndTime?: string;
 
   @ApiPropertyOptional({ description: 'Logo URL' })
   @IsOptional()

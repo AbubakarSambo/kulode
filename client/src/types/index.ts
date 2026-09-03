@@ -147,6 +147,8 @@ export interface Organization {
   serviceChargeRate: number
   serviceChargeEnabled: boolean
   showQrCode: boolean
+  shiftStartTime: string
+  shiftEndTime: string
   paymentTerms?: string
   defaultNotes?: string
   isPaystackVerified: boolean
