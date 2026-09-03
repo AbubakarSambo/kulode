@@ -108,7 +108,7 @@ export class PosDashboardService {
       status: { in: [OrderStatus.CLOSED_PAID, OrderStatus.CLOSED_UNPAID] },
     };
 
-    const [sales, prevSales, orderCount, byMethod, topItems, topStaff] = await Promise.all([
+    const [sales, prevSales, orderCount, closedPaidAgg, closedUnpaidAgg, openAgg, byMethod, topItems, topStaff] = await Promise.all([
       this.prisma.payment.aggregate({
         where: {
           organizationId,
@@ -132,6 +132,23 @@ export class PosDashboardService {
           status: { in: ['CLOSED_PAID', 'CLOSED_UNPAID'] },
           closedAt: { gte: startDate, lte: endDate },
         },
+      }),
+      this.prisma.order.aggregate({
+        where: { organizationId, status: OrderStatus.CLOSED_PAID, closedAt: { gte: startDate, lte: endDate } },
+        _count: true,
+        _sum: { total: true },
+      }),
+      this.prisma.order.aggregate({
+        where: { organizationId, status: OrderStatus.CLOSED_UNPAID, closedAt: { gte: startDate, lte: endDate } },
+        _count: true,
+        _sum: { total: true, amountPaid: true },
+      }),
+      // Open orders have no closedAt to bucket by, so this is a live snapshot of what's
+      // currently open — not scoped to the selected period like the closed buckets above.
+      this.prisma.order.aggregate({
+        where: { organizationId, status: { in: [OrderStatus.OPEN, OrderStatus.IN_KITCHEN, OrderStatus.READY] } },
+        _count: true,
+        _sum: { total: true },
       }),
       this.prisma.payment.groupBy({
         by: ['paymentMethod'],
@@ -187,6 +204,11 @@ export class PosDashboardService {
     const totalSales = Number(sales._sum.amount || 0);
     const prevTotalSales = Number(prevSales._sum.amount || 0);
 
+    const closedPaidTotal = Number(closedPaidAgg._sum.total || 0);
+    const closedUnpaidTotal = Number(closedUnpaidAgg._sum.total || 0);
+    const closedUnpaidCollected = Number(closedUnpaidAgg._sum.amountPaid || 0);
+    const openTotal = Number(openAgg._sum.total || 0);
+
     return {
       period: { startDate, endDate },
       sales: {
@@ -196,6 +218,19 @@ export class PosDashboardService {
       },
       orderCount,
       avgOrderValue: orderCount > 0 ? totalSales / orderCount : 0,
+      // Powers the composite Orders card: Total = closed (paid + unpaid) + currently-open, so a
+      // period with a lot of unpaid or still-open orders doesn't just look like "low sales."
+      orderBreakdown: {
+        total: closedPaidAgg._count + closedUnpaidAgg._count + openAgg._count,
+        closedPaid: { count: closedPaidAgg._count, amount: closedPaidTotal },
+        closedUnpaid: {
+          count: closedUnpaidAgg._count,
+          amount: closedUnpaidTotal,
+          outstanding: closedUnpaidTotal - closedUnpaidCollected,
+        },
+        // Live snapshot, not period-scoped — see the query above.
+        open: { count: openAgg._count, amount: openTotal },
+      },
       byPaymentMethod: byMethod.map((m) => ({
         method: m.paymentMethod,
         total: Number(m._sum.amount || 0),

@@ -7,6 +7,12 @@ export interface PosDashboardSummary {
   sales: { total: number; change: number; paymentCount: number }
   orderCount: number
   avgOrderValue: number
+  orderBreakdown: {
+    total: number
+    closedPaid: { count: number; amount: number }
+    closedUnpaid: { count: number; amount: number; outstanding: number }
+    open: { count: number; amount: number }
+  }
   byPaymentMethod: { method: string; total: number; count: number }[]
   topItems: { id: string; name: string; quantity: number; revenue: number; orders: number }[]
   topStaff: { id: string; name: string; revenue: number; orders: number }[]
