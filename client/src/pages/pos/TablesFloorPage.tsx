@@ -298,7 +298,7 @@ export function TablesFloorPage() {
                           <Pencil className="h-3 w-3" />
                         </button>
                       )}
-                      <span className="text-xl font-extrabold">{table.name}</span>
+                      <span className="text-2xl font-extrabold">{table.name}</span>
                       <span className="text-sm font-bold uppercase tracking-wide">{STATUS_LABELS[table.status]}</span>
                       {totalByTableId.has(table.id) && (
                         <span className="text-base font-bold">{formatCurrency(totalByTableId.get(table.id)!)}</span>
@@ -306,7 +306,7 @@ export function TablesFloorPage() {
                       {waiterByTableId.has(table.id) && (
                         <span className="text-xs font-medium opacity-90">{waiterByTableId.get(table.id)}</span>
                       )}
-                      <span className="text-xs font-medium opacity-90">{table.capacity} seats</span>
+                      <span className="text-base font-bold opacity-90">{table.capacity} seats</span>
                     </div>
                   ))}
                 </div>
