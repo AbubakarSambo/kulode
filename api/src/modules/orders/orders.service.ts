@@ -242,9 +242,13 @@ export class OrdersService {
   }
 
   async findOne(organizationId: string, id: string) {
+    // The items -> menuItem -> categories -> category chain is a strict dependency chain, so
+    // Prisma's default "query" strategy runs it as sequential round trips. `join` compiles the
+    // whole include tree into one SQL query instead.
     const order = await this.prisma.order.findFirst({
       where: { id, organizationId },
       include: this.orderInclude,
+      relationLoadStrategy: 'join',
     });
     if (!order) throw new NotFoundException('Order not found');
     return order;
