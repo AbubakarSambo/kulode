@@ -81,71 +81,78 @@ export function PosReportsPage() {
   const hasSales = !!report && report.products.length > 0
   const activeOption = periodOptions.find((opt) => opt.value === period)
 
+  // Header's action slot is hidden on mobile (the shared Header component only renders at sm+),
+  // so this filter is rendered a second time below for small screens — otherwise it's simply
+  // unreachable there.
+  const filterControls = (
+    <div className="flex items-center gap-2 print:hidden">
+      <div className="relative inline-block text-left w-full sm:w-auto">
+        <button
+          onClick={() => setDropdownOpen(!dropdownOpen)}
+          className="h-11 px-4 rounded-xl border border-border bg-card text-xs font-semibold text-foreground hover:bg-muted/50 transition-all flex items-center justify-between gap-2.5 min-w-[150px] w-full sm:w-auto"
+        >
+          <span>{activeOption?.label}</span>
+          <ChevronDown className={cn('h-3.5 w-3.5 text-muted-foreground transition-transform', dropdownOpen && 'rotate-180')} />
+        </button>
+        <DropdownPanel isOpen={dropdownOpen} onClose={() => setDropdownOpen(false)} align="right" widthClass="w-full sm:w-48" zIndexClass="z-20">
+          {periodOptions.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => {
+                setPeriod(opt.value)
+                setDropdownOpen(false)
+              }}
+              className={cn(
+                'w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors block',
+                period === opt.value ? 'bg-primary/5 text-primary' : 'text-foreground hover:bg-muted/50',
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </DropdownPanel>
+      </div>
+      {period === 'CUSTOM' && (
+        <>
+          <DatePicker value={customFrom} onChange={setCustomFrom} className="w-36" align="right" placeholder="From" />
+          <Input
+            type="time"
+            value={fromTime}
+            onChange={(e) => setFromTime(e.target.value)}
+            className="h-11 w-32"
+            aria-label="From time"
+          />
+          <DatePicker value={customTo} onChange={setCustomTo} className="w-36" align="right" placeholder="To" />
+          <Input
+            type="time"
+            value={toTime}
+            onChange={(e) => setToTime(e.target.value)}
+            className="h-11 w-32"
+            aria-label="To time"
+          />
+        </>
+      )}
+      {hasSales && (
+        <button
+          onClick={() => window.print()}
+          className="h-11 px-4 rounded-xl border border-border bg-card text-xs font-bold text-foreground hover:bg-muted/50 transition-all flex items-center gap-2"
+        >
+          <Printer className="h-4 w-4" />
+          Print
+        </button>
+      )}
+    </div>
+  )
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <Header
         title="Item Sales Report"
         description="Sales and quantities by category and product for a chosen day or date range"
-        action={
-          <div className="flex items-center gap-2 print:hidden">
-            <div className="relative inline-block text-left w-full sm:w-auto">
-              <button
-                onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="h-11 px-4 rounded-xl border border-border bg-card text-xs font-semibold text-foreground hover:bg-muted/50 transition-all flex items-center justify-between gap-2.5 min-w-[150px] w-full sm:w-auto"
-              >
-                <span>{activeOption?.label}</span>
-                <ChevronDown className={cn('h-3.5 w-3.5 text-muted-foreground transition-transform', dropdownOpen && 'rotate-180')} />
-              </button>
-              <DropdownPanel isOpen={dropdownOpen} onClose={() => setDropdownOpen(false)} align="right" widthClass="w-full sm:w-48" zIndexClass="z-20">
-                {periodOptions.map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => {
-                      setPeriod(opt.value)
-                      setDropdownOpen(false)
-                    }}
-                    className={cn(
-                      'w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors block',
-                      period === opt.value ? 'bg-primary/5 text-primary' : 'text-foreground hover:bg-muted/50',
-                    )}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </DropdownPanel>
-            </div>
-            {period === 'CUSTOM' && (
-              <>
-                <DatePicker value={customFrom} onChange={setCustomFrom} className="w-36" align="right" placeholder="From" />
-                <Input
-                  type="time"
-                  value={fromTime}
-                  onChange={(e) => setFromTime(e.target.value)}
-                  className="h-11 w-32"
-                  aria-label="From time"
-                />
-                <DatePicker value={customTo} onChange={setCustomTo} className="w-36" align="right" placeholder="To" />
-                <Input
-                  type="time"
-                  value={toTime}
-                  onChange={(e) => setToTime(e.target.value)}
-                  className="h-11 w-32"
-                  aria-label="To time"
-                />
-              </>
-            )}
-            {hasSales && (
-              <button
-                onClick={() => window.print()}
-                className="h-11 px-4 rounded-xl border border-border bg-card text-xs font-bold text-foreground hover:bg-muted/50 transition-all flex items-center gap-2"
-              >
-                <Printer className="h-4 w-4" />
-                Print
-              </button>
-            )}
-          </div>
-        }
+        action={filterControls}
       />
+
+      <div className="border-b border-border p-4 sm:hidden print:hidden">{filterControls}</div>
 
       <div className="flex-1 overflow-auto p-4 sm:p-6">
         {!isLoading && !hasSales && (
