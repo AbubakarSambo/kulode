@@ -3,6 +3,10 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "cleanUrls": true,
+  "redirects": [
+    { "source": "/invoicing", "destination": "/", "permanent": false },
+    { "source": "/tax-filing", "destination": "/", "permanent": false }
+  ],
   "headers": [
     {
       "source": "/(.*)",

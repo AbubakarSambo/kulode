@@ -4,18 +4,20 @@ import Navbar from '../components/Navbar.astro'
 import Footer from '../components/Footer.astro'
 
 const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
-const waitlistUrl = import.meta.env.PUBLIC_WAITLIST_URL ?? ''
 ---
 
-<Layout title="Tari1 — Invoicing that gets you paid faster">
+<Layout
+  title="Tari1 — The POS built for busy Nigerian restaurants"
+  description="Take orders tableside, fire tickets to the kitchen instantly, manage your floor, and reconcile every shift — even when the network drops. The POS built for Nigerian restaurants and bars."
+>
   <Navbar activePage="features" />
 
   <main class="hero-gradient">
     <!-- Hero Section -->
     <section class="max-w-7xl mx-auto px-container-padding py-16 md:py-32 grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 items-center">
       <div class="stagger-in">
-        <h1 class="text-4xl sm:text-5xl md:text-[72px] leading-[1.1] font-bold text-primary tracking-tight mb-6">Invoicing that gets you <span class="text-surface-tint">paid faster</span> — and keeps you compliant.</h1>
-        <p class="text-base text-text-secondary mb-10 max-w-lg font-medium">Automate your billing, track payments in real-time, and auto-generate FIRS-ready tax schedules. Built for Nigerian small businesses, freelancers, and DNFBPs — from car dealers to social merchants.</p>
+        <h1 class="text-4xl sm:text-5xl md:text-[72px] leading-[1.1] font-bold text-primary tracking-tight mb-6">The POS that keeps your restaurant running — <span class="text-surface-tint">online or off</span>.</h1>
+        <p class="text-base text-text-secondary mb-10 max-w-lg font-medium">Take orders tableside, fire tickets straight to the kitchen, manage your floor in real time, and reconcile every shift down to the naira — even when the network drops. Built for Nigerian restaurants, bars, and quick-service spots.</p>
         <div class="flex flex-col sm:flex-row gap-4 items-center">
           <a href={`${appUrl}/register`} class="w-full sm:w-auto text-center bg-primary text-on-primary px-10 py-5 rounded-[12px] text-lg font-bold shadow-2xl shadow-primary/25 active:scale-95 btn-gradient pulse-primary">
             Start for free
@@ -26,11 +28,11 @@ const waitlistUrl = import.meta.env.PUBLIC_WAITLIST_URL ?? ''
               <div class="w-8 h-8 rounded-full border-2 border-background bg-primary-fixed"></div>
               <div class="w-8 h-8 rounded-full border-2 border-background bg-secondary-fixed"></div>
             </div>
-            <span class="text-xs text-text-secondary font-medium">Built for Nigerian entrepreneurs</span>
+            <span class="text-xs text-text-secondary font-medium">Built for Nigerian restaurants & bars</span>
           </div>
         </div>
       </div>
-      <!-- ── Hero Right Column: Lady-dominant composition ── -->
+      <!-- ── Hero Right Column ── -->
       <div class="relative w-full flex items-center justify-center py-6 md:py-12 stagger-in hero-visual-col select-none overflow-visible">
 
         <!-- ── Multi-layer ambient glow (rich depth) ── -->
@@ -43,17 +45,17 @@ const waitlistUrl = import.meta.env.PUBLIC_WAITLIST_URL ?? ''
           <div class="absolute top-[20%] left-[20%] w-[60%] h-[55%] rounded-full bg-white/60 blur-[50px]"></div>
         </div>
 
-        <!-- ── Reimagined Premium Portrait Card ── -->
+        <!-- ── Premium Portrait Card ── -->
         <div class="relative w-[85%] max-w-[420px] aspect-[4/5] rounded-[32px] overflow-hidden border-2 border-white/80 shadow-[0_24px_48px_rgba(0,55,176,0.12)] bg-white z-10 hover:shadow-[0_32px_64px_rgba(0,55,176,0.18)] transition-all duration-500 float-slow">
           <img
             src="/nigerian_entrepreneur.png"
-            alt="Professional Nigerian entrepreneur using Tari1"
+            alt="Nigerian restaurant owner running Tari1 POS"
             class="w-full h-full object-cover"
             loading="eager"
           />
         </div>
 
-        <!-- ── Floating Badge 1: Payment Received (bottom-left) ── -->
+        <!-- ── Floating Badge 1: Table Status (bottom-left) ── -->
         <div class="absolute bottom-[10%] left-[2%] sm:left-[4%] md:left-[8%] z-20
                     glass-card p-3 sm:p-4 rounded-[20px] sm:rounded-[24px]
                     shadow-[0_12px_32px_rgba(0,55,176,0.12)]
@@ -62,19 +64,19 @@ const waitlistUrl = import.meta.env.PUBLIC_WAITLIST_URL ?? ''
                     animate-float-card
                     hover:scale-[1.03] transition-transform duration-300">
           <div class="flex items-center gap-2.5 mb-1.5">
-            <div class="w-7 h-7 rounded-full bg-success/20 flex items-center justify-center text-success shrink-0 relative">
-              <i class="hgi-stroke hgi-checkmark-circle-01 text-[16px] z-10"></i>
-              <span class="absolute inset-0 rounded-full bg-success/30 animate-ping"></span>
+            <div class="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center text-primary shrink-0 relative">
+              <i class="hgi-stroke hgi-table-01 text-[16px] z-10"></i>
+              <span class="absolute inset-0 rounded-full bg-primary/25 animate-ping"></span>
             </div>
             <div>
-              <p class="text-[9px] sm:text-[10px] font-bold text-text-primary">Payment Received</p>
-              <p class="text-[8px] text-text-secondary">Just now · invoice #442</p>
+              <p class="text-[9px] sm:text-[10px] font-bold text-text-primary">Table 4 · Occupied</p>
+              <p class="text-[8px] text-text-secondary">Waiter: Amaka · 32 min</p>
             </div>
           </div>
-          <p class="text-base sm:text-lg font-bold text-primary tabular-nums">₦240,000.00</p>
+          <p class="text-base sm:text-lg font-bold text-primary tabular-nums">₦18,500 open</p>
         </div>
 
-        <!-- ── Floating Badge 2: Invoice Sent (top-right) ── -->
+        <!-- ── Floating Badge 2: Kitchen Ticket (top-right) ── -->
         <div class="absolute top-[8%] right-[2%] sm:right-[4%] md:right-[8%] z-20
                     glass-card p-2.5 sm:p-3 rounded-[18px] sm:rounded-[20px]
                     shadow-[0_12px_32px_rgba(0,55,176,0.12)]
@@ -83,15 +85,15 @@ const waitlistUrl = import.meta.env.PUBLIC_WAITLIST_URL ?? ''
                     animate-float-card-alt
                     hover:scale-[1.03] transition-transform duration-300">
           <div class="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-white shrink-0">
-            <i class="hgi-stroke hgi-mail-send-02 text-[11px]"></i>
+            <i class="hgi-stroke hgi-chef-hat text-[11px]"></i>
           </div>
           <div>
-            <p class="text-[9px] sm:text-[10px] font-bold text-text-primary">Invoice Sent ✓</p>
-            <p class="text-[7px] sm:text-[8px] text-text-secondary">2s ago · WhatsApp</p>
+            <p class="text-[9px] sm:text-[10px] font-bold text-text-primary">Kitchen Ticket Fired ✓</p>
+            <p class="text-[7px] sm:text-[8px] text-text-secondary">3 items · Table 4 · 0:04s</p>
           </div>
         </div>
 
-        <!-- ── Floating Badge 3: Tax Report Ready (mid-right) ── -->
+        <!-- ── Floating Badge 3: Shift Closed (mid-right) ── -->
         <div class="absolute top-[48%] right-[1%] sm:right-[2%] md:right-[4%] z-20
                     glass-card p-2.5 sm:p-3 rounded-[18px] sm:rounded-[20px]
                     shadow-[0_12px_32px_rgba(0,108,73,0.12)]
@@ -103,8 +105,8 @@ const waitlistUrl = import.meta.env.PUBLIC_WAITLIST_URL ?? ''
             <i class="hgi-stroke hgi-file-verified text-[11px]"></i>
           </div>
           <div>
-            <p class="text-[9px] sm:text-[10px] font-bold text-text-primary">Tax Report Ready</p>
-            <p class="text-[7px] sm:text-[8px] text-text-secondary">Auto-generated · FIRS</p>
+            <p class="text-[9px] sm:text-[10px] font-bold text-text-primary">Shift Closed</p>
+            <p class="text-[7px] sm:text-[8px] text-text-secondary">Cash counted · Variance ₦0</p>
           </div>
         </div>
 
@@ -119,31 +121,31 @@ const waitlistUrl = import.meta.env.PUBLIC_WAITLIST_URL ?? ''
       </div>
     </div>
 
-    <!-- Interactive Distribution & Payment Demo Section -->
+    <!-- Order to Cash Demo Section -->
     <section class="max-w-7xl mx-auto px-container-padding py-24 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
       <div class="stagger-in">
-        <span class="inline-block px-3 py-1 rounded-full bg-success/15 text-success text-[10px] font-bold uppercase tracking-wider mb-4">Instant Distribution</span>
-        <h2 class="text-3xl md:text-5xl font-extrabold text-primary mb-6 leading-tight">Send instantly. Get paid seamlessly.</h2>
+        <span class="inline-block px-3 py-1 rounded-full bg-success/15 text-success text-[10px] font-bold uppercase tracking-wider mb-4">Order to Cash, In Seconds</span>
+        <h2 class="text-3xl md:text-5xl font-extrabold text-primary mb-6 leading-tight">Take the order. Fire the kitchen. Get paid.</h2>
         <p class="text-base text-text-secondary mb-8 leading-relaxed">
-          Create invoices and share them instantly via WhatsApp or Email. Customers receive a direct link to settle invoices securely using cards, USSD, or direct bank transfer via Paystack.
+          Waiters take orders at the table from any phone or tablet. Kitchen staff see tickets the instant they're sent, with a prep timer on every item so nothing goes cold. Cashiers close out with cash, card, transfer, or Paystack — reconciled automatically at shift end.
         </p>
         <div class="space-y-6">
           <div class="flex items-start gap-4">
             <div class="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center text-primary shrink-0">
-              <i class="hgi-stroke hgi-mail-01 text-lg"></i>
+              <i class="hgi-stroke hgi-restaurant-01 text-lg"></i>
             </div>
             <div>
-              <p class="text-sm font-bold text-text-primary">Email Delivery Automation</p>
-              <p class="text-xs text-text-secondary">Tari1 auto-sends professional invoices with inline action buttons directly to your customer's inbox.</p>
+              <p class="text-sm font-bold text-text-primary">Tableside Ordering</p>
+              <p class="text-xs text-text-secondary">Add items, note modifications per line, and assign a waiter and table before the kitchen even sees it.</p>
             </div>
           </div>
           <div class="flex items-start gap-4">
             <div class="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center text-success shrink-0">
-              <i class="hgi-stroke hgi-whatsapp text-lg"></i>
+              <i class="hgi-stroke hgi-chef-hat text-lg"></i>
             </div>
             <div>
-              <p class="text-sm font-bold text-text-primary">Direct WhatsApp Sharing</p>
-              <p class="text-xs text-text-secondary">Copy short payment links or use WhatsApp integrations to send custom alerts that clients can click immediately.</p>
+              <p class="text-sm font-bold text-text-primary">Live Kitchen Display</p>
+              <p class="text-xs text-text-secondary">Every ticket lands on the kitchen screen in real time, with a countdown per item so nothing's late.</p>
             </div>
           </div>
           <div class="flex items-start gap-4">
@@ -151,8 +153,8 @@ const waitlistUrl = import.meta.env.PUBLIC_WAITLIST_URL ?? ''
               <i class="hgi-stroke hgi-flash text-lg"></i>
             </div>
             <div>
-              <p class="text-sm font-bold text-text-primary">One-Click Paystack Settlement</p>
-              <p class="text-xs text-text-secondary">No complex bank app transfers. Customers pay with bank transfer, card, or USSD via our secured checkout.</p>
+              <p class="text-sm font-bold text-text-primary">One-Tap Checkout</p>
+              <p class="text-xs text-text-secondary">Cash, card, bank transfer, wallet, or Paystack — split however the table wants to pay.</p>
             </div>
           </div>
         </div>
@@ -163,42 +165,42 @@ const waitlistUrl = import.meta.env.PUBLIC_WAITLIST_URL ?? ''
         <!-- Background decorative pulse circle -->
         <div class="absolute w-[360px] h-[360px] rounded-full bg-primary/5 blur-3xl -z-10 animate-pulse"></div>
 
-        <!-- Cutout Image Card of Person Looking at Phone -->
+        <!-- Cutout Image Card -->
         <div class="relative w-[280px] h-[380px] rounded-[32px] overflow-visible flex items-center justify-center border border-white/60 shadow-2xl bg-white p-2">
-          <img src="/person_looking_at_phone.png" alt="Person looking at phone" class="w-full h-full object-cover rounded-[24px] filter" />
-          
+          <img src="/person_looking_at_phone.png" alt="Waiter taking an order on a phone" class="w-full h-full object-cover rounded-[24px] filter" />
+
           <!-- Animation overlays -->
-          
-          <!-- Email flying card -->
+
+          <!-- Order sent flying card -->
           <div class="absolute -top-6 -left-12 glass-card p-4 rounded-[20px] shadow-lg border border-white/20 max-w-[200px] flex items-center gap-3 animate-float-email">
             <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white shrink-0">
-              <i class="hgi-stroke hgi-mail-01 text-sm"></i>
+              <i class="hgi-stroke hgi-restaurant-01 text-sm"></i>
             </div>
             <div>
-              <p class="text-[10px] font-bold text-text-primary leading-tight">Invoice Sent</p>
-              <p class="text-[8px] text-text-secondary leading-tight">via email ✉️</p>
+              <p class="text-[10px] font-bold text-text-primary leading-tight">Order Sent</p>
+              <p class="text-[8px] text-text-secondary leading-tight">to Kitchen 🍳</p>
             </div>
           </div>
 
-          <!-- WhatsApp Chat bubble -->
+          <!-- Kitchen ticket bubble -->
           <div class="absolute top-[35%] -right-16 bg-[#d9fdd3] p-4 rounded-[20px] rounded-tr-none shadow-md border border-[#c2f0b7] max-w-[220px] flex items-start gap-3 animate-slide-whatsapp">
-            <div class="w-6 h-6 rounded-full bg-[#25d366] flex items-center justify-center text-white shrink-0 mt-0.5">
-              <i class="hgi-stroke hgi-whatsapp text-xs text-white"></i>
+            <div class="w-6 h-6 rounded-full bg-[#0037b0] flex items-center justify-center text-white shrink-0 mt-0.5">
+              <i class="hgi-stroke hgi-chef-hat text-xs text-white"></i>
             </div>
             <div>
-              <p class="text-[9px] text-[#128c7e] font-bold">Tarione Notification</p>
-              <p class="text-[10px] text-text-primary leading-snug mt-1">Hello! Here is your invoice. Pay instantly at <span class="text-blue-600 underline">pay.tarione.com/inv-001</span></p>
+              <p class="text-[9px] text-[#0037b0] font-bold">Kitchen · Table 4</p>
+              <p class="text-[10px] text-text-primary leading-snug mt-1">3 items — Jollof Rice x2, Suya Wrap x1. Timer started.</p>
             </div>
           </div>
 
-          <!-- Clicking to pay animation bubble -->
+          <!-- Checkout animation bubble -->
           <div class="absolute -bottom-6 -left-8 bg-white p-4 rounded-[24px] shadow-2xl border border-outline-variant max-w-[220px] animate-pay-flow">
             <div class="text-center">
-              <p class="text-[10px] text-text-secondary">Amount Due</p>
-              <p class="text-sm font-extrabold text-primary mb-2">₦150,000.00</p>
+              <p class="text-[10px] text-text-secondary">Table 4 Total</p>
+              <p class="text-sm font-extrabold text-primary mb-2">₦18,500.00</p>
               <div class="relative inline-block w-full">
                 <div class="w-full text-white text-[10px] font-bold py-2.5 rounded-lg flex items-center justify-center gap-1.5 shadow-md shadow-primary/20 relative animate-btn-pay select-none">
-                  <span class="pay-text-paynow absolute inset-0 flex items-center justify-center animate-text-paynow">PAY NOW</span>
+                  <span class="pay-text-paynow absolute inset-0 flex items-center justify-center animate-text-paynow">CHARGE TABLE</span>
                   <span class="pay-text-paid absolute inset-0 flex items-center justify-center animate-text-paid opacity-0 text-success bg-success-container font-extrabold">PAID ✓</span>
                 </div>
                 <!-- Hand clicking cursor -->
@@ -217,43 +219,41 @@ const waitlistUrl = import.meta.env.PUBLIC_WAITLIST_URL ?? ''
     <section id="features" class="bg-surface-container-low py-32">
       <div class="max-w-7xl mx-auto px-container-padding">
         <div class="text-center mb-20 stagger-in">
-          <h2 class="text-3xl font-extrabold text-primary mb-4">Everything you need to manage your money</h2>
-          <p class="text-base text-text-secondary max-w-2xl mx-auto">Stop juggling multiple spreadsheets and apps. Tari1 centralizes your entire financial workflow into a single, beautiful dashboard.</p>
+          <h2 class="text-3xl font-extrabold text-primary mb-4">One POS. Every part of service.</h2>
+          <p class="text-base text-text-secondary max-w-2xl mx-auto">Stop juggling a paper order pad, a separate kitchen printer, and an end-of-night spreadsheet. Tari1 runs the whole shift from one screen.</p>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <!-- Feature 1: Compliance -->
+          <!-- Feature 1: Kitchen Display -->
           <div class="feature-card bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] hover:shadow-[0_16px_40px_rgba(0,55,176,0.08)] transition-all duration-300 stagger-in flex flex-col justify-between">
             <div>
               <div class="flex items-center justify-between mb-4">
-                <span class="inline-block px-3 py-1 rounded-full bg-[#ffddb8] text-[#121c28] text-[10px] font-bold uppercase tracking-widest">Compliance</span>
-                <span class="inline-block px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-[9px] font-bold uppercase tracking-wider">Coming Soon</span>
+                <span class="inline-block px-3 py-1 rounded-full bg-[#ffddb8] text-[#121c28] text-[10px] font-bold uppercase tracking-widest">Kitchen</span>
               </div>
               <div class="feature-icon w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
-                <i class="hgi-stroke hgi-invoice-03 text-[32px]"></i>
+                <i class="hgi-stroke hgi-chef-hat text-[32px]"></i>
               </div>
-              <h3 class="text-lg font-bold text-text-primary mb-4">Automated NFIU Reporting</h3>
-              <p class="text-sm text-text-secondary mb-4">Auto-prepare required currency reports for the Nigerian Financial Intelligence Unit (NFIU) when cash sales cross ₦5M (for individuals) or ₦10M (for corporates) seamlessly.</p>
+              <h3 class="text-lg font-bold text-text-primary mb-4">Live Kitchen Display</h3>
+              <p class="text-sm text-text-secondary mb-4">Tickets fire the moment an order's sent. Pending → On It → Pass → Served, with urgent timers so the kitchen never loses track of what's next.</p>
             </div>
-            <button id="trigger-waitlist-btn" class="w-full text-center border border-primary/20 text-primary hover:border-primary px-4 py-3 rounded-[12px] text-xs font-bold hover:bg-primary hover:text-white transition-all duration-300 active:scale-95 cursor-pointer flex items-center justify-center gap-1.5">
-              <span>Join Waiting List</span>
-              <i class="hgi-stroke hgi-arrow-right-01 text-xs"></i>
-            </button>
           </div>
-          <!-- Feature 2: Payments -->
+          <!-- Feature 2: Floor Plan -->
           <div class="feature-card bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] stagger-in">
             <div class="feature-icon w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
-              <i class="hgi-stroke hgi-credit-card text-[32px]"></i>
+              <i class="hgi-stroke hgi-table-01 text-[32px]"></i>
             </div>
-            <h3 class="text-lg font-bold text-text-primary mb-4">Online Payments & Auto-Reconciliation</h3>
-            <p class="text-sm text-text-secondary">Accept local bank transfers, cards, and copy-paste checkout links for WhatsApp or Instagram DMs. Payments are auto-matched instantly.</p>
+            <h3 class="text-lg font-bold text-text-primary mb-4">Visual Floor Management</h3>
+            <p class="text-sm text-text-secondary">See every table's status at a glance — available, occupied, reserved, or needs cleaning — with live totals and assigned waiter, refreshed in real time.</p>
           </div>
-          <!-- Feature 3: Tax -->
+          <!-- Feature 3: Offline-First -->
           <div class="feature-card bg-surface-container-lowest p-10 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.04)] stagger-in">
-            <div class="feature-icon w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
-              <i class="hgi-stroke hgi-wallet-01 text-[32px]"></i>
+            <div class="flex items-center justify-between mb-4">
+              <span class="inline-block px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-[9px] font-bold uppercase tracking-wider">Built For Nigeria</span>
             </div>
-            <h3 class="text-lg font-bold text-text-primary mb-4">Tax & FIRS Preparation</h3>
-            <p class="text-sm text-text-secondary">Automatically calculate VAT (7.5%) and WHT (2024 simplified rates) and export ready-to-file FIRS tax schedules.</p>
+            <div class="feature-icon w-14 h-14 bg-primary/5 rounded-[16px] flex items-center justify-center text-primary mb-8">
+              <i class="hgi-stroke hgi-wifi-disconnected-01 text-[32px]"></i>
+            </div>
+            <h3 class="text-lg font-bold text-text-primary mb-4">Works Through Network Drops</h3>
+            <p class="text-sm text-text-secondary">Orders keep flowing even when the internet doesn't. Every action queues locally and syncs automatically the moment you're back online.</p>
           </div>
         </div>
       </div>
@@ -264,9 +264,9 @@ const waitlistUrl = import.meta.env.PUBLIC_WAITLIST_URL ?? ''
       <div class="order-2 lg:order-1 relative w-full aspect-video lg:aspect-square flex items-center justify-center min-h-[380px]">
         <!-- Base photo -->
         <div class="w-[85%] rounded-[40px] overflow-hidden shadow-2xl shadow-primary/10 border border-outline-variant/10">
-          <img alt="Team Collaboration" class="w-full h-auto object-cover aspect-video lg:aspect-square" src="/team_collaboration.png">
+          <img alt="Restaurant staff running Tari1 together" class="w-full h-auto object-cover aspect-video lg:aspect-square" src="/team_collaboration.png">
         </div>
-        <!-- Overlapping Settings / Accountant Portal Screen -->
+        <!-- Overlapping Reports/Dashboard Screen -->
         <div class="absolute -right-4 -bottom-4 w-[60%] z-20 rounded-2xl border border-outline-variant/20 overflow-hidden shadow-2xl bg-surface-container-lowest transition-all hover:scale-[1.02] duration-300">
           <!-- Mini browser bar -->
           <div class="flex items-center gap-1 px-3 py-2 bg-surface-container border-b border-outline-variant/20">
@@ -276,26 +276,26 @@ const waitlistUrl = import.meta.env.PUBLIC_WAITLIST_URL ?? ''
               <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
             </div>
           </div>
-          <img alt="Analytics Reports" class="w-full h-auto" src="/uploaded_reports_page.png">
+          <img alt="POS sales dashboard" class="w-full h-auto" src="/uploaded_reports_page.png">
         </div>
       </div>
       <div class="order-1 lg:order-2">
         <span class="bg-surface-container px-4 py-2 rounded-full text-primary text-xs font-bold mb-8 inline-block uppercase tracking-wider">For Teams</span>
-        <h2 class="text-4xl font-extrabold text-primary mb-8">Scale your operations with multi-user access</h2>
-        <p class="text-base text-text-secondary mb-10">Tari1 isn't just for solo-preneurs. Grant access to your accountant, business partners, or employees with granular permissions. Manage multiple entities from a single unified profile.</p>
+        <h2 class="text-4xl font-extrabold text-primary mb-8">Give every role exactly the access they need</h2>
+        <p class="text-base text-text-secondary mb-10">From the floor to the till, Tari1 isn't built for one cashier alone. Set up waiters, cashiers, and admins with role-based permissions, track performance per waiter, and reconcile cash at the end of every shift down to the naira.</p>
         <ul class="space-y-6">
           <li class="flex items-start gap-4">
             <i class="hgi-stroke hgi-checkmark-circle-01 text-primary mt-1"></i>
             <div>
-              <p class="text-lg font-bold text-text-primary">Granular Permissions</p>
-              <p class="text-sm text-text-secondary">Control exactly what each team member can see or edit.</p>
+              <p class="text-lg font-bold text-text-primary">Role-Based Permissions</p>
+              <p class="text-sm text-text-secondary">Waiters take orders, cashiers close tabs, admins manage the menu and see it all — nobody sees more than they need to.</p>
             </div>
           </li>
           <li class="flex items-start gap-4">
             <i class="hgi-stroke hgi-checkmark-circle-01 text-primary mt-1"></i>
             <div>
-              <p class="text-lg font-bold text-text-primary">Accountant Portal</p>
-              <p class="text-sm text-text-secondary">Invite your accountant to pull reports directly, no more emailing files.</p>
+              <p class="text-lg font-bold text-text-primary">Shift & Cash Reconciliation</p>
+              <p class="text-sm text-text-secondary">Open the till with a starting float, close out with a counted-cash breakdown, and catch variances before they become a habit.</p>
             </div>
           </li>
         </ul>
@@ -310,13 +310,13 @@ const waitlistUrl = import.meta.env.PUBLIC_WAITLIST_URL ?? ''
         <div class="flex justify-center mb-10 text-[#ffffff4d]">
           <i class="hgi-stroke hgi-quote-up text-[64px]"></i>
         </div>
-        <blockquote class="testimonial-quote text-3xl md:text-4xl leading-snug mb-12 max-w-4xl mx-auto font-bold">"Tari1 has completely transformed how I handle my business finances. Clients pay me noticeably faster and my tax schedules are ready for FIRS without extra work."</blockquote>
+        <blockquote class="testimonial-quote text-3xl md:text-4xl leading-snug mb-12 max-w-4xl mx-auto font-bold">"Tari1 replaced our paper order pads and a separate kitchen printer. Now every ticket, table, and shift close happens from one screen — even when the network drops."</blockquote>
         <div class="flex flex-col items-center">
           <div class="w-16 h-16 rounded-full bg-surface-container mb-4 overflow-hidden border-2 border-white/20">
             <div class="w-full h-full bg-accent-gradient"></div>
           </div>
-          <p class="text-lg font-bold text-white">Adewale Johnson</p>
-          <p class="text-xs opacity-70">Creative Director, Studio Nexus</p>
+          <p class="text-lg font-bold text-white">Chioma Eze</p>
+          <p class="text-xs opacity-70">Owner, The Grill House, Lekki</p>
           <p class="text-[10px] opacity-50 mt-2">One customer's experience — results vary by business.</p>
         </div>
       </div>
@@ -325,8 +325,8 @@ const waitlistUrl = import.meta.env.PUBLIC_WAITLIST_URL ?? ''
     <!-- CTA Section -->
     <section class="py-32 px-container-padding">
       <div class="max-w-5xl mx-auto bg-surface-container p-12 md:p-20 rounded-[48px] text-center shadow-xl border border-white/20">
-        <h2 class="text-3xl font-extrabold text-primary mb-6">Ready to get your time back?</h2>
-        <p class="text-base text-text-secondary mb-12 max-w-xl mx-auto">Nigerian small businesses, freelancers, and DNFBPs trust Tari1 to power their financial growth. No credit card required to start.</p>
+        <h2 class="text-3xl font-extrabold text-primary mb-6">Ready to run a faster floor?</h2>
+        <p class="text-base text-text-secondary mb-12 max-w-xl mx-auto">Nigerian restaurants, bars, and quick-service spots trust Tari1 to run their floor, kitchen, and till. No credit card required to start.</p>
         <a href={`${appUrl}/register`} class="inline-block bg-primary text-on-primary px-12 py-5 rounded-[12px] text-base font-bold shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all btn-gradient">
           Start your 30-day free trial
         </a>
@@ -336,99 +336,7 @@ const waitlistUrl = import.meta.env.PUBLIC_WAITLIST_URL ?? ''
 
   <Footer />
 
-  <!-- ── Waitlist Modal (Option 1) ── -->
-  <div id="waitlist-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-all duration-300 overflow-y-auto">
-    <!-- Backdrop -->
-    <div id="waitlist-backdrop" class="absolute inset-0 bg-primary/20 backdrop-blur-md"></div>
-    
-    <!-- Modal Card -->
-    <div class="relative w-full max-w-md bg-white/90 backdrop-blur-xl border border-white/50 shadow-[0_32px_64px_rgba(0,55,176,0.18)] rounded-[32px] p-8 sm:p-10 transform scale-95 opacity-0 transition-all duration-300 z-10" id="waitlist-card">
-      
-      <!-- Close Button -->
-      <button id="close-waitlist-btn" class="absolute top-6 right-6 w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center text-text-secondary hover:text-primary transition-all duration-200 cursor-pointer border-0">
-        <i class="hgi-stroke hgi-cancel-01 text-sm"></i>
-      </button>
-
-      <!-- Form Content -->
-      <div id="waitlist-form-container">
-        <div class="mb-6">
-          <span class="inline-block px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider mb-3">Compliance Waitlist</span>
-          <h3 class="text-2xl font-extrabold text-primary mb-2">Automated NFIU Reporting</h3>
-          <p class="text-sm text-text-secondary">Be the first to know when we launch automated NFIU compliance filings for Nigerian businesses.</p>
-        </div>
-
-        <form id="waitlist-form" class="space-y-4">
-          <div>
-            <label for="waitlist-name" class="block text-xs font-bold text-text-primary uppercase tracking-wider mb-2">Full Name / Business Name</label>
-            <input type="text" id="waitlist-name" name="name" required placeholder="e.g. Sambo Logistics" class="w-full bg-surface-container-low border border-outline-variant/30 rounded-[12px] px-4 py-3.5 text-sm text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:border-primary transition-all" />
-          </div>
-
-          <div>
-            <label for="waitlist-email" class="block text-xs font-bold text-text-primary uppercase tracking-wider mb-2">Email Address</label>
-            <input type="email" id="waitlist-email" name="email" required placeholder="e.g. hello@sambo.com" class="w-full bg-surface-container-low border border-outline-variant/30 rounded-[12px] px-4 py-3.5 text-sm text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:border-primary transition-all" />
-            <p id="email-error-text" class="text-[11px] text-error mt-1.5 hidden"></p>
-          </div>
-
-          <div>
-            <label class="block text-xs font-bold text-text-primary uppercase tracking-wider mb-2">Business Category</label>
-            <div class="relative" id="dropdown-wrapper">
-              <!-- Select Trigger Button -->
-              <button type="button" id="dropdown-trigger" class="w-full bg-surface-container-low border border-outline-variant/30 rounded-[12px] pl-4 pr-10 py-3.5 text-sm text-text-primary text-left focus:outline-none focus:border-primary transition-all cursor-pointer flex items-center justify-between min-h-[48px]">
-                <span id="dropdown-selected-text" class="truncate">Select Business Category</span>
-                <i class="hgi-stroke hgi-arrow-down-01 text-base text-text-secondary pointer-events-none"></i>
-              </button>
-
-              <!-- Hidden Input to store the selected value in the form -->
-              <input type="hidden" id="waitlist-category" name="category" required value="" />
-
-              <!-- Floating Dropdown Panel -->
-              <div id="dropdown-panel" class="absolute left-0 right-0 mt-2 bg-white/95 backdrop-blur-xl border border-outline-variant/20 rounded-[16px] shadow-[0_16px_36px_rgba(0,55,176,0.12)] z-30 hidden flex-col max-h-56 overflow-hidden transform scale-95 opacity-0 transition-all duration-200">
-                
-                <!-- Search Input Container -->
-                <div class="p-3 border-b border-outline-variant/10 bg-surface-container-lowest flex items-center gap-2">
-                  <i class="hgi-stroke hgi-search-01 text-text-secondary text-sm"></i>
-                  <input type="text" id="dropdown-search" placeholder="Search categories..." class="w-full bg-transparent text-sm text-text-primary focus:outline-none border-0 py-0.5" autocomplete="off" />
-                </div>
-
-                <!-- Options List -->
-                <div id="dropdown-options" class="overflow-y-auto flex-1 max-h-36 py-1 divide-y divide-outline-variant/5">
-                  <!-- Options will be rendered dynamically by JavaScript -->
-                </div>
-
-              </div>
-            </div>
-
-            <!-- Specify Other Business Container (shows when "Other" is selected) -->
-            <div id="custom-option-container" class="mt-3 hidden transition-all duration-300">
-              <label for="custom-category-input" class="block text-xs font-bold text-text-primary uppercase tracking-wider mb-2">Specify Other Business</label>
-              <input type="text" id="custom-category-input" placeholder="e.g. Art Gallery" class="w-full bg-surface-container-low border border-outline-variant/30 rounded-[12px] px-4 py-3.5 text-sm text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:border-primary transition-all" />
-            </div>
-          </div>
-
-          <button type="submit" id="submit-waitlist-btn" class="w-full text-center bg-primary text-on-primary py-4 rounded-[12px] text-sm font-bold shadow-xl shadow-primary/20 hover:shadow-2xl hover:shadow-primary/30 transition-all btn-gradient mt-2 cursor-pointer flex items-center justify-center gap-2 border-0">
-            <span>Secure My Spot</span>
-            <i class="hgi-stroke hgi-arrow-right-01 text-sm"></i>
-          </button>
-        </form>
-      </div>
-
-      <!-- Success State (hidden initially) -->
-      <div id="waitlist-success-container" class="hidden text-center py-6">
-        <div class="w-20 h-20 rounded-full bg-success/10 flex items-center justify-center text-success mx-auto mb-6 relative">
-          <i class="hgi-stroke hgi-checkmark-circle-01 text-[40px] z-10"></i>
-          <span class="absolute inset-0 rounded-full bg-success/20 animate-ping"></span>
-        </div>
-        <h3 class="text-2xl font-extrabold text-primary mb-2">You're on the list!</h3>
-        <p class="text-sm text-text-secondary max-w-xs mx-auto mb-8">Thank you for joining. We have secured your spot and will update you at <strong id="waitlist-success-email" class="text-text-primary"></strong> as soon as NFIU automation goes live.</p>
-        <button id="success-close-btn" class="w-full border border-primary/20 text-primary hover:border-primary py-3.5 rounded-[12px] text-xs font-bold hover:bg-primary hover:text-white transition-all cursor-pointer bg-transparent">
-          Done
-        </button>
-      </div>
-
-    </div>
-  </div>
-
-  <script define:vars={{ waitlistUrl }}>
+  <script>
     // Simple Intersection Observer for scroll animations
     const observerOptions = {
         threshold: 0.1
@@ -457,373 +365,6 @@ const waitlistUrl = import.meta.env.PUBLIC_WAITLIST_URL ?? ''
             } else {
                 nav.classList.remove('shadow-lg');
             }
-        }
-    });
-
-    // ── Hero Interactive Mobile Device Screen Toggling ──
-    const mobileDevice = document.getElementById('hero-mobile-device');
-    const checkoutScreen = document.getElementById('mobile-screen-invoice-checkout');
-    const receiptScreen = document.getElementById('mobile-screen-invoice-receipt');
-    let activeScreen = 'checkout';
-
-    mobileDevice?.addEventListener('click', () => {
-        if (checkoutScreen && receiptScreen) {
-            if (activeScreen === 'checkout') {
-                checkoutScreen.classList.remove('translate-x-0');
-                checkoutScreen.classList.add('-translate-x-full');
-                receiptScreen.classList.remove('translate-x-full');
-                receiptScreen.classList.add('translate-x-0');
-                activeScreen = 'receipt';
-            } else {
-                checkoutScreen.classList.remove('-translate-x-full');
-                checkoutScreen.classList.add('translate-x-0');
-                receiptScreen.classList.remove('translate-x-0');
-                receiptScreen.classList.add('translate-x-full');
-                activeScreen = 'checkout';
-            }
-        }
-    });
-
-    // ── Waitlist Modal Event Handlers ──
-    const triggerBtn = document.getElementById('trigger-waitlist-btn');
-    const modal = document.getElementById('waitlist-modal');
-    const backdrop = document.getElementById('waitlist-backdrop');
-    const card = document.getElementById('waitlist-card');
-    const closeBtn = document.getElementById('close-waitlist-btn');
-    const successCloseBtn = document.getElementById('success-close-btn');
-    const form = document.getElementById('waitlist-form');
-    const formContainer = document.getElementById('waitlist-form-container');
-    const successContainer = document.getElementById('waitlist-success-container');
-    const successEmailSpan = document.getElementById('waitlist-success-email');
-    const emailErrorText = document.getElementById('email-error-text');
-
-    // Custom Dropdown elements
-    const dropdownWrapper = document.getElementById('dropdown-wrapper');
-    const dropdownTrigger = document.getElementById('dropdown-trigger');
-    const dropdownSelectedText = document.getElementById('dropdown-selected-text');
-    const dropdownPanel = document.getElementById('dropdown-panel');
-    const dropdownSearch = document.getElementById('dropdown-search');
-    const dropdownOptions = document.getElementById('dropdown-options');
-    const hiddenCategoryInput = document.getElementById('waitlist-category');
-    const customOptionContainer = document.getElementById('custom-option-container');
-    const customCategoryInput = document.getElementById('custom-category-input');
-    const customCategoryApply = document.getElementById('custom-category-apply');
-
-    // DNFBP List matching Nigerian SCUML/NFIU categories + target audience
-    const categories = [
-        { label: 'Car Dealership', value: 'car_dealer' },
-        { label: 'Hotel & Hospitality', value: 'hotel_hospitality' },
-        { label: 'Casino & Gaming Operator', value: 'casino_gaming' },
-        { label: 'Real Estate Agent / Developer', value: 'real_estate' },
-        { label: 'Jeweler / Precious Metals Dealer', value: 'precious_metals' },
-        { label: 'Law Firm / Legal Service', value: 'legal_service' },
-        { label: 'Accounting & Audit Firm', value: 'accounting_audit' },
-        { label: 'Trust & Company Service Provider', value: 'trust_company' },
-        { label: 'NGO / Charity Organization', value: 'ngo_charity' },
-        { label: 'Clearing/Forwarding & Logistics', value: 'clearing_logistics' },
-        { label: 'Art Dealer & Gallery', value: 'art_gallery' },
-        { label: 'Modern Freelancer / Creative', value: 'freelancer' },
-        { label: 'Social Merchant (Instagram / WhatsApp)', value: 'social_merchant' },
-        { label: 'Other (Specify Custom Category)', value: 'other' }
-    ];
-
-    let waitlistSubmitted = false;
-    let selectedCategory = '';
-    let searchQuery = '';
-
-    function renderDropdownOptions() {
-        if (!dropdownOptions) return;
-        dropdownOptions.innerHTML = '';
-        
-        const filtered = categories.filter(cat => 
-            cat.label.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-
-        filtered.forEach(cat => {
-            const optBtn = document.createElement('button');
-            optBtn.type = 'button';
-            optBtn.className = 'w-full text-left h-11 px-4 text-xs text-text-primary hover:bg-primary/5 hover:text-primary transition-all border-0 bg-transparent cursor-pointer flex items-center justify-between';
-            optBtn.innerHTML = `<span>${cat.label}</span>`;
-            
-            if (selectedCategory === cat.value) {
-                optBtn.innerHTML += '<i class="hgi-stroke hgi-checkmark-circle-02 text-primary text-sm"></i>';
-                optBtn.classList.add('font-bold', 'bg-primary/5', 'text-primary');
-            }
-
-            optBtn.addEventListener('click', () => {
-                selectCategoryValue(cat.value, cat.label);
-            });
-            dropdownOptions.appendChild(optBtn);
-        });
-
-        // Add custom option search query option if there's no exact match in categories
-        const hasExactMatch = categories.some(cat => cat.label.toLowerCase() === searchQuery.trim().toLowerCase());
-        if (searchQuery.trim() !== '' && !hasExactMatch) {
-            const addCustomBtn = document.createElement('button');
-            addCustomBtn.type = 'button';
-            addCustomBtn.className = 'w-full text-left h-11 px-4 text-xs text-primary font-bold hover:bg-primary/5 transition-all border-0 bg-transparent cursor-pointer flex items-center gap-2 border-t border-outline-variant/10';
-            addCustomBtn.innerHTML = `<i class="hgi-stroke hgi-plus text-sm"></i><span>Add "${searchQuery.trim()}" as custom category</span>`;
-            addCustomBtn.addEventListener('click', () => {
-                const cleanLabel = searchQuery.trim();
-                const cleanValue = 'other_' + cleanLabel.toLowerCase().replace(/\s+/g, '_');
-                
-                // Add to list before 'Other'
-                categories.splice(categories.length - 1, 0, { label: cleanLabel, value: cleanValue });
-                selectCategoryValue(cleanValue, cleanLabel);
-            });
-            dropdownOptions.appendChild(addCustomBtn);
-        }
-    }
-
-    function selectCategoryValue(value, label) {
-        if (hiddenCategoryInput && dropdownSelectedText && dropdownTrigger) {
-            hiddenCategoryInput.value = value;
-            dropdownSelectedText.textContent = label;
-            selectedCategory = value;
-            
-            // Visual active border styling
-            dropdownTrigger.classList.add('border-primary');
-            dropdownTrigger.classList.remove('border-outline-variant/30');
-
-            // Manage the other specify field
-            if (value === 'other') {
-                if (customOptionContainer) {
-                    customOptionContainer.classList.remove('hidden');
-                    if (customCategoryInput) {
-                        customCategoryInput.focus();
-                        customCategoryInput.required = true;
-                    }
-                }
-            } else {
-                if (customOptionContainer) {
-                    customOptionContainer.classList.add('hidden');
-                    if (customCategoryInput) {
-                        customCategoryInput.required = false;
-                        customCategoryInput.value = '';
-                    }
-                }
-            }
-        }
-        closeDropdownPanel();
-    }
-
-    function closeDropdownPanel() {
-        if (dropdownPanel) {
-            dropdownPanel.classList.remove('scale-100', 'opacity-100', 'flex');
-            dropdownPanel.classList.add('scale-95', 'opacity-0', 'hidden');
-        }
-    }
-
-    function toggleDropdownPanel() {
-        if (!dropdownPanel) return;
-        const isOpen = !dropdownPanel.classList.contains('hidden');
-        if (isOpen) {
-            closeDropdownPanel();
-        } else {
-            dropdownPanel.classList.remove('hidden', 'scale-95', 'opacity-0');
-            dropdownPanel.classList.add('flex', 'scale-100', 'opacity-100');
-            
-            // Reset search query on open but do not automatically focus it on mobile
-            if (dropdownSearch) {
-                dropdownSearch.value = '';
-                searchQuery = '';
-            }
-            renderDropdownOptions();
-        }
-    }
-
-    customCategoryInput?.addEventListener('input', (e) => {
-        if (selectedCategory === 'other') {
-            const val = e.target.value.trim();
-            if (val && hiddenCategoryInput) {
-                hiddenCategoryInput.value = 'other_' + val.toLowerCase().replace(/\s+/g, '_');
-            } else if (hiddenCategoryInput) {
-                hiddenCategoryInput.value = 'other';
-            }
-        }
-    });
-
-    dropdownTrigger?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        toggleDropdownPanel();
-    });
-
-    dropdownSearch?.addEventListener('input', (e) => {
-        searchQuery = e.target.value;
-        renderDropdownOptions();
-    });
-
-    dropdownPanel?.addEventListener('click', (e) => {
-        e.stopPropagation();
-    });
-
-    document.addEventListener('click', (e) => {
-        if (dropdownWrapper && !dropdownWrapper.contains(e.target)) {
-            closeDropdownPanel();
-        }
-    });
-
-    function openModal() {
-        if (modal && card) {
-            modal.classList.remove('pointer-events-none');
-            modal.classList.add('opacity-100');
-            card.classList.remove('scale-95', 'opacity-0');
-            card.classList.add('scale-100', 'opacity-100');
-            document.body.style.overflow = 'hidden'; // prevent page scroll
-            waitlistSubmitted = false; // Reset submit flag on open
-            selectedCategory = '';
-            if (dropdownSelectedText) dropdownSelectedText.textContent = 'Select Business Category';
-            if (hiddenCategoryInput) hiddenCategoryInput.value = '';
-            if (customOptionContainer) customOptionContainer.classList.add('hidden');
-            if (dropdownTrigger) {
-                dropdownTrigger.classList.remove('border-primary');
-                dropdownTrigger.classList.add('border-outline-variant/30');
-            }
-
-            if (window.posthog) {
-                var _utmParams = Object.fromEntries(
-                    ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','ref']
-                    .map(function(k){ return [k, new URLSearchParams(window.location.search).get(k)]; })
-                    .filter(function(e){ return e[1]; })
-                );
-                window.posthog.capture('marketing_waitlist_modal_opened', Object.assign({
-                    referrer: document.referrer,
-                    page_url: window.location.href,
-                }, _utmParams));
-            }
-        }
-    }
-
-    function closeModal() {
-        if (modal && card) {
-            modal.classList.add('pointer-events-none');
-            modal.classList.remove('opacity-100');
-            card.classList.add('scale-95', 'opacity-0');
-            card.classList.remove('scale-100', 'opacity-100');
-            document.body.style.overflow = ''; // restore page scroll
-
-            if (window.posthog && !waitlistSubmitted) {
-                window.posthog.capture('marketing_waitlist_dismissed');
-            }
-            
-            // Reset state after transition completes
-            setTimeout(() => {
-                if (form) form.reset();
-                if (emailErrorText) emailErrorText.classList.add('hidden');
-                if (formContainer && successContainer) {
-                    formContainer.classList.remove('hidden');
-                    successContainer.classList.add('hidden');
-                }
-            }, 300);
-        }
-    }
-
-    triggerBtn?.addEventListener('click', openModal);
-    closeBtn?.addEventListener('click', closeModal);
-    backdrop?.addEventListener('click', closeModal);
-    successCloseBtn?.addEventListener('click', closeModal);
-
-    form?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        const nameInput = document.getElementById('waitlist-name');
-        const emailInput = document.getElementById('waitlist-email');
-        const categoryInput = document.getElementById('waitlist-category');
-        const submitBtn = document.getElementById('submit-waitlist-btn');
-
-        if (!nameInput || !emailInput || !categoryInput) return;
-
-        const name = nameInput.value.trim();
-        const email = emailInput.value.trim();
-        const category = categoryInput.value;
-
-        // Basic validation
-        if (!name || !email || !category) {
-            if (!category && emailErrorText) {
-                emailErrorText.textContent = 'Please select a business category.';
-                emailErrorText.classList.remove('hidden');
-            }
-            return;
-        }
-
-        // Email regex
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            if (emailErrorText) {
-                emailErrorText.textContent = 'Please enter a valid email address.';
-                emailErrorText.classList.remove('hidden');
-            }
-            return;
-        } else {
-            if (emailErrorText) emailErrorText.classList.add('hidden');
-        }
-
-        // Show loading state
-        if (submitBtn) {
-            const btnSpan = submitBtn.querySelector('span');
-            if (btnSpan) btnSpan.textContent = 'Submitting...';
-            submitBtn.setAttribute('disabled', 'true');
-        }
-
-        const payload = {
-            name,
-            email,
-            category,
-            timestamp: new Date().toISOString()
-        };
-
-        // 1. Save locally to localStorage as a fallback database
-        try {
-            const currentWaitlist = JSON.parse(localStorage.getItem('tari1_compliance_waitlist') || '[]');
-            currentWaitlist.push(payload);
-            localStorage.setItem('tari1_compliance_waitlist', JSON.stringify(currentWaitlist));
-        } catch (err) {
-            console.error('Failed to save locally:', err);
-        }
-
-        // 2. Post to production waitlist url if configured
-        if (waitlistUrl) {
-            try {
-                await fetch(waitlistUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-            } catch (err) {
-                console.error('Failed to post to webhook:', err);
-            }
-        } else {
-            // Fake a tiny network latency for visual premium feel when local
-            await new Promise(resolve => setTimeout(resolve, 600));
-        }
-
-        // 3. Capture event in PostHog
-        if (window.posthog) {
-            var utmKeys = ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','ref'];
-            var utmP = new URLSearchParams(window.location.search);
-            var utmAttrs = {};
-            utmKeys.forEach(function(k){ var v = utmP.get(k); if (v) utmAttrs[k] = v; });
-            window.posthog.capture('marketing_waitlist_submitted', Object.assign({
-                category: category,
-                name: name,
-                referrer: document.referrer,
-                page_url: window.location.href,
-            }, utmAttrs));
-        }
-        waitlistSubmitted = true;
-
-        // Reset submit button state
-        if (submitBtn) {
-            const btnSpan = submitBtn.querySelector('span');
-            if (btnSpan) btnSpan.textContent = 'Secure My Spot';
-            submitBtn.removeAttribute('disabled');
-        }
-
-        // Transition to success state
-        if (successEmailSpan) successEmailSpan.textContent = email;
-        if (formContainer && successContainer) {
-            formContainer.classList.add('hidden');
-            successContainer.classList.remove('hidden');
         }
     });
 
@@ -950,7 +491,7 @@ const waitlistUrl = import.meta.env.PUBLIC_WAITLIST_URL ?? ''
       transform-style: preserve-3d;
     }
 
-    /* Alternate float for Invoice Sent badge (different phase) */
+    /* Alternate float for Kitchen Ticket badge (different phase) */
     @keyframes floatCardAlt {
       0%, 100% { transform: translateY(0px) rotate(1deg); }
       50%       { transform: translateY(-10px) rotate(-1deg); }
@@ -960,7 +501,7 @@ const waitlistUrl = import.meta.env.PUBLIC_WAITLIST_URL ?? ''
       animation-delay: 1.2s;
     }
 
-    /* Float for 3rd badge: Tax Report Ready */
+    /* Float for 3rd badge: Shift Closed */
     @keyframes floatBadge3 {
       0%, 100% { transform: translateY(0px) rotate(-0.5deg); }
       50%       { transform: translateY(-7px) rotate(0.5deg); }
@@ -970,7 +511,7 @@ const waitlistUrl = import.meta.env.PUBLIC_WAITLIST_URL ?? ''
       animation-delay: 2.5s;
     }
 
-    /* Lady cutout subtle entry from bottom */
+    /* Portrait cutout subtle entry from bottom */
     .lady-cutout-hero {
       animation: ladyEntry 0.9s cubic-bezier(0.25, 1, 0.5, 1) both;
       animation-delay: 0.15s;
