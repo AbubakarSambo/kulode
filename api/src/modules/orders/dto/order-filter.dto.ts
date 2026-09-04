@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsArray, IsIn, IsOptional, IsUUID } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsOptional, IsUUID } from 'class-validator';
 import { PaginationDto } from '../../../common';
 
 const ORDER_STATUSES = ['OPEN', 'IN_KITCHEN', 'READY', 'CLOSED_PAID', 'CLOSED_UNPAID', 'CANCELLED'] as const;
@@ -36,4 +36,13 @@ export class OrderFilterDto extends PaginationDto {
   @IsOptional()
   @IsUUID()
   waiterId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Return a lightweight projection (id, tableId, status, total, waiter/createdBy names) instead of the full order graph — for list views (e.g. the table floor board) that only need a few scalar fields rather than items/menuItem/payments/customer.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  summary?: boolean;
 }

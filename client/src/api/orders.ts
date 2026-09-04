@@ -44,6 +44,16 @@ export interface OrderFilter {
   waiterId?: string
 }
 
+/** Lightweight projection returned by `ordersApi.listSummary` — see `?summary=true` on the API. */
+export interface OrderSummary {
+  id: string
+  tableId?: string
+  status: OrderStatus
+  total: number
+  waiter?: { id: string; firstName: string; lastName: string }
+  createdBy?: { id: string; firstName: string; lastName: string }
+}
+
 /** Marker so the UI can tell a locally-queued (not-yet-synced) order apart from a real one. */
 export interface PendingOrder {
   __offlinePending: true
@@ -75,6 +85,20 @@ export const ordersApi = {
   },
   get: async (id: string): Promise<Order> => {
     const response = await apiClient.get<ApiResponse<Order>>(`/orders/${id}`)
+    return response.data.data
+  },
+
+  /**
+   * Same filtering as `list`, but the server returns a lightweight projection (id, tableId,
+   * status, total, waiter/createdBy names) instead of the full order graph — for views like the
+   * table floor board that render a couple of fields per order but not items/menuItem/payments/
+   * customer, which `list` would fetch and discard on every poll.
+   */
+  listSummary: async (filter?: OrderFilter): Promise<PaginatedResponse<OrderSummary>> => {
+    const response = await apiClient.get<ApiResponse<PaginatedResponse<OrderSummary>>>('/orders', {
+      params: { ...filter, summary: true },
+      paramsSerializer: { indexes: null },
+    })
     return response.data.data
   },
 

@@ -1181,6 +1181,11 @@ model Order {
   @@index([customerId])
   @@index([waiterId])
   @@index([status])
+  // Covers the common list-endpoint filter shapes (org + status[s], org + table) together with
+  // the endpoint's `ORDER BY createdAt DESC` — the single-column indexes above force Postgres to
+  // pick one predicate and then sort the leftover rows manually.
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, tableId, createdAt])
   @@map("orders")
 }
 
