@@ -64,8 +64,11 @@ export function TablesFloorPage() {
   })
 
   const { data: activeOrdersPage } = useQuery({
-    queryKey: ['orders', { statuses: ACTIVE_ORDER_STATUSES }],
-    queryFn: () => ordersApi.list({ statuses: [...ACTIVE_ORDER_STATUSES], limit: 100 }),
+    queryKey: ['orders-summary', { statuses: ACTIVE_ORDER_STATUSES }],
+    // Table cards only ever show total + waiter name, so this pulls the lightweight projection
+    // instead of `list`'s full items/menuItem/payments/customer graph — that graph was being
+    // fetched for up to 100 orders and thrown away on every 15s poll.
+    queryFn: () => ordersApi.listSummary({ statuses: [...ACTIVE_ORDER_STATUSES], limit: 100 }),
     refetchInterval: 15_000,
   })
   // A table has at most one running order at a time in practice — first match is enough.
@@ -188,7 +191,8 @@ export function TablesFloorPage() {
       // (e.g. a reused Delivery slot).
       const { data: orders } = await queryClient.fetchQuery({
         queryKey: ['orders-for-table', table.id],
-        queryFn: () => ordersApi.list({ tableId: table.id, statuses: [...ACTIVE_ORDER_STATUSES] }),
+        // Only status/id are read below to decide where to navigate — no need for the full order.
+        queryFn: () => ordersApi.listSummary({ tableId: table.id, statuses: [...ACTIVE_ORDER_STATUSES] }),
       })
       const openOrder = orders.find((o) => (ACTIVE_ORDER_STATUSES as readonly string[]).includes(o.status))
       if (openOrder) {

@@ -196,8 +196,20 @@ export class OrdersService {
     payments: true,
   } as const;
 
+  // For list views (e.g. the table floor board) that only render a couple of scalar fields per
+  // order but were paying for the full items/menuItem/categories/payments graph above, fetched
+  // and discarded, on every poll.
+  private readonly orderSummarySelect = {
+    id: true,
+    tableId: true,
+    status: true,
+    total: true,
+    waiter: { select: { id: true, firstName: true, lastName: true } },
+    createdBy: { select: { id: true, firstName: true, lastName: true } },
+  } as const;
+
   async findAll(organizationId: string, filter: OrderFilterDto) {
-    const { page = 1, limit = 20, status, statuses, tableId, customerId, waiterId } = filter;
+    const { page = 1, limit = 20, status, statuses, tableId, customerId, waiterId, summary } = filter;
     const skip = (page - 1) * limit;
     const where = {
       organizationId,
@@ -208,13 +220,9 @@ export class OrdersService {
     };
 
     const [orders, total] = await Promise.all([
-      this.prisma.order.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        include: this.orderInclude,
-      }),
+      summary
+        ? this.prisma.order.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' }, select: this.orderSummarySelect })
+        : this.prisma.order.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' }, include: this.orderInclude }),
       this.prisma.order.count({ where }),
     ]);
 
