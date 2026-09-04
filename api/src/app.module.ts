@@ -33,7 +33,14 @@ import { PosReportsModule } from './modules/pos-reports';
 import { PrintersModule } from './modules/printers';
 import { OrderTypesModule } from './modules/order-types';
 import { PaymentTypesModule } from './modules/payment-types';
-import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor, SubscriptionReadOnlyGuard } from './common';
+import {
+  JwtAuthGuard,
+  RolesGuard,
+  GlobalExceptionFilter,
+  TransformInterceptor,
+  LoggingInterceptor,
+  SubscriptionReadOnlyGuard,
+} from './common';
 
 
 
@@ -102,6 +109,11 @@ import { JwtAuthGuard, RolesGuard, GlobalExceptionFilter, TransformInterceptor, 
     {
       provide: APP_INTERCEPTOR,
       useClass: TransformInterceptor,
+    },
+    // Logs method/path/status/duration per request — visible in Railway's log viewer.
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: LoggingInterceptor,
     },
   ],
 })
