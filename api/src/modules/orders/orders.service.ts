@@ -196,16 +196,23 @@ export class OrdersService {
     payments: true,
   } as const;
 
-  // For list views (e.g. the table floor board) that only render a couple of scalar fields per
-  // order but were paying for the full items/menuItem/categories/payments graph above, fetched
-  // and discarded, on every poll.
+  // For list views (table floor board, the plain orders browse list, the merge/move order
+  // picker) that only render a handful of scalar/relation-name fields per order but were paying
+  // for the full items/menuItem/categories/payments graph above, fetched and discarded, on every
+  // poll or click. `_count.items` covers "N items" labels without loading the items themselves.
   private readonly orderSummarySelect = {
     id: true,
     tableId: true,
     status: true,
     total: true,
+    amountPaid: true,
+    source: true,
+    createdAt: true,
+    table: { select: { id: true, name: true, section: true } },
+    customer: { select: { id: true, name: true, phone: true } },
     waiter: { select: { id: true, firstName: true, lastName: true } },
     createdBy: { select: { id: true, firstName: true, lastName: true } },
+    _count: { select: { items: true } },
   } as const;
 
   async findAll(organizationId: string, filter: OrderFilterDto) {
@@ -219,13 +226,18 @@ export class OrdersService {
       ...(waiterId && { waiterId }),
     };
 
+    if (summary) {
+      const [orders, total] = await Promise.all([
+        this.prisma.order.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' }, select: this.orderSummarySelect }),
+        this.prisma.order.count({ where }),
+      ]);
+      return paginate(orders, total, page, limit);
+    }
+
     const [orders, total] = await Promise.all([
-      summary
-        ? this.prisma.order.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' }, select: this.orderSummarySelect })
-        : this.prisma.order.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' }, include: this.orderInclude }),
+      this.prisma.order.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' }, include: this.orderInclude }),
       this.prisma.order.count({ where }),
     ]);
-
     return paginate(orders, total, page, limit);
   }
 

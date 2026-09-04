@@ -540,8 +540,10 @@ function SyncedOrderView({ id }: { id: string }) {
   })
 
   const { data: mergeableOrdersPage } = useQuery({
-    queryKey: ['orders', 'mergeable'],
-    queryFn: () => ordersApi.list({ statuses: ['OPEN', 'IN_KITCHEN', 'READY'], limit: 50 }),
+    queryKey: ['orders-summary', 'mergeable'],
+    // Picker only shows table/source name, item count, and total — not the full item/menuItem
+    // graph `list` would otherwise fetch for every candidate order.
+    queryFn: () => ordersApi.listSummary({ statuses: ['OPEN', 'IN_KITCHEN', 'READY'], limit: 50 }),
     enabled: mergeModalOpen || (moveModalOpen && moveMode === 'existing'),
   })
   // Can't merge/move into this order itself, and an order with a payment already on it is
@@ -1651,7 +1653,7 @@ function SyncedOrderView({ id }: { id: string }) {
                 >
                   <div>
                     <div className="font-semibold text-foreground">{o.table?.name ?? o.source}</div>
-                    <div className="text-xs text-muted-foreground">{o.items.length} item{o.items.length === 1 ? '' : 's'}</div>
+                    <div className="text-xs text-muted-foreground">{o._count.items} item{o._count.items === 1 ? '' : 's'}</div>
                   </div>
                   <span className="font-semibold text-foreground">{formatCurrency(o.total)}</span>
                 </button>
@@ -1720,7 +1722,7 @@ function SyncedOrderView({ id }: { id: string }) {
                 >
                   <div>
                     <div className="font-semibold text-foreground">{o.table?.name ?? o.source}</div>
-                    <div className="text-xs text-muted-foreground">{o.items.length} item{o.items.length === 1 ? '' : 's'}</div>
+                    <div className="text-xs text-muted-foreground">{o._count.items} item{o._count.items === 1 ? '' : 's'}</div>
                   </div>
                   <span className="font-semibold text-foreground">{formatCurrency(o.total)}</span>
                 </button>

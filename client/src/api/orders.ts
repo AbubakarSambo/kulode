@@ -48,10 +48,16 @@ export interface OrderFilter {
 export interface OrderSummary {
   id: string
   tableId?: string
+  table?: { id: string; name: string; section?: string } | null
+  customer?: { id: string; name: string; phone?: string } | null
   status: OrderStatus
   total: number
+  amountPaid: number
+  source: Order['source']
+  createdAt: string
   waiter?: { id: string; firstName: string; lastName: string }
   createdBy?: { id: string; firstName: string; lastName: string }
+  _count: { items: number }
 }
 
 /** Marker so the UI can tell a locally-queued (not-yet-synced) order apart from a real one. */
