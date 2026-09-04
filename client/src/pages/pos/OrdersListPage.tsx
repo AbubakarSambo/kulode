@@ -43,8 +43,10 @@ export function OrdersListPage() {
   // Cashier notification queue — polls the awaiting-payment count independent of whatever
   // filter is currently selected, and toasts when a new order shows up in it.
   const { data: awaitingPayment } = useQuery({
-    queryKey: ['orders', 'awaiting-payment-count'],
-    queryFn: () => ordersApi.list({ status: 'CLOSED_UNPAID', page: 1, limit: 1 }),
+    queryKey: ['orders-summary', 'awaiting-payment-count'],
+    // Only `meta.total` is ever read below — the full order graph would be fetched and
+    // discarded every 15s otherwise.
+    queryFn: () => ordersApi.listSummary({ status: 'CLOSED_UNPAID', page: 1, limit: 1 }),
     enabled: isCashier,
     refetchInterval: isCashier ? 15_000 : undefined,
   })
@@ -59,9 +61,11 @@ export function OrdersListPage() {
   }, [awaitingPayment, isCashier])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['orders', { status, tableId, customerId, waiterId, page }],
+    queryKey: ['orders-summary', { status, tableId, customerId, waiterId, page }],
+    // Table only renders table/customer name, status, total, createdAt — none of the
+    // items/menuItem/payments graph `list` would otherwise fetch for every row.
     queryFn: () =>
-      ordersApi.list({
+      ordersApi.listSummary({
         status: status || undefined,
         tableId: tableId || undefined,
         customerId,
