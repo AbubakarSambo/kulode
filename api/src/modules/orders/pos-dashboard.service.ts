@@ -254,6 +254,45 @@ export class PosDashboardService {
 
   async getTrend(organizationId: string, filter: ReportFilterDto) {
     const { startDate, endDate } = await this.getDateRange(organizationId, filter);
+
+    // A single business day (Today/Yesterday, or a one-day Custom range) has nothing to show a
+    // day-over-day trend across — bucketing it by day would always collapse to one point, and
+    // the dashboard hides the whole card rather than plot a "trend" with nothing to compare
+    // against. Bucket by hour within the shift instead so it still shows something meaningful
+    // (e.g. the lunch vs. dinner rush). 25h (not 24h) gives slack for an overnight shift whose
+    // configured end time sits a few minutes past its start time on the clock.
+    const isSingleBusinessDay = endDate.getTime() - startDate.getTime() <= 25 * 60 * 60 * 1000;
+    if (isSingleBusinessDay) {
+      const hourly = await this.prisma.$queryRaw<{ bucket: Date; total: number; count: number }[]>`
+        SELECT
+          DATE_TRUNC('hour', o.closed_at) as bucket,
+          SUM(p.amount)::numeric as total,
+          COUNT(*)::integer as count
+        FROM payments p
+        JOIN orders o ON o.id = p.order_id
+        WHERE p.organization_id = ${organizationId}
+          AND o.status IN ('CLOSED_PAID', 'CLOSED_UNPAID')
+          AND o.closed_at >= ${startDate}
+          AND o.closed_at <= ${endDate}
+        GROUP BY bucket
+        ORDER BY bucket
+      `;
+
+      return {
+        period: { startDate, endDate },
+        // Sorted by the real timestamp above (correct even across a midnight-crossing shift),
+        // then rendered here as a bare "HH:00" label — the date part would just repeat/flip
+        // partway through and add nothing useful within a single shift. UTC hours specifically:
+        // this reads back whatever absolute instant DATE_TRUNC produced, independent of the
+        // Node process's local TZ setting.
+        daily: hourly.map((h) => ({
+          day: `${String(new Date(h.bucket).getUTCHours()).padStart(2, '0')}:00`,
+          total: Number(h.total),
+          count: Number(h.count),
+        })),
+      };
+    }
+
     const shift = await this.getOrgShiftHours(organizationId);
     // "HH:mm" -> "HH:mm:00", a valid Postgres interval literal.
     const shiftStartInterval = `${shift.shiftStartTime}:00`;
