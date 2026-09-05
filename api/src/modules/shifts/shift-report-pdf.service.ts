@@ -15,6 +15,7 @@ interface ShiftReportData {
   closedBy?: { firstName: string; lastName: string } | null;
   breakdowns: Array<{ paymentMethod: string; expectedAmount: number; countedAmount: number; variance: number }>;
   categoryTotals: Array<{ category: string; amount: number }>;
+  discountAmount: number;
   taxTotals: {
     vatAmount: number;
     entertainmentTaxAmount: number;
@@ -77,6 +78,12 @@ export class ShiftReportPdfService {
         doc.font('Helvetica-Bold');
         this.row(doc, width, 'Total Items', this.formatCurrency(totalItems, currency));
         doc.font('Helvetica');
+        // Bridges this section's gross per-category totals to the net amount actually charged
+        // (Total Items − Discounts + Total Tax = Total Expected below) — without this row the
+        // two sections don't reconcile and it looks like the report is simply wrong.
+        if (shift.discountAmount > 0) {
+          this.row(doc, width, 'Discounts', `-${this.formatCurrency(shift.discountAmount, currency)}`);
+        }
         this.divider(doc, width);
       }
 

@@ -85,8 +85,11 @@ export class ShiftsService {
         variance: toNumber(b.variance),
       })),
       categoryTotals,
+      discountAmount: taxTotals.discountAmount,
       taxTotals: {
-        ...taxTotals,
+        vatAmount: taxTotals.vatAmount,
+        entertainmentTaxAmount: taxTotals.entertainmentTaxAmount,
+        serviceChargeAmount: taxTotals.serviceChargeAmount,
         vatRate: toNumber(shift.organization.taxRate),
         entertainmentTaxRate: toNumber(shift.organization.entertainmentTaxRate),
         serviceChargeRate: toNumber(shift.organization.serviceChargeRate),
@@ -119,18 +122,21 @@ export class ShiftsService {
     return Array.from(totals, ([category, amount]) => ({ category, amount }));
   }
 
-  // Tax/service-charge totals for the "Taxes Detail" section, summed off the same closed-orders
-  // window as categorySalesDuringShift.
+  // Tax/service-charge/discount totals for the shift report, summed off the same closed-orders
+  // window as categorySalesDuringShift. Discounts are bundled in here (one aggregate query,
+  // same where clause) rather than the "Items Detail" section — discountAmount is an order-level
+  // deduction, not something attributable to any one category.
   private async taxSummaryDuringShift(organizationId: string, openedAt: Date, until: Date) {
     const result = await this.prisma.order.aggregate({
       where: { organizationId, status: 'CLOSED_PAID', closedAt: { gte: openedAt, lte: until } },
-      _sum: { vatAmount: true, entertainmentTaxAmount: true, serviceChargeAmount: true },
+      _sum: { vatAmount: true, entertainmentTaxAmount: true, serviceChargeAmount: true, discountAmount: true },
     });
 
     return {
       vatAmount: toNumber(result._sum.vatAmount ?? 0),
       entertainmentTaxAmount: toNumber(result._sum.entertainmentTaxAmount ?? 0),
       serviceChargeAmount: toNumber(result._sum.serviceChargeAmount ?? 0),
+      discountAmount: toNumber(result._sum.discountAmount ?? 0),
     };
   }
 
