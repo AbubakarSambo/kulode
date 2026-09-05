@@ -25,9 +25,23 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload) {
+    // This runs on every authenticated request app-wide — a `select` of only what's actually
+    // returned below, not the previous `include: { organization: true }`, which fetched (and
+    // discarded) the entire Organization row on every single request. Prisma's default relation
+    // strategy runs a belongs-to include as a second query, so that was a whole extra DB round
+    // trip on every request in the app for data nothing downstream ever read.
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      include: { organization: true },
+      select: {
+        id: true,
+        email: true,
+        organizationId: true,
+        roles: true,
+        firstName: true,
+        lastName: true,
+        isPlatformAdmin: true,
+        isActive: true,
+      },
     });
 
     if (!user || !user.isActive) {
