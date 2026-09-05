@@ -396,22 +396,9 @@ export class OrdersService {
     }
 
     const pricedItems = await this.priceItems(organizationId, dto.items);
-    const addedAmount = pricedItems.reduce((sum, i) => sum + i.amount, 0);
     const organization = await this.prisma.organization.findUniqueOrThrow({
       where: { id: organizationId },
     });
-
-    const newSubtotal = toNumber(order.subtotal) + addedAmount;
-    // Which charges apply was already decided at order creation — adding items recalculates the
-    // amounts against the org's current rates, but never silently turns a charge on/off mid-order.
-    const { vatAmount, entertainmentTaxAmount, serviceChargeAmount, taxAmount: newTaxAmount } = this.computeOrderCharges(
-      newSubtotal,
-      organization,
-      order.vatApplied,
-      order.entertainmentTaxApplied,
-      order.serviceChargeApplied,
-    );
-    const newTotal = newSubtotal + newTaxAmount + serviceChargeAmount;
 
     let isFreshExecution = false;
     let newItemIds: string[] = [];
@@ -425,15 +412,22 @@ export class OrdersService {
       );
       newItemIds = createdItems.map((i) => i.id);
 
+      // Which charges apply was already decided at order creation — adding items recalculates
+      // the amounts against the org's current rates, but never silently turns a charge on/off
+      // mid-order. Recomputed fresh (see recomputeOrderTotals) now that the new items are in.
+      const totals = await this.recomputeOrderTotals(
+        tx,
+        id,
+        organization,
+        order.vatApplied,
+        order.entertainmentTaxApplied,
+        order.serviceChargeApplied,
+      );
+
       return tx.order.update({
         where: { id },
         data: {
-          subtotal: newSubtotal,
-          taxAmount: newTaxAmount,
-          vatAmount,
-          entertainmentTaxAmount,
-          serviceChargeAmount,
-          total: newTotal,
+          ...totals,
           ...(reopening && { status: OrderStatus.OPEN, closedAt: null }),
         },
         include: this.orderInclude,
@@ -468,6 +462,51 @@ export class OrdersService {
     const entertainmentTaxAmount = Math.round(subtotal * (entertainmentRate / 100) * 100) / 100;
     const serviceChargeAmount = Math.round(subtotal * (serviceChargeRate / 100) * 100) / 100;
     return { vatAmount, entertainmentTaxAmount, serviceChargeAmount, taxAmount: vatAmount + entertainmentTaxAmount };
+  }
+
+  /**
+   * Recomputes subtotal/tax/total strictly from a fresh, transaction-scoped SUM of the order's
+   * current order_items — never from a subtotal value read before the transaction opened.
+   *
+   * Every caller here previously computed the new subtotal in JS from an order snapshot fetched
+   * *before* its transaction started, then wrote that value unconditionally inside the
+   * transaction. That's a race: if two operations mutate the same order's items around the same
+   * time (e.g. a split via moveItems and a line edit via updateItem landing seconds apart), the
+   * order_items rows themselves end up correct (each transaction's item writes are independent
+   * and unconditional), but whichever transaction *commits last* overwrites subtotal/tax/total
+   * using a value computed from its own stale pre-transaction view — permanently losing the
+   * other transaction's effect on the aggregate fields, with nothing to ever reconcile it. Always
+   * call this *after* this transaction's own item mutations, right before writing the order.
+   */
+  private async recomputeOrderTotals(
+    tx: Prisma.TransactionClient,
+    orderId: string,
+    organization: {
+      taxRate: Prisma.Decimal | number;
+      entertainmentTaxRate: Prisma.Decimal | number;
+      serviceChargeRate: Prisma.Decimal | number;
+    },
+    vatApplied: boolean,
+    entertainmentTaxApplied: boolean,
+    serviceChargeApplied: boolean,
+  ) {
+    const { _sum } = await tx.orderItem.aggregate({ where: { orderId }, _sum: { amount: true } });
+    const subtotal = toNumber(_sum.amount ?? 0);
+    const { vatAmount, entertainmentTaxAmount, serviceChargeAmount, taxAmount } = this.computeOrderCharges(
+      subtotal,
+      organization,
+      vatApplied,
+      entertainmentTaxApplied,
+      serviceChargeApplied,
+    );
+    return {
+      subtotal,
+      taxAmount,
+      vatAmount,
+      entertainmentTaxAmount,
+      serviceChargeAmount,
+      total: subtotal + taxAmount + serviceChargeAmount,
+    };
   }
 
   async updateItemStatus(
@@ -538,19 +577,9 @@ export class OrdersService {
       throw new BadRequestException('Cannot edit an item once the kitchen has started on it');
     }
 
-    const remainingItems = order.items.filter((i) => i.id !== itemId);
     // 0 removes the line entirely — its amount just doesn't get added back in below.
     const newAmount = Math.round(toNumber(item.unitPrice) * dto.quantity * 100) / 100;
-    const newSubtotal = remainingItems.reduce((sum, i) => sum + toNumber(i.amount), 0) + newAmount;
-
     const organization = await this.prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
-    const { vatAmount, entertainmentTaxAmount, serviceChargeAmount, taxAmount } = this.computeOrderCharges(
-      newSubtotal,
-      organization,
-      order.vatApplied,
-      order.entertainmentTaxApplied,
-      order.serviceChargeApplied,
-    );
 
     const updated = await this.prisma.$transaction(async (tx) => {
       if (dto.quantity === 0) {
@@ -562,23 +591,29 @@ export class OrdersService {
         });
       }
 
-      if (dto.quantity === 0 && remainingItems.length === 0) {
+      // Checked fresh, inside the transaction, rather than off the pre-transaction item list —
+      // a concurrent add landing between the read above and this write must not get silently
+      // cancelled out from under it just because *this* request thought it was removing the
+      // last line.
+      const remainingCount = await tx.orderItem.count({ where: { orderId } });
+
+      if (dto.quantity === 0 && remainingCount === 0) {
         await tx.order.update({
           where: { id: orderId },
           data: { status: 'CANCELLED', notes: order.notes ? `${order.notes} — last item removed` : 'Last item removed' },
         });
       } else {
-        await tx.order.update({
-          where: { id: orderId },
-          data: {
-            subtotal: newSubtotal,
-            taxAmount,
-            vatAmount,
-            entertainmentTaxAmount,
-            serviceChargeAmount,
-            total: newSubtotal + taxAmount + serviceChargeAmount,
-          },
-        });
+        // Recomputed fresh (see recomputeOrderTotals) rather than from the pre-transaction item
+        // list — see that method's comment for why.
+        const totals = await this.recomputeOrderTotals(
+          tx,
+          orderId,
+          organization,
+          order.vatApplied,
+          order.entertainmentTaxApplied,
+          order.serviceChargeApplied,
+        );
+        await tx.order.update({ where: { id: orderId }, data: totals });
       }
 
       return tx.order.findUniqueOrThrow({ where: { id: orderId }, include: this.orderInclude });
@@ -736,17 +771,6 @@ export class OrdersService {
     }
 
     const organization = await this.prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
-    const combinedSubtotal = toNumber(destination.subtotal) + toNumber(source.subtotal);
-    // Merged bill inherits the destination order's charge settings — the two should normally
-    // agree (same org), this is just the tie-break if they somehow don't.
-    const { vatAmount, entertainmentTaxAmount, serviceChargeAmount, taxAmount } = this.computeOrderCharges(
-      combinedSubtotal,
-      organization,
-      destination.vatApplied,
-      destination.entertainmentTaxApplied,
-      destination.serviceChargeApplied,
-    );
-    const total = combinedSubtotal + taxAmount + serviceChargeAmount;
 
     return this.prisma.$transaction(async (tx) => {
       // Conditional update guards against a concurrent close/cancel/merge racing past the checks
@@ -769,9 +793,20 @@ export class OrdersService {
         data: { orderId: destinationId },
       });
 
+      // Merged bill inherits the destination order's charge settings — the two should normally
+      // agree (same org), this is just the tie-break if they somehow don't. Recomputed fresh
+      // (see recomputeOrderTotals) now that the source's items have actually landed here.
+      const totals = await this.recomputeOrderTotals(
+        tx,
+        destinationId,
+        organization,
+        destination.vatApplied,
+        destination.entertainmentTaxApplied,
+        destination.serviceChargeApplied,
+      );
       const destResult = await tx.order.updateMany({
         where: { id: destinationId, organizationId, status: { in: OPEN_STATUSES } },
-        data: { subtotal: combinedSubtotal, taxAmount, vatAmount, entertainmentTaxAmount, serviceChargeAmount, total },
+        data: totals,
       });
       if (destResult.count === 0) {
         throw new BadRequestException('This order is no longer available to merge into');
@@ -837,11 +872,6 @@ export class OrdersService {
       }
     }
 
-    const remainingItems = source.items.filter((i) => !fullMoveIds.includes(i.id));
-    const movingSubtotal =
-      fullMoveIds.reduce((sum, id) => sum + toNumber(itemsById.get(id)!.amount), 0) +
-      splits.reduce((sum, s) => sum + s.moveAmount, 0);
-
     let destination = dto.destinationOrderId
       ? await this.prisma.order.findFirst({ where: { id: dto.destinationOrderId, organizationId } })
       : null;
@@ -877,27 +907,17 @@ export class OrdersService {
 
     const organization = await this.prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
 
-    // Source keeps its own charge settings — it isn't going anywhere, it's just lighter.
-    const remainingSubtotal = remainingItems.reduce((sum, i) => sum + toNumber(i.amount), 0);
-    const sourceTax = this.computeOrderCharges(
-      remainingSubtotal,
-      organization,
-      source.vatApplied,
-      source.entertainmentTaxApplied,
-      source.serviceChargeApplied,
-    );
-
     // Existing destination inherits its own settings (mirrors mergeOrders); a brand-new one gets
     // the org's current defaults, same as any other new order.
     const destVatApplied = destination ? destination.vatApplied : organization.vatEnabled;
     const destEntertainmentApplied = destination ? destination.entertainmentTaxApplied : organization.entertainmentTaxEnabled;
     const destServiceChargeApplied = destination ? destination.serviceChargeApplied : organization.serviceChargeEnabled;
-    const destBaseSubtotal = destination ? toNumber(destination.subtotal) : 0;
-    const destSubtotal = destBaseSubtotal + movingSubtotal;
-    const destTax = this.computeOrderCharges(destSubtotal, organization, destVatApplied, destEntertainmentApplied, destServiceChargeApplied);
 
     return this.prisma.$transaction(async (tx) => {
       if (!destination) {
+        // Created with zeroed totals — item rows need a real order id to attach to, and the
+        // real totals are only known once those rows actually exist (see recomputeOrderTotals
+        // below, called after the item moves land).
         destination = await tx.order.create({
           data: {
             organizationId,
@@ -906,33 +926,27 @@ export class OrdersService {
             waiterId: source.waiterId,
             customerId: source.customerId,
             source: newOrderSource!,
-            subtotal: destSubtotal,
-            taxAmount: destTax.taxAmount,
             vatApplied: destVatApplied,
             entertainmentTaxApplied: destEntertainmentApplied,
             serviceChargeApplied: destServiceChargeApplied,
-            vatAmount: destTax.vatAmount,
-            entertainmentTaxAmount: destTax.entertainmentTaxAmount,
-            serviceChargeAmount: destTax.serviceChargeAmount,
-            total: destSubtotal + destTax.taxAmount + destTax.serviceChargeAmount,
+            subtotal: 0,
+            taxAmount: 0,
+            vatAmount: 0,
+            entertainmentTaxAmount: 0,
+            serviceChargeAmount: 0,
+            total: 0,
           },
         });
         if (newOrderTableId) {
           await tx.restaurantTable.update({ where: { id: newOrderTableId }, data: { status: 'OCCUPIED' } });
         }
       } else {
-        const destResult = await tx.order.updateMany({
+        // Guards against a concurrent close/cancel racing past the check above — the actual
+        // totals get written further down, once the moved items are actually in place.
+        const destStillOpen = await tx.order.count({
           where: { id: destination.id, organizationId, status: { in: OPEN_STATUSES } },
-          data: {
-            subtotal: destSubtotal,
-            taxAmount: destTax.taxAmount,
-            vatAmount: destTax.vatAmount,
-            entertainmentTaxAmount: destTax.entertainmentTaxAmount,
-            serviceChargeAmount: destTax.serviceChargeAmount,
-            total: destSubtotal + destTax.taxAmount + destTax.serviceChargeAmount,
-          },
         });
-        if (destResult.count === 0) {
+        if (destStillOpen === 0) {
           throw new BadRequestException('Destination order is no longer available');
         }
       }
@@ -966,19 +980,33 @@ export class OrdersService {
         });
       }
 
+      // Both recomputed fresh (see recomputeOrderTotals) now that the item moves have actually
+      // landed — never from the pre-transaction subtotal snapshot taken before this request
+      // even knew what else might be happening to these two orders concurrently.
+      const destTotals = await this.recomputeOrderTotals(
+        tx,
+        destination.id,
+        organization,
+        destVatApplied,
+        destEntertainmentApplied,
+        destServiceChargeApplied,
+      );
+      await tx.order.update({ where: { id: destination.id }, data: destTotals });
+
+      const remainingCount = await tx.orderItem.count({ where: { orderId: sourceOrderId } });
       const sourceResult = await tx.order.updateMany({
         where: { id: sourceOrderId, organizationId, status: { in: OPEN_STATUSES } },
         data:
-          remainingItems.length === 0
+          remainingCount === 0
             ? { status: 'CANCELLED', notes: source.notes ? `${source.notes} — items moved to order ${destination.id}` : `Items moved to order ${destination.id}` }
-            : {
-                subtotal: remainingSubtotal,
-                taxAmount: sourceTax.taxAmount,
-                vatAmount: sourceTax.vatAmount,
-                entertainmentTaxAmount: sourceTax.entertainmentTaxAmount,
-                serviceChargeAmount: sourceTax.serviceChargeAmount,
-                total: remainingSubtotal + sourceTax.taxAmount + sourceTax.serviceChargeAmount,
-              },
+            : await this.recomputeOrderTotals(
+                tx,
+                sourceOrderId,
+                organization,
+                source.vatApplied,
+                source.entertainmentTaxApplied,
+                source.serviceChargeApplied,
+              ),
       });
       if (sourceResult.count === 0) {
         throw new BadRequestException('This order is no longer available');

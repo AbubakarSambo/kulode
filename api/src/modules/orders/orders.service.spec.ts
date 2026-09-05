@@ -16,7 +16,14 @@ type TxMock = ReturnType<typeof createTxMock>;
 function createTxMock() {
   return {
     order: { updateMany: jest.fn(), findUniqueOrThrow: jest.fn(), update: jest.fn() },
-    orderItem: { create: jest.fn() },
+    orderItem: {
+      create: jest.fn(),
+      // recomputeOrderTotals always re-derives subtotal from this — defaults to "no rows"
+      // rather than throwing, so tests that don't care about the exact total (most of them)
+      // don't need to stub it explicitly.
+      aggregate: jest.fn().mockResolvedValue({ _sum: { amount: null } }),
+      count: jest.fn().mockResolvedValue(0),
+    },
     restaurantTable: { update: jest.fn() },
     payment: { create: jest.fn() },
     user: { findUnique: jest.fn() },
