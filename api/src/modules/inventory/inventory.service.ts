@@ -322,35 +322,52 @@ export class InventoryService {
       include: { menuItem: { select: { inventoryItemId: true } } },
     });
 
+    const inventoryItemIds = Array.from(
+      new Set(
+        orderItems
+          .map((orderItem) => orderItem.menuItem?.inventoryItemId)
+          .filter((id): id is string => !!id),
+      ),
+    );
+    if (inventoryItemIds.length === 0) return;
+
+    // One batched read instead of a `findFirst` per order item. Kept as a mutable running
+    // tally (rather than re-reading) because two order items can share the same inventory
+    // item — each deduction must see the previous one's result to keep onHandBefore/After
+    // accurate in the stock-movement audit trail.
+    const inventoryItems = await tx.inventoryItem.findMany({
+      where: { id: { in: inventoryItemIds }, organizationId },
+    });
+    const onHandById = new Map(inventoryItems.map((item) => [item.id, toNumber(item.onHandQuantity)]));
+
+    const movements: Prisma.StockMovementCreateManyInput[] = [];
     for (const orderItem of orderItems) {
       const inventoryItemId = orderItem.menuItem?.inventoryItemId;
-      if (!inventoryItemId) continue;
-
-      const inventoryItem = await tx.inventoryItem.findFirst({
-        where: { id: inventoryItemId, organizationId },
-      });
-      if (!inventoryItem) continue;
+      if (!inventoryItemId || !onHandById.has(inventoryItemId)) continue;
 
       const deductQty = toNumber(orderItem.quantity);
-      const currentOnHand = toNumber(inventoryItem.onHandQuantity);
+      const currentOnHand = onHandById.get(inventoryItemId)!;
       const newOnHand = currentOnHand - deductQty;
+      onHandById.set(inventoryItemId, newOnHand);
 
       await tx.inventoryItem.update({
         where: { id: inventoryItemId },
         data: { onHandQuantity: newOnHand },
       });
 
-      await tx.stockMovement.create({
-        data: {
-          organizationId,
-          inventoryItemId,
-          orderId,
-          type: 'ORDER_DEDUCTED',
-          quantity: -deductQty,
-          onHandBefore: currentOnHand,
-          onHandAfter: newOnHand,
-        },
+      movements.push({
+        organizationId,
+        inventoryItemId,
+        orderId,
+        type: 'ORDER_DEDUCTED',
+        quantity: -deductQty,
+        onHandBefore: currentOnHand,
+        onHandAfter: newOnHand,
       });
+    }
+
+    if (movements.length > 0) {
+      await tx.stockMovement.createMany({ data: movements });
     }
   }
 

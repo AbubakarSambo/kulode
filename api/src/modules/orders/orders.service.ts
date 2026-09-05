@@ -1200,9 +1200,9 @@ export class OrdersService {
       if (isFinalPayment) {
         const placedAt = updated.createdAt;
         const servedAt = updated.closedAt as Date;
-        for (const item of updated.items) {
+        const sheetRows = updated.items.map((item) => {
           const categoryName = item.menuItem?.categories[0]?.category.name;
-          await this.sheetSync.enqueue(tx, organizationId, 'ORDER_ITEMS', [
+          return [
             formatSheetDate(servedAt),
             formatSheetMonth(servedAt),
             formatSheetTime(placedAt),
@@ -1221,8 +1221,9 @@ export class OrdersService {
             toNumber(updated.serviceChargeAmount),
             '',
             dto.paymentMethod,
-          ]);
-        }
+          ];
+        });
+        await this.sheetSync.enqueueMany(tx, organizationId, 'ORDER_ITEMS', sheetRows);
 
         await this.inventoryService.deductForOrder(tx, id, organizationId);
 

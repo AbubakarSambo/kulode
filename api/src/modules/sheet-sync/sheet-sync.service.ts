@@ -67,6 +67,24 @@ export class SheetSyncService {
     });
   }
 
+  /**
+   * Same as {@link enqueue}, batched — one insert for all rows instead of one round trip per
+   * row. Matters inside a caller's transaction (e.g. closing a multi-item order): each row used
+   * to cost its own sequential await, which on a large order could tip the transaction past
+   * Prisma's interactive-transaction timeout.
+   */
+  async enqueueMany(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
+    tab: SheetSyncTab,
+    rows: (string | number)[][],
+  ) {
+    if (rows.length === 0) return;
+    await tx.sheetSyncQueueEntry.createMany({
+      data: rows.map((rowValues) => ({ organizationId, tab, rowValues })),
+    });
+  }
+
   async flush() {
     const pending = await this.prisma.sheetSyncQueueEntry.findMany({
       where: {

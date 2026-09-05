@@ -23,15 +23,22 @@ export async function runIdempotent<T>(
   fn: (tx: Prisma.TransactionClient) => Promise<T>,
 ): Promise<T> {
   try {
-    return await prisma.$transaction(async (tx) => {
-      await tx.idempotencyKey.create({ data: { organizationId, action, key } });
-      const result = await fn(tx);
-      await tx.idempotencyKey.update({
-        where: { organizationId_action_key: { organizationId, action, key } },
-        data: { resultSnapshot: toJsonSnapshot(result) },
-      });
-      return result;
-    });
+    return await prisma.$transaction(
+      async (tx) => {
+        await tx.idempotencyKey.create({ data: { organizationId, action, key } });
+        const result = await fn(tx);
+        await tx.idempotencyKey.update({
+          where: { organizationId_action_key: { organizationId, action, key } },
+          data: { resultSnapshot: toJsonSnapshot(result) },
+        });
+        return result;
+      },
+      // Some callers (e.g. closing a multi-item order) chain a couple dozen sequential
+      // round trips inside this one transaction — the 5s/2s Prisma defaults leave no margin
+      // under real DB latency, and an expired transaction surfaces as a confusing "Transaction
+      // not found" error on whichever query loses the race, not as a timeout.
+      { timeout: 15_000, maxWait: 5_000 },
+    );
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       const existing = await prisma.idempotencyKey.findUnique({

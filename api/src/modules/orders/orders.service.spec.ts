@@ -70,7 +70,7 @@ describe('OrdersService — status transitions across the waiter/cashier split',
   let prisma: ReturnType<typeof createMockPrisma>;
   let inventoryService: { deductForOrder: jest.Mock };
   let walletService: { debit: jest.Mock };
-  let sheetSync: { enqueue: jest.Mock };
+  let sheetSync: { enqueue: jest.Mock; enqueueMany: jest.Mock };
   let printingService: { dispatchDocketsForNewItems: jest.Mock; dispatchDocketsForCancellation: jest.Mock };
   let orderTypesService: { requiresTable: jest.Mock };
   let paymentTypesService: { exists: jest.Mock };
@@ -79,7 +79,7 @@ describe('OrdersService — status transitions across the waiter/cashier split',
     prisma = createMockPrisma();
     inventoryService = { deductForOrder: jest.fn() };
     walletService = { debit: jest.fn() };
-    sheetSync = { enqueue: jest.fn() };
+    sheetSync = { enqueue: jest.fn(), enqueueMany: jest.fn() };
     printingService = {
       dispatchDocketsForNewItems: jest.fn().mockResolvedValue(undefined),
       dispatchDocketsForCancellation: jest.fn().mockResolvedValue(undefined),
