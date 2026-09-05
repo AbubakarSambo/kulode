@@ -175,6 +175,22 @@ export function OrderTakingPage() {
     () => (customersPage?.data ?? []).map((c) => ({ id: c.id, label: c.phone ? `${c.name} (${c.phone})` : c.name })),
     [customersPage],
   )
+  // Pins the selected customer so it survives the search-scoped `customerOptions`/`customersPage`
+  // list changing underneath it (e.g. the debounced search resets to the default "recent 100"
+  // page right after selection, which can drop a customer that was only found by searching).
+  const [pinnedCustomer, setPinnedCustomer] = useState<{ id: string; name: string; phone?: string | null } | null>(null)
+  const handleSelectCustomer = (id: string) => {
+    setCustomerId(id)
+    const found = customersPage?.data.find((c) => c.id === id)
+    setPinnedCustomer(found ? { id: found.id, name: found.name, phone: found.phone } : null)
+  }
+  const customerOptionsWithSelected = useMemo(() => {
+    if (!pinnedCustomer || customerOptions.some((c) => c.id === pinnedCustomer.id)) return customerOptions
+    return [
+      { id: pinnedCustomer.id, label: pinnedCustomer.phone ? `${pinnedCustomer.name} (${pinnedCustomer.phone})` : pinnedCustomer.name },
+      ...customerOptions,
+    ]
+  }, [customerOptions, pinnedCustomer])
   const { data: waiters } = useQuery({
     queryKey: ['waiters-directory'],
     queryFn: () => usersApi.directory(['WAITER', 'CASHIER']),
@@ -184,8 +200,8 @@ export function OrderTakingPage() {
     [waiters],
   )
   const selectedCustomerLabel = useMemo(
-    () => customerOptions.find((c) => c.id === customerId)?.label,
-    [customerOptions, customerId],
+    () => customerOptionsWithSelected.find((c) => c.id === customerId)?.label,
+    [customerOptionsWithSelected, customerId],
   )
   const selectedWaiterLabel = useMemo(
     () => waiterOptions.find((w) => w.id === waiterId)?.label,
@@ -261,7 +277,8 @@ export function OrderTakingPage() {
     [tables, effectiveTableId],
   )
   const selectedWaiter = waiters?.find((w) => w.id === waiterId)
-  const selectedCustomer = customersPage?.data.find((c) => c.id === customerId)
+  const selectedCustomer =
+    customersPage?.data.find((c) => c.id === customerId) ?? (pinnedCustomer?.id === customerId ? pinnedCustomer : undefined)
 
   const handlePrintPreview = () => {
     if (!organization) return
@@ -655,9 +672,9 @@ export function OrderTakingPage() {
             <div className="mt-1 flex items-center gap-1.5">
               <div className="flex-1">
                 <SearchableSelect
-                  options={customerOptions}
+                  options={customerOptionsWithSelected}
                   value={customerId}
-                  onChange={setCustomerId}
+                  onChange={handleSelectCustomer}
                   onSearchChange={setCustomerSearch}
                   placeholder="Attach a customer"
                 />
@@ -665,7 +682,10 @@ export function OrderTakingPage() {
               {customerId && (
                 <button
                   type="button"
-                  onClick={() => setCustomerId('')}
+                  onClick={() => {
+                    setCustomerId('')
+                    setPinnedCustomer(null)
+                  }}
                   className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted"
                   aria-label="Clear customer"
                 >

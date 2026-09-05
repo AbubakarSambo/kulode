@@ -14,6 +14,18 @@ export interface CreateCustomerData {
   notes?: string
 }
 
+export interface CustomerStats {
+  lifetimeSales: number
+  lifetimeOrders: number
+  lastVisit: string | null
+  customerSince: string
+  currentCredit: number
+  byOrderType: { type: string; total: number; count: number }[]
+  topMeals: { id: string; name: string; quantity: number; revenue: number; orders: number }[]
+  topDrinks: { id: string; name: string; quantity: number; revenue: number; orders: number }[]
+  visitsByWeekday: { day: string; count: number }[]
+}
+
 export const customersApi = {
   list: async (filters: CustomerFilters = {}): Promise<PaginatedResponse<Customer>> => {
     const params = new URLSearchParams()
@@ -27,6 +39,11 @@ export const customersApi = {
 
   get: async (id: string): Promise<Customer> => {
     const response = await apiClient.get<ApiResponse<Customer>>(`/customers/${id}`)
+    return response.data.data
+  },
+
+  getStats: async (id: string): Promise<CustomerStats> => {
+    const response = await apiClient.get<ApiResponse<CustomerStats>>(`/customers/${id}/stats`)
     return response.data.data
   },
 

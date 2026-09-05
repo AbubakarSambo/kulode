@@ -1,15 +1,17 @@
 import apiClient from './client'
-import type { ApiResponse, MenuCategory, MenuItem } from '@/types'
+import type { ApiResponse, MenuCategory, MenuCategoryKind, MenuItem } from '@/types'
 
 export interface CreateMenuCategoryData {
   name: string
   sortOrder?: number
+  kind?: MenuCategoryKind
 }
 
 export interface UpdateMenuCategoryData {
   name?: string
   sortOrder?: number
   isActive?: boolean
+  kind?: MenuCategoryKind
 }
 
 export interface CreateMenuItemData {

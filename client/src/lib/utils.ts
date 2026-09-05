@@ -12,6 +12,14 @@ export function formatCurrency(amount: number): string {
   }).format(amount)}`
 }
 
+// Compact form for tight list rows — "₦310.9K" / "₦1.2M" instead of formatCurrency's full "₦310,900".
+export function formatCompactCurrency(amount: number): string {
+  return `₦${new Intl.NumberFormat('en-NG', {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(amount)}`
+}
+
 export function formatDate(date: string | Date): string {
   return new Intl.DateTimeFormat('en-NG', {
     year: 'numeric',

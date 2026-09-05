@@ -308,8 +308,11 @@ export class OrdersService {
     }
 
     if (dto.waiterId) {
+      // Matches usersApi.directory(['WAITER', 'CASHIER']) on the client — the "Assign a waiter"
+      // picker deliberately also offers cashiers (e.g. one ringing up a walk-in order), so
+      // validation here must accept the same set or a legitimately-picked cashier 404s at submit.
       const waiter = await this.prisma.user.findFirst({
-        where: { id: dto.waiterId, organizationId, isActive: true, roles: { has: 'WAITER' } },
+        where: { id: dto.waiterId, organizationId, isActive: true, roles: { hasSome: ['WAITER', 'CASHIER'] } },
       });
       if (!waiter) throw new NotFoundException('Waiter not found');
     }
@@ -661,8 +664,11 @@ export class OrdersService {
     }
 
     if (dto.waiterId) {
+      // Matches usersApi.directory(['WAITER', 'CASHIER']) on the client — the "Assign a waiter"
+      // picker deliberately also offers cashiers (e.g. one ringing up a walk-in order), so
+      // validation here must accept the same set or a legitimately-picked cashier 404s at submit.
       const waiter = await this.prisma.user.findFirst({
-        where: { id: dto.waiterId, organizationId, isActive: true, roles: { has: 'WAITER' } },
+        where: { id: dto.waiterId, organizationId, isActive: true, roles: { hasSome: ['WAITER', 'CASHIER'] } },
       });
       if (!waiter) throw new NotFoundException('Waiter not found');
     }

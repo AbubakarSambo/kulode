@@ -7,12 +7,18 @@ import { toast } from 'sonner'
 import { Plus, Pencil, Trash2, Tag, Upload, LayoutGrid, List } from 'lucide-react'
 import { Tag01Icon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
-import { Button, Input, Label, Card, CardContent, Badge, ConfirmDialog, EmptyState } from '@/components/ui'
+import { Button, Input, Label, Select, Card, CardContent, Badge, ConfirmDialog, EmptyState } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { CsvImportModal, type CsvColumn } from '@/components/shared/CsvImportModal'
 import { menuCategoriesApi } from '@/api'
 import { cn } from '@/lib/utils'
-import type { MenuCategory } from '@/types'
+import type { MenuCategory, MenuCategoryKind } from '@/types'
+
+const KIND_LABELS: Record<MenuCategoryKind, string> = {
+  FOOD: 'Food',
+  DRINK: 'Drink',
+  OTHER: 'Other',
+}
 import { useAuthStore } from '@/stores/auth'
 
 const CSV_COLUMNS: CsvColumn[] = [
@@ -29,6 +35,7 @@ const CSV_SAMPLE_ROWS = [
 const categorySchema = z.object({
   name: z.string().min(1, 'Name is required'),
   sortOrder: z.number().optional(),
+  kind: z.enum(['FOOD', 'DRINK', 'OTHER']),
 })
 
 type CategoryFormData = z.infer<typeof categorySchema>
@@ -120,13 +127,13 @@ export function MenuCategoriesPage() {
 
   const openNewCategory = () => {
     setEditingCategory(null)
-    categoryForm.reset({ name: '', sortOrder: (categories?.length ?? 0) + 1 })
+    categoryForm.reset({ name: '', sortOrder: (categories?.length ?? 0) + 1, kind: 'FOOD' })
     setCategoryModalOpen(true)
   }
 
   const openEditCategory = (category: MenuCategory) => {
     setEditingCategory(category)
-    categoryForm.reset({ name: category.name, sortOrder: category.sortOrder })
+    categoryForm.reset({ name: category.name, sortOrder: category.sortOrder, kind: category.kind })
     setCategoryModalOpen(true)
   }
 
@@ -218,6 +225,7 @@ export function MenuCategoriesPage() {
                       <h3 className="truncate font-semibold text-foreground">{category.name}</h3>
                     </div>
                     <span className="shrink-0 text-xs text-muted-foreground">Order: {category.sortOrder}</span>
+                    <Badge variant="secondary" className="shrink-0">{KIND_LABELS[category.kind]}</Badge>
                     {canManage ? (
                       <button
                         onClick={() => toggleActive.mutate({ id: category.id, isActive: !category.isActive })}
@@ -268,7 +276,7 @@ export function MenuCategoriesPage() {
                       )}
                       <div>
                         <h3 className="font-semibold text-foreground">{category.name}</h3>
-                        <p className="mt-1 text-xs text-muted-foreground">Order: {category.sortOrder}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">Order: {category.sortOrder} · {KIND_LABELS[category.kind]}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
@@ -320,6 +328,14 @@ export function MenuCategoriesPage() {
           <div>
             <Label>Sort Order</Label>
             <Input type="number" {...categoryForm.register('sortOrder', { valueAsNumber: true })} />
+          </div>
+          <div>
+            <Label>Type</Label>
+            <Select {...categoryForm.register('kind')}>
+              <option value="FOOD">Food</option>
+              <option value="DRINK">Drink</option>
+              <option value="OTHER">Other</option>
+            </Select>
           </div>
           <Button type="submit" className="w-full" isLoading={saveCategory.isPending}>
             {editingCategory ? 'Save Changes' : 'Create Category'}

@@ -147,8 +147,11 @@ export function SearchableSelect({
   const handleSelectOption = (optionId: string) => {
     onChange(optionId);
     setIsOpen(false);
+    // Only reset the local search box, not the caller's server-side search state — a caller
+    // backing this with a paginated/capped list (see onSearchChange's doc) would otherwise
+    // refetch its default (unfiltered) page right after selection, which can evict the
+    // just-selected option from `options` and blank out the displayed label.
     setSearch("");
-    onSearchChange?.("");
   };
 
   return (

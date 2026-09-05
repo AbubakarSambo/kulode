@@ -33,6 +33,7 @@ export class MenuService {
         organizationId,
         name: dto.name,
         sortOrder: dto.sortOrder ?? 0,
+        kind: dto.kind,
       },
     });
   }
@@ -56,6 +57,7 @@ export class MenuService {
         ...(dto.name && { name: dto.name }),
         ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        ...(dto.kind !== undefined && { kind: dto.kind }),
       },
     });
   }

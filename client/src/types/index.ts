@@ -415,11 +415,14 @@ export type OrderStatus = 'OPEN' | 'IN_KITCHEN' | 'READY' | 'CLOSED_PAID' | 'CLO
 export type OrderItemStatus = 'PENDING' | 'ON_IT' | 'PASS' | 'SERVED'
 export type ShiftStatus = 'OPEN' | 'CLOSED'
 
+export type MenuCategoryKind = 'FOOD' | 'DRINK' | 'OTHER'
+
 export interface MenuCategory {
   id: string
   name: string
   sortOrder: number
   isActive: boolean
+  kind: MenuCategoryKind
 }
 
 export interface OrderType {

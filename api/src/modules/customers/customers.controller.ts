@@ -41,6 +41,17 @@ export class CustomersController {
     return this.customersService.findOne(id, organizationId);
   }
 
+  @Get(':id/stats')
+  @ApiOperation({ summary: 'Get lifetime stats for a customer (sales, top items, visit patterns)' })
+  @ApiResponse({ status: 200, description: 'Customer stats' })
+  @ApiResponse({ status: 404, description: 'Customer not found' })
+  async getStats(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.customersService.getStats(id, organizationId);
+  }
+
   @Post()
   @ApiOperation({ summary: 'Create a new customer' })
   @ApiResponse({ status: 201, description: 'Customer created' })

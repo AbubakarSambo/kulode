@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { MenuCategoryKind } from '@prisma/client';
+import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 
 export class CreateMenuCategoryDto {
   @ApiProperty({ example: 'Starters' })
@@ -13,4 +14,9 @@ export class CreateMenuCategoryDto {
   @IsInt()
   @Min(0)
   sortOrder?: number;
+
+  @ApiPropertyOptional({ enum: MenuCategoryKind, default: MenuCategoryKind.FOOD })
+  @IsOptional()
+  @IsEnum(MenuCategoryKind)
+  kind?: MenuCategoryKind;
 }

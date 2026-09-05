@@ -5,15 +5,210 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { ArrowLeft, Pencil, Trash2, Wallet, PlusCircle, Settings2, ShieldCheck, Printer } from 'lucide-react'
+import {
+  ArrowLeft,
+  Pencil,
+  Trash2,
+  Wallet,
+  PlusCircle,
+  Settings2,
+  ShieldCheck,
+  Printer,
+  Receipt,
+  ShoppingBag,
+  CalendarClock,
+  CreditCard,
+  UtensilsCrossed,
+  CupSoda,
+  PieChart as PieChartIcon,
+  BarChart3,
+} from 'lucide-react'
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts'
 import { Header } from '@/components/layout'
-import { Button, Input, Label, Select, Card, CardContent, Badge, ConfirmDialog } from '@/components/ui'
+import { Button, Input, Label, Select, Card, CardHeader, CardTitle, CardContent, Badge, EmptyState, ConfirmDialog } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { customersApi, walletApi, organizationsApi } from '@/api'
-import { formatCurrency, formatDate, cn } from '@/lib/utils'
+import type { CustomerStats } from '@/api'
+import { formatCurrency, formatCompactCurrency, formatDate, cn } from '@/lib/utils'
 import { printWalletReceipt } from '@/lib/printWalletReceipt'
 import { useAuthStore } from '@/stores/auth'
 import type { Customer, OrderStatus, OrderSource, WalletTransactionType } from '@/types'
+
+const CHART_COLORS = ['#0037b0', '#1d4ed8', '#2563eb', '#3b82f6', '#60a5fa']
+
+function TopItemsCard({
+  title,
+  icon: Icon,
+  items,
+  emptyLabel,
+}: {
+  title: string
+  icon: React.ComponentType<{ className?: string }>
+  items: CustomerStats['topMeals']
+  emptyLabel: string
+}) {
+  const topRevenue = items[0]?.revenue || 1
+  return (
+    <Card>
+      <CardHeader className="p-8 pb-4">
+        <CardTitle className="flex items-center gap-2.5 text-base font-semibold text-foreground">
+          <Icon className="h-5 w-5 text-muted-foreground" />
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-8 pt-0">
+        {items.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">{emptyLabel}</p>
+        ) : (
+          <div className="space-y-4">
+            {items.map((item) => (
+              <div key={item.id}>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="truncate font-semibold text-foreground">{item.name}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {item.quantity}n · <span className="font-semibold text-foreground">{formatCompactCurrency(item.revenue)}</span>
+                  </span>
+                </div>
+                <div className="mt-1.5 h-1 w-full rounded-full bg-muted">
+                  <div
+                    className="h-1 rounded-full bg-[#0037b0]"
+                    style={{ width: `${Math.max(4, (item.revenue / topRevenue) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function CustomerStatsSection({ customerId }: { customerId: string }) {
+  const { data: stats } = useQuery({
+    queryKey: ['customer-stats', customerId],
+    queryFn: () => customersApi.getStats(customerId),
+  })
+
+  if (!stats) return null
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardContent className="p-4 sm:p-6">
+            <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <Receipt className="h-3.5 w-3.5" /> Lifetime Sales
+            </p>
+            <p className="mt-1.5 text-lg sm:text-2xl font-semibold text-foreground tabular-nums">
+              {formatCurrency(stats.lifetimeSales)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 sm:p-6">
+            <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <ShoppingBag className="h-3.5 w-3.5" /> Lifetime Orders
+            </p>
+            <p className="mt-1.5 text-lg sm:text-2xl font-semibold text-foreground tabular-nums">{stats.lifetimeOrders}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 sm:p-6">
+            <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <CalendarClock className="h-3.5 w-3.5" /> Last Visit
+            </p>
+            <p className="mt-1.5 text-lg sm:text-2xl font-semibold text-foreground">
+              {stats.lastVisit ? formatDate(stats.lastVisit) : '—'}
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">since {formatDate(stats.customerSince)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 sm:p-6">
+            <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <CreditCard className="h-3.5 w-3.5" /> Current Credit
+            </p>
+            <p className="mt-1.5 text-lg sm:text-2xl font-semibold text-foreground tabular-nums">
+              {formatCurrency(stats.currentCredit)}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <TopItemsCard title="Top 5 Meals" icon={UtensilsCrossed} items={stats.topMeals} emptyLabel="No meals ordered yet" />
+        <TopItemsCard title="Top 5 Drinks" icon={CupSoda} items={stats.topDrinks} emptyLabel="No drinks ordered yet" />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader className="p-8 pb-4">
+            <CardTitle className="flex items-center gap-2.5 text-base font-semibold text-foreground">
+              <PieChartIcon className="h-5 w-5 text-muted-foreground" />
+              Orders by Type
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-8 pt-0">
+            {stats.byOrderType.length === 0 ? (
+              <EmptyState icon={Receipt} title="No orders yet" description="Order type breakdown will appear once orders close." />
+            ) : (
+              <>
+                <div className="h-56">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={stats.byOrderType} dataKey="count" nameKey="type" innerRadius={60} outerRadius={90} paddingAngle={2}>
+                        {stats.byOrderType.map((_, i) => (
+                          <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip
+                        formatter={(value?: number, name?: string) => [`${value ?? 0} orders`, name ?? '']}
+                        contentStyle={{ borderRadius: 12, fontSize: 12 }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1.5">
+                  {stats.byOrderType.map((s, i) => (
+                    <div key={s.type} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+                      {s.type}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="p-8 pb-4">
+            <CardTitle className="flex items-center gap-2.5 text-base font-semibold text-foreground">
+              <BarChart3 className="h-5 w-5 text-muted-foreground" />
+              Visits by Day of Week
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-8 pt-0">
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stats.visitsByWeekday}>
+                  <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                  <RechartsTooltip
+                    cursor={{ fill: '#f1f5f9' }}
+                    contentStyle={{ borderRadius: 12, fontSize: 12 }}
+                    formatter={(v?: number) => [`${v ?? 0} visits`, '']}
+                  />
+                  <Bar dataKey="count" fill="#0037b0" radius={[6, 6, 0, 0]} maxBarSize={40} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
 
 interface CustomerOrderSummary {
   id: string
@@ -147,7 +342,7 @@ function WalletSection({
   })
 
   return (
-    <Card className="mt-4 p-4">
+    <Card className="p-4">
       <CardContent className="p-0">
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -423,7 +618,9 @@ export function CustomerDetailPage() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+        <CustomerStatsSection customerId={customer.id} />
+
         <div className="grid gap-4 md:grid-cols-3">
           <Card className="p-4 md:col-span-1">
             <CardContent className="space-y-3 p-0">

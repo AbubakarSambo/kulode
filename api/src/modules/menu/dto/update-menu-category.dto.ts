@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { MenuCategoryKind } from '@prisma/client';
+import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 
 export class UpdateMenuCategoryDto {
   @ApiPropertyOptional()
@@ -18,4 +19,9 @@ export class UpdateMenuCategoryDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({ enum: MenuCategoryKind })
+  @IsOptional()
+  @IsEnum(MenuCategoryKind)
+  kind?: MenuCategoryKind;
 }
