@@ -78,7 +78,15 @@ export class PrintingService {
       where: { organizationId, isActive: true },
       include: { categories: { select: { categoryId: true } } },
     });
-    if (printers.length === 0) return;
+    if (printers.length === 0) {
+      // Otherwise this is a totally silent no-op — no PrintJob row, nothing in the printers
+      // UI, nothing anywhere — which is exactly what made a real "why didn't this print"
+      // report impossible to diagnose from logs alone.
+      this.logger.warn(
+        `No active printer configured for org ${organizationId} — skipping ${docketType} docket for order ${order.id}`,
+      );
+      return;
+    }
 
     const menuItemIds = [...new Set(items.map((i) => i.menuItemId).filter((id): id is string => !!id))];
     const menuItemCategories =
@@ -95,7 +103,7 @@ export class PrintingService {
       categoryIdsByMenuItem.set(mc.menuItemId, set);
     }
 
-    await Promise.all(
+    const jobsCreated = await Promise.all(
       printers.map(async (printer) => {
         const printerItems =
           printer.categories.length === 0
@@ -106,7 +114,7 @@ export class PrintingService {
                 return printer.categories.some((c) => categoryIds.has(c.categoryId));
               });
 
-        if (printerItems.length === 0) return;
+        if (printerItems.length === 0) return false;
 
         const payload = {
           orderId: order.id,
@@ -129,8 +137,19 @@ export class PrintingService {
         await this.prisma.printJob.create({
           data: { orderId: order.id, printerId: printer.id, payload },
         });
+        return true;
       }),
     );
+
+    if (!jobsCreated.some(Boolean)) {
+      // Every configured printer filtered out every item via category routing — as silent as
+      // the "no printers at all" case above, but points at a different fix (assign the item's
+      // category to a printer, or clear the printer's category list to broadcast everything).
+      this.logger.warn(
+        `${printers.length} printer(s) configured for org ${organizationId} but none matched any of the ` +
+          `${items.length} item(s) on order ${order.id} — check printer category routing`,
+      );
+    }
   }
 
   // Re-queues a previously failed job so the agent picks it up on its next poll — used by the
