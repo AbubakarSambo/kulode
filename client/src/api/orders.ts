@@ -42,6 +42,7 @@ export interface OrderFilter {
   tableId?: string
   customerId?: string
   waiterId?: string
+  search?: string
 }
 
 /** Lightweight projection returned by `ordersApi.listSummary` — see `?summary=true` on the API. */

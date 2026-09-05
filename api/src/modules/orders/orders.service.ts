@@ -216,14 +216,29 @@ export class OrdersService {
   } as const;
 
   async findAll(organizationId: string, filter: OrderFilterDto) {
-    const { page = 1, limit = 20, status, statuses, tableId, customerId, waiterId, summary } = filter;
+    const { page = 1, limit = 20, status, statuses, tableId, customerId, waiterId, summary, search } = filter;
     const skip = (page - 1) * limit;
+    // Strip a leading "#" — the short order code shown in the UI (e.g. "#A3F9B2C1") is just the
+    // id's first 8 characters, so a copy-pasted code with its "#" would otherwise never match.
+    const searchTerm = search?.trim().replace(/^#/, '');
     const where = {
       organizationId,
       ...(statuses && statuses.length > 0 ? { status: { in: statuses } } : status && { status }),
       ...(tableId && { tableId }),
       ...(customerId && { customerId }),
       ...(waiterId && { waiterId }),
+      ...(searchTerm && {
+        OR: [
+          { id: { contains: searchTerm, mode: 'insensitive' as const } },
+          { customer: { name: { contains: searchTerm, mode: 'insensitive' as const } } },
+          // "Staff" in the UI shows the waiter when assigned, else whoever created the order — so
+          // search must match both, not just the waiter, to find what's actually displayed.
+          { waiter: { firstName: { contains: searchTerm, mode: 'insensitive' as const } } },
+          { waiter: { lastName: { contains: searchTerm, mode: 'insensitive' as const } } },
+          { createdBy: { firstName: { contains: searchTerm, mode: 'insensitive' as const } } },
+          { createdBy: { lastName: { contains: searchTerm, mode: 'insensitive' as const } } },
+        ],
+      }),
     };
 
     if (summary) {

@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsArray, IsBoolean, IsIn, IsOptional, IsUUID } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { PaginationDto } from '../../../common';
 
 const ORDER_STATUSES = ['OPEN', 'IN_KITCHEN', 'READY', 'CLOSED_PAID', 'CLOSED_UNPAID', 'CANCELLED'] as const;
@@ -36,6 +36,15 @@ export class OrderFilterDto extends PaginationDto {
   @IsOptional()
   @IsUUID()
   waiterId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Free-text search matched against the order\'s short id code, customer name, and staff name (the assigned waiter, or whoever created the order).',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  search?: string;
 
   @ApiPropertyOptional({
     description:
