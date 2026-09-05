@@ -8,16 +8,7 @@ import { Header } from '@/components/layout'
 import { Card, CardContent, CardHeader, CardTitle, DropdownPanel, DatePicker, EmptyState } from '@/components/ui'
 import { posDashboardApi } from '@/api'
 import type { ReportPeriod } from '@/api/reports'
-import { formatCurrency, cn } from '@/lib/utils'
-
-const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  CASH: 'Cash',
-  BANK_TRANSFER: 'Bank Transfer',
-  CARD: 'Card',
-  PAYSTACK: 'Paystack',
-  WALLET: 'Customer Wallet',
-  OTHER: 'Other',
-}
+import { formatCurrency, formatPaymentMethod, cn } from '@/lib/utils'
 
 const periodOptions: Array<{ value: ReportPeriod; label: string }> = [
   { value: 'TODAY', label: 'Today' },
@@ -232,7 +223,7 @@ export function PosDashboardPage() {
               <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground">Top Method</p>
               <p className="mt-1 sm:mt-2 text-lg sm:text-3xl font-semibold text-foreground truncate">
                 {summary?.byPaymentMethod && summary.byPaymentMethod.length > 0
-                  ? PAYMENT_METHOD_LABELS[summary.byPaymentMethod[0].method] ?? summary.byPaymentMethod[0].method
+                  ? formatPaymentMethod(summary.byPaymentMethod[0].method)
                   : '—'}
               </p>
             </CardContent>
@@ -343,7 +334,7 @@ export function PosDashboardPage() {
                   {summary.byPaymentMethod.map((m) => (
                     <div key={m.method} className="flex items-center justify-between p-3 rounded-2xl bg-muted/50">
                       <div>
-                        <p className="text-sm font-semibold text-foreground">{PAYMENT_METHOD_LABELS[m.method] ?? m.method}</p>
+                        <p className="text-sm font-semibold text-foreground">{formatPaymentMethod(m.method)}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">{m.count} payments</p>
                       </div>
                       <span className="text-sm font-semibold text-foreground tabular-nums">{formatCurrency(Math.round(m.total))}</span>

@@ -8,7 +8,7 @@ import { Button, Card, CardContent, Badge, Input, Label, SearchableSelect, Texta
 import { Modal } from '@/components/shared/Modal'
 import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, usersApi, tablesApi, orderTypesApi, paymentTypesApi } from '@/api'
 import { getQueuedActionsForLocalOrder, discardFailedAction, LOCAL_ORDER_PREFIX } from '@/lib/offlineOrderQueue'
-import { formatCurrency, cn } from '@/lib/utils'
+import { formatCurrency, formatPaymentMethod, cn } from '@/lib/utils'
 import { printBill } from '@/lib/printBill'
 import { useAuthStore } from '@/stores/auth'
 import type { OrderItemStatus, MenuItem, OrderSource } from '@/types'
@@ -40,15 +40,6 @@ const PAYMENT_METHODS = [
 const OFFLINE_PAYMENT_METHODS = PAYMENT_METHODS.filter(
   (m) => m.value !== 'PAYSTACK' && m.value !== 'WALLET',
 )
-
-// Display labels for the legacy built-in codes (still stored verbatim, never renamed — see the
-// PaymentType migration). Anything else (a custom org type) is already a pretty name, no lookup needed.
-const LEGACY_PAYMENT_METHOD_LABELS: Record<string, string> = {
-  CASH: 'Cash',
-  BANK_TRANSFER: 'Bank Transfer',
-  CARD: 'Card',
-  OTHER: 'Other',
-}
 
 interface AddItemsModalProps {
   isOpen: boolean
@@ -459,7 +450,7 @@ function SyncedOrderView({ id }: { id: string }) {
     const managed = (paymentTypes ?? [])
       .slice()
       .sort((a, b) => a.sortOrder - b.sortOrder)
-      .map((t) => ({ value: t.name, label: LEGACY_PAYMENT_METHOD_LABELS[t.name] ?? t.name }))
+      .map((t) => ({ value: t.name, label: formatPaymentMethod(t.name) }))
     const fixed = [
       { value: 'PAYSTACK', label: 'Paystack (checkout link)' },
       ...(order?.customer ? [{ value: 'WALLET', label: 'Customer Wallet' }] : []),

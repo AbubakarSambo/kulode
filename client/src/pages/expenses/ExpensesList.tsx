@@ -20,7 +20,7 @@ import { Button, Card, CardContent, Badge, Input, ConfirmDialog, EmptyState, Dro
 import { BottomSheet } from '@/components/shared'
 import { expensesApi } from '@/api'
 import { type ReportPeriod } from '@/api/reports'
-import { formatCurrency, formatDate, cn } from '@/lib/utils'
+import { formatCurrency, formatDate, formatPaymentMethod, cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { TAX_CATEGORY_LABELS, type TaxCategory } from '@/types'
 import { useSubscription } from '@/hooks/useSubscription'
@@ -42,14 +42,6 @@ const methodTextColors: Record<string, string> = {
   CARD: 'text-emerald-700',
   CASH: 'text-slate-600',
   OTHER: 'text-slate-500',
-}
-
-const formatPaymentMethod = (method: string) => {
-  if (!method) return ''
-  return method
-    .split('_')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(' ')
 }
 
 const formatPeriodLabel = (period: ReportPeriod) => {

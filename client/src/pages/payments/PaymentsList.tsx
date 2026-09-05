@@ -18,7 +18,7 @@ import { Header } from '@/components/layout'
 import { Button, Input, Card, CardContent, ConfirmDialog, EmptyState, DropdownPanel } from '@/components/ui'
 import { BottomSheet } from '@/components/shared'
 import { paymentsApi } from '@/api'
-import { formatCurrency, formatDate, cn } from '@/lib/utils'
+import { formatCurrency, formatDate, formatPaymentMethod, cn } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
 import { useAuthStore } from '@/stores/auth'
 import { PaymentsIcon } from '@/components/ui/CustomIcons'
@@ -40,14 +40,6 @@ const methodTextColors: Record<string, string> = {
   CARD: 'text-emerald-700',
   CASH: 'text-slate-600',
   OTHER: 'text-slate-500',
-}
-
-const formatPaymentMethod = (method: string) => {
-  if (!method) return ''
-  return method
-    .split('_')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(' ')
 }
 
 const getInitials = (name: string) => {

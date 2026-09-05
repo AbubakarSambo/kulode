@@ -34,6 +34,20 @@ export function getInitials(firstName: string, lastName: string): string {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
 }
 
+// A PaymentMethod is either a reserved code (CASH, BANK_TRANSFER, CARD, PAYSTACK, OTHER — stored
+// as ALL_CAPS) or a per-org PaymentType.name, which admins already enter as a human-readable
+// string (e.g. "Mobile Money"). So: prettify ALL_CAPS codes, pass anything else through unchanged.
+// WALLET is reserved but reads better as "Customer Wallet" than a literal "Wallet".
+export function formatPaymentMethod(method: string): string {
+  if (!method) return ''
+  if (method === 'WALLET') return 'Customer Wallet'
+  if (!/^[A-Z0-9_]+$/.test(method)) return method
+  return method
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ')
+}
+
 export function isActualMobileDevice(): boolean {
   if (typeof window === 'undefined') return false
   const ua = navigator.userAgent || navigator.vendor || (window as any).opera

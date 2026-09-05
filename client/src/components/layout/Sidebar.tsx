@@ -261,7 +261,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             <div key={group.title} className="space-y-1">
               <div className={cn(
                 "grid transition-all duration-200 ease-in-out",
-                effectiveCollapsed ? "lg:grid-rows-[0fr] lg:opacity-0" : "grid-rows-[1fr] opacity-100"
+                collapsedPref ? "lg:grid-rows-[0fr] lg:opacity-0" : "grid-rows-[1fr] opacity-100"
               )}>
                 <div className="overflow-hidden">
                   <div className="px-3 pt-3 pb-1 text-[11px] font-bold uppercase tracking-widest text-slate-400 select-none">
@@ -317,7 +317,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             <div className="space-y-1">
               <div className={cn(
                 "grid transition-all duration-200 ease-in-out",
-                effectiveCollapsed ? "lg:grid-rows-[0fr] lg:opacity-0" : "grid-rows-[1fr] opacity-100"
+                collapsedPref ? "lg:grid-rows-[0fr] lg:opacity-0" : "grid-rows-[1fr] opacity-100"
               )}>
                 <div className="overflow-hidden">
                   <div className="px-3 pt-3 pb-1 text-[11px] font-bold uppercase tracking-widest text-slate-400 select-none">
@@ -364,7 +364,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             <div className="space-y-1">
               <div className={cn(
                 "grid transition-all duration-200 ease-in-out",
-                effectiveCollapsed ? "lg:grid-rows-[0fr] lg:opacity-0" : "grid-rows-[1fr] opacity-100"
+                collapsedPref ? "lg:grid-rows-[0fr] lg:opacity-0" : "grid-rows-[1fr] opacity-100"
               )}>
                 <div className="overflow-hidden">
                   <div className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400/80 select-none">
