@@ -286,7 +286,9 @@ export class OrdersService {
   }
 
   async create(organizationId: string, userId: string, dto: CreateOrderDto) {
-    const source = dto.source ?? 'Dine In';
+    // No explicit type given (e.g. tapping a table on the floor plan) — resolve this org's actual
+    // table-requiring type rather than assuming it's still literally named "Dine In".
+    const source = dto.source ?? (await this.orderTypesService.getDefaultTableType(organizationId)).name;
     const sourceRequiresTable = await this.orderTypesService.requiresTable(organizationId, source);
 
     if (sourceRequiresTable && !dto.tableId) {

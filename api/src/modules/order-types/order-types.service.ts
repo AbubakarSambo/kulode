@@ -108,4 +108,19 @@ export class OrderTypesService {
     }
     return orderType.requiresTable;
   }
+
+  /**
+   * Resolves the type to use when a caller omits an explicit order type (e.g. tapping a table on
+   * the floor plan, which implies "whichever type this org uses for table service" rather than a
+   * literal, hardcoded "Dine In" — that literal would throw in requiresTable() above the moment an
+   * org renames its table-requiring type, since it'd no longer match any active OrderType by name.
+   */
+  async getDefaultTableType(organizationId: string) {
+    const types = await this.findAll(organizationId);
+    const tableType = types.find((t) => t.requiresTable);
+    if (!tableType) {
+      throw new BadRequestException('No active order type is configured to require a table');
+    }
+    return tableType;
+  }
 }

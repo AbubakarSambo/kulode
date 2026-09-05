@@ -48,7 +48,7 @@ export function OrderTakingPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const tableId = searchParams.get('tableId') || undefined
-  const initialSource = (searchParams.get('source') as OrderSource) || 'Dine In'
+  const initialSource = (searchParams.get('source') as OrderSource) || undefined
 
   const queryClient = useQueryClient()
   // Fresh, not the auth store's login-time snapshot — an admin can flip these settings mid-shift
@@ -96,8 +96,10 @@ export function OrderTakingPage() {
   const [applyServiceCharge, setApplyServiceCharge] = useState(() =>
     typeof initialDraft?.applyServiceCharge === 'boolean' ? initialDraft.applyServiceCharge : true,
   )
+  // Empty until resolved below — no hardcoded "Dine In" fallback, since an org can rename
+  // whichever order type actually requires a table.
   const [source, setSource] = useState<OrderSource>(() =>
-    typeof initialDraft?.source === 'string' ? initialDraft.source : initialSource,
+    typeof initialDraft?.source === 'string' ? initialDraft.source : (initialSource ?? ''),
   )
   const [activeCategory, setActiveCategory] = useState<string | 'all'>('all')
   const [search, setSearch] = useState('')
@@ -153,8 +155,24 @@ export function OrderTakingPage() {
 
   const { data: orderTypes } = useQuery({ queryKey: ['order-types'], queryFn: () => orderTypesApi.list() })
   const sortedOrderTypes = useMemo(() => (orderTypes ?? []).slice().sort((a, b) => a.sortOrder - b.sortOrder), [orderTypes])
+  // No explicit source came from a query param or a restored draft — resolve this org's actual
+  // table-requiring type once it loads (matches the backend's own fallback in orders.service.ts),
+  // rather than assuming it's still literally named "Dine In".
+  useEffect(() => {
+    if (source || sortedOrderTypes.length === 0) return
+    const tableType = sortedOrderTypes.find((t) => t.requiresTable)
+    setSource((tableType ?? sortedOrderTypes[0]).name)
+  }, [sortedOrderTypes, source])
   const sourceRequiresTable = sortedOrderTypes.find((t) => t.name === source)?.requiresTable ?? false
   const effectiveTableId = tableId ?? (sourceRequiresTable ? selectedTableId || undefined : undefined)
+  const tableRequiringTypes = useMemo(() => sortedOrderTypes.filter((t) => t.requiresTable), [sortedOrderTypes])
+  // Tapping a table only implies a single, unambiguous type when exactly one active type requires
+  // a table (the common case). An org with several table-requiring types (e.g. Dine In, Takeaway,
+  // and Delivery all marked "requires a table") can't be defaulted correctly by sort order alone —
+  // show the picker so staff can correct it, scoped to just the table-requiring types since a type
+  // that doesn't require a table would be misleading here (the table stays attached regardless).
+  const orderTypePickerOptions = tableId ? tableRequiringTypes : sortedOrderTypes
+  const showOrderTypePicker = !tableId || tableRequiringTypes.length > 1
 
   const { data: categories } = useQuery({ queryKey: ['menu-categories'], queryFn: () => menuCategoriesApi.list() })
   const { data: items } = useQuery({ queryKey: ['menu-items'], queryFn: () => menuItemsApi.list() })
@@ -384,7 +402,7 @@ export function OrderTakingPage() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Header
-        title={tableId ? 'New Order' : `New ${source} Order`}
+        title={tableId || !source ? 'New Order' : `New ${source} Order`}
         description={tableId ? undefined : 'Select order type and add items'}
         action={
           tableId ? (
@@ -397,11 +415,11 @@ export function OrderTakingPage() {
 
       <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-          {!tableId && (
+          {showOrderTypePicker && (
             <div className="mb-4">
               <Label>Order Type</Label>
               <div className="mt-1 flex gap-2 overflow-x-auto pb-1">
-                {sortedOrderTypes.map((t) => (
+                {orderTypePickerOptions.map((t) => (
                   <button
                     key={t.id}
                     onClick={() => {
