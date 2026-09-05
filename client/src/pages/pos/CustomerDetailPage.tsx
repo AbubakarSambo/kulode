@@ -23,6 +23,7 @@ import {
   PieChart as PieChartIcon,
   BarChart3,
 } from 'lucide-react'
+import { ReceiptTextIcon } from '@hugeicons/core-free-icons'
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Select, Card, CardHeader, CardTitle, CardContent, Badge, EmptyState, ConfirmDialog } from '@/components/ui'
@@ -151,7 +152,7 @@ function CustomerStatsSection({ customerId }: { customerId: string }) {
           </CardHeader>
           <CardContent className="p-8 pt-0">
             {stats.byOrderType.length === 0 ? (
-              <EmptyState icon={Receipt} title="No orders yet" description="Order type breakdown will appear once orders close." />
+              <EmptyState icon={ReceiptTextIcon} title="No orders yet" description="Order type breakdown will appear once orders close." />
             ) : (
               <>
                 <div className="h-56">
