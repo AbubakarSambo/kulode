@@ -535,9 +535,14 @@ export class OrdersService {
     itemId: string,
     dto: UpdateOrderItemStatusDto,
   ) {
+    // `join` compiles the items -> menuItem -> categories -> category dependency chain into one
+    // SQL query instead of Prisma's default sequential round trips per hop — see findOne() above.
+    // This runs on every kitchen ticket tap, so those extra round trips are directly felt as
+    // per-tap latency, not just an occasional page load.
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, organizationId },
       include: this.orderInclude,
+      relationLoadStrategy: 'join',
     });
     if (!order) throw new NotFoundException('Order not found');
 

@@ -3,12 +3,49 @@ import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../../modules/prisma/prisma.service';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
+interface OrgSubscriptionFields {
+  subscriptionStatus: string;
+  trialEndDate: Date | null;
+  isGrandfathered: boolean;
+  businessType: string | null;
+}
+
 @Injectable()
 export class SubscriptionReadOnlyGuard implements CanActivate {
+  // This guard is registered as an APP_GUARD, so it runs on every non-GET request app-wide — an
+  // uncached lookup here added a full DB round trip to every single write (e.g. a kitchen ticket
+  // status tap). Subscription status changes rarely, so a short cache is a safe trade: up to this
+  // many seconds of staleness after an expiry/renewal, in exchange for skipping that round trip on
+  // nearly every mutating request. The instance is a singleton (default Nest scope), so this Map is
+  // shared across all requests, not per-request.
+  private static readonly CACHE_TTL_MS = 30_000;
+  private cache = new Map<string, { org: OrgSubscriptionFields; expiresAt: number }>();
+
   constructor(
     private reflector: Reflector,
     private prisma: PrismaService,
   ) {}
+
+  private async getOrgSubscriptionFields(organizationId: string): Promise<OrgSubscriptionFields | null> {
+    const cached = this.cache.get(organizationId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.org;
+    }
+
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: {
+        subscriptionStatus: true,
+        trialEndDate: true,
+        isGrandfathered: true,
+        businessType: true,
+      },
+    });
+    if (org) {
+      this.cache.set(organizationId, { org, expiresAt: Date.now() + SubscriptionReadOnlyGuard.CACHE_TTL_MS });
+    }
+    return org;
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
@@ -44,16 +81,8 @@ export class SubscriptionReadOnlyGuard implements CanActivate {
       return true;
     }
 
-    // Fetch the organization subscription status
-    const org = await this.prisma.organization.findUnique({
-      where: { id: user.organizationId },
-      select: {
-        subscriptionStatus: true,
-        trialEndDate: true,
-        isGrandfathered: true,
-        businessType: true,
-      },
-    });
+    // Fetch the organization subscription status (briefly cached — see getOrgSubscriptionFields)
+    const org = await this.getOrgSubscriptionFields(user.organizationId);
 
     if (!org) {
       throw new ForbiddenException('Organization not found');
