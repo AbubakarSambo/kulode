@@ -254,12 +254,28 @@ export class PosDashboardService {
 
   async getTrend(organizationId: string, filter: ReportFilterDto) {
     const { startDate, endDate } = await this.getDateRange(organizationId, filter);
+    const shift = await this.getOrgShiftHours(organizationId);
+    // "HH:mm" -> "HH:mm:00", a valid Postgres interval literal.
+    const shiftStartInterval = `${shift.shiftStartTime}:00`;
 
     // Bucketed by the order's closed_at (not the payment's own payment_date) so the trend line
     // sums to the same totals getSummary reports for the same range — see the comment there.
+    //
+    // Bucketed by *business* day, not literal calendar date: this org's day is anchored on its
+    // shift hours (e.g. 05:00 -> 04:59 the next calendar date), same convention as
+    // applyShiftHours/getDateRange above. Grouping by the raw date instead would split one
+    // overnight shift's sales across the midnight boundary into two lopsided buckets — for a
+    // single-business-day period like "Yesterday" that's not a trend at all, just two arbitrary
+    // fragments of the same shift rendered as if they were separate days.
+    // Grouped by the "day" output alias, not by repeating the TO_CHAR(...) expression a second
+    // time — each textual occurrence of an interpolated value becomes its own bound parameter,
+    // so a repeated expression binds two separate parameters for what's really the same literal
+    // value, and Postgres's GROUP BY validity check doesn't know they'll always match at
+    // execution time. Postgres explicitly allows grouping by an output column alias, so this
+    // sidesteps the issue rather than fighting it.
     const daily = await this.prisma.$queryRaw<{ day: string; total: number; count: number }[]>`
       SELECT
-        TO_CHAR(o.closed_at, 'YYYY-MM-DD') as day,
+        TO_CHAR(o.closed_at - ${shiftStartInterval}::interval, 'YYYY-MM-DD') as day,
         SUM(p.amount)::numeric as total,
         COUNT(*)::integer as count
       FROM payments p
@@ -268,7 +284,7 @@ export class PosDashboardService {
         AND o.status IN ('CLOSED_PAID', 'CLOSED_UNPAID')
         AND o.closed_at >= ${startDate}
         AND o.closed_at <= ${endDate}
-      GROUP BY TO_CHAR(o.closed_at, 'YYYY-MM-DD')
+      GROUP BY day
       ORDER BY day
     `;
 
