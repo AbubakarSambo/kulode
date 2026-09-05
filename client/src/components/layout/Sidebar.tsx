@@ -259,11 +259,16 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         <nav className="flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-4 py-2 select-none scrollbar-none">
           {filteredNavGroups.map((group) => (
             <div key={group.title} className="space-y-1">
-              {!effectiveCollapsed && (
-                <div className="px-3 pt-3 pb-1 text-[11px] font-bold uppercase tracking-widest text-slate-400 select-none">
-                  {group.title}
+              <div className={cn(
+                "grid transition-all duration-200 ease-in-out",
+                effectiveCollapsed ? "lg:grid-rows-[0fr] lg:opacity-0" : "grid-rows-[1fr] opacity-100"
+              )}>
+                <div className="overflow-hidden">
+                  <div className="px-3 pt-3 pb-1 text-[11px] font-bold uppercase tracking-widest text-slate-400 select-none">
+                    {group.title}
+                  </div>
                 </div>
-              )}
+              </div>
               <div className="space-y-0.5">
                 {group.items.map((item) => {
                   const isLocked = item.requiresPlan && !hasRequiredPlan(item.requiresPlan)
@@ -277,8 +282,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                           'flex items-center gap-3 px-3.5 py-2.5 min-h-[40px] text-sm font-medium transition-all duration-200 relative group rounded-xl',
                           isActive
                             ? 'bg-[#0037b0]/[0.08] text-[#0037b0] font-bold'
-                            : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-800',
-                          effectiveCollapsed && 'lg:px-0 lg:justify-center'
+                            : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-800'
                         )
                       }
                     >
@@ -311,11 +315,16 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           {/* Admin Group */}
           {isAdmin && (
             <div className="space-y-1">
-              {!effectiveCollapsed && (
-                <div className="px-3 pt-3 pb-1 text-[11px] font-bold uppercase tracking-widest text-slate-400 select-none">
-                  Configuration
+              <div className={cn(
+                "grid transition-all duration-200 ease-in-out",
+                effectiveCollapsed ? "lg:grid-rows-[0fr] lg:opacity-0" : "grid-rows-[1fr] opacity-100"
+              )}>
+                <div className="overflow-hidden">
+                  <div className="px-3 pt-3 pb-1 text-[11px] font-bold uppercase tracking-widest text-slate-400 select-none">
+                    Configuration
+                  </div>
                 </div>
-              )}
+              </div>
               <div className="space-y-0.5">
                 {adminNavigation.map((item) => (
                   <NavLink
@@ -328,8 +337,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                         'flex items-center gap-3 px-3.5 py-2.5 min-h-[40px] text-sm font-medium transition-all duration-200 relative group rounded-xl',
                         isActive
                           ? 'bg-[#0037b0]/[0.08] text-[#0037b0] font-bold'
-                          : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-800',
-                        effectiveCollapsed && 'lg:px-0 lg:justify-center'
+                          : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-800'
                       )
                     }
                   >
@@ -354,11 +362,16 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           {/* Platform Group */}
           {user?.isPlatformAdmin && (
             <div className="space-y-1">
-              {!effectiveCollapsed && (
-                <div className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400/80 select-none">
-                  Platform
+              <div className={cn(
+                "grid transition-all duration-200 ease-in-out",
+                effectiveCollapsed ? "lg:grid-rows-[0fr] lg:opacity-0" : "grid-rows-[1fr] opacity-100"
+              )}>
+                <div className="overflow-hidden">
+                  <div className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400/80 select-none">
+                    Platform
+                  </div>
                 </div>
-              )}
+              </div>
               <div className="space-y-0.5">
                 <NavLink
                   to="/admin"
@@ -368,8 +381,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                       'flex items-center gap-3 px-3.5 py-2.5 min-h-[40px] text-sm font-medium transition-all duration-200 relative group rounded-xl',
                       isActive
                         ? 'bg-[#0037b0]/[0.08] text-[#0037b0] font-bold'
-                        : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-800',
-                      effectiveCollapsed && 'lg:px-0 lg:justify-center'
+                        : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-800'
                     )
                   }
                 >
@@ -429,10 +441,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           <div className="space-y-0.5">
             <a
               href="mailto:abubakar.sambo@tarione.com"
-              className={cn(
-                "flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-xs font-medium text-slate-500 hover:bg-[#eef4ff]/60 hover:text-slate-950 transition-colors relative group",
-                effectiveCollapsed && "lg:justify-center lg:px-0"
-              )}
+              className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-xs font-medium text-slate-500 hover:bg-[#eef4ff]/60 hover:text-slate-950 transition-colors relative group"
             >
               <SupportIcon className="h-4.5 w-4.5 shrink-0" />
               <span className={cn(
@@ -455,10 +464,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                   switchUser()
                   if (onClose) onClose()
                 }}
-                className={cn(
-                  "flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-xs font-medium text-slate-500 hover:bg-[#eef4ff]/60 hover:text-slate-950 transition-colors relative group cursor-pointer",
-                  effectiveCollapsed && "lg:justify-center lg:px-0"
-                )}
+                className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-xs font-medium text-slate-500 hover:bg-[#eef4ff]/60 hover:text-slate-950 transition-colors relative group cursor-pointer"
               >
                 <RefreshCw className="h-4.5 w-4.5 shrink-0" />
                 <span className={cn(
@@ -482,10 +488,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                 }
                 if (onClose) onClose()
               }}
-              className={cn(
-                "flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-xs font-medium text-slate-500 hover:bg-[#eef4ff]/60 hover:text-slate-950 transition-colors relative group cursor-pointer",
-                effectiveCollapsed && "lg:justify-center lg:px-0"
-              )}
+              className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-xs font-medium text-slate-500 hover:bg-[#eef4ff]/60 hover:text-slate-950 transition-colors relative group cursor-pointer"
             >
               {userIsPinEligible ? <RefreshCw className="h-4.5 w-4.5 shrink-0" /> : <LogoutIcon className="h-4.5 w-4.5 shrink-0" />}
               <span className={cn(
