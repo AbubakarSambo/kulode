@@ -108,7 +108,7 @@ export class PosDashboardService {
       status: { in: [OrderStatus.CLOSED_PAID, OrderStatus.CLOSED_UNPAID] },
     };
 
-    const [sales, prevSales, orderCount, closedPaidAgg, closedUnpaidAgg, openAgg, byMethod, topItems, topStaff] = await Promise.all([
+    const [sales, prevSales, orderCount, closedPaidAgg, closedUnpaidAgg, openAgg, byMethod, bySource, topItems, topStaff] = await Promise.all([
       this.prisma.payment.aggregate({
         where: {
           organizationId,
@@ -161,6 +161,15 @@ export class PosDashboardService {
         _count: true,
         // Descending by total — the client reads index 0 as "Top Method", so order matters here.
         orderBy: { _sum: { amount: 'desc' } },
+      }),
+      // order.source, not payment.paymentMethod — a sale's "source" (dine-in/takeaway/delivery/
+      // etc.) is an attribute of the order itself, not of how it was paid for.
+      this.prisma.order.groupBy({
+        by: ['source'],
+        where: { organizationId, ...closedOrderFilter, closedAt: { gte: startDate, lte: endDate } },
+        _sum: { total: true },
+        _count: true,
+        orderBy: { _sum: { total: 'desc' } },
       }),
       this.prisma.$queryRaw<{ id: string; name: string; quantity: number; revenue: number; orders: number }[]>`
         SELECT
@@ -235,6 +244,11 @@ export class PosDashboardService {
         method: m.paymentMethod,
         total: Number(m._sum.amount || 0),
         count: m._count,
+      })),
+      byOrderType: bySource.map((s) => ({
+        type: s.source,
+        total: Number(s._sum.total || 0),
+        count: s._count,
       })),
       topItems: topItems.map((i) => ({
         id: i.id,

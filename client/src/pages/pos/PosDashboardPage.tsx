@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Users } from 'lucide-react'
+import { ChevronDown, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Users, Utensils } from 'lucide-react'
 import { ReceiptTextIcon } from '@hugeicons/core-free-icons'
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { Link } from 'react-router-dom'
@@ -260,7 +260,7 @@ export function PosDashboardPage() {
           </Card>
         )}
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="p-8 pb-4">
               <CardTitle className="flex items-center gap-2.5 text-base font-semibold text-foreground">
@@ -343,6 +343,32 @@ export function PosDashboardPage() {
                 </div>
               ) : (
                 <EmptyState icon={ReceiptTextIcon} title="No payments yet" description="Payment breakdown will appear once sales come in." />
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="p-8 pb-4">
+              <CardTitle className="flex items-center gap-2.5 text-base font-semibold text-foreground">
+                <Utensils className="h-5 w-5 text-muted-foreground" />
+                Sales by Order Type
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-8 pt-0">
+              {summary?.byOrderType && summary.byOrderType.length > 0 ? (
+                <div className="space-y-3">
+                  {summary.byOrderType.map((s) => (
+                    <div key={s.type} className="flex items-center justify-between p-3 rounded-2xl bg-muted/50">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{s.type}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{s.count} orders</p>
+                      </div>
+                      <span className="text-sm font-semibold text-foreground tabular-nums">{formatCurrency(Math.round(s.total))}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState icon={ReceiptTextIcon} title="No orders yet" description="Order type breakdown will appear once orders close in this period." />
               )}
             </CardContent>
           </Card>

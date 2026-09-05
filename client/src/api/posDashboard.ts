@@ -14,6 +14,7 @@ export interface PosDashboardSummary {
     open: { count: number; amount: number }
   }
   byPaymentMethod: { method: string; total: number; count: number }[]
+  byOrderType: { type: string; total: number; count: number }[]
   topItems: { id: string; name: string; quantity: number; revenue: number; orders: number }[]
   topStaff: { id: string; name: string; revenue: number; orders: number }[]
 }
