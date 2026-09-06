@@ -535,14 +535,13 @@ export class OrdersService {
     itemId: string,
     dto: UpdateOrderItemStatusDto,
   ) {
-    // `join` compiles the items -> menuItem -> categories -> category dependency chain into one
-    // SQL query instead of Prisma's default sequential round trips per hop — see findOne() above.
-    // This runs on every kitchen ticket tap, so those extra round trips are directly felt as
-    // per-tap latency, not just an occasional page load.
+    // No caller uses this endpoint's response body (both the kitchen ticket page and the order
+    // detail page invalidate their queries and refetch instead), so this only needs enough to
+    // validate org/item ownership and compute the order-level status rollup — not the full
+    // table/customer/waiter/payments/menuItem.categories graph `orderInclude` pulls in for reads.
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, organizationId },
-      include: this.orderInclude,
-      relationLoadStrategy: 'join',
+      select: { id: true, status: true, items: { select: { id: true, status: true } } },
     });
     if (!order) throw new NotFoundException('Order not found');
 
@@ -569,8 +568,6 @@ export class OrdersService {
         : []),
     ]);
 
-    // Build the response from data already in hand instead of a third round trip — table,
-    // customer, waiter and payments are all unaffected by an item status change.
     return { ...order, items, status: willTransitionOrder ? newOrderStatus! : order.status };
   }
 
