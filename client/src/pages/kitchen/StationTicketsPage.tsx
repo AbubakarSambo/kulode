@@ -82,32 +82,47 @@ function TicketCard({ order, items, now }: { order: Order; items: OrderItem[]; n
       <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-start">
         {/* Items + their notes, paired row-by-row so they never drift out of alignment */}
         <div className="grid flex-none grid-cols-[minmax(0,auto)_minmax(0,auto)] items-center gap-x-8 gap-y-6">
-          {items.map((item) => (
-            <Fragment key={item.id}>
-              <div>
-                <div className="text-base font-bold text-foreground">
-                  {item.quantity}x {item.menuItem?.name ?? item.itemName}
+          {items.map((item) => {
+            // The PATCH this fires can take a while, and with no feedback a tap that hasn't
+            // resolved yet just looks like it didn't register — so disable this item's buttons
+            // and spin the one that was tapped until the request settles either way.
+            const pendingStatus =
+              updateItemStatus.isPending && updateItemStatus.variables?.itemId === item.id
+                ? updateItemStatus.variables.status
+                : null
+
+            return (
+              <Fragment key={item.id}>
+                <div>
+                  <div className="text-base font-bold text-foreground">
+                    {item.quantity}x {item.menuItem?.name ?? item.itemName}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-3">
+                    {ITEM_STATUS_FLOW.map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => updateItemStatus.mutate({ itemId: item.id, status: s })}
+                        disabled={pendingStatus !== null}
+                        className={cn(
+                          'flex min-h-16 min-w-24 cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 py-4 text-lg font-bold transition-colors active:scale-95 disabled:cursor-not-allowed',
+                          item.status === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                          pendingStatus !== null && pendingStatus !== s && 'opacity-40',
+                        )}
+                      >
+                        {pendingStatus === s && (
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        )}
+                        {ITEM_STATUS_LABELS[s]}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-3">
-                  {ITEM_STATUS_FLOW.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => updateItemStatus.mutate({ itemId: item.id, status: s })}
-                      className={cn(
-                        'min-h-16 min-w-24 cursor-pointer rounded-2xl px-6 py-4 text-lg font-bold transition-colors active:scale-95',
-                        item.status === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
-                      )}
-                    >
-                      {ITEM_STATUS_LABELS[s]}
-                    </button>
-                  ))}
+                <div className="text-base text-muted-foreground">
+                  {item.notes || <span className="opacity-40">—</span>}
                 </div>
-              </div>
-              <div className="text-base text-muted-foreground">
-                {item.notes || <span className="opacity-40">—</span>}
-              </div>
-            </Fragment>
-          ))}
+              </Fragment>
+            )
+          })}
         </div>
 
         {/* Timer / order type / waiter+table, anchored to the right */}
