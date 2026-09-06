@@ -83,7 +83,7 @@ export { PosReportsPage } from './pos/PosReportsPage'
 
 // Kitchen (PASS / RUNNER)
 export { KitchenTicketsPage } from './kitchen/KitchenTicketsPage'
-export { BarTicketsPage } from './kitchen/BarTicketsPage'
+export { DrinksTicketsPage } from './kitchen/DrinksTicketsPage'
 
 // Admin
 export { AdminDashboardPage } from './admin/AdminDashboard'

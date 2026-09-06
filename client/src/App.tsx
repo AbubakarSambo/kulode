@@ -69,7 +69,7 @@ import {
   CustomersListPage,
   CustomerDetailPage,
   KitchenTicketsPage,
-  BarTicketsPage,
+  DrinksTicketsPage,
   PosReportsPage,
   PrintersPage,
 } from '@/pages'
@@ -250,7 +250,7 @@ function App() {
                   }
                 >
                   <Route path="/pos/kitchen" element={<KitchenTicketsPage />} />
-                  <Route path="/pos/bar" element={<BarTicketsPage />} />
+                  <Route path="/pos/drinks" element={<DrinksTicketsPage />} />
                 </Route>
                 <Route path="/pos/reports" element={<PosReportsPage />} />
               </Route>

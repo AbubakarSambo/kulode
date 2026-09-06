@@ -19,14 +19,14 @@ const ITEM_STATUS_LABELS: Record<OrderItemStatus, string> = {
 
 const URGENT_THRESHOLD_MS = 3 * 60_000
 
-export type Station = 'KITCHEN' | 'BAR'
+export type Station = 'KITCHEN' | 'DRINKS'
 
-// An item routes to the bar only if one of its categories is explicitly tagged DRINK. Everything
+// An item routes to Drinks only if one of its categories is explicitly tagged DRINK. Everything
 // else — FOOD, OTHER, and items with no category at all — defaults to the kitchen, since an
 // uncategorized item is far more likely to be food than a drink someone forgot to tag.
 function itemStation(item: OrderItem): Station {
   const isDrink = item.menuItem?.categories.some((c) => c.category.kind === 'DRINK') ?? false
-  return isDrink ? 'BAR' : 'KITCHEN'
+  return isDrink ? 'DRINKS' : 'KITCHEN'
 }
 
 function orderMaxDurationMinutes(items: OrderItem[]): number | null {

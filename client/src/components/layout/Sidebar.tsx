@@ -67,7 +67,7 @@ const navigationGroups = [
       { name: 'Customers', href: '/pos/customers', icon: Users, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Waiters', href: '/pos/waiters', icon: UserRound, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Kitchen', href: '/pos/kitchen', icon: Timer, requiresPlan: undefined as PlanTier | undefined },
-      { name: 'Bar', href: '/pos/bar', icon: Martini, requiresPlan: undefined as PlanTier | undefined },
+      { name: 'Drinks', href: '/pos/drinks', icon: Martini, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Reports', href: '/pos/reports', icon: ReportsIcon, requiresPlan: undefined as PlanTier | undefined },
     ]
   },
@@ -144,7 +144,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/customers', '/pos/tables', '/pos/reports']
 
   // Pass/Runner are kitchen-only roles — the ticket board is the only page they can see
-  const KITCHEN_ALLOWED_HREFS = ['/pos/kitchen', '/pos/bar', '/pos/reports']
+  const KITCHEN_ALLOWED_HREFS = ['/pos/kitchen', '/pos/drinks', '/pos/reports']
 
   // Cashiers can also sell, close out orders and take payment, manage the table list, and view/add
   // menu items and categories (not edit/delete — that stays admin-only) — no waiter management or
@@ -163,7 +163,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   // Supervisors get floor oversight (orders, customers, shift, kitchen) but not menu/category
   // editing or the Waiters roster — since Waiter is just a User now, managing it requires the
   // same admin-only access as the rest of user management.
-  const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/kitchen', '/pos/bar', '/pos/reports']
+  const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/kitchen', '/pos/drinks', '/pos/reports']
 
   // Roles that get a tight nav allowlist rather than the broader access every other role has.
   // A user with multiple roles sees the UNION of what each individually unlocks — e.g. a

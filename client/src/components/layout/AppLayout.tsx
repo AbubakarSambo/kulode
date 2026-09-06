@@ -79,7 +79,7 @@ export function AppLayout() {
     if (path.startsWith('/pos/order-types')) return 'Order Types'
     if (path.startsWith('/pos/payment-types')) return 'Payment Types'
     if (path.startsWith('/pos/kitchen')) return 'Kitchen'
-    if (path.startsWith('/pos/bar')) return 'Bar'
+    if (path.startsWith('/pos/drinks')) return 'Drinks'
     if (path.startsWith('/pos/reports')) return 'POS Reports'
     if (path.startsWith('/pos/waiters')) return 'Waiters'
     if (path.startsWith('/pos/shift')) return 'Shift'
@@ -95,13 +95,13 @@ export function AppLayout() {
   // kitchen ticket board. A user with multiple roles gets the UNION of what each unlocks — same
   // logic as Sidebar.tsx, kept in lockstep since this is the parallel mobile-nav rendering.
   const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/customers', '/pos/tables', '/pos/reports']
-  const KITCHEN_ALLOWED_HREFS = ['/pos/kitchen', '/pos/bar', '/pos/reports']
+  const KITCHEN_ALLOWED_HREFS = ['/pos/kitchen', '/pos/drinks', '/pos/reports']
   // Cashiers close out orders and take payment, and can now manage the table list — no need for
   // menu/waiter management or analytics
   const CASHIER_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/tables', '/pos/reports']
   // Supervisors get floor oversight but not menu/category editing, or the Waiters roster — since
   // Waiter is just a User now, managing it needs the same admin-only access as user management.
-  const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/kitchen', '/pos/bar', '/pos/reports']
+  const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/kitchen', '/pos/drinks', '/pos/reports']
   const RESTRICTED_ROLE_HREFS: Partial<Record<UserRole, string[]>> = {
     WAITER: WAITER_ALLOWED_HREFS,
     PASS: KITCHEN_ALLOWED_HREFS,
@@ -120,7 +120,7 @@ export function AppLayout() {
     '/pos/tables': { name: 'Tables', icon: LayoutGrid },
     '/pos/customers': { name: 'Customers', icon: UserRound },
     '/pos/kitchen': { name: 'Kitchen', icon: Timer },
-    '/pos/bar': { name: 'Bar', icon: Martini },
+    '/pos/drinks': { name: 'Drinks', icon: Martini },
     '/pos/shift': { name: 'Shift', icon: Clock },
     '/pos/waiters': { name: 'Waiters', icon: UserRound },
     '/pos/reports': { name: 'POS Reports', icon: Receipt },
@@ -173,7 +173,7 @@ export function AppLayout() {
         { name: 'Orders', href: '/pos/orders', icon: Receipt, visible: hasPos },
         { name: 'Tables', href: '/pos/tables', icon: LayoutGrid, visible: hasPos },
         { name: 'Kitchen', href: '/pos/kitchen', icon: Timer, visible: hasPos },
-        { name: 'Bar', href: '/pos/bar', icon: Martini, visible: hasPos },
+        { name: 'Drinks', href: '/pos/drinks', icon: Martini, visible: hasPos },
         { name: 'Menu', href: '/pos/menu', icon: ChefHat, visible: hasPos },
         { name: 'Categories', href: '/pos/categories', icon: Tag, visible: hasPos },
         { name: 'Order Types', href: '/pos/order-types', icon: ListOrdered, visible: hasPos },
