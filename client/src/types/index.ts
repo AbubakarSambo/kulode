@@ -464,7 +464,12 @@ export interface RestaurantTable {
 export interface OrderItem {
   id: string
   menuItemId: string
-  menuItem: { id: string; name: string; durationMinutes?: number } | null
+  menuItem: {
+    id: string
+    name: string
+    durationMinutes?: number
+    categories: { category: { name: string; kind: MenuCategoryKind } }[]
+  } | null
   itemName: string
   quantity: number
   unitPrice: number

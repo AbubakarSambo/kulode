@@ -188,7 +188,7 @@ export class OrdersService {
             id: true,
             name: true,
             durationMinutes: true,
-            categories: { include: { category: { select: { name: true } } } },
+            categories: { include: { category: { select: { name: true, kind: true } } } },
           },
         },
       },

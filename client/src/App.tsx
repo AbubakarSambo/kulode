@@ -69,6 +69,7 @@ import {
   CustomersListPage,
   CustomerDetailPage,
   KitchenTicketsPage,
+  BarTicketsPage,
   PosReportsPage,
   PrintersPage,
 } from '@/pages'
@@ -249,6 +250,7 @@ function App() {
                   }
                 >
                   <Route path="/pos/kitchen" element={<KitchenTicketsPage />} />
+                  <Route path="/pos/bar" element={<BarTicketsPage />} />
                 </Route>
                 <Route path="/pos/reports" element={<PosReportsPage />} />
               </Route>
