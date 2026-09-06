@@ -326,6 +326,7 @@ export function OrdersListPage() {
                         </span>
                         <span className="font-semibold text-foreground">{formatCurrency(order.total)}</span>
                       </div>
+                      <div className="mt-1 text-xs text-muted-foreground">{formatDateTime(order.createdAt)}</div>
                       {isExpanded && (
                         <div className="mt-3 border-t border-border pt-3">
                           <OrderDetailPanel orderId={order.id} />
