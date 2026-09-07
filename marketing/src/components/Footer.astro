@@ -16,13 +16,13 @@ const { contactEmail = 'abubakar.sambo@tarione.com' } = Astro.props;
         © {new Date().getFullYear()} Tari1. All rights reserved. Built for Nigerian small businesses, freelancers, and DNFBPs.
       </p>
       <p class="text-xs text-text-secondary text-center md:text-left">
-        Lagos, Nigeria · <a href={`mailto:${contactEmail}`} class="hover:text-primary transition-colors">{contactEmail}</a> · <span class="font-mono text-[10px] bg-slate-100 text-slate-650 px-1.5 py-0.5 rounded">v{clientPkg.version}</span>
+        46 Aminu Kano Crescent, Wuse 2, Abuja, Nigeria · <a href="tel:+2349053018005" class="hover:text-primary transition-colors">09053018005</a> · <a href={`mailto:${contactEmail}`} class="hover:text-primary transition-colors">{contactEmail}</a> · <span class="font-mono text-[10px] bg-slate-100 text-slate-650 px-1.5 py-0.5 rounded">v{clientPkg.version}</span>
       </p>
     </div>
     <div class="flex flex-wrap justify-center gap-8">
       <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/privacy">Privacy Policy</a>
       <a class="text-sm text-text-secondary hover:text-primary transition-all" href="/terms">Terms of Service</a>
-      <a class="text-sm text-text-secondary hover:text-primary transition-all" href="mailto:abubakar.sambo@tarione.com">Contact Support</a>
+      <a class="text-sm text-text-secondary hover:text-primary transition-all" href={`mailto:${contactEmail}`}>Contact Support</a>
     </div>
   </div>
 </footer>
