@@ -5,6 +5,13 @@ export interface OpenShiftData {
   openingFloat?: number
 }
 
+export interface BackdateShiftData {
+  openedAt: string
+  openingFloat?: number
+  staffId?: string
+  notes?: string
+}
+
 export interface CloseShiftData {
   countedCash: number
   countedAmounts?: Record<string, number>
@@ -31,6 +38,10 @@ export const shiftsApi = {
   },
   open: async (data: OpenShiftData): Promise<Shift> => {
     const response = await apiClient.post<ApiResponse<Shift>>('/shifts/open', data)
+    return response.data.data
+  },
+  openBackdated: async (data: BackdateShiftData): Promise<Shift> => {
+    const response = await apiClient.post<ApiResponse<Shift>>('/shifts/open-backdated', data)
     return response.data.data
   },
   close: async (id: string, data: CloseShiftData): Promise<Shift> => {

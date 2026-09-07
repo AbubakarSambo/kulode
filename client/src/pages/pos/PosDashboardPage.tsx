@@ -230,7 +230,7 @@ export function PosDashboardPage() {
           </Card>
         </div>
 
-        {trend?.daily && trend.daily.length > 1 && (
+        {trend?.daily && trend.daily.length > 0 && (
           <Card className="mb-8">
             <CardHeader className="p-6 pb-2">
               <CardTitle className="text-base font-bold text-foreground flex items-center justify-between">
@@ -239,23 +239,32 @@ export function PosDashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6 pt-2">
-              <ResponsiveContainer width="100%" height={160}>
-                <AreaChart data={trend.daily} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-                  <defs>
-                    <linearGradient id="posSalesGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#0037b0" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="#0037b0" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    formatter={(v: any) => [formatCurrency(v ?? 0), 'Sales']}
-                    contentStyle={{ borderRadius: 12, border: '1px solid #eef4ff', fontSize: 12 }}
-                  />
-                  <Area type="monotone" dataKey="total" stroke="#0037b0" strokeWidth={2} fill="url(#posSalesGrad)" dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
+              {trend.daily.length > 1 ? (
+                <ResponsiveContainer width="100%" height={160}>
+                  <AreaChart data={trend.daily} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                    <defs>
+                      <linearGradient id="posSalesGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#0037b0" stopOpacity={0.15} />
+                        <stop offset="95%" stopColor="#0037b0" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      formatter={(v: any) => [formatCurrency(v ?? 0), 'Sales']}
+                      contentStyle={{ borderRadius: 12, border: '1px solid #eef4ff', fontSize: 12 }}
+                    />
+                    <Area type="monotone" dataKey="total" stroke="#0037b0" strokeWidth={2} fill="url(#posSalesGrad)" dot={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-[160px] flex-col items-center justify-center text-center">
+                  <p className="text-sm font-semibold text-foreground">{formatCurrency(trend.daily[0].total)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Not enough data yet for a trend — check back later.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

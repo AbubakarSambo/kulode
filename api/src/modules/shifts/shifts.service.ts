@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { OpenShiftDto, CloseShiftDto } from './dto';
+import { OpenShiftDto, CloseShiftDto, BackdateShiftDto } from './dto';
 
 function toNumber(val: Prisma.Decimal | number): number {
   return typeof val === 'number' ? val : Number(val);
@@ -166,6 +166,40 @@ export class ShiftsService {
         organizationId,
         openedById: userId,
         openingFloat: dto.openingFloat ?? 0,
+      },
+    });
+  }
+
+  // Admin-only escape hatch for a staff member who forgot to open the till: backdates the shift's
+  // openedAt to when it should have started, so reports/reconciliation bucket sales correctly
+  // instead of everything landing in whatever shift eventually does get opened.
+  async openBackdated(organizationId: string, actingUserId: string, dto: BackdateShiftDto) {
+    const existingOpen = await this.prisma.shift.findFirst({
+      where: { organizationId, status: 'OPEN' },
+    });
+    if (existingOpen) {
+      throw new BadRequestException('A shift is already open for this organization');
+    }
+
+    const openedAt = new Date(dto.openedAt);
+    if (openedAt.getTime() > Date.now()) {
+      throw new BadRequestException('openedAt cannot be in the future');
+    }
+
+    let openedById = actingUserId;
+    if (dto.staffId) {
+      const staff = await this.prisma.user.findFirst({ where: { id: dto.staffId, organizationId } });
+      if (!staff) throw new NotFoundException('Staff member not found');
+      openedById = staff.id;
+    }
+
+    return this.prisma.shift.create({
+      data: {
+        organizationId,
+        openedById,
+        openedAt,
+        openingFloat: dto.openingFloat ?? 0,
+        notes: dto.notes,
       },
     });
   }

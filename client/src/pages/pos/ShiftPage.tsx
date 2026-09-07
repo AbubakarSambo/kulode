@@ -6,17 +6,27 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import { Clock, Download } from 'lucide-react'
 import { Header } from '@/components/layout'
-import { Button, Input, Label, Textarea, Card, CardContent, Badge } from '@/components/ui'
-import { shiftsApi } from '@/api'
+import { Button, Input, Label, Textarea, Card, CardContent, Badge, Select } from '@/components/ui'
+import { shiftsApi, usersApi } from '@/api'
 import { formatCurrency } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth'
 
 const openSchema = z.object({ openingFloat: z.number().min(0).optional() })
 const closeSchema = z.object({ countedCash: z.number().min(0), notes: z.string().optional() })
+const backdateSchema = z.object({
+  openedAt: z.string().min(1, 'Required'),
+  openingFloat: z.number().min(0).optional(),
+  staffId: z.string().optional(),
+  notes: z.string().optional(),
+})
 
 export function ShiftPage() {
   const queryClient = useQueryClient()
   const [showCloseForm, setShowCloseForm] = useState(false)
+  const [showBackdateForm, setShowBackdateForm] = useState(false)
   const [countedAmounts, setCountedAmounts] = useState<Record<string, number>>({})
+  const user = useAuthStore((s) => s.user)
+  const isAdmin = !!user?.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')
 
   const { data: currentShift, isLoading } = useQuery({
     queryKey: ['current-shift'],
@@ -36,8 +46,15 @@ export function ShiftPage() {
 
   const nonCashBreakdown = (closePreview?.breakdown ?? []).filter((b) => b.paymentMethod !== 'CASH')
 
+  const { data: staffList } = useQuery({
+    queryKey: ['users', 'list-for-backdate-shift'],
+    queryFn: () => usersApi.list(),
+    enabled: isAdmin && showBackdateForm,
+  })
+
   const openForm = useForm<z.infer<typeof openSchema>>({ resolver: zodResolver(openSchema) })
   const closeForm = useForm<z.infer<typeof closeSchema>>({ resolver: zodResolver(closeSchema) })
+  const backdateForm = useForm<z.infer<typeof backdateSchema>>({ resolver: zodResolver(backdateSchema) })
 
   const openShift = useMutation({
     mutationFn: (data: z.infer<typeof openSchema>) => shiftsApi.open(data),
@@ -46,6 +63,26 @@ export function ShiftPage() {
       queryClient.invalidateQueries({ queryKey: ['shifts'] })
       toast.success('Shift opened')
       openForm.reset()
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to open shift')
+    },
+  })
+
+  const openBackdatedShift = useMutation({
+    mutationFn: (data: z.infer<typeof backdateSchema>) =>
+      shiftsApi.openBackdated({
+        ...data,
+        openedAt: new Date(data.openedAt).toISOString(),
+        staffId: data.staffId || undefined,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['current-shift'] })
+      queryClient.invalidateQueries({ queryKey: ['shifts'] })
+      toast.success('Shift opened retroactively')
+      setShowBackdateForm(false)
+      backdateForm.reset()
     },
     onError: (err: unknown) => {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -97,21 +134,90 @@ export function ShiftPage() {
         {!currentShift ? (
           <Card className="p-6">
             <CardContent className="p-0">
-              <h2 className="mb-4 text-lg font-bold text-foreground">Open a Shift</h2>
-              <form onSubmit={openForm.handleSubmit((data) => openShift.mutate(data))} className="space-y-4">
-                <div>
-                  <Label>Starting Cash Float</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    {...openForm.register('openingFloat', { valueAsNumber: true })}
-                    placeholder="0"
-                  />
-                </div>
-                <Button type="submit" className="w-full" isLoading={openShift.isPending}>
-                  Open Shift
-                </Button>
-              </form>
+              {!showBackdateForm ? (
+                <>
+                  <h2 className="mb-4 text-lg font-bold text-foreground">Open a Shift</h2>
+                  <form onSubmit={openForm.handleSubmit((data) => openShift.mutate(data))} className="space-y-4">
+                    <div>
+                      <Label>Starting Cash Float</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        {...openForm.register('openingFloat', { valueAsNumber: true })}
+                        placeholder="0"
+                      />
+                    </div>
+                    <Button type="submit" className="w-full" isLoading={openShift.isPending}>
+                      Open Shift
+                    </Button>
+                  </form>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => setShowBackdateForm(true)}
+                      className="mt-4 text-xs font-semibold text-muted-foreground underline hover:text-foreground"
+                    >
+                      A staff member forgot to open a shift? Open one retroactively
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="mb-4 flex items-center justify-between">
+                    <h2 className="text-lg font-bold text-foreground">Open Shift Retroactively</h2>
+                    <button
+                      type="button"
+                      onClick={() => setShowBackdateForm(false)}
+                      className="text-xs font-semibold text-muted-foreground hover:text-foreground"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  <form
+                    onSubmit={backdateForm.handleSubmit((data) => openBackdatedShift.mutate(data))}
+                    className="space-y-4"
+                  >
+                    <div>
+                      <Label>Shift Should Have Opened At</Label>
+                      <Input
+                        type="datetime-local"
+                        {...backdateForm.register('openedAt')}
+                        error={backdateForm.formState.errors.openedAt?.message}
+                      />
+                    </div>
+                    <div>
+                      <Label>Credit To Staff Member (optional — defaults to you)</Label>
+                      <Select {...backdateForm.register('staffId')} defaultValue="">
+                        <option value="">Myself</option>
+                        {staffList?.data.map((staff) => (
+                          <option key={staff.id} value={staff.id}>
+                            {staff.firstName} {staff.lastName}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Starting Cash Float</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        {...backdateForm.register('openingFloat', { valueAsNumber: true })}
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <Label>Notes (optional)</Label>
+                      <Textarea
+                        {...backdateForm.register('notes')}
+                        placeholder="Why this shift is being opened retroactively"
+                      />
+                    </div>
+                    <Button type="submit" className="w-full" isLoading={openBackdatedShift.isPending}>
+                      Open Shift Retroactively
+                    </Button>
+                  </form>
+                </>
+              )}
             </CardContent>
           </Card>
         ) : (

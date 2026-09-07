@@ -23,9 +23,12 @@ export class PosDashboardService {
     let endDate: Date = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
     switch (filter.period) {
-      case ReportPeriod.TODAY:
-        startDate = businessDateFor(now, shift);
+      case ReportPeriod.TODAY: {
+        const businessToday = businessDateFor(now, shift);
+        startDate = businessToday;
+        endDate = businessToday;
         break;
+      }
       case ReportPeriod.YESTERDAY: {
         const businessToday = businessDateFor(now, shift);
         const yesterday = new Date(businessToday.getFullYear(), businessToday.getMonth(), businessToday.getDate() - 1);
