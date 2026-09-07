@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { OrderStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { applyShiftHours, DEFAULT_SHIFT_HOURS, ShiftHours } from '../../common';
+import { applyShiftHours, businessDateFor, DEFAULT_SHIFT_HOURS, ShiftHours } from '../../common';
 import { ReportFilterDto, ReportPeriod } from '../reports/dto';
 
 @Injectable()
@@ -18,15 +18,17 @@ export class PosDashboardService {
 
   private async getDateRange(organizationId: string, filter: ReportFilterDto): Promise<{ startDate: Date; endDate: Date }> {
     const now = new Date();
+    const shift = await this.getOrgShiftHours(organizationId);
     let startDate: Date;
     let endDate: Date = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
     switch (filter.period) {
       case ReportPeriod.TODAY:
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        startDate = businessDateFor(now, shift);
         break;
       case ReportPeriod.YESTERDAY: {
-        const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+        const businessToday = businessDateFor(now, shift);
+        const yesterday = new Date(businessToday.getFullYear(), businessToday.getMonth(), businessToday.getDate() - 1);
         startDate = yesterday;
         endDate = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59);
         break;
@@ -78,7 +80,6 @@ export class PosDashboardService {
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
     }
 
-    const shift = await this.getOrgShiftHours(organizationId);
     return applyShiftHours(startDate, endDate, shift);
   }
 

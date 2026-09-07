@@ -53,6 +53,17 @@ export function shiftEndFor(date: Date, shift: ShiftHours): Date {
 }
 
 /**
+ * The calendar date that the given instant belongs to under the org's shift hours — e.g. with a
+ * 06:00 shift start, 5am still belongs to yesterday's business day, not today's, since today's
+ * shift hasn't started yet.
+ */
+export function businessDateFor(now: Date, shift: ShiftHours): Date {
+  const todayShiftStart = shiftStartFor(now, shift);
+  const daysBack = now < todayShiftStart ? 1 : 0;
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysBack);
+}
+
+/**
  * Re-anchors a midnight-to-midnight calendar range onto the org's shift hours: the first day's
  * shift-start replaces its 00:00, the last day's shift-end replaces its 23:59:59. Only the
  * calendar date (year/month/day) of each input is read — any time-of-day already on them is
