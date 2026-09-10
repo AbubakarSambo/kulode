@@ -76,6 +76,7 @@ function TicketCard({ order, items, now }: { order: Order; items: OrderItem[]; n
 
   const waiterName = order.waiter ? `${order.waiter.firstName} ${order.waiter.lastName}` : undefined
   const waiterOrTable = [waiterName, order.table?.name].filter(Boolean).join(' · ') || '—'
+  const placedAt = new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
   return (
     <Card className="w-full overflow-hidden p-0">
@@ -135,6 +136,7 @@ function TicketCard({ order, items, now }: { order: Order; items: OrderItem[]; n
           <CountdownTimer order={order} items={items} now={now} />
           <Badge variant="default">{order.source}</Badge>
           <div className="text-xs font-semibold text-muted-foreground">{waiterOrTable}</div>
+          <div className="text-xs text-muted-foreground">Placed {placedAt}</div>
         </div>
       </CardContent>
     </Card>
