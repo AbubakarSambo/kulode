@@ -1,12 +1,24 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Timer } from 'lucide-react'
+import { Timer, UserRoundPlus } from 'lucide-react'
 import { Header } from '@/components/layout'
-import { Card, CardContent, Badge } from '@/components/ui'
-import { ordersApi } from '@/api'
+import { Card, CardContent, Badge, DropdownPanel } from '@/components/ui'
+import { ordersApi, usersApi } from '@/api'
 import { cn } from '@/lib/utils'
-import type { Order, OrderItem, OrderItemStatus, OrderStatus } from '@/types'
+import type { Order, OrderItem, OrderItemStatus, OrderStatus, UserRole } from '@/types'
+
+// Any active staff member can be assigned to an item — there's no dedicated "chef"/"barman"
+// role, so this covers every role that could plausibly be on a kitchen or bar shift.
+const ASSIGNABLE_ROLES: UserRole[] = [
+  'STAFF',
+  'MANAGER',
+  'SUPERVISOR',
+  'CASHIER',
+  'WAITER',
+  'PASS',
+  'RUNNER',
+]
 
 const ACTIVE_STATUSES: OrderStatus[] = ['OPEN', 'IN_KITCHEN', 'READY']
 const ITEM_STATUS_FLOW: OrderItemStatus[] = ['PENDING', 'ON_IT', 'PASS', 'SERVED']
@@ -64,6 +76,97 @@ function CountdownTimer({ order, items, now }: { order: Order; items: OrderItem[
   )
 }
 
+function getInitials(firstName: string, lastName: string) {
+  return `${firstName[0] ?? ''}${lastName[0] ?? ''}`.toUpperCase()
+}
+
+// A single tap opens the picker, a single tap on a name assigns and closes it — this is meant
+// for an expo/manager to fly through a whole board of items assigning staff, not for the
+// assignee to self-serve, so it deliberately has no confirmation step.
+function AssigneeChip({ orderId, item }: { orderId: string; item: OrderItem }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const queryClient = useQueryClient()
+
+  const { data: staff } = useQuery({
+    queryKey: ['staff-directory', ASSIGNABLE_ROLES],
+    queryFn: () => usersApi.directory(ASSIGNABLE_ROLES),
+    enabled: isOpen,
+    staleTime: 60_000,
+  })
+
+  const updateAssignee = useMutation({
+    mutationFn: (assignedToId: string | null) => ordersApi.updateItemAssignee(orderId, item.id, assignedToId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['kitchen-orders'] }),
+    onError: () => toast.error('Failed to assign'),
+  })
+
+  return (
+    <div className="relative mt-3 inline-block">
+      <button
+        type="button"
+        onClick={() => setIsOpen((v) => !v)}
+        className={cn(
+          'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold transition-colors',
+          item.assignedTo ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
+        )}
+      >
+        {item.assignedTo ? (
+          <>
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+              {getInitials(item.assignedTo.firstName, item.assignedTo.lastName)}
+            </span>
+            {item.assignedTo.firstName}
+          </>
+        ) : (
+          <>
+            <UserRoundPlus className="h-3.5 w-3.5" />
+            Assign
+          </>
+        )}
+      </button>
+
+      <DropdownPanel isOpen={isOpen} onClose={() => setIsOpen(false)} align="left" widthClass="w-52">
+        {!staff ? (
+          <div className="px-3 py-2 text-sm text-muted-foreground">Loading…</div>
+        ) : staff.length === 0 ? (
+          <div className="px-3 py-2 text-sm text-muted-foreground">No staff found</div>
+        ) : (
+          <>
+            {staff.map((person) => (
+              <button
+                key={person.id}
+                type="button"
+                onClick={() => {
+                  updateAssignee.mutate(person.id)
+                  setIsOpen(false)
+                }}
+                className={cn(
+                  'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-muted',
+                  item.assignedToId === person.id && 'font-semibold text-primary',
+                )}
+              >
+                {person.firstName} {person.lastName}
+              </button>
+            ))}
+            {item.assignedToId && (
+              <button
+                type="button"
+                onClick={() => {
+                  updateAssignee.mutate(null)
+                  setIsOpen(false)
+                }}
+                className="mt-1 flex w-full items-center gap-2 rounded-lg border-t border-border px-3 py-2 text-left text-sm text-muted-foreground hover:bg-muted"
+              >
+                Clear assignment
+              </button>
+            )}
+          </>
+        )}
+      </DropdownPanel>
+    </div>
+  )
+}
+
 function TicketCard({ order, items, now }: { order: Order; items: OrderItem[]; now: number }) {
   const queryClient = useQueryClient()
 
@@ -117,6 +220,7 @@ function TicketCard({ order, items, now }: { order: Order; items: OrderItem[]; n
                       </button>
                     ))}
                   </div>
+                  <AssigneeChip orderId={order.id} item={item} />
                 </div>
                 <div
                   className={cn(

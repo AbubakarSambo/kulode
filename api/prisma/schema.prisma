@@ -335,6 +335,7 @@ model User {
   chatSessions       ChatSession[]
   createdOrders      Order[]                  @relation("OrderCreatedByUser")
   waiterOrders       Order[]                  @relation("OrderWaiter")
+  assignedOrderItems OrderItem[]              @relation("OrderItemAssignedTo")
   discountsApplied   Order[]                  @relation("OrderDiscountAppliedBy")
   openedShifts       Shift[]                  @relation("ShiftOpenedByUser")
   closedShifts       Shift[]                  @relation("ShiftClosedByUser")
@@ -1273,17 +1274,23 @@ model OrderItem {
   amount     Decimal         @db.Decimal(12, 2)
   notes      String?
   status     OrderItemStatus @default(PENDING)
+  // Whoever's actually making this item — any active platform user, not a fixed "chef"/"barman"
+  // role, since who's tagged for kitchen vs. drinks varies by org. Set by whoever's coordinating
+  // the station (expo/manager), not by the assignee themselves.
+  assignedToId String? @map("assigned_to_id")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order      Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   // itemName is a point-in-time snapshot so order history/receipts still show what was
   // ordered after the menu item itself is hard-deleted; menuItem may be null once that happens.
-  menuItem MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+  menuItem   MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+  assignedTo User?     @relation("OrderItemAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
   @@index([menuItemId])
+  @@index([assignedToId])
   @@map("order_items")
 }

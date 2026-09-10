@@ -20,6 +20,7 @@ import {
   AddOrderItemsDto,
   UpdateOrderItemStatusDto,
   UpdateOrderItemDto,
+  UpdateOrderItemAssigneeDto,
   UpdateOrderCustomerDto,
   UpdateOrderWaiterDto,
   UpdateOrderNotesDto,
@@ -83,6 +84,16 @@ export class OrdersController {
     @Body() dto: UpdateOrderItemStatusDto,
   ) {
     return this.ordersService.updateItemStatus(organizationId, id, itemId, dto);
+  }
+
+  @Patch(':id/items/:itemId/assignee')
+  updateItemAssignee(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('itemId', ParseUUIDPipe) itemId: string,
+    @Body() dto: UpdateOrderItemAssigneeDto,
+  ) {
+    return this.ordersService.updateItemAssignee(organizationId, id, itemId, dto);
   }
 
   @Patch(':id/items/:itemId')

@@ -161,6 +161,13 @@ export const ordersApi = {
     return response.data.data
   },
 
+  updateItemAssignee: async (orderId: string, itemId: string, assignedToId: string | null): Promise<Order> => {
+    const response = await apiClient.patch<ApiResponse<Order>>(`/orders/${orderId}/items/${itemId}/assignee`, {
+      assignedToId,
+    })
+    return response.data.data
+  },
+
   /**
    * Edits a PENDING item's quantity and/or notes. Quantity 0 removes it (cancelling the order if
    * it was the last item). Omit notes to leave it unchanged.

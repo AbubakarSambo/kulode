@@ -2,6 +2,7 @@ export { CreateOrderDto, CreateOrderItemDto } from './create-order.dto';
 export { AddOrderItemsDto } from './add-order-items.dto';
 export { UpdateOrderItemStatusDto } from './update-order-item-status.dto';
 export { UpdateOrderItemDto } from './update-order-item.dto';
+export { UpdateOrderItemAssigneeDto } from './update-order-item-assignee.dto';
 export { UpdateOrderCustomerDto } from './update-order-customer.dto';
 export { UpdateOrderWaiterDto } from './update-order-waiter.dto';
 export { UpdateOrderNotesDto } from './update-order-notes.dto';

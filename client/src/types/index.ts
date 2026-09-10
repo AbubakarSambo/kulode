@@ -476,6 +476,8 @@ export interface OrderItem {
   amount: number
   notes?: string
   status: OrderItemStatus
+  assignedToId?: string | null
+  assignedTo?: { id: string; firstName: string; lastName: string } | null
 }
 
 export interface OrderPayment {

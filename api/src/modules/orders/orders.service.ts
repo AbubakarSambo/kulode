@@ -12,6 +12,7 @@ import {
   AddOrderItemsDto,
   UpdateOrderItemStatusDto,
   UpdateOrderItemDto,
+  UpdateOrderItemAssigneeDto,
   UpdateOrderCustomerDto,
   UpdateOrderWaiterDto,
   UpdateOrderNotesDto,
@@ -191,6 +192,7 @@ export class OrdersService {
             categories: { include: { category: { select: { name: true, kind: true } } } },
           },
         },
+        assignedTo: { select: { id: true, firstName: true, lastName: true } },
       },
     },
     payments: true,
@@ -569,6 +571,37 @@ export class OrdersService {
     ]);
 
     return { ...order, items, status: willTransitionOrder ? newOrderStatus! : order.status };
+  }
+
+  // Who's actually making this item — set by whoever's coordinating the station, not the
+  // assignee. Deliberately not restricted to a fixed role (no "chef"/"barman" role exists): any
+  // active user in the org can be assigned, since which role covers kitchen vs. drinks varies.
+  async updateItemAssignee(
+    organizationId: string,
+    orderId: string,
+    itemId: string,
+    dto: UpdateOrderItemAssigneeDto,
+  ) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, organizationId },
+      select: { id: true, items: { select: { id: true } } },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (!order.items.some((i) => i.id === itemId)) throw new NotFoundException('Order item not found');
+
+    if (dto.assignedToId) {
+      const assignee = await this.prisma.user.findFirst({
+        where: { id: dto.assignedToId, organizationId, isActive: true },
+      });
+      if (!assignee) throw new NotFoundException('User not found');
+    }
+
+    await this.prisma.orderItem.update({
+      where: { id: itemId },
+      data: { assignedToId: dto.assignedToId ?? null },
+    });
+
+    return this.prisma.order.findUniqueOrThrow({ where: { id: orderId }, include: this.orderInclude });
   }
 
   /**
