@@ -117,7 +117,12 @@ function TicketCard({ order, items, now }: { order: Order; items: OrderItem[]; n
                     ))}
                   </div>
                 </div>
-                <div className="text-base text-muted-foreground">
+                <div
+                  className={cn(
+                    'text-base',
+                    item.notes ? 'font-bold text-amber-600 dark:text-amber-400' : 'text-muted-foreground',
+                  )}
+                >
                   {item.notes || <span className="opacity-40">—</span>}
                 </div>
               </Fragment>
