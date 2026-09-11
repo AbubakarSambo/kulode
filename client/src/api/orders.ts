@@ -244,6 +244,20 @@ export const ordersApi = {
   },
 
   /**
+   * Corrects an order that was paid from the wrong customer's wallet: reverses the erroneous
+   * charge, re-attributes the order, and charges the right customer instead — all atomically.
+   * Requires a reason for audit.
+   */
+  reassignPayment: async (id: string, data: { toCustomerId: string; reason: string }): Promise<Order> => {
+    const clientRequestId = crypto.randomUUID()
+    const response = await apiClient.post<ApiResponse<Order>>(`/orders/${id}/reassign-payment`, {
+      ...data,
+      clientRequestId,
+    })
+    return response.data.data
+  },
+
+  /**
    * Closes an order against an immediate (non-PAYSTACK) payment method — those queue offline the
    * same way addItems does. PAYSTACK never queues (it needs a live checkout redirect); calling it
    * against a `local:` id or while offline throws immediately with a clear message rather than

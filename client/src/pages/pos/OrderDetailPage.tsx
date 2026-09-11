@@ -20,6 +20,8 @@ const PAYMENT_CAPABLE_ROLES = ['STAFF', 'ACCOUNTANT', 'CASHIER', 'ADMIN', 'SUPER
 const VOID_CAPABLE_ROLES = ['STAFF', 'ACCOUNTANT', 'SUPERVISOR', 'MANAGER', 'CASHIER', 'ADMIN', 'SUPER_ADMIN']
 // Matches the backend's @Roles list on PATCH /orders/:id/discount.
 const DISCOUNT_CAPABLE_ROLES = ['STAFF', 'ACCOUNTANT', 'SUPERVISOR', 'MANAGER', 'CASHIER', 'ADMIN', 'SUPER_ADMIN']
+// Matches the backend's @Roles list on POST /orders/:id/reassign-payment.
+const REASSIGN_PAYMENT_CAPABLE_ROLES = ['CASHIER', 'ACCOUNTANT', 'ADMIN', 'SUPER_ADMIN']
 const ITEM_STATUS_FLOW: OrderItemStatus[] = ['PENDING', 'ON_IT', 'PASS', 'SERVED']
 const ITEM_STATUS_LABELS: Record<OrderItemStatus, string> = {
   PENDING: 'Pending',
@@ -417,6 +419,9 @@ function SyncedOrderView({ id }: { id: string }) {
   const [discountType, setDiscountType] = useState<'PERCENTAGE' | 'FIXED'>('PERCENTAGE')
   const [discountValue, setDiscountValue] = useState('')
   const [discountReason, setDiscountReason] = useState('')
+  const [reassignModalOpen, setReassignModalOpen] = useState(false)
+  const [reassignCustomerId, setReassignCustomerId] = useState('')
+  const [reassignReason, setReassignReason] = useState('')
 
   const { data: order, isLoading } = useQuery({
     queryKey: ['order', id],
@@ -436,6 +441,12 @@ function SyncedOrderView({ id }: { id: string }) {
     queryKey: ['wallet-balance', order?.customer?.id],
     queryFn: () => walletApi.getBalance(order!.customer!.id),
     enabled: closeModalOpen && !!order?.customer,
+  })
+
+  const { data: reassignCustomerBalance } = useQuery({
+    queryKey: ['wallet-balance', reassignCustomerId],
+    queryFn: () => walletApi.getBalance(reassignCustomerId),
+    enabled: reassignModalOpen && !!reassignCustomerId,
   })
 
   const { data: paymentTypes } = useQuery({
@@ -470,7 +481,7 @@ function SyncedOrderView({ id }: { id: string }) {
   const { data: customersPage } = useQuery({
     queryKey: ['customers', { limit: 100, search: debouncedCustomerSearch || undefined }],
     queryFn: () => customersApi.list({ limit: 100, search: debouncedCustomerSearch || undefined }),
-    enabled: customerModalOpen,
+    enabled: customerModalOpen || reassignModalOpen,
   })
   const customerOptions = useMemo(
     () => (customersPage?.data ?? []).map((c) => ({ id: c.id, label: c.phone ? `${c.name} (${c.phone})` : c.name })),
@@ -489,6 +500,27 @@ function SyncedOrderView({ id }: { id: string }) {
     onError: (err: unknown) => {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
       toast.error(message || 'Failed to update customer')
+    },
+  })
+
+  const reassignPayment = useMutation({
+    mutationFn: (data: { toCustomerId: string; reason: string }) => ordersApi.reassignPayment(id, data),
+    onSuccess: (updated) => {
+      toast.success('Payment reassigned')
+      setReassignModalOpen(false)
+      setReassignCustomerId('')
+      setReassignReason('')
+      queryClient.invalidateQueries({ queryKey: ['order', id] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      queryClient.invalidateQueries({ queryKey: ['wallet-balance', order?.customerId] })
+      queryClient.invalidateQueries({ queryKey: ['wallet-transactions', order?.customerId] })
+      queryClient.invalidateQueries({ queryKey: ['wallet-balance', updated.customerId] })
+      queryClient.invalidateQueries({ queryKey: ['wallet-transactions', updated.customerId] })
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to reassign payment')
     },
   })
 
@@ -800,6 +832,13 @@ function SyncedOrderView({ id }: { id: string }) {
   // to settle up.
   const canAddItems = isOpenStatus || order.status === 'CLOSED_UNPAID'
   const canEditCustomerOrWaiter = order.status !== 'CANCELLED'
+  // Once a WALLET payment has actually moved money, plain "Change customer" would silently
+  // re-attribute the order without touching either wallet — the wrong customer stays charged
+  // and the right one never gets billed. Route through reassign-payment instead in that case.
+  const hasWalletPayment = order.payments.some((p) => p.paymentMethod === 'WALLET')
+  const canReassignPayment =
+    !!currentUser && currentUser.roles.some((r) => REASSIGN_PAYMENT_CAPABLE_ROLES.includes(r))
+  const reassignCustomerOptions = customerOptions.filter((c) => c.id !== order.customerId)
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -857,19 +896,33 @@ function SyncedOrderView({ id }: { id: string }) {
           ) : (
             <span className="text-sm text-muted-foreground">No customer attached</span>
           )}
-          {canEditCustomerOrWaiter && (
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedCustomerId(order.customerId ?? '')
-                setCustomerModalOpen(true)
-              }}
-              className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-            >
-              {order.customer ? <Pencil className="h-3.5 w-3.5" /> : <UserPlus className="h-3.5 w-3.5" />}
-              {order.customer ? 'Change' : 'Attach'}
-            </button>
-          )}
+          {hasWalletPayment
+            ? canReassignPayment && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReassignCustomerId('')
+                    setReassignReason('')
+                    setReassignModalOpen(true)
+                  }}
+                  className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  <Pencil className="h-3.5 w-3.5" /> Reassign payment
+                </button>
+              )
+            : canEditCustomerOrWaiter && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCustomerId(order.customerId ?? '')
+                    setCustomerModalOpen(true)
+                  }}
+                  className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  {order.customer ? <Pencil className="h-3.5 w-3.5" /> : <UserPlus className="h-3.5 w-3.5" />}
+                  {order.customer ? 'Change' : 'Attach'}
+                </button>
+              )}
         </div>
 
         <div className="mb-4 flex items-center justify-between rounded-xl border border-border p-3">
@@ -1423,6 +1476,54 @@ function SyncedOrderView({ id }: { id: string }) {
               Save
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={reassignModalOpen}
+        onClose={() => setReassignModalOpen(false)}
+        title="Reassign Payment"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            This order was paid from <span className="font-medium text-foreground">{order.customer?.name}</span>'s
+            wallet. Use this if the wrong customer was charged — they'll be refunded and the customer you pick below
+            will be charged instead.
+          </p>
+          <div>
+            <Label>Correct customer</Label>
+            <SearchableSelect
+              options={reassignCustomerOptions}
+              value={reassignCustomerId}
+              onChange={setReassignCustomerId}
+              onSearchChange={setCustomerSearch}
+              placeholder="Search customers"
+            />
+          </div>
+          {reassignCustomerId && (
+            <p className="text-sm">
+              Wallet balance:{' '}
+              <span className={cn('font-semibold', (reassignCustomerBalance?.balance ?? 0) < 0 ? 'text-destructive' : 'text-foreground')}>
+                {reassignCustomerBalance ? formatCurrency(reassignCustomerBalance.balance) : '—'}
+              </span>
+            </p>
+          )}
+          <div>
+            <Label>Reason (required)</Label>
+            <Input
+              value={reassignReason}
+              onChange={(e) => setReassignReason(e.target.value)}
+              placeholder="e.g. Wrong customer selected at checkout"
+            />
+          </div>
+          <Button
+            className="w-full"
+            isLoading={reassignPayment.isPending}
+            disabled={!reassignCustomerId || !reassignReason.trim()}
+            onClick={() => reassignPayment.mutate({ toCustomerId: reassignCustomerId, reason: reassignReason.trim() })}
+          >
+            Reassign Payment
+          </Button>
         </div>
       </Modal>
 
