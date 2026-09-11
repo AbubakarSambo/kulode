@@ -57,6 +57,15 @@ enum WalletTransactionType {
   ADJUSTMENT
 }
 
+// Lifecycle of a payment pushed to a restaurant's own physical Moniepoint terminal — separate
+// from Payment, which is only created once a push actually lands (SUCCESS). Lets the cashier UI
+// poll "is the customer done tapping their card yet" without a Payment row existing prematurely.
+enum MoniepointTransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
 enum WhatsappMessageStatus {
   PENDING
   SENT
@@ -190,6 +199,17 @@ model Organization {
   settlementBank         String? @map("settlement_bank")
   isPaystackVerified     Boolean @default(false) @map("is_paystack_verified")
 
+  // Moniepoint POS terminal push-to-pay — the restaurant's own physical terminal and their own
+  // Moniepoint business account (ERP integration), not a Tarione-owned credential. clientSecret
+  // is encrypted at rest (see EncryptionService); clientId/terminalSerial are not secret but are
+  // meaningless without it. accessToken/accessTokenExpiresAt cache the OAuth token from POST
+  // /v1/auth so we don't re-authenticate on every push.
+  moniepointClientId              String?   @map("moniepoint_client_id")
+  moniepointClientSecretEncrypted String?   @map("moniepoint_client_secret_encrypted")
+  moniepointTerminalSerial        String?   @map("moniepoint_terminal_serial")
+  moniepointAccessToken           String?   @map("moniepoint_access_token")
+  moniepointAccessTokenExpiresAt  DateTime? @map("moniepoint_access_token_expires_at")
+
   // Bank details shown on the printed pro forma receipt for guests paying by transfer —
   // deliberately separate from the Paystack fields above, which drive actual settlement/payout
   // and shouldn't be conflated with "what account do I read out to a customer."
@@ -276,17 +296,18 @@ model Organization {
   directors            OrganizationDirector[]
 
   // Restaurant POS
-  restaurantTables   RestaurantTable[]
-  menuCategories     MenuCategory[]
-  menuItems          MenuItem[]
-  orders             Order[]
-  orderTypes         OrderType[]
-  paymentTypes       PaymentType[]
-  shifts             Shift[]
-  idempotencyKeys    IdempotencyKey[]
-  walletTransactions WalletTransaction[]
-  sheetSyncQueue     SheetSyncQueueEntry[]
-  printers           Printer[]
+  restaurantTables       RestaurantTable[]
+  menuCategories         MenuCategory[]
+  menuItems              MenuItem[]
+  orders                 Order[]
+  orderTypes             OrderType[]
+  paymentTypes           PaymentType[]
+  shifts                 Shift[]
+  idempotencyKeys        IdempotencyKey[]
+  walletTransactions     WalletTransaction[]
+  sheetSyncQueue         SheetSyncQueueEntry[]
+  printers               Printer[]
+  moniepointTransactions MoniepointTransaction[]
 
   @@map("organizations")
 }
@@ -618,21 +639,23 @@ model Payment {
   recordedById   String? @map("recorded_by")
 
   amount        Decimal  @db.Decimal(12, 2)
-  // Name of a PaymentType for this org (e.g. "Cash", "Bank Transfer", or a custom one), or the
-  // reserved literal "PAYSTACK"/"WALLET" — those two are hardcoded/code-tied, never part of the
-  // per-org PaymentType list. Deliberately a plain string, not the PaymentMethod enum (which
-  // Expense.paymentMethod still uses) — see PaymentType below.
+  // Name of a PaymentType for this org (e.g. "Cash", "Bank Transfer", or a custom one), or a
+  // reserved literal "PAYSTACK"/"WALLET"/"MONIEPOINT_POS" — those are hardcoded/code-tied, never
+  // part of the per-org PaymentType list. Deliberately a plain string, not the PaymentMethod enum
+  // (which Expense.paymentMethod still uses) — see PaymentType below.
   paymentMethod String   @map("payment_method")
   paymentDate   DateTime @map("payment_date") @db.Date
   reference     String?
   notes         String?
 
   // Auto-recorded via webhook
-  isAutoRecorded    Boolean  @default(false) @map("is_auto_recorded")
-  paystackReference String?  @map("paystack_reference")
-  paystackFees      Decimal? @map("paystack_fees") @db.Decimal(12, 2)
-  platformFees      Decimal? @map("platform_fees") @db.Decimal(12, 2)
-  netAmount         Decimal? @map("net_amount") @db.Decimal(12, 2)
+  isAutoRecorded      Boolean  @default(false) @map("is_auto_recorded")
+  paystackReference   String?  @map("paystack_reference")
+  paystackFees        Decimal? @map("paystack_fees") @db.Decimal(12, 2)
+  platformFees        Decimal? @map("platform_fees") @db.Decimal(12, 2)
+  netAmount           Decimal? @map("net_amount") @db.Decimal(12, 2)
+  // Links back to the MoniepointTransaction that produced this payment (set on confirmation).
+  moniepointReference String?  @map("moniepoint_reference")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -647,6 +670,34 @@ model Payment {
   @@index([invoiceId])
   @@index([orderId])
   @@map("payments")
+}
+
+// A payment pushed to a restaurant's physical Moniepoint POS terminal for card-present
+// collection. Created PENDING at push time (before the customer has tapped/inserted their
+// card); the webhook flips it to SUCCESS/FAILED and — only on SUCCESS — a Payment row is
+// created and the order is closed. See MoniepointService.
+model MoniepointTransaction {
+  id             String @id @default(uuid())
+  organizationId String @map("organization_id")
+  orderId        String @map("order_id")
+
+  merchantReference String                      @unique @map("merchant_reference")
+  terminalSerial    String                      @map("terminal_serial")
+  amount            Decimal                     @db.Decimal(12, 2)
+  status            MoniepointTransactionStatus @default(PENDING)
+  failureReason     String?                     @map("failure_reason")
+  completedAt       DateTime?                   @map("completed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  order        Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([orderId])
+  @@map("moniepoint_transactions")
 }
 
 // Expense categories
@@ -1176,16 +1227,17 @@ model Order {
   updatedAt DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  table              RestaurantTable?    @relation(fields: [tableId], references: [id], onDelete: SetNull)
-  customer           Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  waiter             User?               @relation("OrderWaiter", fields: [waiterId], references: [id], onDelete: SetNull)
-  createdBy          User                @relation("OrderCreatedByUser", fields: [createdById], references: [id])
-  items              OrderItem[]
-  payments           Payment[]
-  stockMovements     StockMovement[]
-  walletTransactions WalletTransaction[]
-  printJobs          PrintJob[]
+  organization           Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  table                  RestaurantTable?        @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  customer               Customer?               @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  waiter                 User?                   @relation("OrderWaiter", fields: [waiterId], references: [id], onDelete: SetNull)
+  createdBy              User                    @relation("OrderCreatedByUser", fields: [createdById], references: [id])
+  items                  OrderItem[]
+  payments               Payment[]
+  stockMovements         StockMovement[]
+  walletTransactions     WalletTransaction[]
+  printJobs              PrintJob[]
+  moniepointTransactions MoniepointTransaction[]
 
   @@index([organizationId])
   @@index([tableId])
@@ -1265,19 +1317,19 @@ model IdempotencyKey {
 }
 
 model OrderItem {
-  id         String          @id @default(uuid())
-  orderId    String          @map("order_id")
-  menuItemId String?         @map("menu_item_id")
-  itemName   String          @map("item_name")
-  quantity   Decimal         @db.Decimal(10, 2)
-  unitPrice  Decimal         @map("unit_price") @db.Decimal(12, 2)
-  amount     Decimal         @db.Decimal(12, 2)
-  notes      String?
-  status     OrderItemStatus @default(PENDING)
+  id           String          @id @default(uuid())
+  orderId      String          @map("order_id")
+  menuItemId   String?         @map("menu_item_id")
+  itemName     String          @map("item_name")
+  quantity     Decimal         @db.Decimal(10, 2)
+  unitPrice    Decimal         @map("unit_price") @db.Decimal(12, 2)
+  amount       Decimal         @db.Decimal(12, 2)
+  notes        String?
+  status       OrderItemStatus @default(PENDING)
   // Whoever's actually making this item — any active platform user, not a fixed "chef"/"barman"
   // role, since who's tagged for kitchen vs. drinks varies by org. Set by whoever's coordinating
   // the station (expo/manager), not by the assignee themselves.
-  assignedToId String? @map("assigned_to_id")
+  assignedToId String?         @map("assigned_to_id")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

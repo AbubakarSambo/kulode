@@ -45,6 +45,16 @@ export const paystackConfig = registerAs("paystack", () => ({
   // Production: https://app.tarione.com/payment/callback
 }));
 
+export const moniepointConfig = registerAs("moniepoint", () => ({
+  baseUrl: process.env.MONIEPOINT_POS_BASE_URL || "https://channel.moniepoint.com",
+  // Encrypts each restaurant's Moniepoint clientSecret at rest — see src/common/encryption.ts.
+  // Must be set in production; the fallback exists only so local dev doesn't hard-crash.
+  encryptionKey: process.env.MONIEPOINT_ENCRYPTION_KEY || "dev-only-insecure-key-change-me",
+  // Bypasses real calls to Moniepoint and simulates PENDING -> SUCCESS shortly after a push —
+  // for developing/demoing this flow before a restaurant's real terminal/credentials are on hand.
+  mockMode: process.env.MONIEPOINT_MOCK_MODE === "true",
+}));
+
 export const googleSheetsConfig = registerAs("googleSheets", () => ({
   // Service account JSON key, base64-encoded to survive .env quoting/newlines.
   credentialsBase64: process.env.GOOGLE_SHEETS_CREDENTIALS_BASE64,
