@@ -21,6 +21,7 @@ import {
   OrderFilterDto,
   MoveOrderItemsDto,
   ApplyDiscountDto,
+  ReassignOrderPaymentDto,
 } from './dto';
 import { paginate, runIdempotent } from '../../common';
 
@@ -1182,6 +1183,88 @@ export class OrdersService {
         total: afterDiscount + taxAmount + serviceChargeAmount,
       },
       include: this.orderInclude,
+    });
+  }
+
+  /**
+   * Corrects an order that was paid from the wrong customer's wallet (e.g. a cashier had the
+   * wrong customer selected when charging a WALLET payment). Reverses the erroneous charge,
+   * re-attributes the order, and charges the correct customer — all in one transaction, so a
+   * customer is never refunded without the actual payer being billed (if the new customer lacks
+   * balance/credit, the whole correction rolls back rather than leaving the first refunded and
+   * the second unbilled).
+   *
+   * Only handles the common case of a single WALLET tender fully paid by the current customer;
+   * an order split across multiple payment methods/customers needs manual reconciliation.
+   */
+  async reassignPayment(
+    organizationId: string,
+    id: string,
+    userId: string,
+    dto: ReassignOrderPaymentDto,
+  ) {
+    return runIdempotent(this.prisma, organizationId, 'ORDER_REASSIGN_PAYMENT', dto.clientRequestId, async (tx) => {
+      const order = await tx.order.findFirst({ where: { id, organizationId } });
+      if (!order) throw new NotFoundException('Order not found');
+      if (!order.customerId) {
+        throw new BadRequestException('Order has no customer to reassign the payment from');
+      }
+      if (order.customerId === dto.toCustomerId) {
+        throw new BadRequestException('Order is already attributed to this customer');
+      }
+
+      const toCustomer = await tx.customer.findFirst({ where: { id: dto.toCustomerId, organizationId } });
+      if (!toCustomer) throw new NotFoundException('Customer not found');
+
+      const debitTransactions = await tx.walletTransaction.findMany({
+        where: { orderId: id, customerId: order.customerId, type: 'ORDER_DEBIT' },
+      });
+      if (debitTransactions.length === 0) {
+        throw new BadRequestException('This order was not paid from a wallet — nothing to reassign');
+      }
+      if (debitTransactions.length > 1) {
+        throw new BadRequestException(
+          'This order has more than one wallet charge against the current customer — reassign it manually',
+        );
+      }
+      const [debit] = debitTransactions;
+      const amount = Math.abs(toNumber(debit.amount));
+
+      // 1. Refund the wrongly-charged customer, referencing the debit being reversed for audit.
+      await this.walletService.credit(tx, organizationId, order.customerId, userId, {
+        amount,
+        type: 'REFUND',
+        orderId: id,
+        paymentId: debit.paymentId ?? undefined,
+        reference: debit.id,
+        notes: `Reversal of erroneous charge: ${dto.reason}`,
+      });
+
+      // 2. Re-attribute the order to whoever should actually have been charged.
+      await tx.order.update({ where: { id }, data: { customerId: dto.toCustomerId } });
+
+      // 3. Charge the correct customer for the same order. Throws (and rolls back the whole
+      // transaction) if they lack the balance/credit to cover it.
+      const payment = await tx.payment.create({
+        data: {
+          organizationId,
+          orderId: id,
+          recordedById: userId,
+          amount,
+          paymentMethod: 'WALLET',
+          paymentDate: new Date(),
+          notes: `Payment reassigned from another customer: ${dto.reason}`,
+        },
+      });
+      await this.walletService.debit(tx, organizationId, dto.toCustomerId, userId, {
+        amount,
+        type: 'ORDER_DEBIT',
+        orderId: id,
+        paymentId: payment.id,
+        notes: dto.reason,
+      });
+
+      return tx.order.findUniqueOrThrow({ where: { id }, include: this.orderInclude });
     });
   }
 

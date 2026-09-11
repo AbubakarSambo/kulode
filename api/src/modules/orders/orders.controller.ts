@@ -30,6 +30,7 @@ import {
   MergeOrderDto,
   MoveOrderItemsDto,
   ApplyDiscountDto,
+  ReassignOrderPaymentDto,
 } from './dto';
 import { CurrentUser, CurrentUserData, Roles, Role } from '../../common';
 
@@ -198,6 +199,16 @@ export class OrdersController {
     @CurrentUser() user: CurrentUserData,
   ) {
     return this.ordersService.closeWithPayment(user.organizationId, id, user.id, dto);
+  }
+
+  @Post(':id/reassign-payment')
+  @Roles(Role.CASHIER, Role.ACCOUNTANT, Role.ADMIN, Role.SUPER_ADMIN)
+  reassignPayment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReassignOrderPaymentDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.ordersService.reassignPayment(user.organizationId, id, user.id, dto);
   }
 
   @Post(':id/paystack-checkout')
