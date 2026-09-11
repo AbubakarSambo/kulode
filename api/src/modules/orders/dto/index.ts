@@ -12,3 +12,4 @@ export { OrderFilterDto } from './order-filter.dto';
 export { MergeOrderDto } from './merge-order.dto';
 export { MoveOrderItemsDto } from './move-order-items.dto';
 export { ApplyDiscountDto } from './apply-discount.dto';
+export { ReassignOrderPaymentDto } from './reassign-order-payment.dto';
