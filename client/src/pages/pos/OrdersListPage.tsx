@@ -156,13 +156,18 @@ export function OrdersListPage() {
     prevAwaitingCountRef.current = count
   }, [awaitingPayment, isCashier])
 
+  // "Open" is meant to mean "still active" to staff, not literally the OPEN status — an order
+  // that's already IN_KITCHEN is just as much still-open/unresolved, so the Open filter queries
+  // both statuses together rather than only the narrow "not yet started" OPEN status.
+  const OPEN_FILTER_STATUSES: OrderStatus[] = ['OPEN', 'IN_KITCHEN']
+
   const { data, isLoading } = useQuery({
     queryKey: ['orders-summary', { status, tableId, customerId, waiterId, page, search: debouncedSearch }],
     // Table only renders table/customer name, status, total, createdAt — none of the
     // items/menuItem/payments graph `list` would otherwise fetch for every row.
     queryFn: () =>
       ordersApi.listSummary({
-        status: status || undefined,
+        ...(status === 'OPEN' ? { statuses: OPEN_FILTER_STATUSES } : { status: status || undefined }),
         tableId: tableId || undefined,
         customerId,
         waiterId,
