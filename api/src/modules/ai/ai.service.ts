@@ -615,21 +615,28 @@ Today is ${today}.`,
     const presenterResponse = await this.client.chat.completions.create({
       model: 'deepseek-chat',
       messages: presenterMessages,
-      max_tokens: 1536,
+      max_tokens: 4096,
       response_format: { type: 'json_object' },
     });
 
     const presenterText = presenterResponse.choices[0]?.message?.content ?? '{}';
     let layout: any = null;
-    let finalContent = 'Sorry, something went wrong formatting the report.';
+    let finalContent = 'Sorry, something went wrong formatting the report. Please try asking again.';
 
     try {
       const parsed = JSON.parse(presenterText);
-      finalContent = parsed.summary || presenterText;
+      finalContent = parsed.summary || finalContent;
       layout = parsed.layout || null;
     } catch (err) {
+      // The model's JSON can get cut off mid-object when the layout is large (e.g. many
+      // KPI cards/charts/tabs) and hits max_tokens. Never show the raw/truncated JSON to
+      // the user (it did before, unreadably) — salvage the "summary" string if possible,
+      // otherwise fall back to the generic error message above.
       this.logger.error('Failed to parse JSON layout from UI/UX agent', err);
-      finalContent = presenterText;
+      const summaryMatch = presenterText.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+      if (summaryMatch) {
+        finalContent = summaryMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+      }
     }
 
     // Save assistant message to the DB
