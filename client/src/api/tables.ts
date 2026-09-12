@@ -6,6 +6,7 @@ export interface CreateTableData {
   section?: string
   capacity?: number
   sortOrder?: number
+  orderTypeId?: string
 }
 
 export interface UpdateTableData {
@@ -14,6 +15,7 @@ export interface UpdateTableData {
   capacity?: number
   isActive?: boolean
   sortOrder?: number
+  orderTypeId?: string | null
 }
 
 export const tablesApi = {
@@ -39,5 +41,13 @@ export const tablesApi = {
   },
   delete: async (id: string): Promise<void> => {
     await apiClient.delete(`/restaurant-tables/${id}`)
+  },
+  /** Assigns (or clears, with orderTypeId null) one order type across many tables at once. */
+  bulkAssignOrderType: async (tableIds: string[], orderTypeId: string | null): Promise<RestaurantTable[]> => {
+    const response = await apiClient.patch<ApiResponse<RestaurantTable[]>>('/restaurant-tables/bulk-assign-order-type', {
+      tableIds,
+      orderTypeId,
+    })
+    return response.data.data
   },
 }

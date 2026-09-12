@@ -941,16 +941,24 @@ model RestaurantTable {
   // OrderType/PaymentType, so staff can arrange tables to match the room layout instead of
   // always seeing them alphabetically.
   sortOrder      Int         @default(0) @map("sort_order")
+  // The order type this table should place orders under (e.g. an "Outdoor" table mapped to
+  // "Dine In") — lets tapping the table skip the order-type picker entirely instead of guessing
+  // from whichever single type happens to require a table. Optional: a table with none set still
+  // falls back to the old picker/heuristic behavior. Deliberately separate from `section`, which
+  // stays free-text for physical layout grouping — the two often diverge (see OrderTakingPage).
+  orderTypeId    String?     @map("order_type_id")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  orderType    OrderType?   @relation(fields: [orderTypeId], references: [id], onDelete: SetNull)
   orders       Order[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
+  @@index([orderTypeId])
   @@map("restaurant_tables")
 }
 
@@ -994,7 +1002,8 @@ model OrderType {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tables       RestaurantTable[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
