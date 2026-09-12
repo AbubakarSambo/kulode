@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useAuthStore } from "@/stores/auth";
+import { useOrgModules } from "@/hooks/useOrgModules";
 import type { User } from "@/types";
 import { useOnboardingStore } from "@/stores/onboarding";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
@@ -1085,12 +1086,18 @@ export const OnboardingProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // This entire wizard (survey + the 4-step stepper) is an invoice-creation flow —
+  // it ends by publishing a real invoice. New organizations are POS-only going
+  // forward, so it must never appear for them; it stays available only for
+  // pre-existing orgs that already have invoicing enabled (INVOICING or BOTH).
+  const { hasInvoicing } = useOrgModules();
+
   // Only the org owner can actually submit this survey (PATCH /organizations/current and
   // PATCH /users/:id are both SUPER_ADMIN[/ADMIN]-gated on the backend) — never show it to an
   // invited teammate who'd otherwise be stuck on it with no way to complete or skip.
   const showSurvey =
-    !!user?.roles.includes("SUPER_ADMIN") && !isPersonalized && (isOpen || (!isDismissed && !hasActiveUsage));
-  const shouldShow = isOpen || showSurvey || showCelebration;
+    hasInvoicing && !!user?.roles.includes("SUPER_ADMIN") && !isPersonalized && (isOpen || (!isDismissed && !hasActiveUsage));
+  const shouldShow = hasInvoicing && (isOpen || showSurvey || showCelebration);
   const orgName = user?.organization?.name || "your business";
 
   return (

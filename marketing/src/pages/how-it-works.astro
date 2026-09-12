@@ -2,22 +2,24 @@
 import Layout from '../layouts/Layout.astro'
 import Navbar from '../components/Navbar.astro'
 import Footer from '../components/Footer.astro'
-
 const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
 ---
 
-<Layout title="How it Works — Tari1">
+<Layout
+  title="How It Works — Tari1"
+  description="From menu setup to shift close: how Tari1 runs order taking, the kitchen display, table management, and cash reconciliation for Nigerian restaurants."
+>
   <Navbar activePage="how-it-works" />
 
   <main class="hero-gradient bg-surface">
     <!-- Hero Header -->
     <section class="max-w-7xl mx-auto px-container-padding pt-20 pb-16 text-center stagger-in">
-      <span class="inline-block px-4 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-widest mb-6">Workflow Simplified</span>
+      <span class="inline-block px-4 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-widest mb-6">Service Simplified</span>
       <h1 class="text-4xl md:text-6xl font-bold text-primary tracking-tight mb-6 max-w-3xl mx-auto leading-tight">
-        A financial engine built for <span class="text-surface-tint">compliance & speed</span>
+        A POS built for <span class="text-surface-tint">speed & reliability</span>
       </h1>
       <p class="text-lg text-text-secondary max-w-2xl mx-auto mb-10">
-        From first click to tax season, Tari1 automates your core billing cycles, connects you directly to local payment methods, and keeps you aligned with FIRS regulations — with automated NFIU reporting coming soon.
+        From the first table you map to the last shift you close, Tari1 runs order taking, the kitchen display, and cash reconciliation in one place — and keeps working even when the network doesn't.
       </p>
     </section>
 
@@ -31,28 +33,28 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
         <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant transition-all duration-300 flex flex-col justify-between items-center text-center stagger-in group cursor-pointer relative overflow-hidden">
           <div>
             <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2 mx-auto">
-              <i class="hgi-stroke hgi-briefcase-02 text-[32px]"></i>
+              <i class="hgi-stroke hgi-restaurant-01 text-[32px]"></i>
             </div>
             <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4 mx-auto">1</div>
-            <h3 class="text-lg font-bold text-text-primary mb-2">Setup Organization</h3>
+            <h3 class="text-lg font-bold text-text-primary mb-2">Set Up Menu & Floor</h3>
             <p class="text-xs text-text-secondary leading-relaxed">
-              Create your workspace. Set your currency, default notes, payment terms, prefix, and enable VAT compliance.
+              Add your menu items and categories, map your tables into sections, and set your VAT and service charge rates.
             </p>
           </div>
           <div class="mt-6 w-[80%] rounded-[24px] border-[5px] border-slate-900 overflow-hidden shadow-lg bg-slate-900 relative aspect-[9/16]">
-            <img src="/mobile_step1_setup.png" alt="Workspace Setup mobile view" class="w-full h-full object-cover" />
+            <img src="/mobile_step1_setup.png" alt="Menu and floor setup mobile view" class="w-full h-full object-cover" />
             <!-- overlay — hidden by default, revealed on .group:hover via CSS -->
             <div class="step-overlay absolute inset-0 bg-black/50 flex flex-col justify-center items-center gap-3 p-4 backdrop-blur-[2px]">
               <div class="step1-card-a bg-white rounded-xl p-3 shadow-lg w-full max-w-[140px] text-left border border-white/20">
                 <p class="text-[9px] font-bold text-text-primary flex items-center gap-1.5">
                   <span class="w-3.5 h-3.5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-[8px] font-extrabold">✓</span>
-                  Currency: NGN
+                  Menu synced
                 </p>
               </div>
               <div class="step1-card-b bg-white rounded-xl p-3 shadow-lg w-full max-w-[140px] text-left border border-white/20">
                 <p class="text-[9px] font-bold text-text-primary flex items-center gap-1.5">
                   <span class="w-3.5 h-3.5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-[8px] font-extrabold">✓</span>
-                  VAT Rate: 7.5%
+                  12 tables mapped
                 </p>
               </div>
             </div>
@@ -63,16 +65,16 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
         <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant transition-all duration-300 flex flex-col justify-between items-center text-center stagger-in group cursor-pointer relative overflow-hidden">
           <div>
             <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2 mx-auto">
-              <i class="hgi-stroke hgi-bank text-[32px]"></i>
+              <i class="hgi-stroke hgi-user-group text-[32px]"></i>
             </div>
             <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4 mx-auto">2</div>
-            <h3 class="text-lg font-bold text-text-primary mb-2">Link Settlement Bank</h3>
+            <h3 class="text-lg font-bold text-text-primary mb-2">Add Staff & Pair Printers</h3>
             <p class="text-xs text-text-secondary leading-relaxed">
-              Add bank details to register your Paystack subaccount. Get verified to routing incoming payments directly.
+              Set up waiters, cashiers, and admins with role-based access, then pair your kitchen and receipt printers.
             </p>
           </div>
           <div class="mt-6 w-[80%] rounded-[24px] border-[5px] border-slate-900 overflow-hidden shadow-lg bg-slate-900 relative aspect-[9/16]">
-            <img src="/mobile_step2_bank.png" alt="Link Settlement Bank mobile view" class="w-full h-full object-cover" />
+            <img src="/mobile_step2_bank.png" alt="Staff and printer setup mobile view" class="w-full h-full object-cover" />
             <div class="step-overlay absolute inset-0 bg-black/50 flex flex-col justify-center items-center p-4 backdrop-blur-[2px]">
               <div class="relative flex items-center justify-center">
                 <!-- Sonar rings — animated via .group:hover CSS below -->
@@ -83,7 +85,7 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
                 </div>
               </div>
               <div class="step2-label bg-white rounded-lg px-3 py-1.5 shadow-md text-[9px] font-bold text-slate-800 mt-4">
-                Settlement Live ⚡
+                Kitchen printer paired ⚡
               </div>
             </div>
           </div>
@@ -93,16 +95,16 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
         <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant transition-all duration-300 flex flex-col justify-between items-center text-center stagger-in group cursor-pointer relative overflow-hidden">
           <div>
             <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2 mx-auto">
-              <i class="hgi-stroke hgi-invoice-03 text-[32px]"></i>
+              <i class="hgi-stroke hgi-chef-hat text-[32px]"></i>
             </div>
             <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4 mx-auto">3</div>
-            <h3 class="text-lg font-bold text-text-primary mb-2">Issue & Collect</h3>
+            <h3 class="text-lg font-bold text-text-primary mb-2">Take & Fire Orders</h3>
             <p class="text-xs text-text-secondary leading-relaxed">
-              Send shareable links. Clients pay via bank transfer or card. The system auto-updates invoice states.
+              Waiters send the order from the table. It lands on the kitchen display instantly, with a prep timer running.
             </p>
           </div>
           <div class="mt-6 w-[80%] rounded-[24px] border-[5px] border-slate-900 overflow-hidden shadow-lg bg-slate-900 relative aspect-[9/16]">
-            <img src="/mobile_step3_invoice.png" alt="Issue & Collect mobile view" class="w-full h-full object-cover" />
+            <img src="/mobile_step3_invoice.png" alt="Order taking mobile view" class="w-full h-full object-cover" />
             <div class="step-overlay absolute inset-0 bg-black/50 backdrop-blur-[1px]">
               <!-- Typing bubble -->
               <div class="step3-typing absolute bottom-[72px] left-1/2 -translate-x-1/2 bg-white rounded-2xl px-3 py-2 shadow-md flex items-center gap-1.5 w-14 justify-center">
@@ -110,9 +112,9 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
                 <span class="step3-dot w-1.5 h-1.5 rounded-full bg-slate-400" style="animation-delay:0.2s"></span>
                 <span class="step3-dot w-1.5 h-1.5 rounded-full bg-slate-400" style="animation-delay:0.4s"></span>
               </div>
-              <!-- WhatsApp message bubble -->
+              <!-- Kitchen ticket message bubble -->
               <div class="step3-bubble absolute bottom-[52px] left-1/2 -translate-x-1/2 bg-[#d9fdd3] rounded-xl rounded-tr-none p-2 border border-[#c2f0b7] w-[128px]">
-                <p class="text-[8px] leading-snug text-slate-800">Invoice: <span class="text-blue-600 underline">pay.tarione.com/inv</span> 🔗</p>
+                <p class="text-[8px] leading-snug text-slate-800">Table 4: Jollof x2, Suya x1 🍽️</p>
                 <div class="flex justify-end items-center mt-1 gap-1 text-[7px] text-slate-500">
                   <span>09:41</span>
                   <!-- grey ticks -->
@@ -123,7 +125,7 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
               </div>
               <!-- Toast -->
               <div class="step3-toast absolute bottom-3 left-1/2 -translate-x-1/2 bg-white rounded-lg px-2.5 py-1.5 shadow-lg border border-slate-100 text-[8px] font-bold text-slate-700 whitespace-nowrap flex items-center gap-1.5">
-                <span class="text-[#25d366]">✉</span> Shared via WhatsApp
+                <span class="text-[#25d366]">🔥</span> Seen by kitchen
               </div>
             </div>
           </div>
@@ -133,22 +135,22 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
         <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant transition-all duration-300 flex flex-col justify-between items-center text-center stagger-in group cursor-pointer relative overflow-hidden">
           <div>
             <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2 mx-auto">
-              <i class="hgi-stroke hgi-auction text-[32px]"></i>
+              <i class="hgi-stroke hgi-file-verified text-[32px]"></i>
             </div>
             <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4 mx-auto">4</div>
-            <h3 class="text-lg font-bold text-text-primary mb-2">Automate Compliance</h3>
+            <h3 class="text-lg font-bold text-text-primary mb-2">Close & Reconcile</h3>
             <p class="text-xs text-text-secondary leading-relaxed">
-              Expense logs prepare VAT/WHT schedules. SCUML/NFIU transaction-limit tracking is coming soon — join the waitlist.
+              Count the till against expected cash, catch any variance, and download a shift report — every night, without spreadsheets.
             </p>
           </div>
           <div class="mt-6 w-[80%] rounded-[24px] border-[5px] border-slate-900 overflow-hidden shadow-lg bg-slate-900 relative aspect-[9/16]">
-            <img src="/mobile_step4_tax.png" alt="Automate Compliance mobile view" class="w-full h-full object-cover" />
+            <img src="/mobile_step4_tax.png" alt="Shift close mobile view" class="w-full h-full object-cover" />
             <div class="step-overlay absolute inset-0 bg-black/50 flex flex-col justify-center items-center p-3 backdrop-blur-[2px]">
               <!-- Progress card -->
               <div class="step4-card bg-white rounded-xl p-3 shadow-xl w-[85%] max-w-[130px] border border-white/10 relative overflow-hidden min-h-[54px] flex flex-col justify-center">
                 <!-- Downloading state -->
                 <div class="step4-downloading w-full text-center">
-                  <p class="text-[8px] font-extrabold text-blue-700 mb-1.5">Downloading Pack</p>
+                  <p class="text-[8px] font-extrabold text-blue-700 mb-1.5">Counting Cash</p>
                   <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden relative">
                     <div class="step4-bar h-full bg-blue-600 rounded-full absolute left-0 top-0">
                       <div class="step4-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent -skew-x-12"></div>
@@ -158,12 +160,12 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
                 <!-- Done state -->
                 <div class="step4-done absolute inset-0 bg-white rounded-xl flex flex-col justify-center items-center">
                   <span class="text-xl mb-1">✅</span>
-                  <p class="text-[8px] font-extrabold text-emerald-600">Done!</p>
+                  <p class="text-[8px] font-extrabold text-emerald-600">Variance ₦0</p>
                 </div>
               </div>
               <!-- Toast -->
               <div class="step4-toast absolute bottom-3 left-1/2 -translate-x-1/2 bg-emerald-600 text-white rounded-lg px-2.5 py-1.5 shadow-md text-[8px] font-bold whitespace-nowrap">
-                FIRS pack saved ✓
+                Shift report saved ✓
               </div>
             </div>
           </div>
@@ -171,14 +173,14 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
       </div>
     </section>
 
-    <!-- Interactive Invoice Sandbox Simulator -->
+    <!-- Interactive Order Total Simulator -->
     <section class="py-24 bg-surface-container-low">
       <div class="max-w-7xl mx-auto px-container-padding">
         <div class="text-center mb-16 stagger-in">
           <span class="inline-block px-4 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-widest mb-4">Live Sandbox</span>
-          <h2 class="text-3xl font-extrabold text-primary mb-4">Try the Invoice Simulator</h2>
+          <h2 class="text-3xl font-extrabold text-primary mb-4">Try the Order Simulator</h2>
           <p class="text-base text-text-secondary max-w-2xl mx-auto">
-            Experience how easy invoice generation is with Tari1. Change the values below to watch the invoice compute and updates in real-time.
+            See exactly how Tari1 totals a table's order. Change the values below and watch VAT and the total update in real-time — the same math your cashiers see at checkout.
           </p>
         </div>
 
@@ -187,33 +189,33 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
           <div class="bg-white p-8 md:p-10 rounded-[32px] shadow-xl border border-outline-variant">
             <h3 class="text-xl font-bold text-text-primary mb-8 flex items-center gap-3">
               <i class="hgi-stroke hgi-settings-02 text-primary"></i>
-              Invoice Parameters
+              Order Parameters
             </h3>
 
             <div class="space-y-6">
               <div>
-                <label class="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-2" for="sim-desc">Item Description</label>
-                <input id="sim-desc" type="text" value="Premium Consulting Services" class="w-full px-4 py-3 rounded-[12px] border border-outline-variant bg-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 text-sm" />
+                <label class="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-2" for="sim-desc">Menu Item</label>
+                <input id="sim-desc" type="text" value="Jollof Rice" class="w-full px-4 py-3 rounded-[12px] border border-outline-variant bg-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 text-sm" />
               </div>
 
               <div class="grid grid-cols-2 gap-4">
                 <div>
                   <label class="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-2" for="sim-price">Unit Price (₦)</label>
-                  <input id="sim-price" type="number" value="150000" class="w-full px-4 py-3 rounded-[12px] border border-outline-variant bg-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 text-sm tabular-nums" />
+                  <input id="sim-price" type="number" value="2500" class="w-full px-4 py-3 rounded-[12px] border border-outline-variant bg-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 text-sm tabular-nums" />
                 </div>
                 <div>
                   <label class="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-2" for="sim-qty">Quantity</label>
-                  <input id="sim-qty" type="number" value="2" class="w-full px-4 py-3 rounded-[12px] border border-outline-variant bg-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 text-sm tabular-nums" />
+                  <input id="sim-qty" type="number" value="4" class="w-full px-4 py-3 rounded-[12px] border border-outline-variant bg-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 text-sm tabular-nums" />
                 </div>
               </div>
 
               <div class="grid grid-cols-2 gap-4">
                 <div>
                   <label class="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-2" for="sim-discount">Discount (%)</label>
-                  <input id="sim-discount" type="number" min="0" max="100" value="10" class="w-full px-4 py-3 rounded-[12px] border border-outline-variant bg-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 text-sm tabular-nums" />
+                  <input id="sim-discount" type="number" min="0" max="100" value="0" class="w-full px-4 py-3 rounded-[12px] border border-outline-variant bg-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 text-sm tabular-nums" />
                 </div>
                 <div>
-                  <label class="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-2">VAT Compliance</label>
+                  <label class="block text-xs font-bold uppercase tracking-wider text-text-secondary mb-2">VAT</label>
                   <label class="flex items-center gap-3 h-[44px] cursor-pointer select-none">
                     <input id="sim-vat" type="checkbox" checked class="sr-only peer" />
                     <div class="vat-box w-6 h-6 rounded-[6px] border-2 border-slate-300 bg-white flex items-center justify-center transition-all duration-300 relative">
@@ -228,56 +230,56 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
             </div>
           </div>
 
-          <!-- Live Mock Invoice Preview -->
+          <!-- Live Mock Order Preview -->
           <div class="glass-card rounded-[32px] p-8 md:p-10 shadow-[0_24px_48px_rgba(0,55,176,0.06)] border border-white/40 relative overflow-hidden float-slow">
             <div class="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-bl-[100px] -z-10"></div>
-            
+
             <div class="flex justify-between items-start mb-8">
               <div>
                 <span class="text-lg font-extrabold tracking-tighter text-primary">Tari1 Simulator</span>
-                <p class="text-[10px] text-text-secondary mt-1">ACME Solutions Ltd</p>
+                <p class="text-[10px] text-text-secondary mt-1">The Grill House · Table 4</p>
               </div>
               <div class="text-right">
-                <span class="inline-block px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold uppercase">DRAFT</span>
-                <p class="text-[10px] text-text-secondary mt-2">Invoice #INV-001</p>
+                <span class="inline-block px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold uppercase">OPEN</span>
+                <p class="text-[10px] text-text-secondary mt-2">Order #ORD-1042</p>
               </div>
             </div>
 
-            <!-- Invoice Item Row -->
+            <!-- Order Item Row -->
             <div class="border-b border-outline-variant/60 pb-6 mb-6">
-              <p class="text-xs uppercase tracking-wider font-extrabold text-text-secondary mb-4">Description</p>
+              <p class="text-xs uppercase tracking-wider font-extrabold text-text-secondary mb-4">Item</p>
               <div class="flex justify-between items-center">
                 <div>
-                  <p class="text-sm font-bold text-text-primary" id="preview-desc">Premium Consulting Services</p>
-                  <p class="text-xs text-text-secondary mt-1">Qty: <span id="preview-qty" class="inline-block">2</span> × ₦<span id="preview-price" class="inline-block">150,000.00</span></p>
+                  <p class="text-sm font-bold text-text-primary" id="preview-desc">Jollof Rice</p>
+                  <p class="text-xs text-text-secondary mt-1">Qty: <span id="preview-qty" class="inline-block">4</span> × ₦<span id="preview-price" class="inline-block">2,500.00</span></p>
                 </div>
-                <p class="text-sm font-bold text-text-primary tabular-nums">₦<span id="preview-raw-total" class="inline-block">300,000.00</span></p>
+                <p class="text-sm font-bold text-text-primary tabular-nums">₦<span id="preview-raw-total" class="inline-block">10,000.00</span></p>
               </div>
             </div>
 
-            <!-- Invoice Summary -->
+            <!-- Order Summary -->
             <div class="space-y-3">
               <div class="flex justify-between text-xs text-text-secondary">
                 <span>Subtotal</span>
-                <span class="tabular-nums">₦<span id="preview-subtotal" class="inline-block">300,000.00</span></span>
+                <span class="tabular-nums">₦<span id="preview-subtotal" class="inline-block">10,000.00</span></span>
               </div>
               <div class="flex justify-between text-xs text-rose-600 font-medium">
-                <span>Discount (<span id="preview-discount-percent">10</span>%)</span>
-                <span class="tabular-nums">-₦<span id="preview-discount" class="inline-block">30,000.00</span></span>
+                <span>Discount (<span id="preview-discount-percent">0</span>%)</span>
+                <span class="tabular-nums">-₦<span id="preview-discount" class="inline-block">0.00</span></span>
               </div>
               <div class="flex justify-between text-xs text-text-secondary" id="preview-vat-row">
                 <span>VAT (7.5%)</span>
-                <span class="tabular-nums">₦<span id="preview-vat" class="inline-block">20,250.00</span></span>
+                <span class="tabular-nums">₦<span id="preview-vat" class="inline-block">750.00</span></span>
               </div>
               <div class="flex justify-between text-sm font-extrabold text-primary border-t border-outline-variant/60 pt-3">
-                <span>Total Amount Due</span>
-                <span class="tabular-nums">₦<span id="preview-total" class="inline-block">290,250.00</span></span>
+                <span>Total Due</span>
+                <span class="tabular-nums">₦<span id="preview-total" class="inline-block">10,750.00</span></span>
               </div>
             </div>
 
             <!-- Footer Message -->
             <p class="text-[10px] text-center text-text-secondary mt-10 italic">
-              Payments are routed directly to your settlement account via Paystack.
+              Charge the table with cash, card, bank transfer, or Paystack.
             </p>
           </div>
         </div>
@@ -288,9 +290,9 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
     <section class="py-32 px-container-padding bg-surface">
       <div class="max-w-5xl mx-auto bg-primary text-white p-12 md:p-20 rounded-[48px] text-center shadow-[0_24px_48px_rgba(0,55,176,0.15)] relative overflow-hidden">
         <div class="absolute -top-10 -right-10 w-40 h-40 bg-white/5 rounded-full blur-2xl"></div>
-        <h2 class="text-3xl md:text-4xl font-extrabold mb-6 leading-tight">Ready to transform your business invoicing?</h2>
+        <h2 class="text-3xl md:text-4xl font-extrabold mb-6 leading-tight">Ready to run a faster floor?</h2>
         <p class="text-base opacity-80 mb-10 max-w-xl mx-auto">
-          Start invoicing today. No credit card required. Cancel before day 30 at no cost.
+          Start taking orders today. No credit card required. Cancel before day 30 at no cost.
         </p>
         <a href={`${appUrl}/register`} class="inline-block bg-white text-primary px-12 py-5 rounded-[12px] text-base font-bold shadow-xl hover:scale-105 active:scale-95 transition-all">
           Start Your 30-Day Free Trial
@@ -331,7 +333,7 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
     vatInput?.addEventListener('change', syncVatBox);
     syncVatBox();
 
-    // Invoice sandbox logic
+    // Order sandbox logic
     const inputDesc     = document.getElementById('sim-desc') as HTMLInputElement;
     const inputPrice    = document.getElementById('sim-price') as HTMLInputElement;
     const inputQty      = document.getElementById('sim-qty') as HTMLInputElement;
@@ -362,7 +364,7 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
 
     let firstRun = true;
     function calculate() {
-      const desc    = inputDesc.value || 'Custom Invoice Item';
+      const desc    = inputDesc.value || 'Menu Item';
       const price   = parseFloat(inputPrice.value) || 0;
       const qty     = parseFloat(inputQty.value) || 0;
       const disc    = parseFloat(inputDiscount.value) || 0;
@@ -472,7 +474,7 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
       transform: translateY(0);
     }
 
-    /* ── Step 3: WhatsApp staged sequence ── */
+    /* ── Step 3: ticket staged sequence ── */
     .step3-typing {
       opacity: 0;
     }
@@ -542,7 +544,7 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
       77%, 100% { opacity:1; transform:translateY(0); }
     }
 
-    /* ── Step 4: download progress sequence ── */
+    /* ── Step 4: reconciliation progress sequence ── */
     .step4-card {
       transform: scale(0.9);
       transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
@@ -594,7 +596,7 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
       86%, 100% { opacity:1; transform:translateY(0); }
     }
 
-    /* ── Invoice Simulator: number pulse on recalc ── */
+    /* ── Order Simulator: number pulse on recalc ── */
     .num-pulse {
       animation: numPulse 0.4s cubic-bezier(0.34,1.56,0.64,1);
     }
