@@ -3,7 +3,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { MailSend02Icon, Menu01Icon } from '@hugeicons/core-free-icons'
 import ReactMarkdown from 'react-markdown'
 import { Header } from '@/components/layout'
-import { aiApi, type ChatMessage, type ChatSession } from '@/api/ai'
+import { aiApi, type ChatContext, type ChatMessage, type ChatSession } from '@/api/ai'
 import { AiChatIcon } from '@/components/ui/CustomIcons'
 import { useOverscrollBounce } from '@/hooks'
 import { cn } from '@/lib/utils'
@@ -12,12 +12,31 @@ import { DynamicLayoutRenderer } from '@/components/ai/DynamicRenderer'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
-const SUGGESTED_QUESTIONS = [
-  'How did my business perform this month?',
-  'Which clients owe me the most money?',
-  'What were my biggest expenses last quarter?',
-  'Who are my top clients this year?',
-]
+const SUGGESTED_QUESTIONS: Record<ChatContext, string[]> = {
+  INVOICING: [
+    'How did my business perform this month?',
+    'Which clients owe me the most money?',
+    'What were my biggest expenses last quarter?',
+    'Who are my top clients this year?',
+  ],
+  POS: [
+    'How were sales today compared to yesterday?',
+    'What are my best-selling menu items this month?',
+    'Show me my recent orders',
+    'Reconcile the current shift till',
+  ],
+}
+
+const EMPTY_STATE_COPY: Record<ChatContext, { title: string; description: string }> = {
+  INVOICING: {
+    title: 'Ask about your business',
+    description: 'I can look up your revenue, clients, expenses, and more in real time.',
+  },
+  POS: {
+    title: 'Ask about your restaurant',
+    description: 'I can look up your sales, orders, customers, and shift tills in real time.',
+  },
+}
 
 const STATUS_STEPS = [
   'Analyzing query intent...',
@@ -112,7 +131,11 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   )
 }
 
-export function AiChatPage() {
+interface AiChatPageProps {
+  context?: ChatContext
+}
+
+export function AiChatPage({ context = 'INVOICING' }: AiChatPageProps) {
   const queryClient = useQueryClient()
   const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -125,14 +148,14 @@ export function AiChatPage() {
 
   // 1. Fetch conversations
   const { data: sessions = [] } = useQuery<ChatSession[]>({
-    queryKey: ['chatSessions'],
-    queryFn: () => aiApi.listSessions(),
+    queryKey: ['chatSessions', context],
+    queryFn: () => aiApi.listSessions(undefined, context),
   })
 
   // 2. Fetch active thread messages
   const { data: dbMessages = [] } = useQuery<ChatMessage[]>({
-    queryKey: ['chatMessages', currentSessionId],
-    queryFn: () => currentSessionId ? aiApi.getMessages(currentSessionId) : Promise.resolve([]),
+    queryKey: ['chatMessages', currentSessionId, context],
+    queryFn: () => currentSessionId ? aiApi.getMessages(currentSessionId, context) : Promise.resolve([]),
     enabled: !!currentSessionId,
   })
 
@@ -151,9 +174,9 @@ export function AiChatPage() {
 
   // Mutations
   const deleteSessionMutation = useMutation({
-    mutationFn: (id: string) => aiApi.deleteSession(id),
+    mutationFn: (id: string) => aiApi.deleteSession(id, context),
     onSuccess: (_, deletedId) => {
-      queryClient.invalidateQueries({ queryKey: ['chatSessions'] })
+      queryClient.invalidateQueries({ queryKey: ['chatSessions', context] })
       if (currentSessionId === deletedId) {
         setCurrentSessionId(undefined)
       }
@@ -163,17 +186,17 @@ export function AiChatPage() {
 
   const renameSessionMutation = useMutation({
     mutationFn: ({ id, title }: { id: string; title: string }) =>
-      aiApi.updateSession(id, { title }),
+      aiApi.updateSession(id, { title }, context),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['chatSessions'] })
+      queryClient.invalidateQueries({ queryKey: ['chatSessions', context] })
     },
   })
 
   const togglePinMutation = useMutation({
     mutationFn: ({ id, isPinned }: { id: string; isPinned: boolean }) =>
-      aiApi.updateSession(id, { isPinned }),
+      aiApi.updateSession(id, { isPinned }, context),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['chatSessions'] })
+      queryClient.invalidateQueries({ queryKey: ['chatSessions', context] })
     },
   })
 
@@ -188,12 +211,12 @@ export function AiChatPage() {
     setLoading(true)
 
     try {
-      const response = await aiApi.chat(next, currentSessionId)
+      const response = await aiApi.chat(next, currentSessionId, context)
       if (!currentSessionId) {
         setCurrentSessionId(response.sessionId)
-        queryClient.invalidateQueries({ queryKey: ['chatSessions'] })
+        queryClient.invalidateQueries({ queryKey: ['chatSessions', context] })
       } else {
-        queryClient.invalidateQueries({ queryKey: ['chatMessages', currentSessionId] })
+        queryClient.invalidateQueries({ queryKey: ['chatMessages', currentSessionId, context] })
       }
     } catch {
       setMessages([...next, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' }])
@@ -246,7 +269,7 @@ export function AiChatPage() {
           <div className="flex-1">
             <Header
               title="AI Chat"
-              description="Ask questions about your business data"
+              description={context === 'POS' ? 'Ask questions about your sales, orders, and shifts' : 'Ask questions about your business data'}
               icon={AiChatIcon}
               category="Analytics"
             />
@@ -261,12 +284,12 @@ export function AiChatPage() {
                 <div className="w-16 h-16 rounded-2xl bg-[#0037b0]/8 flex items-center justify-center mb-4">
                   <AiChatIcon className="text-[#0037b0] w-8 h-8" />
                 </div>
-                <h2 className="text-lg font-bold text-slate-900 mb-1">Ask about your business</h2>
+                <h2 className="text-lg font-bold text-slate-900 mb-1">{EMPTY_STATE_COPY[context].title}</h2>
                 <p className="text-sm text-slate-500 mb-8 max-w-xs">
-                  I can look up your revenue, clients, expenses, and more in real time.
+                  {EMPTY_STATE_COPY[context].description}
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-md">
-                  {SUGGESTED_QUESTIONS.map((q) => (
+                  {SUGGESTED_QUESTIONS[context].map((q) => (
                     <button
                       key={q}
                       onClick={() => send(q)}

@@ -189,6 +189,7 @@ export function AppLayout() {
         { name: 'Reports', href: '/reports', icon: ReportsIcon, requiresPlan: 'PRO' as PlanTier, visible: canViewReports && hasInvoicing },
         { name: 'POS Reports', href: '/pos/reports', icon: ReportsIcon, visible: hasPos },
         { name: 'AI Chat', href: '/ai-chat', icon: AiChatIcon, requiresPlan: 'PRO' as PlanTier, visible: canViewReports && hasInvoicing },
+        { name: 'AI Chat', href: '/pos/ai-chat', icon: AiChatIcon, requiresPlan: 'PRO' as PlanTier, visible: hasPos && isAdmin },
       ] as MoreItem[],
     },
     {

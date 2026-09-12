@@ -5,5 +5,6 @@ import { PosReportsController } from './pos-reports.controller';
 @Module({
   controllers: [PosReportsController],
   providers: [PosReportsService],
+  exports: [PosReportsService],
 })
 export class PosReportsModule {}

@@ -867,22 +867,28 @@ model ShortLink {
   @@map("short_links")
 }
 
+enum ChatContext {
+  INVOICING
+  POS
+}
+
 model ChatSession {
-  id             String    @id @default(uuid())
-  organizationId String    @map("organization_id")
-  userId         String    @map("user_id")
+  id             String      @id @default(uuid())
+  organizationId String      @map("organization_id")
+  userId         String      @map("user_id")
   title          String
-  isPinned       Boolean   @default(false) @map("is_pinned")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
-  deletedAt      DateTime? @map("deleted_at")
+  isPinned       Boolean     @default(false) @map("is_pinned")
+  context        ChatContext @default(INVOICING)
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  deletedAt      DateTime?   @map("deleted_at")
 
   // Relations
   organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages     ChatMessage[]
 
-  @@index([organizationId, userId])
+  @@index([organizationId, userId, context])
   @@index([deletedAt])
   @@map("chat_sessions")
 }

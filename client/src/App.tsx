@@ -71,6 +71,7 @@ import {
   KitchenTicketsPage,
   DrinksTicketsPage,
   PosReportsPage,
+  PosAiChatPage,
   PrintersPage,
 } from '@/pages'
 import { useVersionCheck } from '@/hooks/useVersionCheck'
@@ -253,6 +254,11 @@ function App() {
                   <Route path="/pos/drinks" element={<DrinksTicketsPage />} />
                 </Route>
                 <Route path="/pos/reports" element={<PosReportsPage />} />
+                <Route element={<PlanGatedRoute requiredPlan="PRO" />}>
+                  <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'SUPER_ADMIN']} />}>
+                    <Route path="/pos/ai-chat" element={<PosAiChatPage />} />
+                  </Route>
+                </Route>
               </Route>
 
 
