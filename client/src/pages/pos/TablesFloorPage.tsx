@@ -8,9 +8,9 @@ import { toast } from 'sonner'
 import { Pencil, Plus, UtensilsCrossed } from 'lucide-react'
 import { DiningTableIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
-import { Button, Input, Label, EmptyState } from '@/components/ui'
+import { Button, Input, Label, Select, EmptyState } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
-import { tablesApi, ordersApi } from '@/api'
+import { tablesApi, ordersApi, orderTypesApi } from '@/api'
 import { cn, formatCurrency } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import type { RestaurantTable, TableStatus } from '@/types'
@@ -25,6 +25,9 @@ const tableSchema = z.object({
   section: z.string().optional(),
   capacity: z.number().min(1).optional(),
   sortOrder: z.number().optional(),
+  // '' means "no specific order type" (the picker still shows when this table is tapped) —
+  // normalized to undefined/null before hitting the API, which uses those to mean "unset"/"clear".
+  orderTypeId: z.string().optional(),
 })
 type TableFormData = z.infer<typeof tableSchema>
 
@@ -63,6 +66,14 @@ export function TablesFloorPage() {
     queryFn: () => tablesApi.list(),
     refetchInterval: 15_000,
   })
+
+  const { data: orderTypes } = useQuery({ queryKey: ['order-types'], queryFn: () => orderTypesApi.list() })
+  // Only types that actually occupy a table make sense to assign here — a table pointed at
+  // "Takeaway" (requiresTable: false) would never make OrderTakingPage's auto-select kick in.
+  const tableOrderTypes = useMemo(
+    () => (orderTypes ?? []).filter((t) => t.isActive && t.requiresTable).slice().sort((a, b) => a.sortOrder - b.sortOrder),
+    [orderTypes],
+  )
 
   const { data: activeOrdersPage } = useQuery({
     queryKey: ['orders-summary', { statuses: ACTIVE_ORDER_STATUSES }],
@@ -133,12 +144,12 @@ export function TablesFloorPage() {
   const openCreate = () => {
     // Defaults a new table to the end of the current arrangement rather than 0, so it doesn't
     // jump to the front of an already-arranged floor plan.
-    form.reset({ name: '', section: '', capacity: undefined, sortOrder: tables?.length ?? 0 })
+    form.reset({ name: '', section: '', capacity: undefined, sortOrder: tables?.length ?? 0, orderTypeId: '' })
     setCreateOpen(true)
   }
 
   const createTable = useMutation({
-    mutationFn: (data: TableFormData) => tablesApi.create(data),
+    mutationFn: (data: TableFormData) => tablesApi.create({ ...data, orderTypeId: data.orderTypeId || undefined }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['restaurant-tables'] })
       toast.success('Table added')
@@ -155,7 +166,7 @@ export function TablesFloorPage() {
   const editForm = useForm<TableFormData>({ resolver: zodResolver(tableSchema) })
 
   const updateTable = useMutation({
-    mutationFn: (data: TableFormData) => tablesApi.update(editingTable!.id, data),
+    mutationFn: (data: TableFormData) => tablesApi.update(editingTable!.id, { ...data, orderTypeId: data.orderTypeId || null }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['restaurant-tables'] })
       toast.success('Table updated')
@@ -168,8 +179,44 @@ export function TablesFloorPage() {
   })
 
   const openEdit = (table: RestaurantTable) => {
-    editForm.reset({ name: table.name, section: table.section ?? '', capacity: table.capacity ?? undefined, sortOrder: table.sortOrder })
+    editForm.reset({
+      name: table.name,
+      section: table.section ?? '',
+      capacity: table.capacity ?? undefined,
+      sortOrder: table.sortOrder,
+      orderTypeId: table.orderTypeId ?? '',
+    })
     setEditingTable(table)
+  }
+
+  // Bulk "set order type for this whole section" — lets an admin fix a section like Outdoor or
+  // Event Space (which won't have a same-named order type) in one action instead of editing every
+  // table in it individually.
+  const [bulkAssignGroup, setBulkAssignGroup] = useState<{ label: string; tables: RestaurantTable[] } | null>(null)
+  const [bulkOrderTypeId, setBulkOrderTypeId] = useState('')
+
+  const bulkAssignOrderType = useMutation({
+    mutationFn: (vars: { tableIds: string[]; orderTypeId: string | null }) =>
+      tablesApi.bulkAssignOrderType(vars.tableIds, vars.orderTypeId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['restaurant-tables'] })
+      toast.success('Order type updated')
+      setBulkAssignGroup(null)
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to update order type')
+    },
+  })
+
+  // What a section's tables currently agree on, for display in the bulk-assign control — 'mixed'
+  // when tables in the group disagree, so an admin can tell "already consistent" from "needs a look".
+  function groupOrderTypeSummary(tables: RestaurantTable[]): string {
+    const ids = new Set(tables.map((t) => t.orderTypeId ?? null))
+    if (ids.size > 1) return 'Mixed'
+    const id = tables[0]?.orderTypeId
+    if (!id) return 'Not set'
+    return tableOrderTypes.find((t) => t.id === id)?.name ?? 'Not set'
   }
 
   const markCleaned = useMutation({
@@ -274,9 +321,25 @@ export function TablesFloorPage() {
             )}
             {visibleGroups.map((group) => (
               <div key={group.label}>
-                {sectionFilter === '' && sectionGroups.length > 1 && (
-                  <h2 className="mb-3 text-lg font-bold text-foreground">{group.label}</h2>
-                )}
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  {sectionFilter === '' && sectionGroups.length > 1 ? (
+                    <h2 className="text-lg font-bold text-foreground">{group.label}</h2>
+                  ) : (
+                    <span />
+                  )}
+                  {canManageTables && tableOrderTypes.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBulkOrderTypeId(group.tables[0]?.orderTypeId ?? '')
+                        setBulkAssignGroup(group)
+                      }}
+                      className="shrink-0 text-xs font-medium text-primary hover:underline"
+                    >
+                      Order type: {groupOrderTypeSummary(group.tables)} · Change
+                    </button>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                   {group.tables.map((table) => (
                     <div
@@ -319,6 +382,9 @@ export function TablesFloorPage() {
                         <span className="text-2xl font-extrabold">{waiterByTableId.get(table.id)}</span>
                       )}
                       <span className="text-base font-bold opacity-90">{table.capacity} seats</span>
+                      {table.orderType && (
+                        <span className="text-xs font-semibold uppercase tracking-wide opacity-75">{table.orderType.name}</span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -368,6 +434,16 @@ export function TablesFloorPage() {
             />
             <p className="mt-1 text-xs text-muted-foreground">Lower numbers show first on the Tables floor grid.</p>
           </div>
+          <div>
+            <Label>Order Type (optional)</Label>
+            <Select {...form.register('orderTypeId')}>
+              <option value="">No specific order type (show picker)</option>
+              {tableOrderTypes.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </Select>
+            <p className="mt-1 text-xs text-muted-foreground">Tapping this table jumps straight to this order type instead of asking.</p>
+          </div>
           <Button type="submit" className="w-full" isLoading={createTable.isPending}>
             Add Table
           </Button>
@@ -414,6 +490,16 @@ export function TablesFloorPage() {
             />
             <p className="mt-1 text-xs text-muted-foreground">Lower numbers show first on the Tables floor grid.</p>
           </div>
+          <div>
+            <Label>Order Type (optional)</Label>
+            <Select {...editForm.register('orderTypeId')}>
+              <option value="">No specific order type (show picker)</option>
+              {tableOrderTypes.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </Select>
+            <p className="mt-1 text-xs text-muted-foreground">Tapping this table jumps straight to this order type instead of asking.</p>
+          </div>
           <Button type="submit" className="w-full" isLoading={updateTable.isPending}>
             Save Changes
           </Button>
@@ -445,6 +531,41 @@ export function TablesFloorPage() {
               Start New Order
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={!!bulkAssignGroup}
+        onClose={() => setBulkAssignGroup(null)}
+        title={`Set Order Type — ${bulkAssignGroup?.label ?? ''}`}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Applies to all {bulkAssignGroup?.tables.length} table{bulkAssignGroup?.tables.length === 1 ? '' : 's'} in
+            this section.
+          </p>
+          <div>
+            <Label>Order Type</Label>
+            <Select value={bulkOrderTypeId} onChange={(e) => setBulkOrderTypeId(e.target.value)}>
+              <option value="">No specific order type (show picker)</option>
+              {tableOrderTypes.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </Select>
+          </div>
+          <Button
+            className="w-full"
+            isLoading={bulkAssignOrderType.isPending}
+            onClick={() =>
+              bulkAssignGroup &&
+              bulkAssignOrderType.mutate({
+                tableIds: bulkAssignGroup.tables.map((t) => t.id),
+                orderTypeId: bulkOrderTypeId || null,
+              })
+            }
+          >
+            Apply
+          </Button>
         </div>
       </Modal>
     </div>

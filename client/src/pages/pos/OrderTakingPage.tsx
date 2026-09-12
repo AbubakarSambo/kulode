@@ -152,17 +152,30 @@ export function OrderTakingPage() {
     queryFn: () => tablesApi.list(),
   })
   const availableTables = useMemo(() => (tables ?? []).filter((t) => t.status === 'AVAILABLE'), [tables])
+  const tappedTable = useMemo(() => (tables ?? []).find((t) => t.id === tableId), [tables, tableId])
+  // Set on the Tables page (see TablesFloorPage's "Order Type" field / bulk "set order type for
+  // this section") — an explicit, unambiguous answer to "what order type is this table", so
+  // tapping it can skip the guess-and-maybe-ask-again flow below entirely.
+  const tableOrderTypeName = tappedTable?.orderType?.name
+  // Only meaningful once we know the answer: with a tableId, that means the tables list has
+  // loaded (so tappedTable/tableOrderTypeName reflect the real table, not "not found yet").
+  const tableLookupReady = !tableId || !!tables
 
   const { data: orderTypes } = useQuery({ queryKey: ['order-types'], queryFn: () => orderTypesApi.list() })
   const sortedOrderTypes = useMemo(() => (orderTypes ?? []).slice().sort((a, b) => a.sortOrder - b.sortOrder), [orderTypes])
-  // No explicit source came from a query param or a restored draft — resolve this org's actual
-  // table-requiring type once it loads (matches the backend's own fallback in orders.service.ts),
-  // rather than assuming it's still literally named "Dine In".
+  // No explicit source came from a query param or a restored draft — prefer the tapped table's own
+  // order type mapping when it has one; otherwise resolve this org's actual table-requiring type
+  // once it loads (matches the backend's own fallback in orders.service.ts), rather than assuming
+  // it's still literally named "Dine In".
   useEffect(() => {
-    if (source || sortedOrderTypes.length === 0) return
+    if (source || sortedOrderTypes.length === 0 || !tableLookupReady) return
+    if (tableOrderTypeName) {
+      setSource(tableOrderTypeName)
+      return
+    }
     const tableType = sortedOrderTypes.find((t) => t.requiresTable)
     setSource((tableType ?? sortedOrderTypes[0]).name)
-  }, [sortedOrderTypes, source])
+  }, [sortedOrderTypes, source, tableOrderTypeName, tableLookupReady])
   const sourceRequiresTable = sortedOrderTypes.find((t) => t.name === source)?.requiresTable ?? false
   const effectiveTableId = tableId ?? (sourceRequiresTable ? selectedTableId || undefined : undefined)
   const tableRequiringTypes = useMemo(() => sortedOrderTypes.filter((t) => t.requiresTable), [sortedOrderTypes])
@@ -171,8 +184,10 @@ export function OrderTakingPage() {
   // and Delivery all marked "requires a table") can't be defaulted correctly by sort order alone —
   // show the picker so staff can correct it, scoped to just the table-requiring types since a type
   // that doesn't require a table would be misleading here (the table stays attached regardless).
+  // A table with its own explicit order type mapping skips this ambiguity altogether — it's locked
+  // in, no picker needed.
   const orderTypePickerOptions = tableId ? tableRequiringTypes : sortedOrderTypes
-  const showOrderTypePicker = !tableId || tableRequiringTypes.length > 1
+  const showOrderTypePicker = !tableId ? true : !tableOrderTypeName && tableRequiringTypes.length > 1
 
   const { data: categories } = useQuery({ queryKey: ['menu-categories'], queryFn: () => menuCategoriesApi.list() })
   const { data: items } = useQuery({ queryKey: ['menu-items'], queryFn: () => menuItemsApi.list() })

@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 
 export class UpdateTableDto {
   @ApiPropertyOptional()
@@ -29,4 +29,12 @@ export class UpdateTableDto {
   @IsOptional()
   @IsInt()
   sortOrder?: number;
+
+  @ApiPropertyOptional({
+    description: 'Order type this table places orders under (skips the picker when tapped). Pass null to clear.',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsUUID()
+  orderTypeId?: string | null;
 }

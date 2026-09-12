@@ -460,6 +460,8 @@ export interface RestaurantTable {
   status: TableStatus
   isActive: boolean
   sortOrder: number
+  orderTypeId?: string | null
+  orderType?: { id: string; name: string } | null
 }
 
 export interface OrderItem {

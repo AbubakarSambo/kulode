@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { TablesService } from './tables.service';
-import { CreateTableDto, UpdateTableDto, UpdateTableStatusDto } from './dto';
+import { CreateTableDto, UpdateTableDto, UpdateTableStatusDto, BulkAssignOrderTypeDto } from './dto';
 import { CurrentUser, Roles, Role } from '../../common';
 
 @ApiTags('Restaurant Tables')
@@ -39,6 +39,15 @@ export class TablesController {
     @Body() dto: CreateTableDto,
   ) {
     return this.tablesService.create(organizationId, dto);
+  }
+
+  @Patch('bulk-assign-order-type')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.CASHIER)
+  bulkAssignOrderType(
+    @CurrentUser('organizationId') organizationId: string,
+    @Body() dto: BulkAssignOrderTypeDto,
+  ) {
+    return this.tablesService.bulkAssignOrderType(organizationId, dto);
   }
 
   @Patch(':id')
