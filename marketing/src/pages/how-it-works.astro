@@ -24,151 +24,108 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
     </section>
 
     <!-- The 4-Step Visual Flow -->
-    <section class="py-16 max-w-7xl mx-auto px-container-padding">
-      <div class="grid grid-cols-1 lg:grid-cols-4 gap-8 relative">
-        <!-- Connecting line decoration for desktop -->
-        <div class="hidden lg:block absolute top-1/4 left-1/8 right-1/8 h-0.5 bg-outline-variant -z-10"></div>
-
-        <!-- ── Step 1 ── -->
-        <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant transition-all duration-300 flex flex-col justify-between items-center text-center stagger-in group cursor-pointer relative overflow-hidden">
-          <div>
-            <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2 mx-auto">
-              <i class="hgi-stroke hgi-restaurant-01 text-[32px]"></i>
+    <section class="py-16 max-w-7xl mx-auto px-container-padding space-y-20 lg:space-y-28">
+      <!-- ── Step 1 ── -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+        <div class="stagger-in">
+          <div class="flex items-center gap-4 mb-5">
+            <div class="w-14 h-14 rounded-full bg-primary/5 flex items-center justify-center text-primary ring-8 ring-primary/2 shrink-0">
+              <i class="hgi-stroke hgi-restaurant-01 text-[28px]"></i>
             </div>
-            <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4 mx-auto">1</div>
-            <h3 class="text-lg font-bold text-text-primary mb-2">Set Up Menu & Floor</h3>
-            <p class="text-xs text-text-secondary leading-relaxed">
-              Add your menu items and categories, map your tables into sections, and set your VAT and service charge rates.
-            </p>
+            <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shrink-0">1</div>
           </div>
-          <div class="mt-6 w-[80%] rounded-[24px] border-[5px] border-slate-900 overflow-hidden shadow-lg bg-slate-900 relative aspect-[9/16]">
-            <img src="/mobile_step1_setup.png" alt="Menu and floor setup mobile view" class="w-full h-full object-cover" />
-            <!-- overlay — hidden by default, revealed on .group:hover via CSS -->
-            <div class="step-overlay absolute inset-0 bg-black/50 flex flex-col justify-center items-center gap-3 p-4 backdrop-blur-[2px]">
-              <div class="step1-card-a bg-white rounded-xl p-3 shadow-lg w-full max-w-[140px] text-left border border-white/20">
-                <p class="text-[9px] font-bold text-text-primary flex items-center gap-1.5">
-                  <span class="w-3.5 h-3.5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-[8px] font-extrabold">✓</span>
-                  Menu synced
-                </p>
-              </div>
-              <div class="step1-card-b bg-white rounded-xl p-3 shadow-lg w-full max-w-[140px] text-left border border-white/20">
-                <p class="text-[9px] font-bold text-text-primary flex items-center gap-1.5">
-                  <span class="w-3.5 h-3.5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-[8px] font-extrabold">✓</span>
-                  12 tables mapped
-                </p>
-              </div>
+          <h3 class="text-2xl font-extrabold text-text-primary mb-3">Set Up Menu & Floor</h3>
+          <p class="text-sm text-text-secondary leading-relaxed max-w-md">
+            Add your menu items and categories, map your tables into sections, and set your VAT and service charge rates.
+          </p>
+        </div>
+        <div class="stagger-in">
+          <div class="rounded-2xl border border-outline-variant/20 overflow-hidden shadow-2xl shadow-primary/10 bg-surface-container-lowest step-shot-card">
+            <div class="flex items-center gap-1.5 px-4 py-2.5 bg-surface-container border-b border-outline-variant/20">
+              <span class="w-2 h-2 rounded-full bg-slate-300"></span>
+              <span class="w-2 h-2 rounded-full bg-slate-300"></span>
+              <span class="w-2 h-2 rounded-full bg-slate-300"></span>
             </div>
+            <img src="/step1_menu.png" alt="Menu management screen listing menu items with categories, prices, and availability" class="w-full h-auto" loading="lazy" />
           </div>
         </div>
+      </div>
 
-        <!-- ── Step 2 ── -->
-        <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant transition-all duration-300 flex flex-col justify-between items-center text-center stagger-in group cursor-pointer relative overflow-hidden">
-          <div>
-            <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2 mx-auto">
-              <i class="hgi-stroke hgi-user-group text-[32px]"></i>
+      <!-- ── Step 2 ── -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+        <div class="order-2 lg:order-1 stagger-in">
+          <div class="rounded-2xl border border-outline-variant/20 overflow-hidden shadow-2xl shadow-primary/10 bg-surface-container-lowest step-shot-card">
+            <div class="flex items-center gap-1.5 px-4 py-2.5 bg-surface-container border-b border-outline-variant/20">
+              <span class="w-2 h-2 rounded-full bg-slate-300"></span>
+              <span class="w-2 h-2 rounded-full bg-slate-300"></span>
+              <span class="w-2 h-2 rounded-full bg-slate-300"></span>
             </div>
-            <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4 mx-auto">2</div>
-            <h3 class="text-lg font-bold text-text-primary mb-2">Add Staff & Pair Printers</h3>
-            <p class="text-xs text-text-secondary leading-relaxed">
-              Set up waiters, cashiers, and admins with role-based access, then pair your kitchen and receipt printers.
-            </p>
-          </div>
-          <div class="mt-6 w-[80%] rounded-[24px] border-[5px] border-slate-900 overflow-hidden shadow-lg bg-slate-900 relative aspect-[9/16]">
-            <img src="/mobile_step2_bank.png" alt="Staff and printer setup mobile view" class="w-full h-full object-cover" />
-            <div class="step-overlay absolute inset-0 bg-black/50 flex flex-col justify-center items-center p-4 backdrop-blur-[2px]">
-              <div class="relative flex items-center justify-center">
-                <!-- Sonar rings — animated via .group:hover CSS below -->
-                <div class="step2-ring-1 absolute w-12 h-12 rounded-full border-2 border-emerald-400"></div>
-                <div class="step2-ring-2 absolute w-12 h-12 rounded-full border-2 border-emerald-300"></div>
-                <div class="step2-shield w-12 h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xl relative z-10 text-xl font-bold">
-                  ✓
-                </div>
-              </div>
-              <div class="step2-label bg-white rounded-lg px-3 py-1.5 shadow-md text-[9px] font-bold text-slate-800 mt-4">
-                Kitchen printer paired ⚡
-              </div>
-            </div>
+            <img src="/step2_printers.png" alt="Printer setup screen showing kitchen and bar printers with category routing" class="w-full h-auto" loading="lazy" />
           </div>
         </div>
-
-        <!-- ── Step 3 ── -->
-        <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant transition-all duration-300 flex flex-col justify-between items-center text-center stagger-in group cursor-pointer relative overflow-hidden">
-          <div>
-            <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2 mx-auto">
-              <i class="hgi-stroke hgi-chef-hat text-[32px]"></i>
+        <div class="order-1 lg:order-2 stagger-in">
+          <div class="flex items-center gap-4 mb-5">
+            <div class="w-14 h-14 rounded-full bg-primary/5 flex items-center justify-center text-primary ring-8 ring-primary/2 shrink-0">
+              <i class="hgi-stroke hgi-user-group text-[28px]"></i>
             </div>
-            <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4 mx-auto">3</div>
-            <h3 class="text-lg font-bold text-text-primary mb-2">Take & Fire Orders</h3>
-            <p class="text-xs text-text-secondary leading-relaxed">
-              Waiters send the order from the table. It lands on the kitchen display instantly, with a prep timer running.
-            </p>
+            <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shrink-0">2</div>
           </div>
-          <div class="mt-6 w-[80%] rounded-[24px] border-[5px] border-slate-900 overflow-hidden shadow-lg bg-slate-900 relative aspect-[9/16]">
-            <img src="/mobile_step3_invoice.png" alt="Order taking mobile view" class="w-full h-full object-cover" />
-            <div class="step-overlay absolute inset-0 bg-black/50 backdrop-blur-[1px]">
-              <!-- Typing bubble -->
-              <div class="step3-typing absolute bottom-[72px] left-1/2 -translate-x-1/2 bg-white rounded-2xl px-3 py-2 shadow-md flex items-center gap-1.5 w-14 justify-center">
-                <span class="step3-dot w-1.5 h-1.5 rounded-full bg-slate-400" style="animation-delay:0s"></span>
-                <span class="step3-dot w-1.5 h-1.5 rounded-full bg-slate-400" style="animation-delay:0.2s"></span>
-                <span class="step3-dot w-1.5 h-1.5 rounded-full bg-slate-400" style="animation-delay:0.4s"></span>
-              </div>
-              <!-- Kitchen ticket message bubble -->
-              <div class="step3-bubble absolute bottom-[52px] left-1/2 -translate-x-1/2 bg-[#d9fdd3] rounded-xl rounded-tr-none p-2 border border-[#c2f0b7] w-[128px]">
-                <p class="text-[8px] leading-snug text-slate-800">Table 4: Jollof x2, Suya x1 🍽️</p>
-                <div class="flex justify-end items-center mt-1 gap-1 text-[7px] text-slate-500">
-                  <span>09:41</span>
-                  <!-- grey ticks -->
-                  <span class="step3-ticks-grey">✓✓</span>
-                  <!-- blue ticks -->
-                  <span class="step3-ticks-blue text-[#34b7f1]">✓✓</span>
-                </div>
-              </div>
-              <!-- Toast -->
-              <div class="step3-toast absolute bottom-3 left-1/2 -translate-x-1/2 bg-white rounded-lg px-2.5 py-1.5 shadow-lg border border-slate-100 text-[8px] font-bold text-slate-700 whitespace-nowrap flex items-center gap-1.5">
-                <span class="text-[#25d366]">🔥</span> Seen by kitchen
-              </div>
+          <h3 class="text-2xl font-extrabold text-text-primary mb-3">Add Staff & Pair Printers</h3>
+          <p class="text-sm text-text-secondary leading-relaxed max-w-md">
+            Set up waiters, cashiers, and admins with role-based access, then pair your kitchen and receipt printers so tickets route automatically.
+          </p>
+        </div>
+      </div>
+
+      <!-- ── Step 3 ── -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+        <div class="stagger-in">
+          <div class="flex items-center gap-4 mb-5">
+            <div class="w-14 h-14 rounded-full bg-primary/5 flex items-center justify-center text-primary ring-8 ring-primary/2 shrink-0">
+              <i class="hgi-stroke hgi-chef-hat text-[28px]"></i>
             </div>
+            <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shrink-0">3</div>
+          </div>
+          <h3 class="text-2xl font-extrabold text-text-primary mb-3">Take & Fire Orders</h3>
+          <p class="text-sm text-text-secondary leading-relaxed max-w-md">
+            Waiters send the order from the table. It lands on the kitchen display instantly, with a prep timer running.
+          </p>
+        </div>
+        <div class="stagger-in">
+          <div class="rounded-2xl border border-outline-variant/20 overflow-hidden shadow-2xl shadow-primary/10 bg-surface-container-lowest step-shot-card">
+            <div class="flex items-center gap-1.5 px-4 py-2.5 bg-surface-container border-b border-outline-variant/20">
+              <span class="w-2 h-2 rounded-full bg-slate-300"></span>
+              <span class="w-2 h-2 rounded-full bg-slate-300"></span>
+              <span class="w-2 h-2 rounded-full bg-slate-300"></span>
+            </div>
+            <img src="/step3_order.png" alt="Order taking screen with menu items, order type selector, and live order summary" class="w-full h-auto" loading="lazy" />
           </div>
         </div>
+      </div>
 
-        <!-- ── Step 4 ── -->
-        <div class="bg-surface-container-lowest p-8 rounded-[24px] shadow-[0_12px_32px_rgba(0,55,176,0.03)] border border-outline-variant transition-all duration-300 flex flex-col justify-between items-center text-center stagger-in group cursor-pointer relative overflow-hidden">
-          <div>
-            <div class="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 ring-8 ring-primary/2 mx-auto">
-              <i class="hgi-stroke hgi-file-verified text-[32px]"></i>
+      <!-- ── Step 4 ── -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+        <div class="order-2 lg:order-1 stagger-in">
+          <div class="rounded-2xl border border-outline-variant/20 overflow-hidden shadow-2xl shadow-primary/10 bg-surface-container-lowest step-shot-card">
+            <div class="flex items-center gap-1.5 px-4 py-2.5 bg-surface-container border-b border-outline-variant/20">
+              <span class="w-2 h-2 rounded-full bg-slate-300"></span>
+              <span class="w-2 h-2 rounded-full bg-slate-300"></span>
+              <span class="w-2 h-2 rounded-full bg-slate-300"></span>
             </div>
-            <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center mb-4 mx-auto">4</div>
-            <h3 class="text-lg font-bold text-text-primary mb-2">Close & Reconcile</h3>
-            <p class="text-xs text-text-secondary leading-relaxed">
-              Count the till against expected cash, catch any variance, and download a shift report — every night, without spreadsheets.
-            </p>
+            <img src="/step4_shift.png" alt="Shift screen showing the open shift, starting float, and recent shift cash reconciliation history" class="w-full h-auto" loading="lazy" />
           </div>
-          <div class="mt-6 w-[80%] rounded-[24px] border-[5px] border-slate-900 overflow-hidden shadow-lg bg-slate-900 relative aspect-[9/16]">
-            <img src="/mobile_step4_tax.png" alt="Shift close mobile view" class="w-full h-full object-cover" />
-            <div class="step-overlay absolute inset-0 bg-black/50 flex flex-col justify-center items-center p-3 backdrop-blur-[2px]">
-              <!-- Progress card -->
-              <div class="step4-card bg-white rounded-xl p-3 shadow-xl w-[85%] max-w-[130px] border border-white/10 relative overflow-hidden min-h-[54px] flex flex-col justify-center">
-                <!-- Downloading state -->
-                <div class="step4-downloading w-full text-center">
-                  <p class="text-[8px] font-extrabold text-blue-700 mb-1.5">Counting Cash</p>
-                  <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden relative">
-                    <div class="step4-bar h-full bg-blue-600 rounded-full absolute left-0 top-0">
-                      <div class="step4-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent -skew-x-12"></div>
-                    </div>
-                  </div>
-                </div>
-                <!-- Done state -->
-                <div class="step4-done absolute inset-0 bg-white rounded-xl flex flex-col justify-center items-center">
-                  <span class="text-xl mb-1">✅</span>
-                  <p class="text-[8px] font-extrabold text-emerald-600">Variance ₦0</p>
-                </div>
-              </div>
-              <!-- Toast -->
-              <div class="step4-toast absolute bottom-3 left-1/2 -translate-x-1/2 bg-emerald-600 text-white rounded-lg px-2.5 py-1.5 shadow-md text-[8px] font-bold whitespace-nowrap">
-                Shift report saved ✓
-              </div>
+        </div>
+        <div class="order-1 lg:order-2 stagger-in">
+          <div class="flex items-center gap-4 mb-5">
+            <div class="w-14 h-14 rounded-full bg-primary/5 flex items-center justify-center text-primary ring-8 ring-primary/2 shrink-0">
+              <i class="hgi-stroke hgi-file-verified text-[28px]"></i>
             </div>
+            <div class="bg-primary text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shrink-0">4</div>
           </div>
+          <h3 class="text-2xl font-extrabold text-text-primary mb-3">Close & Reconcile</h3>
+          <p class="text-sm text-text-secondary leading-relaxed max-w-md">
+            Count the till against expected cash, catch any variance, and download a shift report — every night, without spreadsheets.
+          </p>
         </div>
       </div>
     </section>
@@ -402,198 +359,12 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
   </script>
 
   <style>
-    /* ── Overlay visibility controlled purely via CSS .group:hover ── */
-    .step-overlay {
-      opacity: 0;
-      transition: opacity 0.3s ease;
+    /* ── Step screenshots: subtle lift on hover ── */
+    .step-shot-card {
+      transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.4s ease;
     }
-    .group:hover .step-overlay {
-      opacity: 1;
-    }
-
-    /* Phone frame scale on hover */
-    .group:hover .aspect-\[9\/16\] {
-      transform: scale(1.04);
-      box-shadow: 0 30px 60px rgba(0,0,0,0.4);
-    }
-    .aspect-\[9\/16\] {
-      transition: transform 0.3s ease, box-shadow 0.3s ease;
-    }
-
-    /* ── Step 1: staggered card slide-up ── */
-    .step1-card-a,
-    .step1-card-b {
-      opacity: 0;
-      transform: translateY(16px);
-      transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
-    }
-    .group:hover .step1-card-a {
-      opacity: 1;
-      transform: translateY(0);
-      transition-delay: 0.1s;
-    }
-    .group:hover .step1-card-b {
-      opacity: 1;
-      transform: translateY(0);
-      transition-delay: 0.25s;
-    }
-
-    /* ── Step 2: sonar rings + shield pop ── */
-    .step2-ring-1,
-    .step2-ring-2 {
-      opacity: 0;
-    }
-    .group:hover .step2-ring-1 {
-      animation: sonarRing 1.6s ease-out infinite;
-      animation-delay: 0s;
-    }
-    .group:hover .step2-ring-2 {
-      animation: sonarRing 1.6s ease-out infinite;
-      animation-delay: 0.5s;
-    }
-    @keyframes sonarRing {
-      0%   { transform: scale(0.8); opacity: 0.8; }
-      100% { transform: scale(2.2); opacity: 0; }
-    }
-    .step2-shield {
-      transform: scale(0.5);
-      transition: transform 0.5s cubic-bezier(0.34,1.56,0.64,1);
-      transition-delay: 0.1s;
-    }
-    .group:hover .step2-shield {
-      transform: scale(1);
-    }
-    .step2-label {
-      opacity: 0;
-      transform: translateY(6px);
-      transition: opacity 0.4s ease, transform 0.4s ease;
-      transition-delay: 0.3s;
-    }
-    .group:hover .step2-label {
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    /* ── Step 3: ticket staged sequence ── */
-    .step3-typing {
-      opacity: 0;
-    }
-    .step3-dot {
-      animation: none;
-    }
-    .step3-bubble {
-      opacity: 0;
-      transform: scale(0.7) translateY(8px);
-    }
-    .step3-ticks-grey { display: inline; }
-    .step3-ticks-blue { display: none; }
-    .step3-toast {
-      opacity: 0;
-      transform: translateY(14px);
-    }
-
-    /* On hover, run the 4.5s looping sequence */
-    .group:hover .step3-typing {
-      animation: wa-typing-seq 4.5s ease-in-out infinite;
-    }
-    .group:hover .step3-dot {
-      animation: wa-dot-bounce 0.6s ease-in-out infinite alternate;
-    }
-    .group:hover .step3-dot:nth-child(2) { animation-delay: 0.15s; }
-    .group:hover .step3-dot:nth-child(3) { animation-delay: 0.3s; }
-    .group:hover .step3-bubble {
-      animation: wa-bubble-seq 4.5s cubic-bezier(0.34,1.56,0.64,1) infinite;
-    }
-    .group:hover .step3-ticks-grey {
-      animation: wa-ticks-grey 4.5s ease-in-out infinite;
-    }
-    .group:hover .step3-ticks-blue {
-      display: inline;
-      animation: wa-ticks-blue 4.5s ease-in-out infinite;
-    }
-    .group:hover .step3-toast {
-      animation: wa-toast-seq 4.5s cubic-bezier(0.34,1.56,0.64,1) infinite;
-    }
-
-    @keyframes wa-dot-bounce {
-      from { transform: translateY(0); }
-      to   { transform: translateY(-3px); }
-    }
-    @keyframes wa-typing-seq {
-      0%        { opacity:0; transform:scale(0.9) translateY(4px); }
-      5%        { opacity:1; transform:scale(1) translateY(0); }
-      22%       { opacity:1; }
-      28%, 100% { opacity:0; transform:scale(0.9) translateY(-4px); }
-    }
-    @keyframes wa-bubble-seq {
-      0%, 26%  { opacity:0; transform:scale(0.7) translateY(8px); }
-      32%      { opacity:1; transform:scale(1.05) translateY(0); }
-      36%, 100%{ opacity:1; transform:scale(1) translateY(0); }
-    }
-    @keyframes wa-ticks-grey {
-      0%, 35%   { opacity:1; }
-      52%, 100% { opacity:0; }
-    }
-    @keyframes wa-ticks-blue {
-      0%, 53%   { opacity:0; }
-      58%, 100% { opacity:1; }
-    }
-    @keyframes wa-toast-seq {
-      0%, 65%   { opacity:0; transform:translateY(14px); }
-      72%       { opacity:1; transform:translateY(-2px); }
-      77%, 100% { opacity:1; transform:translateY(0); }
-    }
-
-    /* ── Step 4: reconciliation progress sequence ── */
-    .step4-card {
-      transform: scale(0.9);
-      transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
-    }
-    .group:hover .step4-card {
-      transform: scale(1);
-    }
-    .step4-bar  { width: 0; }
-    .step4-shimmer { transform: skewX(-12deg) translateX(-100%); }
-    .step4-done { opacity: 0; }
-    .step4-toast { opacity: 0; transform: translateY(14px); }
-
-    .group:hover .step4-bar {
-      animation: bar-fill 4.5s ease-in-out infinite;
-    }
-    .group:hover .step4-shimmer {
-      animation: shimmer-sweep 1.3s linear infinite;
-    }
-    .group:hover .step4-downloading {
-      animation: dl-state 4.5s ease-in-out infinite;
-    }
-    .group:hover .step4-done {
-      animation: done-state 4.5s cubic-bezier(0.34,1.56,0.64,1) infinite;
-    }
-    .group:hover .step4-toast {
-      animation: dl-toast 4.5s cubic-bezier(0.34,1.56,0.64,1) infinite;
-    }
-
-    @keyframes bar-fill {
-      0%, 10%   { width:0; }
-      60%, 100% { width:100%; }
-    }
-    @keyframes shimmer-sweep {
-      0%   { transform:skewX(-12deg) translateX(-100%); }
-      100% { transform:skewX(-12deg) translateX(280%); }
-    }
-    @keyframes dl-state {
-      0%, 62%   { opacity:1; }
-      68%, 100% { opacity:0; }
-    }
-    @keyframes done-state {
-      0%, 65%   { opacity:0; transform:scale(0.7); }
-      71%       { opacity:1; transform:scale(1.08); }
-      76%, 100% { opacity:1; transform:scale(1); }
-    }
-    @keyframes dl-toast {
-      0%, 75%   { opacity:0; transform:translateY(14px); }
-      81%       { opacity:1; transform:translateY(-2px); }
-      86%, 100% { opacity:1; transform:translateY(0); }
+    .step-shot-card:hover {
+      transform: translateY(-4px) scale(1.01);
     }
 
     /* ── Order Simulator: number pulse on recalc ── */
@@ -615,12 +386,6 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
     input#sim-vat:checked ~ div .vat-check,
     .peer:checked + .vat-box .vat-check {
       stroke-dashoffset: 0;
-    }
-
-    /* Card hover border glow */
-    .group:hover {
-      border-color: rgba(0,55,176,0.2);
-      box-shadow: 0 20px 40px rgba(0,55,176,0.08);
     }
   </style>
 </Layout>
