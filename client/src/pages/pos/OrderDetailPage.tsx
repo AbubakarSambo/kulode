@@ -929,7 +929,12 @@ function SyncedOrderView({ id }: { id: string }) {
           {order.waiter ? (
             <span className="text-sm font-medium text-foreground">{order.waiter.firstName} {order.waiter.lastName}</span>
           ) : (
-            <span className="text-sm text-muted-foreground">No waiter assigned</span>
+            <span className="text-sm text-muted-foreground">
+              No waiter assigned
+              {order.createdBy && (
+                <> · Placed by <span className="font-medium text-foreground">{order.createdBy.firstName} {order.createdBy.lastName}</span></>
+              )}
+            </span>
           )}
           {canEditCustomerOrWaiter && (
             <button
