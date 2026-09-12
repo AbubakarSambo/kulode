@@ -333,7 +333,9 @@ export function StationTicketsPage({
     return merged
       .map((order) => ({ order, items: order.items.filter((item) => itemStation(item) === station) }))
       .filter((t) => t.items.length > 0)
-      .sort((a, b) => new Date(a.order.createdAt).getTime() - new Date(b.order.createdAt).getTime())
+      // Newest first — a brand-new ticket needs to land where staff are already looking, not off
+      // the bottom of an already-full board.
+      .sort((a, b) => new Date(b.order.createdAt).getTime() - new Date(a.order.createdAt).getTime())
   }, [data, station])
 
   // "New order" sound — a distinct chime plays whenever an order id shows up on this station's
