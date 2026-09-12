@@ -1301,6 +1301,15 @@ model OrderItem {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  // Stamped the moment the item enters each kitchen-flow status (PENDING's own timestamp is just
+  // `createdAt`, since every item starts there). Kept for future prep-time reporting — how long an
+  // item sat pending, how long the kitchen took, how long it sat ready before being served — and so
+  // the kitchen board's countdown timer can freeze once an item is actually Served instead of
+  // ticking forever against wall-clock time.
+  onItAt   DateTime? @map("on_it_at")
+  passedAt DateTime? @map("passed_at")
+  servedAt DateTime? @map("served_at")
+
   // Relations
   order      Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   // itemName is a point-in-time snapshot so order history/receipts still show what was

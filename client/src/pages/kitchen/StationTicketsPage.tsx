@@ -52,8 +52,15 @@ function CountdownTimer({ order, items, now }: { order: Order; items: OrderItem[
   if (maxMinutes === null) {
     return <span className="text-xs font-semibold text-muted-foreground">No timer set</span>
   }
+  // Once every item on the ticket is actually Served, freeze the clock at the moment the last
+  // one was — the order itself stays on the board (rolled up to READY) until it's closed/paid,
+  // so without this the timer would otherwise keep counting against wall-clock time forever.
+  const allServed = items.length > 0 && items.every((i) => i.status === 'SERVED')
+  const effectiveNow = allServed
+    ? Math.max(...items.map((i) => (i.servedAt ? new Date(i.servedAt).getTime() : now)))
+    : now
   const deadline = new Date(order.createdAt).getTime() + maxMinutes * 60_000
-  const remainingMs = deadline - now
+  const remainingMs = deadline - effectiveNow
   const overdue = remainingMs < 0
   const urgent = !overdue && remainingMs <= URGENT_THRESHOLD_MS
   const absSeconds = Math.floor(Math.abs(remainingMs) / 1000)

@@ -481,6 +481,12 @@ export interface OrderItem {
   status: OrderItemStatus
   assignedToId?: string | null
   assignedTo?: { id: string; firstName: string; lastName: string } | null
+  // Stamped when the item enters each status — null until reached. PENDING has no field of its
+  // own (that's just the item's createdAt on the Order). Used to freeze the kitchen board's
+  // countdown timer once an item is actually Served, and for future prep-time reporting.
+  onItAt?: string | null
+  passedAt?: string | null
+  servedAt?: string | null
 }
 
 export interface OrderPayment {
