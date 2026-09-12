@@ -284,79 +284,57 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
     </section>
 
     <!-- AI Business Chat Section -->
-    <section class="max-w-7xl mx-auto px-container-padding py-32 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-      <div class="stagger-in">
+    <section class="max-w-7xl mx-auto px-container-padding py-32">
+      <div class="max-w-3xl mx-auto text-center stagger-in mb-16">
         <span class="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider mb-4">New · AI Business Chat</span>
         <h2 class="text-3xl md:text-5xl font-extrabold text-primary mb-6 leading-tight">Ask your restaurant anything.</h2>
-        <p class="text-base text-text-secondary mb-8 leading-relaxed">
+        <p class="text-base text-text-secondary leading-relaxed">
           No more digging through reports. Just ask — in plain English — and Tari1's AI reads your live sales, orders, shifts, and customer data to answer instantly, with charts and tables built on the spot.
         </p>
-        <div class="space-y-6">
-          <div class="flex items-start gap-4">
-            <div class="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center text-primary shrink-0">
-              <i class="hgi-stroke hgi-sparkles text-lg"></i>
-            </div>
-            <div>
-              <p class="text-sm font-bold text-text-primary">Ask in Plain English</p>
-              <p class="text-xs text-text-secondary">"How did sales do today?" or "Reconcile the current shift" — no filters or dashboards to hunt through.</p>
-            </div>
-          </div>
-          <div class="flex items-start gap-4">
-            <div class="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center text-success shrink-0">
-              <i class="hgi-stroke hgi-chart-line-data-01 text-lg"></i>
-            </div>
-            <div>
-              <p class="text-sm font-bold text-text-primary">Instant Dashboards, Not Spreadsheets</p>
-              <p class="text-xs text-text-secondary">Every answer comes back as KPI cards, charts, and tables — generated fresh from your real data, not a canned report.</p>
+      </div>
+
+      <!-- Real product screenshot -->
+      <div class="relative stagger-in mb-16">
+        <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[360px] bg-primary/5 blur-3xl -z-10"></div>
+        <div class="max-w-4xl mx-auto rounded-2xl border border-outline-variant/20 overflow-hidden shadow-2xl shadow-primary/10 bg-surface-container-lowest ai-mockup-card">
+          <!-- Mini browser bar -->
+          <div class="flex items-center gap-1 px-4 py-2.5 bg-surface-container border-b border-outline-variant/20">
+            <div class="flex gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-slate-300"></span>
+              <span class="w-2 h-2 rounded-full bg-slate-300"></span>
+              <span class="w-2 h-2 rounded-full bg-slate-300"></span>
             </div>
           </div>
-          <div class="flex items-start gap-4">
-            <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-800 shrink-0">
-              <i class="hgi-stroke hgi-user-multiple-02 text-lg"></i>
-            </div>
-            <div>
-              <p class="text-sm font-bold text-text-primary">Know Your Regulars</p>
-              <p class="text-xs text-text-secondary">Ask who your most loyal customers are, who hasn't visited in a while, or what's selling best — it already knows.</p>
-            </div>
-          </div>
+          <img alt="Tari1 AI Chat answering 'How were sales today compared to yesterday?' with KPI cards and a sales trend chart" class="w-full h-auto" src="/ai_chat_demo.png" loading="lazy">
         </div>
       </div>
 
-      <!-- AI Chat mockup card -->
-      <div class="relative flex justify-center items-center py-6 stagger-in">
-        <div class="absolute w-[360px] h-[360px] rounded-full bg-primary/5 blur-3xl -z-10"></div>
-        <div class="w-full max-w-[420px] bg-white rounded-[28px] border border-white/60 shadow-2xl shadow-primary/10 p-5 ai-mockup-card">
-          <!-- User question bubble -->
-          <div class="flex justify-end mb-4">
-            <div class="bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white text-xs font-medium px-4 py-2.5 rounded-2xl rounded-br-sm max-w-[75%] shadow-md">
-              Who are my most loyal customers?
-            </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8 stagger-in">
+        <div class="flex items-start gap-4">
+          <div class="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center text-primary shrink-0">
+            <i class="hgi-stroke hgi-sparkles text-lg"></i>
           </div>
-          <!-- Assistant response bubble -->
-          <div class="flex items-start gap-2.5">
-            <div class="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-              <i class="hgi-stroke hgi-sparkles text-primary text-sm"></i>
-            </div>
-            <div class="bg-[#f8f9ff] border border-primary/10 rounded-2xl rounded-bl-sm p-4 max-w-[85%] shadow-sm">
-              <p class="text-[11px] font-bold text-text-primary mb-3">Your Most Loyal Customers</p>
-              <div class="grid grid-cols-2 gap-2 mb-3">
-                <div class="bg-white rounded-xl p-2.5 border border-outline-variant/20">
-                  <p class="text-[8px] text-text-secondary font-semibold uppercase tracking-wide">Top Regular</p>
-                  <p class="text-xs font-extrabold text-primary">₦443K</p>
-                </div>
-                <div class="bg-white rounded-xl p-2.5 border border-outline-variant/20">
-                  <p class="text-[8px] text-text-secondary font-semibold uppercase tracking-wide">Repeat Visits</p>
-                  <p class="text-xs font-extrabold text-primary">6 Orders</p>
-                </div>
-              </div>
-              <div class="flex items-end gap-1.5 h-14 px-1">
-                <div class="flex-1 bg-primary/70 rounded-t-md ai-bar" style="height: 100%;"></div>
-                <div class="flex-1 bg-primary/50 rounded-t-md ai-bar" style="height: 72%;"></div>
-                <div class="flex-1 bg-primary/50 rounded-t-md ai-bar" style="height: 58%;"></div>
-                <div class="flex-1 bg-primary/40 rounded-t-md ai-bar" style="height: 44%;"></div>
-                <div class="flex-1 bg-primary/40 rounded-t-md ai-bar" style="height: 38%;"></div>
-              </div>
-            </div>
+          <div>
+            <p class="text-sm font-bold text-text-primary">Ask in Plain English</p>
+            <p class="text-xs text-text-secondary">"How did sales do today?" or "Reconcile the current shift" — no filters or dashboards to hunt through.</p>
+          </div>
+        </div>
+        <div class="flex items-start gap-4">
+          <div class="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center text-success shrink-0">
+            <i class="hgi-stroke hgi-chart-line-data-01 text-lg"></i>
+          </div>
+          <div>
+            <p class="text-sm font-bold text-text-primary">Instant Dashboards, Not Spreadsheets</p>
+            <p class="text-xs text-text-secondary">Every answer comes back as KPI cards, charts, and tables — generated fresh from your real data, not a canned report.</p>
+          </div>
+        </div>
+        <div class="flex items-start gap-4">
+          <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-800 shrink-0">
+            <i class="hgi-stroke hgi-user-multiple-02 text-lg"></i>
+          </div>
+          <div>
+            <p class="text-sm font-bold text-text-primary">Know Your Regulars</p>
+            <p class="text-xs text-text-secondary">Ask who your most loyal customers are, who hasn't visited in a while, or what's selling best — it already knows.</p>
           </div>
         </div>
       </div>
@@ -639,25 +617,12 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173'
       50%       { transform: rotate(2deg) translateY(-5px); }
     }
 
-    /* AI Chat mockup: subtle lift + bars grow in once visible */
+    /* AI Chat screenshot: subtle lift on hover */
     .ai-mockup-card {
       transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.4s ease;
     }
     .ai-mockup-card:hover {
       transform: translateY(-4px) scale(1.01);
-    }
-    .ai-bar {
-      transform-origin: bottom;
-      animation: aiBarGrow 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-    }
-    .ai-bar:nth-child(1) { animation-delay: 0.1s; }
-    .ai-bar:nth-child(2) { animation-delay: 0.2s; }
-    .ai-bar:nth-child(3) { animation-delay: 0.3s; }
-    .ai-bar:nth-child(4) { animation-delay: 0.4s; }
-    .ai-bar:nth-child(5) { animation-delay: 0.5s; }
-    @keyframes aiBarGrow {
-      from { transform: scaleY(0); opacity: 0; }
-      to   { transform: scaleY(1); opacity: 1; }
     }
   </style>
 </Layout>
