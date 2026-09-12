@@ -221,7 +221,7 @@ model Organization {
   defaultNotes            String?   @map("default_notes")
   businessType            String?   @map("business_type")
   organizationSize        String?   @map("organization_size")
-  enabledModules          OrgModule @default(INVOICING) @map("enabled_modules")
+  enabledModules          OrgModule @default(POS) @map("enabled_modules")
   onboardingDismissedAt   DateTime? @map("onboarding_dismissed_at")
   clientReminderSentAt    DateTime? @map("client_reminder_sent_at")
 

@@ -76,6 +76,7 @@ export class AuthService {
           subscriptionStatus: 'TRIALING',
           trialStartDate: now,
           trialEndDate: trialEnd,
+          enabledModules: 'POS',
         },
       });
 
@@ -173,6 +174,7 @@ export class AuthService {
           subscriptionStatus: 'TRIALING',
           trialStartDate: now,
           trialEndDate: trialEnd,
+          enabledModules: 'POS',
         },
       });
 
@@ -693,6 +695,7 @@ export class AuthService {
               subscriptionStatus: 'TRIALING',
               trialStartDate: now,
               trialEndDate: trialEnd,
+              enabledModules: 'POS',
             },
           });
 
