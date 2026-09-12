@@ -1,12 +1,13 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Timer, ChefHat, X } from 'lucide-react'
+import { Timer, ChefHat, X, Bell, BellOff } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Card, CardContent, Badge } from '@/components/ui'
 import { ordersApi, usersApi } from '@/api'
 import { cn } from '@/lib/utils'
+import { createOrderChimeContext, playOrderChime } from '@/lib/orderChime'
 import type { Order, OrderItem, OrderItemStatus, OrderStatus, UserRole } from '@/types'
 
 // Only staff actually tagged Kitchen can be assigned to make an item — distinct from PASS/RUNNER,
@@ -335,9 +336,76 @@ export function StationTicketsPage({
       .sort((a, b) => new Date(a.order.createdAt).getTime() - new Date(b.order.createdAt).getTime())
   }, [data, station])
 
+  // "New order" sound — a distinct chime plays whenever an order id shows up on this station's
+  // board that wasn't there on the previous poll. Web Audio requires the AudioContext to be
+  // created/resumed from a live user gesture (autoplay policy), so nothing can play until the
+  // "Enable sound" prompt is tapped — a kitchen tablet often sits untouched since the last reload,
+  // so this can't be skipped even if the preference below is "on".
+  const muteStorageKey = `pos-ticket-sound-muted-${station}`
+  const [muted, setMuted] = useState(() => localStorage.getItem(muteStorageKey) === 'true')
+  const [soundEnabled, setSoundEnabled] = useState(false)
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const prevOrderIdsRef = useRef<Set<string> | null>(null)
+
+  useEffect(() => {
+    const currentIds = new Set(tickets.map((t) => t.order.id))
+    const prevIds = prevOrderIdsRef.current
+    if (prevIds) {
+      const hasNewOrder = [...currentIds].some((id) => !prevIds.has(id))
+      if (hasNewOrder && soundEnabled && !muted && audioCtxRef.current) {
+        playOrderChime(audioCtxRef.current)
+      }
+    }
+    prevOrderIdsRef.current = currentIds
+    // Only the id set matters for the diff — re-running per keystroke-like `now` ticks would
+    // pointlessly recompute this every second.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tickets])
+
+  const enableSound = () => {
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = createOrderChimeContext()
+    }
+    audioCtxRef.current.resume()
+    setSoundEnabled(true)
+    playOrderChime(audioCtxRef.current) // confirms it's working
+  }
+
+  const toggleMuted = () => {
+    setMuted((prev) => {
+      const next = !prev
+      localStorage.setItem(muteStorageKey, String(next))
+      return next
+    })
+  }
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Header title={title} description={description} />
+
+      {!muted && !soundEnabled && (
+        <button
+          type="button"
+          onClick={enableSound}
+          className="mx-4 mt-3 flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-4 py-2.5 text-left text-sm font-semibold text-primary transition-colors hover:bg-primary/10 sm:mx-6"
+        >
+          <Bell className="h-4 w-4 shrink-0" />
+          Tap to enable a sound for new orders
+        </button>
+      )}
+
+      <div className="flex items-center justify-end px-4 pt-3 sm:px-6">
+        <button
+          type="button"
+          onClick={toggleMuted}
+          title={muted ? 'Unmute new-order sound' : 'Mute new-order sound'}
+          className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted"
+        >
+          {muted ? <BellOff className="h-3.5 w-3.5" /> : <Bell className="h-3.5 w-3.5" />}
+          {muted ? 'Sound off' : 'Sound on'}
+        </button>
+      </div>
+
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {isLoading ? (
           <div className="flex h-full items-center justify-center">
