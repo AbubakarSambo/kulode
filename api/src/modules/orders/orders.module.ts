@@ -24,6 +24,6 @@ import { PaymentTypesModule } from '../payment-types';
   ],
   controllers: [OrdersController, PosDashboardController],
   providers: [OrdersService, OrderReceiptPdfService, PosDashboardService],
-  exports: [OrdersService],
+  exports: [OrdersService, PosDashboardService],
 })
 export class OrdersModule {}

@@ -80,6 +80,7 @@ export { ShiftPage } from './pos/ShiftPage'
 export { CustomersListPage } from './pos/CustomersListPage'
 export { CustomerDetailPage } from './pos/CustomerDetailPage'
 export { PosReportsPage } from './pos/PosReportsPage'
+export { PosAiChatPage } from './pos/PosAiChatPage'
 
 // Kitchen (PASS / RUNNER)
 export { KitchenTicketsPage } from './kitchen/KitchenTicketsPage'

@@ -8,8 +8,10 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { PaymentsService } from '../payments/payments.service';
 import { VendorsService } from '../vendors/vendors.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { PosAiDataService } from './pos-ai-data.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReportFilterDto, ReportPeriod } from '../reports/dto';
+import { ChatContext } from '@prisma/client';
 import { CreateChatSessionDto, UpdateChatSessionDto, SearchChatSessionsDto } from './dto/chat-session.dto';
 
 
@@ -78,7 +80,9 @@ const STATUS_ENUM = ['DRAFT', 'SENT', 'PAID', 'PARTIALLY_PAID', 'OVERDUE', 'CANC
 
 const periodParam = { type: 'string', enum: PERIOD_ENUM, description: 'The time period to query.' };
 
-const CHAT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
+const ORDER_STATUS_ENUM = ['OPEN', 'IN_KITCHEN', 'READY', 'CLOSED_PAID', 'CLOSED_UNPAID', 'CANCELLED'];
+
+const INVOICING_CHAT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
@@ -210,6 +214,110 @@ const CHAT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
   },
 ];
 
+const POS_CHAT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'get_sales_summary',
+      description: 'Get total sales, order count, average order value, and payment breakdown for a period.',
+      parameters: { type: 'object', properties: { period: periodParam }, required: ['period'] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_sales_trend',
+      description: 'Get day-by-day or month-by-month sales trend for a period.',
+      parameters: { type: 'object', properties: { period: periodParam }, required: ['period'] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_top_menu_items',
+      description: 'Get best-selling menu items/categories ranked by revenue and quantity sold, for a date range.',
+      parameters: {
+        type: 'object',
+        properties: {
+          from: { type: 'string', description: 'Start date (YYYY-MM-DD).' },
+          to: { type: 'string', description: 'End date (YYYY-MM-DD). Defaults to today if omitted.' },
+        },
+        required: ['from'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'search_orders',
+      description: 'Search and filter orders flexibly. All parameters are optional — combine as needed.',
+      parameters: {
+        type: 'object',
+        properties: {
+          status: { type: 'string', enum: ORDER_STATUS_ENUM, description: 'Filter by a single order status.' },
+          search: { type: 'string', description: 'Filter by order number or customer name (partial match).' },
+          limit: { type: 'number', description: 'Max results (default 20, max 50).' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_order_detail',
+      description: 'Get full details for a specific order: items, totals, payment status, customer, and waiter.',
+      parameters: {
+        type: 'object',
+        properties: { orderId: { type: 'string', description: 'The order UUID from search_orders.' } },
+        required: ['orderId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'search_customers',
+      description: 'Search for customers by name or phone. Returns matching customers with order stats.',
+      parameters: {
+        type: 'object',
+        properties: { query: { type: 'string', description: 'Name or phone to search for.' } },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_customer_history',
+      description: 'Get full details for a specific customer: contact info, order history, and lifetime stats.',
+      parameters: {
+        type: 'object',
+        properties: { customerId: { type: 'string', description: 'The customer UUID from search_customers.' } },
+        required: ['customerId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_shifts',
+      description: 'Get recent shifts with opened/closed times, cashier, and status.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_shift_report',
+      description: 'Get the till reconciliation report for a specific shift: opening float, expected vs counted cash, variance, and category/tax breakdowns.',
+      parameters: {
+        type: 'object',
+        properties: { shiftId: { type: 'string', description: 'The shift UUID from get_shifts. Omit to use the currently open shift.' } },
+      },
+    },
+  },
+];
+
 const INSIGHTS_TOOL: OpenAI.Chat.ChatCompletionTool = {
   type: 'function',
   function: {
@@ -271,6 +379,7 @@ export class AiService {
     private readonly paymentsService: PaymentsService,
     private readonly vendorsService: VendorsService,
     private readonly inventoryService: InventoryService,
+    private readonly posAiDataService: PosAiDataService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -355,12 +464,13 @@ ${products.products.map((p, i) => `  ${i + 1}. ${p.label}: ${fmt(p.revenue)} rev
     organizationId: string,
     userId: string,
     sessionId?: string,
+    context: ChatContext = 'INVOICING',
   ): Promise<{ message: string; layout?: any; sessionId: string }> {
     const today = new Date().toISOString().split('T')[0];
 
     let session = sessionId
       ? await this.prisma.chatSession.findFirst({
-          where: { id: sessionId, organizationId, userId, deletedAt: null },
+          where: { id: sessionId, organizationId, userId, context, deletedAt: null },
         })
       : null;
 
@@ -373,6 +483,7 @@ ${products.products.map((p, i) => `  ${i + 1}. ${p.label}: ${fmt(p.revenue)} rev
           organizationId,
           userId,
           title,
+          context,
         },
       });
     }
@@ -394,10 +505,12 @@ ${products.products.map((p, i) => `  ${i + 1}. ${p.label}: ${fmt(p.revenue)} rev
     const recentMessages = dbMessages.slice(-10);
 
     // --- STAGE 1: Data Analyst Agent (Tool Calling Loop) ---
+    const chatTools = context === 'POS' ? POS_CHAT_TOOLS : INVOICING_CHAT_TOOLS;
+    const analystDomain = context === 'POS' ? 'restaurant/POS' : 'business';
     const analystMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       {
         role: 'system',
-        content: `You are a precise business database analyst.
+        content: `You are a precise ${analystDomain} database analyst.
 Your only job is to query the database using your tools to gather all data needed to answer the user's question.
 Do not write essays, summaries, or styling suggestions. Simply execute the tool calls.
 Once you have run all necessary tools to fetch the relevant data, output a short message confirming that you have finished gathering data (e.g. "Data gathered.").
@@ -415,7 +528,7 @@ Today is ${today}.`,
       const response = await this.client.chat.completions.create({
         model: 'deepseek-chat',
         messages: analystMessages,
-        tools: CHAT_TOOLS,
+        tools: chatTools,
         max_tokens: 1024,
       });
 
@@ -435,7 +548,7 @@ Today is ${today}.`,
           let result: unknown;
           try {
             const input = JSON.parse(toolCall.function.arguments);
-            result = await this.runTool(toolCall.function.name, input, organizationId);
+            result = await this.runTool(toolCall.function.name, input, organizationId, context);
           } catch (err) {
             this.logger.error(`Chat tool ${toolCall.function.name} failed`, err);
             result = { error: err instanceof Error ? err.message : 'Tool execution failed' };
@@ -484,34 +597,7 @@ Today is ${today}.`,
     // --- STAGE 2: UI/UX Expert & Styling Agent (Synthesis and Design Mapping) ---
     const hasData = gatheredData.length > 0;
 
-    const presenterSystemPrompt = `You are a premium UI/UX Design & Presentation Expert for Tari1, a fintech app built around "The Architectural Ledger" design system.
-Your job is to read the raw database JSON records fetched by the Analyst and translate them into a beautiful, scannability-optimized layout for the user.
-
-Adhere strictly to these DESIGN.md guidelines:
-1. Title Card Requirement: You must ALWAYS start your summary text with a clear, relevant H2 markdown header (e.g. "## Monthly Cashflow Performance" or "## Top Receivables Alert") to act as a report title.
-2. Spacing: Use clean lists and headers (##, ###). Use double line breaks between sections to give the information breathing room.
-3. No Markdown Tables: Never write raw markdown tables (e.g. | Month |). Instead, represent tabular data using the custom InteractiveTable JSON component layout below.
-4. Chart Selection Rules:
-   - Use "LineChart" for single monthly time trends (e.g. monthly cashflow).
-   - Use "BarChart" for single category breakdowns.
-   - Use "MultiSeriesChart" to compare multiple categories over time (e.g. product sales month-on-month). Set "type" to "bar" or "line", and "stacked" to true if you want a stacked bar chart. Provide a "series" array mapping data keys to colors.
-   - Use "InteractiveTable" for lists of clients, payments, or vendors.
-5. Component Mapping: You MUST ALWAYS output a JSON object matching the schema below. If it's a simple greeting, put it in the "summary" field and leave "layout" as an empty array. Do not wrap the JSON in markdown code blocks.
-
-SCHEMA:
-{
-  "summary": "Title header followed by a friendly, plain-text executive summary (2-3 sentences max) outlining key takeaways.",
-  "layout": [
-    { "component": "KPICard", "props": { "title": "Net Profit", "value": "₦141.1M", "trend": "+12%", "sentiment": "positive" } },
-    { "component": "LineChart", "props": { "data": [{ "label": "Jan", "value": 1000000 }] } },
-    { "component": "BarChart", "props": { "data": [{ "label": "Jan", "value": 1000000 }] } },
-    { "component": "MultiSeriesChart", "props": { "type": "bar", "stacked": true, "data": [{ "label": "Jan", "Product A": 100, "Product B": 50 }], "series": [{ "key": "Product A", "color": "#0037b0" }, { "key": "Product B", "color": "#10b981" }] } },
-    { "component": "InteractiveTable", "props": { "headers": ["Header1", "Header2"], "rows": [["Col1", "Col2"]] } },
-    { "component": "Tabs", "props": { "tabs": [{ "label": "Tab Name", "content": { "component": "LineChart", "props": { "data": [] } } }] } }
-  ]
-}
-
-Today is ${today}.`;
+    const presenterSystemPrompt = this.buildPresenterPrompt(context, today);
 
     const presenterUserMessage = hasData
       ? `Original User Query: "${userMessageContent}"\n\nFetched Raw Data Payload:\n${JSON.stringify(gatheredData, null, 2)}`
@@ -569,10 +655,11 @@ Today is ${today}.`;
     };
   }
 
-  async listSessions(organizationId: string, userId: string, query: SearchChatSessionsDto) {
+  async listSessions(organizationId: string, userId: string, query: SearchChatSessionsDto, context: ChatContext = 'INVOICING') {
     const where: any = {
       organizationId,
       userId,
+      context,
       deletedAt: null,
     };
     if (query.search) {
@@ -590,12 +677,13 @@ Today is ${today}.`;
     });
   }
 
-  async createSession(organizationId: string, userId: string, dto: CreateChatSessionDto) {
+  async createSession(organizationId: string, userId: string, dto: CreateChatSessionDto, context: ChatContext = 'INVOICING') {
     return this.prisma.chatSession.create({
       data: {
         organizationId,
         userId,
         title: dto.title,
+        context,
       },
     });
   }
@@ -605,9 +693,10 @@ Today is ${today}.`;
     userId: string,
     id: string,
     dto: UpdateChatSessionDto,
+    context: ChatContext = 'INVOICING',
   ) {
     await this.prisma.chatSession.findFirstOrThrow({
-      where: { id, organizationId, userId, deletedAt: null },
+      where: { id, organizationId, userId, context, deletedAt: null },
     });
 
     return this.prisma.chatSession.update({
@@ -619,9 +708,9 @@ Today is ${today}.`;
     });
   }
 
-  async deleteSession(organizationId: string, userId: string, id: string) {
+  async deleteSession(organizationId: string, userId: string, id: string, context: ChatContext = 'INVOICING') {
     await this.prisma.chatSession.findFirstOrThrow({
-      where: { id, organizationId, userId, deletedAt: null },
+      where: { id, organizationId, userId, context, deletedAt: null },
     });
 
     return this.prisma.chatSession.update({
@@ -632,9 +721,9 @@ Today is ${today}.`;
     });
   }
 
-  async getMessages(organizationId: string, userId: string, sessionId: string) {
+  async getMessages(organizationId: string, userId: string, sessionId: string, context: ChatContext = 'INVOICING') {
     await this.prisma.chatSession.findFirstOrThrow({
-      where: { id: sessionId, organizationId, userId, deletedAt: null },
+      where: { id: sessionId, organizationId, userId, context, deletedAt: null },
     });
 
     return this.prisma.chatMessage.findMany({
@@ -643,8 +732,65 @@ Today is ${today}.`;
     });
   }
 
+  private buildPresenterPrompt(context: ChatContext, today: string): string {
+    const schema = `SCHEMA:
+{
+  "summary": "Title header followed by a friendly, plain-text executive summary (2-3 sentences max) outlining key takeaways.",
+  "layout": [
+    { "component": "KPICard", "props": { "title": "Net Profit", "value": "₦141.1M", "trend": "+12%", "sentiment": "positive" } },
+    { "component": "LineChart", "props": { "data": [{ "label": "Jan", "value": 1000000 }] } },
+    { "component": "BarChart", "props": { "data": [{ "label": "Jan", "value": 1000000 }] } },
+    { "component": "MultiSeriesChart", "props": { "type": "bar", "stacked": true, "data": [{ "label": "Jan", "Product A": 100, "Product B": 50 }], "series": [{ "key": "Product A", "color": "#0037b0" }, { "key": "Product B", "color": "#10b981" }] } },
+    { "component": "InteractiveTable", "props": { "headers": ["Header1", "Header2"], "rows": [["Col1", "Col2"]] } },
+    { "component": "Tabs", "props": { "tabs": [{ "label": "Tab Name", "content": { "component": "LineChart", "props": { "data": [] } } }] } }
+  ]
+}`;
 
-  private async runTool(name: string, input: Record<string, any>, organizationId: string): Promise<unknown> {
+    if (context === 'POS') {
+      return `You are a premium UI/UX Design & Presentation Expert for Tari1's Restaurant POS, built around "The Architectural Ledger" design system.
+Your job is to read the raw database JSON records fetched by the Analyst and translate them into a beautiful, scannability-optimized layout for the user.
+
+Adhere strictly to these DESIGN.md guidelines:
+1. Title Card Requirement: You must ALWAYS start your summary text with a clear, relevant H2 markdown header (e.g. "## Today's Sales Performance" or "## Shift Till Reconciliation") to act as a report title.
+2. Spacing: Use clean lists and headers (##, ###). Use double line breaks between sections to give the information breathing room.
+3. No Markdown Tables: Never write raw markdown tables (e.g. | Order |). Instead, represent tabular data using the custom InteractiveTable JSON component layout below.
+4. Chart Selection Rules:
+   - Use "LineChart" for single daily/monthly sales trends.
+   - Use "BarChart" for single category breakdowns (e.g. sales by menu category).
+   - Use "MultiSeriesChart" to compare multiple menu items/categories over time. Set "type" to "bar" or "line", and "stacked" to true if you want a stacked bar chart. Provide a "series" array mapping data keys to colors.
+   - Use "InteractiveTable" for lists of orders, customers, or shifts.
+5. Terminology: Use "order" not "invoice", and "customer" not "client".
+6. Component Mapping: You MUST ALWAYS output a JSON object matching the schema below. If it's a simple greeting, put it in the "summary" field and leave "layout" as an empty array. Do not wrap the JSON in markdown code blocks.
+
+${schema}
+
+Today is ${today}.`;
+    }
+
+    return `You are a premium UI/UX Design & Presentation Expert for Tari1, a fintech app built around "The Architectural Ledger" design system.
+Your job is to read the raw database JSON records fetched by the Analyst and translate them into a beautiful, scannability-optimized layout for the user.
+
+Adhere strictly to these DESIGN.md guidelines:
+1. Title Card Requirement: You must ALWAYS start your summary text with a clear, relevant H2 markdown header (e.g. "## Monthly Cashflow Performance" or "## Top Receivables Alert") to act as a report title.
+2. Spacing: Use clean lists and headers (##, ###). Use double line breaks between sections to give the information breathing room.
+3. No Markdown Tables: Never write raw markdown tables (e.g. | Month |). Instead, represent tabular data using the custom InteractiveTable JSON component layout below.
+4. Chart Selection Rules:
+   - Use "LineChart" for single monthly time trends (e.g. monthly cashflow).
+   - Use "BarChart" for single category breakdowns.
+   - Use "MultiSeriesChart" to compare multiple categories over time (e.g. product sales month-on-month). Set "type" to "bar" or "line", and "stacked" to true if you want a stacked bar chart. Provide a "series" array mapping data keys to colors.
+   - Use "InteractiveTable" for lists of clients, payments, or vendors.
+5. Component Mapping: You MUST ALWAYS output a JSON object matching the schema below. If it's a simple greeting, put it in the "summary" field and leave "layout" as an empty array. Do not wrap the JSON in markdown code blocks.
+
+${schema}
+
+Today is ${today}.`;
+  }
+
+  private async runTool(name: string, input: Record<string, any>, organizationId: string, context: ChatContext = 'INVOICING'): Promise<unknown> {
+    if (context === 'POS') {
+      return this.runPosTool(name, input, organizationId);
+    }
+
     const period = (input.period ?? 'THIS_MONTH') as Period;
     const filter: ReportFilterDto = { period: period as ReportPeriod };
 
@@ -741,6 +887,60 @@ Today is ${today}.`;
 
       case 'get_vendors':
         return this.vendorsService.findAll(organizationId, { search: input.search, page: 1, limit: 50 });
+
+      default:
+        return { error: `Unknown tool: ${name}` };
+    }
+  }
+
+  private async runPosTool(name: string, input: Record<string, any>, organizationId: string): Promise<unknown> {
+    const period = (input.period ?? 'THIS_MONTH') as Period;
+    const filter: ReportFilterDto = { period: period as ReportPeriod };
+
+    switch (name) {
+      case 'get_sales_summary':
+        return this.posAiDataService.getSalesSummary(organizationId, filter);
+
+      case 'get_sales_trend':
+        return this.posAiDataService.getSalesTrend(organizationId, filter);
+
+      case 'get_top_menu_items': {
+        const to = input.to ?? new Date().toISOString().split('T')[0];
+        return this.posAiDataService.getTopMenuItems(organizationId, input.from, to);
+      }
+
+      case 'search_orders': {
+        const { status, search, limit = 20 } = input;
+        return this.posAiDataService.searchOrders(organizationId, {
+          status,
+          search,
+          page: 1,
+          limit: Math.min(limit, 50),
+        } as any);
+      }
+
+      case 'get_order_detail':
+        return this.posAiDataService.getOrderDetail(organizationId, input.orderId);
+
+      case 'search_customers':
+        return this.posAiDataService.searchCustomers(organizationId, input.query);
+
+      case 'get_customer_history':
+        return this.posAiDataService.getCustomerHistory(organizationId, input.customerId);
+
+      case 'get_shifts':
+        return this.posAiDataService.getShifts(organizationId);
+
+      case 'get_shift_report': {
+        if (input.shiftId) {
+          return this.posAiDataService.getShiftReport(organizationId, input.shiftId);
+        }
+        const current = await this.posAiDataService.getCurrentShift(organizationId);
+        if (!current) {
+          return { error: 'No shift is currently open.' };
+        }
+        return this.posAiDataService.getShiftReport(organizationId, current.id);
+      }
 
       default:
         return { error: `Unknown tool: ${name}` };

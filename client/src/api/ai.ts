@@ -2,6 +2,8 @@ import apiClient from './client'
 import type { ApiResponse } from '@/types'
 import type { ReportFilters } from './reports'
 
+export type ChatContext = 'INVOICING' | 'POS'
+
 export interface Insight {
   title: string
   body: string
@@ -33,6 +35,8 @@ export interface ChatMessage {
   createdAt?: string
 }
 
+const basePath = (context: ChatContext) => (context === 'POS' ? '/pos/ai' : '/ai')
+
 export const aiApi = {
   getInsights: async (filters: ReportFilters = {}): Promise<InsightsResponse> => {
     const params = new URLSearchParams()
@@ -44,35 +48,45 @@ export const aiApi = {
     return response.data.data
   },
 
-  listSessions: async (search?: string): Promise<ChatSession[]> => {
+  listSessions: async (search?: string, context: ChatContext = 'INVOICING'): Promise<ChatSession[]> => {
     const params = new URLSearchParams()
     if (search) params.append('search', search)
-    const response = await apiClient.get<ApiResponse<ChatSession[]>>(`/ai/sessions?${params}`)
+    const response = await apiClient.get<ApiResponse<ChatSession[]>>(`${basePath(context)}/sessions?${params}`)
     return response.data.data
   },
 
-  createSession: async (title: string): Promise<ChatSession> => {
-    const response = await apiClient.post<ApiResponse<ChatSession>>('/ai/sessions', { title })
+  createSession: async (title: string, context: ChatContext = 'INVOICING'): Promise<ChatSession> => {
+    const response = await apiClient.post<ApiResponse<ChatSession>>(`${basePath(context)}/sessions`, { title })
     return response.data.data
   },
 
-  updateSession: async (id: string, data: { title?: string; isPinned?: boolean }): Promise<ChatSession> => {
-    const response = await apiClient.patch<ApiResponse<ChatSession>>(`/ai/sessions/${id}`, data)
+  updateSession: async (
+    id: string,
+    data: { title?: string; isPinned?: boolean },
+    context: ChatContext = 'INVOICING',
+  ): Promise<ChatSession> => {
+    const response = await apiClient.patch<ApiResponse<ChatSession>>(`${basePath(context)}/sessions/${id}`, data)
     return response.data.data
   },
 
-  deleteSession: async (id: string): Promise<void> => {
-    await apiClient.delete<ApiResponse<void>>(`/ai/sessions/${id}`)
+  deleteSession: async (id: string, context: ChatContext = 'INVOICING'): Promise<void> => {
+    await apiClient.delete<ApiResponse<void>>(`${basePath(context)}/sessions/${id}`)
   },
 
-  getMessages: async (id: string): Promise<ChatMessage[]> => {
-    const response = await apiClient.get<ApiResponse<ChatMessage[]>>(`/ai/sessions/${id}/messages`)
+  getMessages: async (id: string, context: ChatContext = 'INVOICING'): Promise<ChatMessage[]> => {
+    const response = await apiClient.get<ApiResponse<ChatMessage[]>>(`${basePath(context)}/sessions/${id}/messages`)
     return response.data.data
   },
 
-  chat: async (messages: ChatMessage[], sessionId?: string): Promise<{ message: string; layout?: any; sessionId: string }> => {
-    const response = await apiClient.post<ApiResponse<{ message: string; layout?: any; sessionId: string }>>('/ai/chat', { messages, sessionId })
+  chat: async (
+    messages: ChatMessage[],
+    sessionId?: string,
+    context: ChatContext = 'INVOICING',
+  ): Promise<{ message: string; layout?: any; sessionId: string }> => {
+    const response = await apiClient.post<ApiResponse<{ message: string; layout?: any; sessionId: string }>>(
+      `${basePath(context)}/chat`,
+      { messages, sessionId },
+    )
     return response.data.data
   },
 }
-
