@@ -9,7 +9,7 @@ export class TablesService {
   async findAll(organizationId: string) {
     return this.prisma.restaurantTable.findMany({
       where: { organizationId, isActive: true },
-      orderBy: { name: 'asc' },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
   }
 
@@ -33,6 +33,7 @@ export class TablesService {
         name: dto.name,
         section: dto.section,
         capacity: dto.capacity ?? 2,
+        sortOrder: dto.sortOrder ?? 0,
       },
     });
   }
@@ -57,6 +58,7 @@ export class TablesService {
         ...(dto.section !== undefined && { section: dto.section }),
         ...(dto.capacity !== undefined && { capacity: dto.capacity }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
       },
     });
   }
