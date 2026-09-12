@@ -1,24 +1,17 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Timer, UserRoundPlus } from 'lucide-react'
+import { Timer, ChefHat, X } from 'lucide-react'
 import { Header } from '@/components/layout'
-import { Card, CardContent, Badge, DropdownPanel } from '@/components/ui'
+import { Card, CardContent, Badge } from '@/components/ui'
 import { ordersApi, usersApi } from '@/api'
 import { cn } from '@/lib/utils'
 import type { Order, OrderItem, OrderItemStatus, OrderStatus, UserRole } from '@/types'
 
-// Any active staff member can be assigned to an item — there's no dedicated "chef"/"barman"
-// role, so this covers every role that could plausibly be on a kitchen or bar shift.
-const ASSIGNABLE_ROLES: UserRole[] = [
-  'STAFF',
-  'MANAGER',
-  'SUPERVISOR',
-  'CASHIER',
-  'WAITER',
-  'PASS',
-  'RUNNER',
-]
+// Only staff actually tagged Kitchen can be assigned to make an item — distinct from PASS/RUNNER,
+// who ferry tickets/food but aren't necessarily the one cooking/mixing it.
+const ASSIGNABLE_ROLES: UserRole[] = ['KITCHEN']
 
 const ACTIVE_STATUSES: OrderStatus[] = ['OPEN', 'IN_KITCHEN', 'READY']
 const ITEM_STATUS_FLOW: OrderItemStatus[] = ['PENDING', 'ON_IT', 'PASS', 'SERVED']
@@ -87,95 +80,99 @@ function getInitials(firstName: string, lastName: string) {
   return `${firstName[0] ?? ''}${lastName[0] ?? ''}`.toUpperCase()
 }
 
-// A single tap opens the picker, a single tap on a name assigns and closes it — this is meant
-// for an expo/manager to fly through a whole board of items assigning staff, not for the
-// assignee to self-serve, so it deliberately has no confirmation step.
-function AssigneeChip({ orderId, item }: { orderId: string; item: OrderItem }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const queryClient = useQueryClient()
+// What the assignment modal is currently doing for a given item:
+// - 'required': gating the Pending → On It transition. Picking someone assigns AND advances the
+//   status in one go; closing without picking aborts the whole transition (item stays Pending).
+// - 'reassign': reopened by tapping an already-assigned item's name. Picking someone just updates
+//   the assignee; the item's status is untouched. Closing without picking changes nothing.
+type AssignmentFlow = { item: OrderItem; mode: 'required' | 'reassign' }
 
-  const { data: staff } = useQuery({
+function AssignStaffModal({
+  flow,
+  onClose,
+  onSelect,
+  isSubmitting,
+}: {
+  flow: AssignmentFlow | null
+  onClose: () => void
+  onSelect: (staffId: string) => void
+  isSubmitting: boolean
+}) {
+  const { data: staff, isLoading } = useQuery({
     queryKey: ['staff-directory', ASSIGNABLE_ROLES],
     queryFn: () => usersApi.directory(ASSIGNABLE_ROLES),
-    enabled: isOpen,
+    enabled: !!flow,
     staleTime: 60_000,
   })
 
-  const updateAssignee = useMutation({
-    mutationFn: (assignedToId: string | null) => ordersApi.updateItemAssignee(orderId, item.id, assignedToId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['kitchen-orders'] }),
-    onError: () => toast.error('Failed to assign'),
-  })
+  if (!flow) return null
+  const { item, mode } = flow
 
-  return (
-    <div className="relative mt-3 inline-block">
-      <button
-        type="button"
-        onClick={() => setIsOpen((v) => !v)}
-        className={cn(
-          'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold transition-colors',
-          item.assignedTo ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
-        )}
-      >
-        {item.assignedTo ? (
-          <>
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
-              {getInitials(item.assignedTo.firstName, item.assignedTo.lastName)}
-            </span>
-            {item.assignedTo.firstName}
-          </>
-        ) : (
-          <>
-            <UserRoundPlus className="h-3.5 w-3.5" />
-            Assign
-          </>
-        )}
-      </button>
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm"
+        onClick={isSubmitting ? undefined : onClose}
+      />
+      <div className="relative z-50 w-full max-w-sm overflow-hidden rounded-3xl border border-border bg-white p-6 shadow-xl">
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={isSubmitting}
+          aria-label="Cancel"
+          className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted disabled:opacity-50"
+        >
+          <X className="h-4 w-4" />
+        </button>
 
-      <DropdownPanel isOpen={isOpen} onClose={() => setIsOpen(false)} align="left" widthClass="w-52">
-        {!staff ? (
-          <div className="px-3 py-2 text-sm text-muted-foreground">Loading…</div>
-        ) : staff.length === 0 ? (
-          <div className="px-3 py-2 text-sm text-muted-foreground">No staff found</div>
-        ) : (
-          <>
-            {staff.map((person) => (
+        <div className="mb-1 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <ChefHat className="h-5 w-5" />
+          </div>
+          <h3 className="text-base font-bold text-foreground">
+            {mode === 'required' ? "Who's making this?" : 'Reassign'}
+          </h3>
+        </div>
+        <p className="mb-4 text-sm text-muted-foreground">
+          {item.quantity}x {item.menuItem?.name ?? item.itemName}
+        </p>
+
+        <div className="max-h-72 space-y-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="py-6 text-center text-sm text-muted-foreground">Loading…</div>
+          ) : !staff || staff.length === 0 ? (
+            <div className="py-6 text-center text-sm text-muted-foreground">
+              No kitchen staff found. Add the Kitchen role to a staff member in Settings → Users.
+            </div>
+          ) : (
+            staff.map((person) => (
               <button
                 key={person.id}
                 type="button"
-                onClick={() => {
-                  updateAssignee.mutate(person.id)
-                  setIsOpen(false)
-                }}
+                disabled={isSubmitting}
+                onClick={() => onSelect(person.id)}
                 className={cn(
-                  'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-muted',
-                  item.assignedToId === person.id && 'font-semibold text-primary',
+                  'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition-colors hover:bg-muted disabled:opacity-50',
+                  item.assignedToId === person.id && 'text-primary',
                 )}
               >
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs text-primary">
+                  {getInitials(person.firstName, person.lastName)}
+                </span>
                 {person.firstName} {person.lastName}
               </button>
-            ))}
-            {item.assignedToId && (
-              <button
-                type="button"
-                onClick={() => {
-                  updateAssignee.mutate(null)
-                  setIsOpen(false)
-                }}
-                className="mt-1 flex w-full items-center gap-2 rounded-lg border-t border-border px-3 py-2 text-left text-sm text-muted-foreground hover:bg-muted"
-              >
-                Clear assignment
-              </button>
-            )}
-          </>
-        )}
-      </DropdownPanel>
-    </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
   )
 }
 
 function TicketCard({ order, items, now }: { order: Order; items: OrderItem[]; now: number }) {
   const queryClient = useQueryClient()
+  const [assignmentFlow, setAssignmentFlow] = useState<AssignmentFlow | null>(null)
 
   const updateItemStatus = useMutation({
     mutationFn: ({ itemId, status }: { itemId: string; status: OrderItemStatus }) =>
@@ -183,6 +180,31 @@ function TicketCard({ order, items, now }: { order: Order; items: OrderItem[]; n
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['kitchen-orders'] }),
     onError: () => toast.error('Failed to update item status'),
   })
+
+  const updateItemAssignee = useMutation({
+    mutationFn: ({ itemId, assignedToId }: { itemId: string; assignedToId: string }) =>
+      ordersApi.updateItemAssignee(order.id, itemId, assignedToId),
+    onError: () => toast.error('Failed to assign'),
+  })
+
+  // Picking a name either (a) assigns AND advances Pending → On It in one go, when the modal is
+  // gating that transition, or (b) just reassigns an already in-progress item — the status is
+  // left alone in that case.
+  const isAssigning = updateItemAssignee.isPending || updateItemStatus.isPending
+  const handleSelectStaff = async (staffId: string) => {
+    if (!assignmentFlow) return
+    const { item, mode } = assignmentFlow
+    try {
+      await updateItemAssignee.mutateAsync({ itemId: item.id, assignedToId: staffId })
+      if (mode === 'required') {
+        await updateItemStatus.mutateAsync({ itemId: item.id, status: 'ON_IT' })
+      }
+      queryClient.invalidateQueries({ queryKey: ['kitchen-orders'] })
+      setAssignmentFlow(null)
+    } catch {
+      // Errors already toasted by the individual mutations; leave the modal open to retry.
+    }
+  }
 
   const waiterName = order.waiter ? `${order.waiter.firstName} ${order.waiter.lastName}` : undefined
   const waiterOrTable = [waiterName, order.table?.name].filter(Boolean).join(' · ') || '—'
@@ -212,7 +234,15 @@ function TicketCard({ order, items, now }: { order: Order; items: OrderItem[]; n
                     {ITEM_STATUS_FLOW.map((s) => (
                       <button
                         key={s}
-                        onClick={() => updateItemStatus.mutate({ itemId: item.id, status: s })}
+                        onClick={() => {
+                          // Moving Pending → On It requires picking who's making it first — the
+                          // modal itself advances the status once someone's picked.
+                          if (s === 'ON_IT' && item.status === 'PENDING') {
+                            setAssignmentFlow({ item, mode: 'required' })
+                            return
+                          }
+                          updateItemStatus.mutate({ itemId: item.id, status: s })
+                        }}
                         disabled={pendingStatus !== null}
                         className={cn(
                           'flex min-h-16 min-w-24 cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 py-4 text-lg font-bold transition-colors active:scale-95 disabled:cursor-not-allowed',
@@ -227,7 +257,18 @@ function TicketCard({ order, items, now }: { order: Order; items: OrderItem[]; n
                       </button>
                     ))}
                   </div>
-                  <AssigneeChip orderId={order.id} item={item} />
+                  {item.assignedTo && (
+                    <button
+                      type="button"
+                      onClick={() => setAssignmentFlow({ item, mode: 'reassign' })}
+                      className="mt-3 flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-semibold text-primary transition-colors hover:bg-primary/15"
+                    >
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+                        {getInitials(item.assignedTo.firstName, item.assignedTo.lastName)}
+                      </span>
+                      {item.assignedTo.firstName}
+                    </button>
+                  )}
                 </div>
                 <div
                   className={cn(
@@ -250,6 +291,13 @@ function TicketCard({ order, items, now }: { order: Order; items: OrderItem[]; n
           <div className="text-xs text-muted-foreground">Placed {placedAt}</div>
         </div>
       </CardContent>
+
+      <AssignStaffModal
+        flow={assignmentFlow}
+        onClose={() => setAssignmentFlow(null)}
+        onSelect={handleSelectStaff}
+        isSubmitting={isAssigning}
+      />
     </Card>
   )
 }

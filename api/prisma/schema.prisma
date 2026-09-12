@@ -21,6 +21,9 @@ enum UserRole {
   WAITER
   PASS
   RUNNER
+  // The person actually making the food/drink — assignable to an order item once it's picked
+  // up, distinct from PASS/RUNNER (who ferry tickets/food, not necessarily the maker).
+  KITCHEN
 }
 
 // Which feature modules an organization has access to. Distinct from

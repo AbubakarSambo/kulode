@@ -99,6 +99,7 @@ export type UserRole =
   | 'WAITER'
   | 'PASS'
   | 'RUNNER'
+  | 'KITCHEN'
 
 export interface AuthResponse {
   accessToken: string
