@@ -1,74 +1,22 @@
-import { useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { toast } from 'sonner'
-import { ArrowLeft, Pencil, Trash2 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { ArrowLeft } from 'lucide-react'
 import { Header } from '@/components/layout'
-import { Button, Input, Label, Textarea, Card, CardContent, Badge, ConfirmDialog } from '@/components/ui'
-import { Modal } from '@/components/shared/Modal'
+import { Button, Card, CardContent, Badge } from '@/components/ui'
 import { usersApi } from '@/api'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
-const waiterSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  phone: z.string().optional(),
-  notes: z.string().optional(),
-})
-type WaiterFormData = z.infer<typeof waiterSchema>
-
-function splitName(name: string): { firstName: string; lastName: string } {
-  const trimmed = name.trim()
-  const spaceIndex = trimmed.indexOf(' ')
-  if (spaceIndex === -1) return { firstName: trimmed, lastName: '' }
-  return { firstName: trimmed.slice(0, spaceIndex), lastName: trimmed.slice(spaceIndex + 1) }
-}
-
-function errorMessage(err: unknown, fallback: string) {
-  return (err as { response?: { data?: { message?: string } } })?.response?.data?.message || fallback
-}
-
+// Read-only — editing a staff member's name/phone/notes/roles now happens on the Users page.
+// This page survives purely for the order-history/performance drill-down (reached from the
+// Dashboard's "Top Staff" list), which Users has no equivalent of.
 export function WaiterDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const [editOpen, setEditOpen] = useState(false)
-  const [deleteOpen, setDeleteOpen] = useState(false)
 
   const { data: waiter, isLoading } = useQuery({
     queryKey: ['waiter-history', id],
     queryFn: () => usersApi.getOrderHistory(id!),
     enabled: !!id,
-  })
-
-  const form = useForm<WaiterFormData>({ resolver: zodResolver(waiterSchema) })
-
-  const updateWaiter = useMutation({
-    mutationFn: (data: WaiterFormData) => {
-      const { firstName, lastName } = splitName(data.name)
-      return usersApi.update(id!, { firstName, lastName, phone: data.phone, notes: data.notes })
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['waiter-history', id] })
-      queryClient.invalidateQueries({ queryKey: ['users'] })
-      queryClient.invalidateQueries({ queryKey: ['waiters-directory'] })
-      toast.success('Waiter updated')
-      setEditOpen(false)
-    },
-    onError: (err: unknown) => toast.error(errorMessage(err, 'Failed to update waiter')),
-  })
-
-  const deactivateWaiter = useMutation({
-    mutationFn: () => usersApi.delete(id!),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] })
-      queryClient.invalidateQueries({ queryKey: ['waiters-directory'] })
-      toast.success('Waiter deactivated')
-      navigate('/pos/waiters')
-    },
-    onError: (err: unknown) => toast.error(errorMessage(err, 'Failed to deactivate waiter')),
   })
 
   if (isLoading || !waiter) {
@@ -87,7 +35,7 @@ export function WaiterDetailPage() {
         title={fullName}
         description={waiter.phone ?? undefined}
         action={
-          <Button variant="ghost" size="sm" onClick={() => navigate('/pos/waiters')}>
+          <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
             <ArrowLeft className="mr-1.5 h-4 w-4" /> Back
           </Button>
         }
@@ -115,23 +63,9 @@ export function WaiterDetailPage() {
                   <div className="font-medium text-foreground">{waiter.notes}</div>
                 </div>
               )}
-
-              <div className="flex gap-2 pt-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => {
-                    form.reset({ name: fullName, phone: waiter.phone ?? '', notes: waiter.notes ?? '' })
-                    setEditOpen(true)
-                  }}
-                >
-                  <Pencil className="mr-1.5 h-4 w-4" /> Edit
-                </Button>
-                <Button variant="outline" size="sm" className="flex-1" onClick={() => setDeleteOpen(true)}>
-                  <Trash2 className="mr-1.5 h-4 w-4" /> Deactivate
-                </Button>
-              </div>
+              <Link to="/settings/users" className="block pt-2 text-xs font-medium text-primary hover:underline">
+                Manage roles &amp; details in Users →
+              </Link>
             </CardContent>
           </Card>
 
@@ -203,38 +137,6 @@ export function WaiterDetailPage() {
           </div>
         </div>
       </div>
-
-      <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title="Edit Waiter">
-        <form onSubmit={form.handleSubmit((data) => updateWaiter.mutate(data))} className="space-y-4">
-          <div>
-            <Label>Name</Label>
-            <Input {...form.register('name')} />
-          </div>
-          <div>
-            <Label>Phone (optional)</Label>
-            <Input {...form.register('phone')} />
-          </div>
-          <div>
-            <Label>Notes (optional)</Label>
-            <Textarea {...form.register('notes')} />
-          </div>
-          <Button type="submit" className="w-full" isLoading={updateWaiter.isPending}>
-            Save Changes
-          </Button>
-        </form>
-      </Modal>
-
-      <ConfirmDialog
-        isOpen={deleteOpen}
-        onClose={() => setDeleteOpen(false)}
-        onConfirm={() => deactivateWaiter.mutate()}
-        title={`Deactivate "${fullName}"?`}
-        description="They'll no longer be able to log in or be assigned to new orders."
-        confirmText="Deactivate"
-        cancelText="Cancel"
-        isDangerous
-        isLoading={deactivateWaiter.isPending}
-      />
     </div>
   )
 }

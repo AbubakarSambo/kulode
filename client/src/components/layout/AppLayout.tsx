@@ -99,8 +99,8 @@ export function AppLayout() {
   // Cashiers close out orders and take payment, and can now manage the table list — no need for
   // menu/waiter management or analytics
   const CASHIER_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/tables', '/pos/reports']
-  // Supervisors get floor oversight but not menu/category editing, or the Waiters roster — since
-  // Waiter is just a User now, managing it needs the same admin-only access as user management.
+  // Supervisors get floor oversight but not menu/category editing, or user management (staff
+  // roster lives entirely on the admin-only Users page).
   const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/kitchen', '/pos/drinks', '/pos/reports']
   const RESTRICTED_ROLE_HREFS: Partial<Record<UserRole, string[]>> = {
     WAITER: WAITER_ALLOWED_HREFS,
@@ -123,7 +123,6 @@ export function AppLayout() {
     '/pos/kitchen': { name: 'Kitchen', icon: Timer },
     '/pos/drinks': { name: 'Drinks', icon: Martini },
     '/pos/shift': { name: 'Shift', icon: Clock },
-    '/pos/waiters': { name: 'Waiters', icon: UserRound },
     '/pos/reports': { name: 'POS Reports', icon: Receipt },
   }
 
@@ -190,10 +189,11 @@ export function AppLayout() {
       ] as MoreItem[],
     },
     {
+      // Waiter management now lives entirely on the Users page — see the matching comment in
+      // Sidebar.tsx.
       label: 'People',
       items: [
         { name: 'Customers', href: '/pos/customers', icon: UserRound, visible: hasPos },
-        { name: 'Waiters', href: '/pos/waiters', icon: UserRound, visible: hasPos },
       ] as MoreItem[],
     },
     {

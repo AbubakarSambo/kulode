@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, X, CreditCard, ChefHat, Clock, Receipt, Users, ShoppingCart, Tag, UserRound, Timer, UserCog, RefreshCw, LayoutGrid, ListOrdered, Martini } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, CreditCard, ChefHat, Clock, Receipt, Users, ShoppingCart, Tag, Timer, UserCog, RefreshCw, LayoutGrid, ListOrdered, Martini } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { useLogout, useSwitchUser } from '@/hooks'
@@ -79,10 +79,12 @@ const navigationGroups = [
     ]
   },
   {
+    // Waiter management now lives entirely on the Users page (Settings → Users) — this used to
+    // also list a "Waiters" roster item, but a waiter is just a User with role WAITER, so it was
+    // a near-duplicate of the Users page with a narrower edit form.
     title: 'People',
     items: [
       { name: 'Customers', href: '/pos/customers', icon: Users, requiresPlan: undefined as PlanTier | undefined },
-      { name: 'Waiters', href: '/pos/waiters', icon: UserRound, requiresPlan: undefined as PlanTier | undefined },
     ]
   },
   {
@@ -184,8 +186,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   ]
 
   // Supervisors get floor oversight (orders, customers, shift, kitchen) but not menu/category
-  // editing or the Waiters roster — since Waiter is just a User now, managing it requires the
-  // same admin-only access as the rest of user management.
+  // editing or user management (staff roster lives entirely on the admin-only Users page).
   const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/kitchen', '/pos/drinks', '/pos/reports']
 
   // Roles that get a tight nav allowlist rather than the broader access every other role has.
