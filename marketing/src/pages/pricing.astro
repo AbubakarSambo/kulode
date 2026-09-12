@@ -113,6 +113,17 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173';
                 <i class="hgi-stroke hgi-checkmark-circle-02 text-primary text-xl"></i>
                 <span>Inventory & stock tracking</span>
               </li>
+              <li class="flex items-center gap-3 hover:translate-x-1 transition-transform duration-200">
+                <i class="hgi-stroke hgi-checkmark-circle-02 text-primary text-xl"></i>
+                <span>Customer wallets & store credit</span>
+              </li>
+              <li class="flex items-start gap-3 text-primary font-bold bg-[#eef4ff] p-4 rounded-2xl transition-all duration-300 hover:shadow-inner">
+                <i class="hgi-stroke hgi-sparkles text-primary text-2xl shrink-0 mt-0.5 animate-pulse"></i>
+                <div>
+                  <p class="text-xs font-bold uppercase tracking-wide text-primary">AI Business Chat</p>
+                  <p class="text-xs text-text-secondary font-medium leading-relaxed mt-1">Ask about sales, orders, shifts, or customers in plain English and get instant dashboards back.</p>
+                </div>
+              </li>
               <li class="flex items-start gap-3 text-primary font-bold bg-[#eef4ff] p-4 rounded-2xl transition-all duration-300 hover:shadow-inner">
                 <i class="hgi-stroke hgi-checkmark-badge-01 text-primary text-2xl shrink-0 mt-0.5 animate-pulse"></i>
                 <div>
@@ -214,6 +225,24 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173';
               <td class="p-4 text-text-secondary">Yes</td>
             </tr>
             <tr class="bg-[#f8f9ff] hover:bg-[#eef4ff]/30 transition-colors">
+              <td class="p-4 pl-6 font-semibold text-text-primary">Split Bills & Order Merging</td>
+              <td class="p-4 text-text-secondary">Yes</td>
+              <td class="p-4 text-text-secondary">Yes</td>
+              <td class="p-4 text-text-secondary">Yes</td>
+            </tr>
+            <tr class="hover:bg-[#eef4ff]/30 transition-colors">
+              <td class="p-4 pl-6 font-semibold text-text-primary">Customer Wallets & Store Credit</td>
+              <td class="p-4 text-text-secondary">Yes</td>
+              <td class="p-4 text-text-secondary">Yes</td>
+              <td class="p-4 text-text-secondary">Yes</td>
+            </tr>
+            <tr class="bg-[#f8f9ff] hover:bg-[#eef4ff]/30 transition-colors">
+              <td class="p-4 pl-6 font-semibold text-primary">AI Business Chat & Insights</td>
+              <td class="p-4 text-text-secondary/40">Gated</td>
+              <td class="p-4 text-primary font-bold">Included (PRO)</td>
+              <td class="p-4 text-text-secondary">Yes</td>
+            </tr>
+            <tr class="hover:bg-[#eef4ff]/30 transition-colors">
               <td class="p-4 pl-6 font-semibold text-primary">Multiple Printer Stations</td>
               <td class="p-4 text-text-secondary/40">Gated</td>
               <td class="p-4 text-text-secondary/40">Gated</td>
@@ -259,6 +288,17 @@ const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'http://localhost:5173';
           </div>
           <p class="text-sm text-text-secondary mt-4 hidden leading-relaxed transition-all duration-300">
             Yes. All online card, bank transfer, and USSD payments are initialized and processed directly on Paystack's PCI-DSS compliant gateways. TariOne never stores your clients' card numbers or credentials.
+          </p>
+        </div>
+
+        <!-- FAQ 4 -->
+        <div class="bg-white rounded-2xl border-0 p-6 hover:shadow-md transition-all duration-200 cursor-pointer faq-item shadow-[0_12px_32px_rgba(0,55,176,0.015)]">
+          <div class="flex justify-between items-center">
+            <h4 class="font-bold text-text-primary text-base">What can the AI Business Chat actually answer?</h4>
+            <i class="hgi-stroke hgi-plus-sign text-primary toggle-icon transition-transform duration-300"></i>
+          </div>
+          <p class="text-sm text-text-secondary mt-4 hidden leading-relaxed transition-all duration-300">
+            Ask it about sales trends, best-selling menu items, order history, shift till reconciliation, or your most loyal customers — in plain English. It reads your live business data and answers with a summary plus generated charts and tables, no report-building required.
           </p>
         </div>
       </div>
