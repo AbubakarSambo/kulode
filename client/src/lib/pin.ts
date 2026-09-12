@@ -2,7 +2,7 @@ import type { UserRole } from '@/types'
 
 // Roles that can use a shared-terminal quick-login PIN instead of email+password —
 // mirrors PIN_ELIGIBLE_ROLES in api/src/common/pin.ts.
-export const PIN_ELIGIBLE_ROLES: UserRole[] = ['WAITER', 'PASS', 'RUNNER', 'CASHIER']
+export const PIN_ELIGIBLE_ROLES: UserRole[] = ['WAITER', 'PASS', 'RUNNER', 'KITCHEN', 'CASHIER']
 
 // A user is only PIN-eligible if EVERY role they hold is PIN-eligible — a single admin-tier
 // role mixed in (e.g. Manager + Waiter) means that account must use full email+password login.

@@ -211,7 +211,7 @@ describe('Sidebar', () => {
     expect(screen.getAllByText('Kitchen').length).toBeGreaterThan(0)
   })
 
-  it('a pure Cashier is restricted to Orders/Customers/Shift only', () => {
+  it('a pure Cashier is restricted to Orders/Customers/Shift/Sell/Menu/Categories only', () => {
     mockUseAuthStore.mockReturnValue({
       ...adminUser,
       roles: ['CASHIER'],
@@ -224,13 +224,16 @@ describe('Sidebar', () => {
     expect(screen.getAllByText('Orders').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Customers').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Shift').length).toBeGreaterThan(0)
-    expect(screen.queryByText('Sell')).not.toBeInTheDocument()
-    expect(screen.queryByText('Menu')).not.toBeInTheDocument()
+    // Cashiers can sell and view/add menu items and categories (not edit/delete) — see
+    // CASHIER_ALLOWED_HREFS in Sidebar.tsx.
+    expect(screen.getAllByText('Sell').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Menu').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Categories').length).toBeGreaterThan(0)
     expect(screen.queryByText('Waiters')).not.toBeInTheDocument()
     expect(screen.queryByText('Kitchen')).not.toBeInTheDocument()
   })
 
-  it('Waiter + Runner + Cashier sees the union: Sell/Orders/Customers/Shift + Kitchen', () => {
+  it('Waiter + Runner + Cashier sees the union: Sell/Orders/Customers/Shift/Menu/Categories + Kitchen', () => {
     mockUseAuthStore.mockReturnValue({
       ...adminUser,
       roles: ['WAITER', 'RUNNER', 'CASHIER'],
@@ -245,7 +248,9 @@ describe('Sidebar', () => {
     expect(screen.getAllByText('Customers').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Shift').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Kitchen').length).toBeGreaterThan(0)
-    expect(screen.queryByText('Menu')).not.toBeInTheDocument()
+    // Menu/Categories come from Cashier's allowlist (see CASHIER_ALLOWED_HREFS in Sidebar.tsx)
+    expect(screen.getAllByText('Menu').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Categories').length).toBeGreaterThan(0)
     expect(screen.queryByText('Waiters')).not.toBeInTheDocument()
   })
 
@@ -285,7 +290,10 @@ describe('Sidebar', () => {
     // "Dashboard") is shown — so assert on href rather than the ambiguous label text.
     expect(screen.queryAllByText('Dashboard').some((el) => el.closest('a')?.getAttribute('href') === '/dashboard')).toBe(false)
     expect(screen.queryAllByText('Dashboard').some((el) => el.closest('a')?.getAttribute('href') === '/pos/dashboard')).toBe(true)
-    expect(screen.queryByText('Reports')).not.toBeInTheDocument()
+    // "Reports" here is the POS Reports item (/pos/reports), not the invoicing one — POS Reports
+    // is deliberately visible to every POS role (even Waiter's own allowlist includes it), not
+    // gated to admin/accountant like the invoicing Reports page.
+    expect(screen.getAllByText('Reports').length).toBeGreaterThan(0)
   })
 
   it('shows both POS and invoicing nav when the org has BOTH modules enabled', () => {

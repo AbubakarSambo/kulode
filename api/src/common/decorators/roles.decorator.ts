@@ -12,6 +12,7 @@ export enum Role {
   WAITER = 'WAITER',
   PASS = 'PASS',
   RUNNER = 'RUNNER',
+  KITCHEN = 'KITCHEN',
 }
 
 export const ROLES_KEY = 'roles';

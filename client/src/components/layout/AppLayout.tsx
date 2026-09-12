@@ -99,13 +99,14 @@ export function AppLayout() {
   // Cashiers close out orders and take payment, and can now manage the table list — no need for
   // menu/waiter management or analytics
   const CASHIER_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/tables', '/pos/reports']
-  // Supervisors get floor oversight but not menu/category editing, or the Waiters roster — since
-  // Waiter is just a User now, managing it needs the same admin-only access as user management.
+  // Supervisors get floor oversight but not menu/category editing, or user management (staff
+  // roster lives entirely on the admin-only Users page).
   const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/kitchen', '/pos/drinks', '/pos/reports']
   const RESTRICTED_ROLE_HREFS: Partial<Record<UserRole, string[]>> = {
     WAITER: WAITER_ALLOWED_HREFS,
     PASS: KITCHEN_ALLOWED_HREFS,
     RUNNER: KITCHEN_ALLOWED_HREFS,
+    KITCHEN: KITCHEN_ALLOWED_HREFS,
     CASHIER: CASHIER_ALLOWED_HREFS,
     SUPERVISOR: SUPERVISOR_ALLOWED_HREFS,
   }
@@ -122,7 +123,6 @@ export function AppLayout() {
     '/pos/kitchen': { name: 'Kitchen', icon: Timer },
     '/pos/drinks': { name: 'Drinks', icon: Martini },
     '/pos/shift': { name: 'Shift', icon: Clock },
-    '/pos/waiters': { name: 'Waiters', icon: UserRound },
     '/pos/reports': { name: 'POS Reports', icon: Receipt },
   }
 
@@ -163,7 +163,9 @@ export function AppLayout() {
       ] as MoreItem[],
     },
     {
-      label: 'Restaurant POS',
+      // Split from one flat 13-item "Restaurant POS" list into focused sub-groups, mirroring
+      // Sidebar.tsx's desktop grouping — kept in lockstep since this is the parallel mobile nav.
+      label: 'Floor Operations',
       items: [
         // Sell/Orders/Dashboard only live in the bottom dock for POS-only orgs (see `navItems`
         // above) — a BOTH-module org's dock shows the invoicing shortcuts instead, so these three
@@ -172,14 +174,25 @@ export function AppLayout() {
         { name: 'Sell', href: '/pos/order/new', icon: ShoppingCart, visible: hasPos },
         { name: 'Orders', href: '/pos/orders', icon: Receipt, visible: hasPos },
         { name: 'Tables', href: '/pos/tables', icon: LayoutGrid, visible: hasPos },
+        { name: 'Shift', href: '/pos/shift', icon: Clock, visible: hasPos },
         { name: 'Kitchen', href: '/pos/kitchen', icon: Timer, visible: hasPos },
         { name: 'Drinks', href: '/pos/drinks', icon: Martini, visible: hasPos },
+      ] as MoreItem[],
+    },
+    {
+      label: 'Catalog & Setup',
+      items: [
         { name: 'Menu', href: '/pos/menu', icon: ChefHat, visible: hasPos },
         { name: 'Categories', href: '/pos/categories', icon: Tag, visible: hasPos },
         { name: 'Order Types', href: '/pos/order-types', icon: ListOrdered, visible: hasPos },
         { name: 'Payment Types', href: '/pos/payment-types', icon: CreditCard, visible: hasPos },
-        { name: 'Waiters', href: '/pos/waiters', icon: UserRound, visible: hasPos },
-        { name: 'Shift', href: '/pos/shift', icon: Clock, visible: hasPos },
+      ] as MoreItem[],
+    },
+    {
+      // Waiter management now lives entirely on the Users page — see the matching comment in
+      // Sidebar.tsx.
+      label: 'People',
+      items: [
         { name: 'Customers', href: '/pos/customers', icon: UserRound, visible: hasPos },
       ] as MoreItem[],
     },

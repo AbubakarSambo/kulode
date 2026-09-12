@@ -562,10 +562,23 @@ export class OrdersService {
     }
     const willTransitionOrder = !!newOrderStatus && OPEN_STATUSES.includes(order.status);
 
+    // Stamp when the item entered this status — PENDING has no field of its own (that's just
+    // `createdAt`), the rest feed future prep-time reporting and let the kitchen board's timer
+    // freeze once an item is actually Served instead of ticking forever.
+    const transitionTimestampField: Partial<Record<UpdateOrderItemStatusDto['status'], 'onItAt' | 'passedAt' | 'servedAt'>> = {
+      ON_IT: 'onItAt',
+      PASS: 'passedAt',
+      SERVED: 'servedAt',
+    };
+    const timestampField = transitionTimestampField[dto.status];
+
     // Batched into one round trip (each `await this.prisma.X` is a separate network hop against
     // the hosted DB — that's what was turning this endpoint into a multi-second wait in prod).
     await this.prisma.$transaction([
-      this.prisma.orderItem.update({ where: { id: itemId }, data: { status: dto.status } }),
+      this.prisma.orderItem.update({
+        where: { id: itemId },
+        data: { status: dto.status, ...(timestampField && { [timestampField]: new Date() }) },
+      }),
       ...(willTransitionOrder
         ? [this.prisma.order.update({ where: { id: orderId }, data: { status: newOrderStatus } })]
         : []),

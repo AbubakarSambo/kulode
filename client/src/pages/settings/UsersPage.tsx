@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, UserX, Send, KeyRound, Trash2 } from 'lucide-react'
+import { Plus, UserX, Send, KeyRound, Trash2, Pencil } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Card, CardContent, Badge } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
@@ -33,6 +33,11 @@ const userSchema = z
 
 type UserFormData = z.infer<typeof userSchema>
 
+const editRolesSchema = z.object({
+  roles: z.array(z.string()).min(1, 'At least one role is required'),
+})
+type EditRolesFormData = z.infer<typeof editRolesSchema>
+
 const roleLabels: Record<UserRole, string> = {
   SUPER_ADMIN: 'Super Admin',
   ADMIN: 'Admin',
@@ -44,6 +49,7 @@ const roleLabels: Record<UserRole, string> = {
   WAITER: 'Waiter',
   PASS: 'Pass',
   RUNNER: 'Runner',
+  KITCHEN: 'Kitchen',
 }
 
 // Creatable roles by org type — SUPER_ADMIN is never assignable through this UI.
@@ -51,6 +57,7 @@ const POS_CREATABLE_ROLES: { value: UserRole; label: string }[] = [
   { value: 'WAITER', label: 'Waiter' },
   { value: 'PASS', label: 'Pass' },
   { value: 'RUNNER', label: 'Runner' },
+  { value: 'KITCHEN', label: 'Kitchen' },
   { value: 'CASHIER', label: 'Cashier' },
   { value: 'SUPERVISOR', label: 'Supervisor' },
   { value: 'MANAGER', label: 'Manager' },
@@ -71,6 +78,7 @@ export function UsersPage() {
   const queryClient = useQueryClient()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [pinModalUser, setPinModalUser] = useState<UserData | null>(null)
+  const [editingUser, setEditingUser] = useState<UserData | null>(null)
   // Any org running POS (POS-only or BOTH) uses the waiter/cashier ladder — only a pure
   // invoicing-only org keeps STAFF/ACCOUNTANT. Matches usesPosRoles() on the backend.
   const { hasPos } = useOrgModules()
@@ -136,6 +144,48 @@ export function UsersPage() {
       })
     },
   })
+
+  const editRolesForm = useForm<EditRolesFormData>({
+    resolver: zodResolver(editRolesSchema),
+    defaultValues: { roles: [] },
+  })
+  const editSelectedRoles = (editRolesForm.watch('roles') ?? []) as UserRole[]
+  const toggleEditRole = (role: UserRole) => {
+    const current = editSelectedRoles
+    editRolesForm.setValue(
+      'roles',
+      current.includes(role) ? current.filter((r) => r !== role) : [...current, role],
+      { shouldValidate: true },
+    )
+  }
+
+  // Backend forbids modifying your own roles, and only a Super Admin can touch an Admin account
+  // or promote someone into one — mirrored here so the edit action just isn't offered rather than
+  // opening a form that will fail on submit.
+  const canEditRoles = (target: UserData) =>
+    target.isActive &&
+    target.id !== currentUser?.id &&
+    !target.roles.includes('SUPER_ADMIN') &&
+    (!!currentUser?.roles.includes('SUPER_ADMIN') || !target.roles.includes('ADMIN'))
+
+  const updateRolesMutation = useMutation({
+    mutationFn: ({ id, roles }: { id: string; roles: UserRole[] }) => usersApi.update(id, { roles }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      toast.success('Roles updated')
+      setEditingUser(null)
+    },
+    onError: (error: any) => {
+      toast.error('Failed to update roles', {
+        description: error.response?.data?.message,
+      })
+    },
+  })
+
+  const openEditRoles = (target: UserData) => {
+    setEditingUser(target)
+    editRolesForm.reset({ roles: target.roles })
+  }
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => usersApi.delete(id),
@@ -298,6 +348,17 @@ export function UsersPage() {
                             <Send className="h-4 w-4" />
                           </Button>
                         )}
+                        {canEditRoles(user) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEditRoles(user)}
+                            title="Edit roles"
+                            className="h-8 w-8 p-0 rounded-lg"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        )}
                         {user.isActive && user.roles.every((r) => PIN_ELIGIBLE_ROLES.includes(r)) && (
                           <>
                             <Button
@@ -428,6 +489,77 @@ export function UsersPage() {
               {watch('email') ? 'Send Invitation' : 'Create Account'}
             </Button>
             <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Edit Roles Modal */}
+      <Modal
+        isOpen={!!editingUser}
+        onClose={() => {
+          setEditingUser(null)
+          editRolesForm.reset({ roles: [] })
+        }}
+        title="Edit Roles"
+        description={editingUser ? `Change what ${editingUser.firstName} ${editingUser.lastName} has access to` : undefined}
+      >
+        <form
+          onSubmit={editRolesForm.handleSubmit((data) =>
+            editingUser && updateRolesMutation.mutate({ id: editingUser.id, roles: data.roles as UserRole[] }),
+          )}
+          className="space-y-4"
+        >
+          <div className="space-y-2">
+            <Label required>Roles</Label>
+            <p className="text-xs text-muted-foreground">
+              Select one or more — a user can hold multiple roles at once, with access being the
+              union of whatever each grants.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {(() => {
+                // Union of the normally-creatable options with whatever roles this user already
+                // holds — e.g. a role that predates a module switch shouldn't just disappear from
+                // the picker and get silently dropped on save.
+                const extra = (editingUser?.roles ?? [])
+                  .filter((r) => !roleOptions.some((opt) => opt.value === r))
+                  .map((r) => ({ value: r, label: roleLabels[r] }))
+                return [...roleOptions, ...extra]
+              })().map((opt) => {
+                const selected = editSelectedRoles.includes(opt.value)
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => toggleEditRole(opt.value)}
+                    className={cn(
+                      'rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
+                      selected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+            {editRolesForm.formState.errors.roles && (
+              <p className="text-xs text-destructive">{editRolesForm.formState.errors.roles.message}</p>
+            )}
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button type="submit" isLoading={updateRolesMutation.isPending}>
+              Save Roles
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setEditingUser(null)
+                editRolesForm.reset({ roles: [] })
+              }}
+            >
               Cancel
             </Button>
           </div>

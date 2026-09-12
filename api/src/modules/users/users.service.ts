@@ -23,6 +23,7 @@ const POS_ROLES = [
   Role.WAITER,
   Role.PASS,
   Role.RUNNER,
+  Role.KITCHEN,
   Role.CASHIER,
   Role.SUPERVISOR,
   Role.MANAGER,

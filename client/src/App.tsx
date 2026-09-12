@@ -59,7 +59,6 @@ import {
   MenuCategoriesPage,
   OrderTypesPage,
   PaymentTypesPage,
-  WaitersPage,
   WaiterDetailPage,
   TablesFloorPage,
   OrderTakingPage,
@@ -234,7 +233,6 @@ function App() {
                 <Route path="/pos/categories" element={<MenuCategoriesPage />} />
                 <Route path="/pos/order-types" element={<OrderTypesPage />} />
                 <Route path="/pos/payment-types" element={<PaymentTypesPage />} />
-                <Route path="/pos/waiters" element={<WaitersPage />} />
                 <Route path="/pos/waiters/:id" element={<WaiterDetailPage />} />
                 <Route path="/pos/tables" element={<TablesFloorPage />} />
                 <Route path="/pos/order/new" element={<OrderTakingPage />} />
@@ -246,7 +244,7 @@ function App() {
                 <Route
                   element={
                     <ProtectedRoute
-                      allowedRoles={['PASS', 'RUNNER', 'MANAGER', 'SUPERVISOR', 'ADMIN', 'SUPER_ADMIN']}
+                      allowedRoles={['PASS', 'RUNNER', 'KITCHEN', 'MANAGER', 'SUPERVISOR', 'ADMIN', 'SUPER_ADMIN']}
                     />
                   }
                 >
