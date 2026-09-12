@@ -52,22 +52,42 @@ const navigationGroups = [
       { name: 'Services', href: '/settings/services', icon: ServicesIcon },
     ]
   },
+  // The old single "Restaurant POS" group held all 15 items in one flat, un-scannable list —
+  // split into the same kind of focused sub-groups the invoicing side already uses above. Every
+  // POS_NAV_GROUP_TITLES entry is filtered on `hasPos` together (see filteredNavGroups below),
+  // and any that end up empty for a restricted role are already dropped by the existing
+  // `group.items.length > 0` filter, so no extra per-role bookkeeping is needed here.
   {
-    title: 'Restaurant POS',
+    title: 'Floor Operations',
     items: [
       { name: 'Dashboard', href: '/pos/dashboard', icon: DashboardIcon, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Sell', href: '/pos/order/new', icon: ShoppingCart, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Tables', href: '/pos/tables', icon: LayoutGrid, requiresPlan: undefined as PlanTier | undefined },
+      { name: 'Orders', href: '/pos/orders', icon: Receipt, requiresPlan: undefined as PlanTier | undefined },
+      { name: 'Shift', href: '/pos/shift', icon: Clock, requiresPlan: undefined as PlanTier | undefined },
+      { name: 'Kitchen', href: '/pos/kitchen', icon: Timer, requiresPlan: undefined as PlanTier | undefined },
+      { name: 'Drinks', href: '/pos/drinks', icon: Martini, requiresPlan: undefined as PlanTier | undefined },
+    ]
+  },
+  {
+    title: 'Catalog & Setup',
+    items: [
       { name: 'Menu', href: '/pos/menu', icon: ChefHat, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Categories', href: '/pos/categories', icon: Tag, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Order Types', href: '/pos/order-types', icon: ListOrdered, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Payment Types', href: '/pos/payment-types', icon: CreditCard, requiresPlan: undefined as PlanTier | undefined },
-      { name: 'Shift', href: '/pos/shift', icon: Clock, requiresPlan: undefined as PlanTier | undefined },
-      { name: 'Orders', href: '/pos/orders', icon: Receipt, requiresPlan: undefined as PlanTier | undefined },
+    ]
+  },
+  {
+    title: 'People',
+    items: [
       { name: 'Customers', href: '/pos/customers', icon: Users, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Waiters', href: '/pos/waiters', icon: UserRound, requiresPlan: undefined as PlanTier | undefined },
-      { name: 'Kitchen', href: '/pos/kitchen', icon: Timer, requiresPlan: undefined as PlanTier | undefined },
-      { name: 'Drinks', href: '/pos/drinks', icon: Martini, requiresPlan: undefined as PlanTier | undefined },
+    ]
+  },
+  {
+    title: 'POS Insights',
+    items: [
       { name: 'Reports', href: '/pos/reports', icon: ReportsIcon, requiresPlan: undefined as PlanTier | undefined },
       { name: 'AI Chat', href: '/pos/ai-chat', icon: AiChatIcon, requiresPlan: 'PRO' as PlanTier | undefined },
     ]
@@ -86,6 +106,8 @@ const navigationGroups = [
     ]
   }
 ]
+
+const POS_NAV_GROUP_TITLES = ['Floor Operations', 'Catalog & Setup', 'People', 'POS Insights']
 
 const adminNavigation = [
   { name: 'Users', href: '/settings/users', icon: UserCog },
@@ -186,7 +208,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
   // Filter groups and items
   const filteredNavGroups = navigationGroups
-    .filter((group) => group.title !== 'Restaurant POS' || hasPos)
+    .filter((group) => !POS_NAV_GROUP_TITLES.includes(group.title) || hasPos)
     .map((group) => ({
       ...group,
       items: group.items.filter((item) => {

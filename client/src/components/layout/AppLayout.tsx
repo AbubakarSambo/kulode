@@ -164,7 +164,9 @@ export function AppLayout() {
       ] as MoreItem[],
     },
     {
-      label: 'Restaurant POS',
+      // Split from one flat 13-item "Restaurant POS" list into focused sub-groups, mirroring
+      // Sidebar.tsx's desktop grouping — kept in lockstep since this is the parallel mobile nav.
+      label: 'Floor Operations',
       items: [
         // Sell/Orders/Dashboard only live in the bottom dock for POS-only orgs (see `navItems`
         // above) — a BOTH-module org's dock shows the invoicing shortcuts instead, so these three
@@ -173,15 +175,25 @@ export function AppLayout() {
         { name: 'Sell', href: '/pos/order/new', icon: ShoppingCart, visible: hasPos },
         { name: 'Orders', href: '/pos/orders', icon: Receipt, visible: hasPos },
         { name: 'Tables', href: '/pos/tables', icon: LayoutGrid, visible: hasPos },
+        { name: 'Shift', href: '/pos/shift', icon: Clock, visible: hasPos },
         { name: 'Kitchen', href: '/pos/kitchen', icon: Timer, visible: hasPos },
         { name: 'Drinks', href: '/pos/drinks', icon: Martini, visible: hasPos },
+      ] as MoreItem[],
+    },
+    {
+      label: 'Catalog & Setup',
+      items: [
         { name: 'Menu', href: '/pos/menu', icon: ChefHat, visible: hasPos },
         { name: 'Categories', href: '/pos/categories', icon: Tag, visible: hasPos },
         { name: 'Order Types', href: '/pos/order-types', icon: ListOrdered, visible: hasPos },
         { name: 'Payment Types', href: '/pos/payment-types', icon: CreditCard, visible: hasPos },
-        { name: 'Waiters', href: '/pos/waiters', icon: UserRound, visible: hasPos },
-        { name: 'Shift', href: '/pos/shift', icon: Clock, visible: hasPos },
+      ] as MoreItem[],
+    },
+    {
+      label: 'People',
+      items: [
         { name: 'Customers', href: '/pos/customers', icon: UserRound, visible: hasPos },
+        { name: 'Waiters', href: '/pos/waiters', icon: UserRound, visible: hasPos },
       ] as MoreItem[],
     },
     {
