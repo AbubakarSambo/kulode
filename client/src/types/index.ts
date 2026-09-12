@@ -459,6 +459,7 @@ export interface RestaurantTable {
   capacity: number
   status: TableStatus
   isActive: boolean
+  sortOrder: number
 }
 
 export interface OrderItem {

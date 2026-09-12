@@ -24,6 +24,7 @@ const tableSchema = z.object({
   name: z.string().min(1, 'Table name is required'),
   section: z.string().optional(),
   capacity: z.number().min(1).optional(),
+  sortOrder: z.number().optional(),
 })
 type TableFormData = z.infer<typeof tableSchema>
 
@@ -129,6 +130,13 @@ export function TablesFloorPage() {
 
   const form = useForm<TableFormData>({ resolver: zodResolver(tableSchema) })
 
+  const openCreate = () => {
+    // Defaults a new table to the end of the current arrangement rather than 0, so it doesn't
+    // jump to the front of an already-arranged floor plan.
+    form.reset({ name: '', section: '', capacity: undefined, sortOrder: tables?.length ?? 0 })
+    setCreateOpen(true)
+  }
+
   const createTable = useMutation({
     mutationFn: (data: TableFormData) => tablesApi.create(data),
     onSuccess: () => {
@@ -160,7 +168,7 @@ export function TablesFloorPage() {
   })
 
   const openEdit = (table: RestaurantTable) => {
-    editForm.reset({ name: table.name, section: table.section ?? '', capacity: table.capacity ?? undefined })
+    editForm.reset({ name: table.name, section: table.section ?? '', capacity: table.capacity ?? undefined, sortOrder: table.sortOrder })
     setEditingTable(table)
   }
 
@@ -217,7 +225,7 @@ export function TablesFloorPage() {
         icon={UtensilsCrossed}
         action={
           canManageTables ? (
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Button size="sm" onClick={openCreate}>
               <Plus className="mr-1.5 h-4 w-4" /> Add Table
             </Button>
           ) : undefined
@@ -231,7 +239,7 @@ export function TablesFloorPage() {
             title="No tables yet"
             description="Add your restaurant's tables to start taking dine-in orders"
             actionLabel={canManageTables ? 'Add Table' : undefined}
-            onAction={canManageTables ? () => setCreateOpen(true) : undefined}
+            onAction={canManageTables ? openCreate : undefined}
           />
         ) : (
           <div className="space-y-6">
@@ -352,6 +360,14 @@ export function TablesFloorPage() {
               placeholder="2"
             />
           </div>
+          <div>
+            <Label>Sort Order</Label>
+            <Input
+              type="number"
+              {...form.register('sortOrder', { setValueAs: (v) => (v === '' ? undefined : Number(v)) })}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">Lower numbers show first on the Tables floor grid.</p>
+          </div>
           <Button type="submit" className="w-full" isLoading={createTable.isPending}>
             Add Table
           </Button>
@@ -389,6 +405,14 @@ export function TablesFloorPage() {
               {...editForm.register('capacity', { setValueAs: (v) => (v === '' ? undefined : Number(v)) })}
               placeholder="2"
             />
+          </div>
+          <div>
+            <Label>Sort Order</Label>
+            <Input
+              type="number"
+              {...editForm.register('sortOrder', { setValueAs: (v) => (v === '' ? undefined : Number(v)) })}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">Lower numbers show first on the Tables floor grid.</p>
           </div>
           <Button type="submit" className="w-full" isLoading={updateTable.isPending}>
             Save Changes

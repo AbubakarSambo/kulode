@@ -24,4 +24,9 @@ export class UpdateTableDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({ description: 'Manual display order on the floor plan grid — lower shows first' })
+  @IsOptional()
+  @IsInt()
+  sortOrder?: number;
 }

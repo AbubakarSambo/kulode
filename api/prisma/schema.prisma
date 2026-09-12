@@ -937,6 +937,10 @@ model RestaurantTable {
   capacity       Int         @default(2)
   status         TableStatus @default(AVAILABLE)
   isActive       Boolean     @default(true) @map("is_active")
+  // Manual display order on the floor plan grid — same free-form pattern as MenuCategory/
+  // OrderType/PaymentType, so staff can arrange tables to match the room layout instead of
+  // always seeing them alphabetically.
+  sortOrder      Int         @default(0) @map("sort_order")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

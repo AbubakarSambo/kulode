@@ -5,6 +5,7 @@ export interface CreateTableData {
   name: string
   section?: string
   capacity?: number
+  sortOrder?: number
 }
 
 export interface UpdateTableData {
@@ -12,6 +13,7 @@ export interface UpdateTableData {
   section?: string
   capacity?: number
   isActive?: boolean
+  sortOrder?: number
 }
 
 export const tablesApi = {

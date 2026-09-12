@@ -19,4 +19,9 @@ export class CreateTableDto {
   @IsInt()
   @Min(1)
   capacity?: number;
+
+  @ApiPropertyOptional({ description: 'Manual display order on the floor plan grid — lower shows first' })
+  @IsOptional()
+  @IsInt()
+  sortOrder?: number;
 }
