@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import OpenAI from 'openai';
 
 type FunctionToolCall = { type: 'function'; id: string; function: { name: string; arguments: string } };
@@ -246,10 +246,23 @@ const INSIGHTS_TOOL: OpenAI.Chat.ChatCompletionTool = {
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
-  private readonly client = new OpenAI({
-    apiKey: process.env.DEEPSEEK_API_KEY,
-    baseURL: 'https://api.deepseek.com',
-  });
+  // Built lazily, on first actual use — constructing this eagerly (as a field initializer) threw
+  // at app boot whenever DEEPSEEK_API_KEY was unset, taking down the entire API over one optional
+  // feature (unlike EmailService's graceful mock mode). Missing the key now only fails the AI
+  // endpoints themselves, with a clear error, instead of crashing startup.
+  private _client: OpenAI | undefined;
+  private get client(): OpenAI {
+    if (!this._client) {
+      if (!process.env.DEEPSEEK_API_KEY) {
+        throw new ServiceUnavailableException('AI features are not configured on this environment (DEEPSEEK_API_KEY missing)');
+      }
+      this._client = new OpenAI({
+        apiKey: process.env.DEEPSEEK_API_KEY,
+        baseURL: 'https://api.deepseek.com',
+      });
+    }
+    return this._client;
+  }
 
   constructor(
     private readonly reportsService: ReportsService,
