@@ -176,11 +176,18 @@ export class MoniepointService {
       throw new InternalServerErrorException('MONIEPOINT_WEBHOOK_BASE_URL is not configured for this environment');
     }
 
-    const accessToken = await this.getAccessToken(organizationId, organization.moniepointClientId, organization.moniepointClientSecretEncrypted);
+    // api.pos.moniepoint.com (introspect, webhook-subscriptions, transactions) takes the raw
+    // clientSecret directly as the Bearer value — Moniepoint's own app literally labels it "Your
+    // API Key" on the credentials-generated screen, and this host's error for the OAuth access
+    // token from channel.moniepoint.com's /v1/auth was "Invalid key provided.". No token exchange
+    // for this host; getAccessToken()/the channel host's /v1/auth is a separate, apparently
+    // legacy flow that may only apply there (kept around, unused by these two calls, in case
+    // that turns out wrong).
+    const apiKey = decryptSecret(organization.moniepointClientSecretEncrypted, this.encryptionKey);
 
     let businessId = organization.moniepointBusinessId ?? undefined;
     if (!businessId) {
-      businessId = (await this.fetchBusinessIdFromIntrospect(accessToken)) ?? undefined;
+      businessId = (await this.fetchBusinessIdFromIntrospect(apiKey)) ?? undefined;
       if (businessId) {
         this.logger.log(`Detected businessId ${businessId} from GET /v1/introspect for org ${organizationId}`);
         await this.prisma.organization.update({ where: { id: organizationId }, data: { moniepointBusinessId: businessId } });
@@ -207,7 +214,7 @@ export class MoniepointService {
         // real values (confirmed up to 10 digits) are well within JS's safe-integer range.
         businessId: Number(businessId),
       },
-      accessToken,
+      apiKey,
       'POST',
       this.posApiBaseUrl,
     );
@@ -222,24 +229,21 @@ export class MoniepointService {
   }
 
   /**
-   * Looks up the business(es) associated with these credentials via Moniepoint's documented
-   * Key Introspection endpoint — confirmed to return a `businesses: [{ id, businessName }]`
-   * array, unlike the access token itself (an OAuth2 client-credentials token with no
-   * business-specific claims — confirmed empirically, see commit history). Lives on a different
-   * host (posApiBaseUrl, shared with webhook-subscriptions) than auth/transactions — confirmed via a 404 when
-   * this was first tried on the "channel" host. That other host is itself an unconfirmed guess at
-   * the production equivalent of Moniepoint's own dev-docs example host, so this fails closed
-   * (returns null, logged) on ANY error rather than throwing — a wrong guess here should degrade
-   * to the manual businessId field, not break the whole webhook subscription flow. If more than
-   * one business is linked to these credentials we also bail out rather than picking arbitrarily.
+   * Looks up the business(es) associated with this API Key via Moniepoint's documented Key
+   * Introspection endpoint — confirmed to return a `businesses: [{ id, businessName }]` array.
+   * Lives on posApiBaseUrl (confirmed from docs.pos.moniepoint.com), authenticated with the raw
+   * clientSecret/"API Key" directly as the Bearer value — not an OAuth token (see subscribeToWebhook).
+   * Fails closed (returns null, logged) on ANY error rather than throwing — a wrong guess here
+   * should degrade to the manual businessId field, not break the whole webhook subscription flow.
+   * If more than one business is linked to this key we also bail out rather than picking arbitrarily.
    */
-  private async fetchBusinessIdFromIntrospect(accessToken: string): Promise<string | null> {
+  private async fetchBusinessIdFromIntrospect(apiKey: string): Promise<string | null> {
     let result: { businesses?: { id: number; businessName: string }[] };
     try {
       result = await this.makeRequest<{ businesses?: { id: number; businessName: string }[] }>(
         '/v1/introspect',
         undefined,
-        accessToken,
+        apiKey,
         'GET',
         this.posApiBaseUrl,
       );
@@ -446,12 +450,11 @@ export class MoniepointService {
     }
 
     try {
-      const accessToken = await this.getAccessToken(organizationId, organization.moniepointClientId!, organization.moniepointClientSecretEncrypted!);
-      // Also on posApiBaseUrl, not the "channel" host — confirmed from Moniepoint's real
-      // interactive API docs (docs.pos.moniepoint.com), which list Transactions under server
-      // https://api.pos.moniepoint.com alongside Introspection and Webhook Subscriptions. This
-      // was never exercised for real before (only mock mode), so it would have hit the same
-      // wrong-host 404 the other two calls did.
+      // On posApiBaseUrl, authenticated with the raw clientSecret/"API Key" directly as the
+      // Bearer value — not an OAuth token from channel.moniepoint.com/v1/auth. See
+      // subscribeToWebhook for why (Moniepoint's own app literally labels this value "Your API
+      // Key", and that host's own error for an OAuth token was "Invalid key provided.").
+      const apiKey = decryptSecret(organization.moniepointClientSecretEncrypted!, this.encryptionKey);
       await this.makeRequest(
         '/v1/transactions',
         {
@@ -460,7 +463,7 @@ export class MoniepointService {
           merchantReference,
           transactionType: 'PURCHASE',
         },
-        accessToken,
+        apiKey,
         'POST',
         this.posApiBaseUrl,
       );
