@@ -1,13 +1,13 @@
 import { Module, Global } from '@nestjs/common';
 import { ConfigModule as NestConfigModule } from '@nestjs/config';
-import { appConfig, databaseConfig, jwtConfig, resendConfig, paystackConfig, googleConfig, googleSheetsConfig, whatsappConfig } from './configuration';
+import { appConfig, databaseConfig, jwtConfig, resendConfig, paystackConfig, moniepointConfig, googleConfig, googleSheetsConfig, whatsappConfig } from './configuration';
 
 @Global()
 @Module({
   imports: [
     NestConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, jwtConfig, resendConfig, paystackConfig, googleConfig, googleSheetsConfig, whatsappConfig],
+      load: [appConfig, databaseConfig, jwtConfig, resendConfig, paystackConfig, moniepointConfig, googleConfig, googleSheetsConfig, whatsappConfig],
       envFilePath: ['.env.local', '.env'],
     }),
   ],

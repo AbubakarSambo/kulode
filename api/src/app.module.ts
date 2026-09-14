@@ -12,6 +12,7 @@ import { InvoicesModule } from './modules/invoices';
 import { PaymentsModule } from './modules/payments';
 import { ExpensesModule } from './modules/expenses';
 import { PaystackModule } from './modules/paystack';
+import { MoniepointModule } from './modules/moniepoint';
 import { ReportsModule } from './modules/reports';
 import { VendorsModule } from './modules/vendors';
 import { PlatformModule } from './modules/platform';
@@ -60,6 +61,7 @@ import {
     PaymentsModule,
     ExpensesModule,
     PaystackModule,
+    MoniepointModule,
     ReportsModule,
     VendorsModule,
     PlatformModule,
