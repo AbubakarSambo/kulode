@@ -544,7 +544,11 @@ export class OrdersService {
     // table/customer/waiter/payments/menuItem.categories graph `orderInclude` pulls in for reads.
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, organizationId },
-      select: { id: true, status: true, items: { select: { id: true, status: true } } },
+      select: {
+        id: true,
+        status: true,
+        items: { select: { id: true, status: true, menuItemId: true, quantity: true } },
+      },
     });
     if (!order) throw new NotFoundException('Order not found');
 
@@ -572,17 +576,33 @@ export class OrdersService {
     };
     const timestampField = transitionTimestampField[dto.status];
 
-    // Batched into one round trip (each `await this.prisma.X` is a separate network hop against
-    // the hosted DB — that's what was turning this endpoint into a multi-second wait in prod).
-    await this.prisma.$transaction([
-      this.prisma.orderItem.update({
+    // Only fires once, on the transition *into* SERVED (not on a resend of the same status) —
+    // a recipe-bearing menu item gets its ingredients deducted here; one without a recipe is a
+    // no-op (still covered by the legacy close-time deductForOrder path).
+    const shouldDeductStock = dto.status === 'SERVED' && item.status !== 'SERVED' && item.menuItemId;
+
+    // Interactive transaction (rather than the previous flat array) because recipe deduction has
+    // to read-then-write onHandQuantity, not just fire unconditional updates.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.orderItem.update({
         where: { id: itemId },
         data: { status: dto.status, ...(timestampField && { [timestampField]: new Date() }) },
-      }),
-      ...(willTransitionOrder
-        ? [this.prisma.order.update({ where: { id: orderId }, data: { status: newOrderStatus } })]
-        : []),
-    ]);
+      });
+
+      if (willTransitionOrder) {
+        await tx.order.update({ where: { id: orderId }, data: { status: newOrderStatus } });
+      }
+
+      if (shouldDeductStock) {
+        await this.inventoryService.deductRecipeForOrderItem(
+          tx,
+          organizationId,
+          orderId,
+          item.menuItemId!,
+          toNumber(item.quantity),
+        );
+      }
+    });
 
     return { ...order, items, status: willTransitionOrder ? newOrderStatus! : order.status };
   }

@@ -1,6 +1,15 @@
 import apiClient from './client'
 import type { ApiResponse, MenuCategory, MenuCategoryKind, MenuItem } from '@/types'
 
+export interface MenuItemIngredientInput {
+  inventoryItemId: string
+  quantityPerUnit: number
+}
+
+export interface SetMenuItemIngredientsData {
+  ingredients: MenuItemIngredientInput[]
+}
+
 export interface CreateMenuCategoryData {
   name: string
   sortOrder?: number
@@ -102,5 +111,9 @@ export const menuItemsApi = {
   },
   delete: async (id: string): Promise<void> => {
     await apiClient.delete(`/menu-items/${id}`)
+  },
+  setIngredients: async (id: string, data: SetMenuItemIngredientsData): Promise<MenuItem> => {
+    const response = await apiClient.patch<ApiResponse<MenuItem>>(`/menu-items/${id}/ingredients`, data)
+    return response.data.data
   },
 }

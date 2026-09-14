@@ -5,7 +5,14 @@ import {
   UpdateMenuCategoryDto,
   CreateMenuItemDto,
   UpdateMenuItemDto,
+  SetMenuItemIngredientsDto,
 } from './dto';
+
+const ingredientsInclude = {
+  ingredients: {
+    include: { inventoryItem: { select: { id: true, name: true, sku: true } } },
+  },
+} as const;
 
 @Injectable()
 export class MenuService {
@@ -76,18 +83,24 @@ export class MenuService {
     const items = await this.prisma.menuItem.findMany({
       where: { organizationId, ...(categoryId && { categories: { some: { categoryId } } }) },
       orderBy: { name: 'asc' },
-      include: { categories: { include: { category: { select: { id: true, name: true } } } } },
+      include: {
+        categories: { include: { category: { select: { id: true, name: true } } } },
+        ...ingredientsInclude,
+      },
     });
-    return items.map(this.flattenCategories);
+    return items.map((item) => this.flattenIngredients(this.flattenCategories(item)));
   }
 
   async findOneItem(organizationId: string, id: string) {
     const item = await this.prisma.menuItem.findFirst({
       where: { id, organizationId },
-      include: { categories: { include: { category: { select: { id: true, name: true } } } } },
+      include: {
+        categories: { include: { category: { select: { id: true, name: true } } } },
+        ...ingredientsInclude,
+      },
     });
     if (!item) throw new NotFoundException('Menu item not found');
-    return this.flattenCategories(item);
+    return this.flattenIngredients(this.flattenCategories(item));
   }
 
   async getItemHistory(organizationId: string, id: string) {
@@ -142,6 +155,26 @@ export class MenuService {
     return { ...rest, categories: categories.map((c) => c.category) };
   }
 
+  private flattenIngredients<
+    T extends {
+      ingredients: {
+        quantityPerUnit: unknown;
+        inventoryItem: { id: string; name: string; sku: string | null };
+      }[];
+    },
+  >(item: T) {
+    const { ingredients, ...rest } = item;
+    return {
+      ...rest,
+      ingredients: ingredients.map((line) => ({
+        inventoryItemId: line.inventoryItem.id,
+        name: line.inventoryItem.name,
+        sku: line.inventoryItem.sku,
+        quantityPerUnit: Number(line.quantityPerUnit),
+      })),
+    };
+  }
+
   private async validateCategoryIds(organizationId: string, categoryIds: string[]) {
     if (categoryIds.length === 0) return;
     const count = await this.prisma.menuCategory.count({
@@ -150,6 +183,42 @@ export class MenuService {
     if (count !== new Set(categoryIds).size) {
       throw new NotFoundException('One or more menu categories not found');
     }
+  }
+
+  // Replaces a menu item's full recipe. Same delete-all-then-recreate shape as categories, but
+  // as its own endpoint (not folded into create/update item) since a recipe carries per-line data
+  // (quantityPerUnit) and needs its inventory item ids validated against the org.
+  async setIngredients(organizationId: string, menuItemId: string, dto: SetMenuItemIngredientsDto) {
+    const item = await this.prisma.menuItem.findFirst({ where: { id: menuItemId, organizationId } });
+    if (!item) throw new NotFoundException('Menu item not found');
+
+    const inventoryItemIds = dto.ingredients.map((line) => line.inventoryItemId);
+    if (inventoryItemIds.length > 0) {
+      const count = await this.prisma.inventoryItem.count({
+        where: { id: { in: inventoryItemIds }, organizationId, isActive: true },
+      });
+      if (count !== new Set(inventoryItemIds).size) {
+        throw new NotFoundException('One or more inventory items not found');
+      }
+    }
+
+    const updated = await this.prisma.menuItem.update({
+      where: { id: menuItemId },
+      data: {
+        ingredients: {
+          deleteMany: {},
+          create: dto.ingredients.map((line) => ({
+            inventoryItemId: line.inventoryItemId,
+            quantityPerUnit: line.quantityPerUnit,
+          })),
+        },
+      },
+      include: {
+        categories: { include: { category: { select: { id: true, name: true } } } },
+        ...ingredientsInclude,
+      },
+    });
+    return this.flattenIngredients(this.flattenCategories(updated));
   }
 
   async createItem(organizationId: string, dto: CreateMenuItemDto) {
@@ -174,9 +243,12 @@ export class MenuService {
         durationMinutes: dto.durationMinutes,
         categories: { create: categoryIds.map((categoryId) => ({ categoryId })) },
       },
-      include: { categories: { include: { category: { select: { id: true, name: true } } } } },
+      include: {
+        categories: { include: { category: { select: { id: true, name: true } } } },
+        ...ingredientsInclude,
+      },
     });
-    return this.flattenCategories(item);
+    return this.flattenIngredients(this.flattenCategories(item));
   }
 
   async updateItem(organizationId: string, id: string, dto: UpdateMenuItemDto) {
@@ -213,9 +285,12 @@ export class MenuService {
           },
         }),
       },
-      include: { categories: { include: { category: { select: { id: true, name: true } } } } },
+      include: {
+        categories: { include: { category: { select: { id: true, name: true } } } },
+        ...ingredientsInclude,
+      },
     });
-    return this.flattenCategories(updated);
+    return this.flattenIngredients(this.flattenCategories(updated));
   }
 
   async removeItem(organizationId: string, id: string) {

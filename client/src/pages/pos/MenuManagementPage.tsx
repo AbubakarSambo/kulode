@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Upload, LayoutGrid, List, Search } from 'lucide-react'
+import { Plus, Pencil, Trash2, Upload, LayoutGrid, List, Search, CookingPot } from 'lucide-react'
 import { ChefHatIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, Badge, ConfirmDialog, EmptyState } from '@/components/ui'
@@ -293,6 +293,12 @@ export function MenuManagementPage() {
                     )}
                   </div>
                   <span className="shrink-0 font-semibold text-foreground">{formatCurrency(item.price)}</span>
+                  <Badge variant={item.ingredients.length > 0 ? 'secondary' : 'warning'} className="shrink-0 gap-1">
+                    <CookingPot className="h-3 w-3" />
+                    {item.ingredients.length > 0
+                      ? `${item.ingredients.length} ingredient${item.ingredients.length === 1 ? '' : 's'}`
+                      : 'No recipe'}
+                  </Badge>
                   {canManage ? (
                     <button
                       onClick={(e) => {
@@ -391,6 +397,14 @@ export function MenuManagementPage() {
                     )}
                   </div>
                   {item.description && <p className="mt-2 text-sm text-muted-foreground">{item.description}</p>}
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <Badge variant={item.ingredients.length > 0 ? 'secondary' : 'warning'} className="gap-1">
+                      <CookingPot className="h-3 w-3" />
+                      {item.ingredients.length > 0
+                        ? `${item.ingredients.length} ingredient${item.ingredients.length === 1 ? '' : 's'}`
+                        : 'No recipe'}
+                    </Badge>
+                  </div>
                   <div className="mt-auto flex items-center justify-between pt-3">
                     <span className="text-lg font-bold text-foreground">{formatCurrency(item.price)}</span>
                     {canManage ? (

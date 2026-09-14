@@ -441,6 +441,13 @@ export interface PaymentType {
   isActive: boolean
 }
 
+export interface MenuItemIngredient {
+  inventoryItemId: string
+  name: string
+  sku?: string
+  quantityPerUnit: number
+}
+
 export interface MenuItem {
   id: string
   name: string
@@ -451,6 +458,7 @@ export interface MenuItem {
   imageUrl?: string
   isAvailable: boolean
   durationMinutes?: number
+  ingredients: MenuItemIngredient[]
 }
 
 export interface RestaurantTable {
