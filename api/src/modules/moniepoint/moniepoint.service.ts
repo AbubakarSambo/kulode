@@ -68,6 +68,10 @@ export class MoniepointService {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
+        // GlobalExceptionFilter only logs unhandled errors, not thrown HttpExceptions like this
+        // one — without logging it here ourselves, a failed Moniepoint call (bad clientSecret,
+        // invalid terminalSerial, businessId not found, ...) leaves zero server-side trace.
+        this.logger.error(`Moniepoint API error on ${endpoint}: status=${response.status} message="${data?.message}" body=${JSON.stringify(data)}`);
         throw new BadRequestException(data?.message || `Moniepoint API error (${response.status})`);
       }
       return data as T;
@@ -123,7 +127,9 @@ export class MoniepointService {
     }
 
     return {
-      isSetup: !!(organization.moniepointClientId && organization.moniepointTerminalSerial && organization.moniepointBusinessId),
+      // businessId deliberately excluded — it's usually only known after subscribeToWebhook
+      // auto-detects it from the access token, which happens after this is already "set up".
+      isSetup: !!(organization.moniepointClientId && organization.moniepointTerminalSerial),
       terminalSerial: organization.moniepointTerminalSerial,
       isWebhookSubscribed: !!organization.moniepointWebhookSubscriptionId,
       hasWebhookSecret: !!organization.moniepointWebhookSecretEncrypted,
@@ -159,7 +165,7 @@ export class MoniepointService {
     if (!organization) {
       throw new NotFoundException('Organization not found');
     }
-    if (!organization.moniepointClientId || !organization.moniepointClientSecretEncrypted || !organization.moniepointBusinessId) {
+    if (!organization.moniepointClientId || !organization.moniepointClientSecretEncrypted) {
       throw new BadRequestException('Moniepoint POS is not set up for this organization');
     }
 
@@ -169,6 +175,22 @@ export class MoniepointService {
     }
 
     const accessToken = await this.getAccessToken(organizationId, organization.moniepointClientId, organization.moniepointClientSecretEncrypted);
+
+    let businessId = organization.moniepointBusinessId ?? undefined;
+    if (!businessId) {
+      businessId = this.extractBusinessIdFromToken(accessToken) ?? undefined;
+      if (businessId) {
+        this.logger.log(`Detected businessId ${businessId} from access token claims for org ${organizationId}`);
+        await this.prisma.organization.update({ where: { id: organizationId }, data: { moniepointBusinessId: businessId } });
+      }
+    }
+    if (!businessId) {
+      this.logger.error(`Could not extract businessId from access token claims for org ${organizationId} — webhook subscription blocked`);
+      throw new BadRequestException(
+        "Couldn't determine your Moniepoint businessId automatically from the access token. Please re-run setup with businessId set explicitly (find it via Moniepoint support if it's not visible in your dashboard).",
+      );
+    }
+
     const endpointUrl = `${webhookBaseUrl.replace(/\/$/, '')}/api/v1/webhooks/moniepoint`;
 
     const subscription = await this.makeRequest<{ id: string; endpointUrl: string; eventTypes: string[]; status: string }>(
@@ -176,7 +198,7 @@ export class MoniepointService {
       {
         endpointUrl,
         eventTypes: [WEBHOOK_EVENT_TYPE],
-        businessId: organization.moniepointBusinessId,
+        businessId,
       },
       accessToken,
     );
@@ -188,6 +210,32 @@ export class MoniepointService {
 
     this.logger.log(`Moniepoint webhook subscription ${subscription.id} created for org ${organizationId} -> ${endpointUrl}`);
     return subscription;
+  }
+
+  /**
+   * Best-effort extraction of a business/account id from the OAuth access token's own claims —
+   * avoids making the restaurant hunt for a "businessId" number that, per Moniepoint's docs, only
+   * ever showed up inside an API response (never confirmed visible anywhere in their app UI).
+   * We don't verify the token's signature here — it just came directly from Moniepoint over HTTPS
+   * via our own /v1/auth call, so it's trusted as-is; we're only reading its payload, not using it
+   * for authorization. Tries several plausible claim names since the real one isn't documented.
+   */
+  private extractBusinessIdFromToken(accessToken: string): number | null {
+    const parts = accessToken.split('.');
+    if (parts.length !== 3) return null; // not a JWT
+
+    try {
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+      const candidateKeys = ['businessId', 'business_id', 'business', 'businessID', 'bizId'];
+      for (const key of candidateKeys) {
+        const value = payload?.[key];
+        if (typeof value === 'number' && Number.isInteger(value)) return value;
+        if (typeof value === 'string' && /^\d+$/.test(value)) return parseInt(value, 10);
+      }
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -385,9 +433,11 @@ export class MoniepointService {
         accessToken,
       );
     } catch (error) {
+      const failureReason = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Moniepoint push failed for order ${orderId} (ref ${merchantReference}): ${failureReason}`);
       await this.prisma.moniepointTransaction.update({
         where: { id: transaction.id },
-        data: { status: 'FAILED', failureReason: error instanceof Error ? error.message : 'Unknown error', completedAt: new Date() },
+        data: { status: 'FAILED', failureReason, completedAt: new Date() },
       });
       throw error;
     }

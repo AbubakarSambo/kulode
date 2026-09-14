@@ -14,10 +14,12 @@ const setupSchema = z.object({
   clientId: z.string().min(1, 'clientId is required'),
   clientSecret: z.string().min(1, 'clientSecret is required'),
   terminalSerial: z.string().min(1, 'Terminal serial is required'),
+  // Optional — we try to auto-detect this from the access token when subscribing to the
+  // webhook. Only fill this in if that auto-detection fails.
   businessId: z
     .string()
-    .min(1, 'businessId is required')
-    .refine((val) => Number.isInteger(Number(val)) && Number(val) > 0, 'businessId must be a whole number'),
+    .optional()
+    .refine((val) => !val || (Number.isInteger(Number(val)) && Number(val) > 0), 'businessId must be a whole number'),
 })
 
 type SetupFormData = z.infer<typeof setupSchema>
@@ -58,7 +60,8 @@ export function MoniepointPage() {
   })
 
   const setupMutation = useMutation({
-    mutationFn: (data: SetupFormData) => moniepointApi.setup({ ...data, businessId: Number(data.businessId) }),
+    mutationFn: (data: SetupFormData) =>
+      moniepointApi.setup({ ...data, businessId: data.businessId ? Number(data.businessId) : undefined }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['moniepoint-status'] })
       setIsEditing(false)
@@ -268,13 +271,13 @@ export function MoniepointPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="businessId" required className="text-sm font-semibold text-foreground">
-                      Business ID
+                    <Label htmlFor="businessId" className="text-sm font-semibold text-foreground">
+                      Business ID <span className="font-normal text-muted-foreground">(optional — usually auto-detected)</span>
                     </Label>
                     <Input
                       id="businessId"
                       inputMode="numeric"
-                      placeholder="Shown alongside Client ID on the same screen"
+                      placeholder="Leave blank unless webhook subscription fails to auto-detect it"
                       {...registerSetup('businessId')}
                       error={setupErrors.businessId?.message}
                     />

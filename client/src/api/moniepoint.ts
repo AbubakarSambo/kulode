@@ -12,7 +12,7 @@ export interface MoniepointSetupData {
   clientId: string
   clientSecret: string
   terminalSerial: string
-  businessId: number
+  businessId?: number
 }
 
 export const moniepointApi = {
