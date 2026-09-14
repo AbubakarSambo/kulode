@@ -55,16 +55,16 @@ export class MoniepointService {
     return this.configService.get<boolean>('moniepoint.mockMode') === true;
   }
 
-  private async makeRequest<T>(endpoint: string, body: unknown, accessToken?: string): Promise<T> {
+  private async makeRequest<T>(endpoint: string, body: unknown, accessToken?: string, method: 'GET' | 'POST' = 'POST'): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     try {
       const response = await fetch(url, {
-        method: 'POST',
+        method,
         headers: {
           'Content-Type': 'application/json',
           ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
         },
-        body: JSON.stringify(body),
+        ...(method === 'POST' && { body: JSON.stringify(body) }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -178,16 +178,16 @@ export class MoniepointService {
 
     let businessId = organization.moniepointBusinessId ?? undefined;
     if (!businessId) {
-      businessId = this.extractBusinessIdFromToken(accessToken) ?? undefined;
+      businessId = (await this.fetchBusinessIdFromIntrospect(accessToken)) ?? undefined;
       if (businessId) {
-        this.logger.log(`Detected businessId ${businessId} from access token claims for org ${organizationId}`);
+        this.logger.log(`Detected businessId ${businessId} from GET /v1/introspect for org ${organizationId}`);
         await this.prisma.organization.update({ where: { id: organizationId }, data: { moniepointBusinessId: businessId } });
       }
     }
     if (!businessId) {
-      this.logger.error(`Could not extract businessId from access token claims for org ${organizationId} — webhook subscription blocked`);
+      this.logger.error(`Could not determine businessId via GET /v1/introspect for org ${organizationId} — webhook subscription blocked`);
       throw new BadRequestException(
-        "Couldn't determine your Moniepoint businessId automatically from the access token. Please re-run setup with businessId set explicitly (find it via Moniepoint support if it's not visible in your dashboard).",
+        "Couldn't determine your Moniepoint businessId automatically. Please re-run setup with businessId set explicitly (find it via Moniepoint support if it's not visible in your dashboard).",
       );
     }
 
@@ -213,37 +213,34 @@ export class MoniepointService {
   }
 
   /**
-   * Best-effort extraction of a business/account id from the OAuth access token's own claims —
-   * avoids making the restaurant hunt for a "businessId" number that, per Moniepoint's docs, only
-   * ever showed up inside an API response (never confirmed visible anywhere in their app UI).
-   * We don't verify the token's signature here — it just came directly from Moniepoint over HTTPS
-   * via our own /v1/auth call, so it's trusted as-is; we're only reading its payload, not using it
-   * for authorization. Tries several plausible claim names since the real one isn't documented.
+   * Looks up the business(es) associated with these credentials via Moniepoint's documented
+   * Key Introspection endpoint — confirmed to return a `businesses: [{ id, businessName }]`
+   * array, unlike the access token itself (an OAuth2 client-credentials token with no
+   * business-specific claims — confirmed empirically, see commit history). If more than one
+   * business is linked to these credentials we can't safely guess which one to use, so we bail
+   * out and require the manual businessId field instead of picking arbitrarily.
    */
-  private extractBusinessIdFromToken(accessToken: string): number | null {
-    const parts = accessToken.split('.');
-    if (parts.length !== 3) return null; // not a JWT
+  private async fetchBusinessIdFromIntrospect(accessToken: string): Promise<number | null> {
+    const result = await this.makeRequest<{ businesses?: { id: number; businessName: string }[] }>(
+      '/v1/introspect',
+      undefined,
+      accessToken,
+      'GET',
+    );
 
-    try {
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-      const candidateKeys = ['businessId', 'business_id', 'business', 'businessID', 'bizId'];
-      for (const key of candidateKeys) {
-        const value = payload?.[key];
-        if (typeof value === 'number' && Number.isInteger(value)) return value;
-        if (typeof value === 'string' && /^\d+$/.test(value)) return parseInt(value, 10);
-      }
-      // None of the guessed claim names matched — log the real claim names, plus the values of
-      // OAuth2-standard scope/authorities claims specifically (not secrets — just role/scope
-      // metadata) in case a business id is embedded in one of those as a composite string.
-      this.logger.warn(
-        `businessId not found in token claims. Available claim keys: ${Object.keys(payload ?? {}).join(', ')}. ` +
-          `scope=${JSON.stringify(payload?.scope)} authorities=${JSON.stringify(payload?.authorities)} aud=${JSON.stringify(payload?.aud)}`,
-      );
-      return null;
-    } catch (err) {
-      this.logger.warn(`Access token is not a decodable JWT — could not inspect claims for businessId: ${err instanceof Error ? err.message : 'unknown error'}`);
+    const businesses = result?.businesses ?? [];
+    if (businesses.length === 0) {
+      this.logger.warn('GET /v1/introspect returned no linked businesses for these credentials');
       return null;
     }
+    if (businesses.length > 1) {
+      this.logger.warn(
+        `GET /v1/introspect returned ${businesses.length} linked businesses — can't safely auto-select one. ` +
+          `Businesses: ${businesses.map((b) => `${b.id} (${b.businessName})`).join(', ')}`,
+      );
+      return null;
+    }
+    return businesses[0].id;
   }
 
   /**
