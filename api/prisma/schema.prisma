@@ -207,11 +207,19 @@ model Organization {
   // is encrypted at rest (see EncryptionService); clientId/terminalSerial are not secret but are
   // meaningless without it. accessToken/accessTokenExpiresAt cache the OAuth token from POST
   // /v1/auth so we don't re-authenticate on every push.
-  moniepointClientId              String?   @map("moniepoint_client_id")
-  moniepointClientSecretEncrypted String?   @map("moniepoint_client_secret_encrypted")
-  moniepointTerminalSerial        String?   @map("moniepoint_terminal_serial")
-  moniepointAccessToken           String?   @map("moniepoint_access_token")
-  moniepointAccessTokenExpiresAt  DateTime? @map("moniepoint_access_token_expires_at")
+  moniepointClientId               String?   @map("moniepoint_client_id")
+  moniepointClientSecretEncrypted  String?   @map("moniepoint_client_secret_encrypted")
+  moniepointTerminalSerial         String?   @map("moniepoint_terminal_serial")
+  moniepointAccessToken            String?   @map("moniepoint_access_token")
+  moniepointAccessTokenExpiresAt   DateTime? @map("moniepoint_access_token_expires_at")
+  // businessId (integer) is separate from clientId — required by POST /v1/webhook-subscriptions.
+  // webhookSecret is NOT returned by that call; Moniepoint only shows it once in their dashboard's
+  // subscription menu after creation, so it's entered manually via a follow-up endpoint — same
+  // "encrypted, entered once" treatment as clientSecret. webhookSubscriptionId is Moniepoint's id
+  // for the created subscription (lets us manage/replace it later).
+  moniepointBusinessId             Int?      @map("moniepoint_business_id")
+  moniepointWebhookSecretEncrypted String?   @map("moniepoint_webhook_secret_encrypted")
+  moniepointWebhookSubscriptionId  String?   @map("moniepoint_webhook_subscription_id")
 
   // Bank details shown on the printed pro forma receipt for guests paying by transfer —
   // deliberately separate from the Paystack fields above, which drive actual settlement/payout

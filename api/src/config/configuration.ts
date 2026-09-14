@@ -53,6 +53,10 @@ export const moniepointConfig = registerAs("moniepoint", () => ({
   // Bypasses real calls to Moniepoint and simulates PENDING -> SUCCESS shortly after a push —
   // for developing/demoing this flow before a restaurant's real terminal/credentials are on hand.
   mockMode: process.env.MONIEPOINT_MOCK_MODE === "true",
+  // This environment's own public base URL — used to build the endpointUrl Moniepoint pushes
+  // webhook events to (POST /v1/webhook-subscriptions). Differs per environment (staging vs
+  // production), so must be set explicitly rather than derived.
+  webhookBaseUrl: process.env.MONIEPOINT_WEBHOOK_BASE_URL,
 }));
 
 export const googleSheetsConfig = registerAs("googleSheets", () => ({

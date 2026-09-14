@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { IsInt, IsNotEmpty, IsPositive, IsString, MaxLength } from 'class-validator';
 
 export class SetupMoniepointDto {
   @ApiProperty({ description: 'clientId generated from the restaurant\'s own Moniepoint business console (ERP integration)' })
@@ -19,4 +19,9 @@ export class SetupMoniepointDto {
   @IsString()
   @MaxLength(100)
   terminalSerial: string;
+
+  @ApiProperty({ description: 'Integer business id shown alongside clientId on the same dashboard screen — required to register the webhook subscription' })
+  @IsInt()
+  @IsPositive()
+  businessId: number;
 }
