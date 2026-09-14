@@ -232,9 +232,13 @@ export class MoniepointService {
         if (typeof value === 'number' && Number.isInteger(value)) return value;
         if (typeof value === 'string' && /^\d+$/.test(value)) return parseInt(value, 10);
       }
-      // None of the guessed claim names matched — log the real claim names (not values, in case
-      // anything in there is sensitive) so the actual key can be added to candidateKeys above.
-      this.logger.warn(`businessId not found in token claims. Available claim keys: ${Object.keys(payload ?? {}).join(', ')}`);
+      // None of the guessed claim names matched — log the real claim names, plus the values of
+      // OAuth2-standard scope/authorities claims specifically (not secrets — just role/scope
+      // metadata) in case a business id is embedded in one of those as a composite string.
+      this.logger.warn(
+        `businessId not found in token claims. Available claim keys: ${Object.keys(payload ?? {}).join(', ')}. ` +
+          `scope=${JSON.stringify(payload?.scope)} authorities=${JSON.stringify(payload?.authorities)} aud=${JSON.stringify(payload?.aud)}`,
+      );
       return null;
     } catch (err) {
       this.logger.warn(`Access token is not a decodable JWT — could not inspect claims for businessId: ${err instanceof Error ? err.message : 'unknown error'}`);
