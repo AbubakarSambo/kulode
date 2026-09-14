@@ -195,6 +195,9 @@ export class MoniepointService {
 
     const endpointUrl = `${webhookBaseUrl.replace(/\/$/, '')}/api/v1/webhooks/moniepoint`;
 
+    // Confirmed via a 404 ("No endpoint POST /v1/webhook-subscriptions") when this was first
+    // tried on the "channel" host — this lives on posApiBaseUrl, same as /v1/introspect, not on
+    // the "channel" host that /v1/auth and /v1/transactions use.
     const subscription = await this.makeRequest<{ id: string; endpointUrl: string; eventTypes: string[]; status: string }>(
       '/v1/webhook-subscriptions',
       {
@@ -205,6 +208,8 @@ export class MoniepointService {
         businessId: Number(businessId),
       },
       accessToken,
+      'POST',
+      this.posApiBaseUrl,
     );
 
     await this.prisma.organization.update({
@@ -221,7 +226,7 @@ export class MoniepointService {
    * Key Introspection endpoint — confirmed to return a `businesses: [{ id, businessName }]`
    * array, unlike the access token itself (an OAuth2 client-credentials token with no
    * business-specific claims — confirmed empirically, see commit history). Lives on a different
-   * host (posApiBaseUrl) than auth/transactions/webhook-subscriptions — confirmed via a 404 when
+   * host (posApiBaseUrl, shared with webhook-subscriptions) than auth/transactions — confirmed via a 404 when
    * this was first tried on the "channel" host. That other host is itself an unconfirmed guess at
    * the production equivalent of Moniepoint's own dev-docs example host, so this fails closed
    * (returns null, logged) on ANY error rather than throwing — a wrong guess here should degrade
