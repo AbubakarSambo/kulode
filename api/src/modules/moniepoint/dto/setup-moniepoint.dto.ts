@@ -1,5 +1,5 @@
 import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsOptional, IsPositive, IsString, MaxLength } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
 export class SetupMoniepointDto {
   @ApiProperty({ description: 'clientId generated from the restaurant\'s own Moniepoint business console (ERP integration)' })
@@ -22,10 +22,10 @@ export class SetupMoniepointDto {
 
   @ApiPropertyOptional({
     description:
-      'Integer business id required to register the webhook subscription. Usually not needed here — we try to read it out of the OAuth access token\'s own claims when subscribing. Only set this if that auto-detection fails.',
+      'Numeric business id (as a string — can exceed 32-bit int range) required to register the webhook subscription. Usually not needed here — we try to auto-detect it via GET /v1/introspect when subscribing. Only set this if that auto-detection fails.',
   })
   @IsOptional()
-  @IsInt()
-  @IsPositive()
-  businessId?: number;
+  @IsString()
+  @Matches(/^\d+$/, { message: 'businessId must contain only digits' })
+  businessId?: string;
 }
