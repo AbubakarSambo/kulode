@@ -162,8 +162,10 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const isAdmin = userRoles.includes('SUPER_ADMIN') || userRoles.includes('ADMIN')
   const canViewReports = isAdmin || userRoles.includes('ACCOUNTANT')
 
-  // Which invoicing-only nav items to hide from POS-only orgs
-  const INVOICING_ONLY_HREFS = ['/clients', '/invoices', '/tax', '/reports', '/ai-chat', '/inventory', '/payments', '/dashboard', '/settings/services', '/vendors', '/expenses']
+  // Which invoicing-only nav items to hide from POS-only orgs. Product Inventory isn't in this
+  // list — it backs POS menu-item recipes (stock deduction on order-item SERVED) as well as
+  // invoicing, so it stays visible for POS-only orgs too.
+  const INVOICING_ONLY_HREFS = ['/clients', '/invoices', '/tax', '/reports', '/ai-chat', '/payments', '/dashboard', '/settings/services', '/vendors', '/expenses']
 
   // Waiters handle selling, order tracking, customer lookup, and the table list
   const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/customers', '/pos/tables', '/pos/reports']
