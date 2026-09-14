@@ -40,6 +40,7 @@ interface MoniepointAuthResponse {
 export class MoniepointService {
   private readonly logger = new Logger(MoniepointService.name);
   private readonly baseUrl: string;
+  private readonly posApiBaseUrl: string;
   private readonly encryptionKey: string;
 
   constructor(
@@ -48,6 +49,7 @@ export class MoniepointService {
     private inventoryService: InventoryService,
   ) {
     this.baseUrl = this.configService.get<string>('moniepoint.baseUrl') || 'https://channel.moniepoint.com';
+    this.posApiBaseUrl = this.configService.get<string>('moniepoint.posApiBaseUrl') || 'https://posapi.moniepoint.com';
     this.encryptionKey = this.configService.get<string>('moniepoint.encryptionKey') || '';
   }
 
@@ -55,8 +57,8 @@ export class MoniepointService {
     return this.configService.get<boolean>('moniepoint.mockMode') === true;
   }
 
-  private async makeRequest<T>(endpoint: string, body: unknown, accessToken?: string, method: 'GET' | 'POST' = 'POST'): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
+  private async makeRequest<T>(endpoint: string, body: unknown, accessToken?: string, method: 'GET' | 'POST' = 'POST', baseUrlOverride?: string): Promise<T> {
+    const url = `${baseUrlOverride ?? this.baseUrl}${endpoint}`;
     try {
       const response = await fetch(url, {
         method,
@@ -216,17 +218,28 @@ export class MoniepointService {
    * Looks up the business(es) associated with these credentials via Moniepoint's documented
    * Key Introspection endpoint — confirmed to return a `businesses: [{ id, businessName }]`
    * array, unlike the access token itself (an OAuth2 client-credentials token with no
-   * business-specific claims — confirmed empirically, see commit history). If more than one
-   * business is linked to these credentials we can't safely guess which one to use, so we bail
-   * out and require the manual businessId field instead of picking arbitrarily.
+   * business-specific claims — confirmed empirically, see commit history). Lives on a different
+   * host (posApiBaseUrl) than auth/transactions/webhook-subscriptions — confirmed via a 404 when
+   * this was first tried on the "channel" host. That other host is itself an unconfirmed guess at
+   * the production equivalent of Moniepoint's own dev-docs example host, so this fails closed
+   * (returns null, logged) on ANY error rather than throwing — a wrong guess here should degrade
+   * to the manual businessId field, not break the whole webhook subscription flow. If more than
+   * one business is linked to these credentials we also bail out rather than picking arbitrarily.
    */
   private async fetchBusinessIdFromIntrospect(accessToken: string): Promise<number | null> {
-    const result = await this.makeRequest<{ businesses?: { id: number; businessName: string }[] }>(
-      '/v1/introspect',
-      undefined,
-      accessToken,
-      'GET',
-    );
+    let result: { businesses?: { id: number; businessName: string }[] };
+    try {
+      result = await this.makeRequest<{ businesses?: { id: number; businessName: string }[] }>(
+        '/v1/introspect',
+        undefined,
+        accessToken,
+        'GET',
+        this.posApiBaseUrl,
+      );
+    } catch (error) {
+      this.logger.warn(`GET /v1/introspect at ${this.posApiBaseUrl} failed — falling back to manual businessId: ${error instanceof Error ? error.message : 'unknown error'}`);
+      return null;
+    }
 
     const businesses = result?.businesses ?? [];
     if (businesses.length === 0) {

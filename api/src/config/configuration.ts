@@ -47,6 +47,12 @@ export const paystackConfig = registerAs("paystack", () => ({
 
 export const moniepointConfig = registerAs("moniepoint", () => ({
   baseUrl: process.env.MONIEPOINT_POS_BASE_URL || "https://channel.moniepoint.com",
+  // GET /v1/introspect lives on a DIFFERENT host than auth/transactions/webhook-subscriptions —
+  // confirmed from a 404 hitting it on the "channel" host. Their own docs example used
+  // posapi.development.moniepoint.com for a dev environment; this guesses the production
+  // equivalent (unconfirmed — if wrong, introspection just fails closed and falls back to the
+  // manual businessId field, it doesn't break anything else).
+  posApiBaseUrl: process.env.MONIEPOINT_POS_API_BASE_URL || "https://posapi.moniepoint.com",
   // Encrypts each restaurant's Moniepoint clientSecret at rest — see src/common/encryption.ts.
   // Must be set in production; the fallback exists only so local dev doesn't hard-crash.
   encryptionKey: process.env.MONIEPOINT_ENCRYPTION_KEY || "dev-only-insecure-key-change-me",
