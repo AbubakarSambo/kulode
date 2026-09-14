@@ -6,11 +6,15 @@ import {
   Body,
   Param,
   ParseUUIDPipe,
+  Headers,
+  Req,
+  RawBodyRequest,
   Logger,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { MoniepointService } from './moniepoint.service';
-import { SetupMoniepointDto, PushPaymentDto } from './dto';
+import { SetupMoniepointDto, PushPaymentDto, SetWebhookSecretDto } from './dto';
 import { CurrentUser, Public, Roles, Role } from '../../common';
 
 @ApiTags('Moniepoint POS')
@@ -62,6 +66,27 @@ export class MoniepointController {
     return this.moniepointService.pushOrderPayment(organizationId, orderId, dto.amount);
   }
 
+  @Post('organizations/moniepoint-subscribe-webhook')
+  @ApiBearerAuth()
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'Register this org\'s webhook URL with Moniepoint (POST /v1/webhook-subscriptions) — run once after setup' })
+  @ApiResponse({ status: 201, description: 'Webhook subscription created' })
+  async subscribeWebhook(@CurrentUser('organizationId') organizationId: string) {
+    return this.moniepointService.subscribeToWebhook(organizationId);
+  }
+
+  @Post('organizations/moniepoint-webhook-secret')
+  @ApiBearerAuth()
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'Store the webhook secret copied from the Moniepoint dashboard after creating the subscription' })
+  @ApiResponse({ status: 201, description: 'Webhook secret saved' })
+  async setWebhookSecret(
+    @Body() dto: SetWebhookSecretDto,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.moniepointService.setWebhookSecret(organizationId, dto.webhookSecret);
+  }
+
   @Get('moniepoint-transactions/:reference')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Poll the status of a pushed Moniepoint POS transaction' })
@@ -73,16 +98,24 @@ export class MoniepointController {
     return this.moniepointService.getTransactionStatus(organizationId, reference);
   }
 
-  // TODO(security): confirm Moniepoint's webhook signature/secret mechanism with their
-  // integration support and enforce it here before this goes anywhere near production — see the
-  // SECURITY GAP note on MoniepointService.handleWebhookEvent. Right now this endpoint has no
-  // way to prove a request actually came from Moniepoint.
+  // TODO(security): the signature check runs and logs computed-vs-received (see
+  // MoniepointService.processIncomingWebhook), but does NOT reject on mismatch — the exact
+  // signed-string format is an educated guess pending confirmation against a real delivery.
+  // Once confirmed/corrected, this must start rejecting mismatches with 400. Right now this
+  // endpoint does not actually enforce anything — see the SECURITY GAP note on
+  // MoniepointService.handleWebhookEvent.
   @Post('webhooks/moniepoint')
   @Public()
-  @ApiOperation({ summary: 'Moniepoint POS transaction webhook (signature verification not yet implemented — see TODO)' })
+  @ApiOperation({ summary: 'Moniepoint POS transaction webhook (signature logged, not yet enforced — see TODO)' })
   @ApiResponse({ status: 200, description: 'Webhook processed' })
-  async handleWebhook(@Body() body: { merchantReference: string; status: 'SUCCESS' | 'FAILED'; failureReason?: string }) {
-    this.logger.log(`Received Moniepoint webhook: ref=${body?.merchantReference ?? 'unknown'}, status=${body?.status ?? 'unknown'}`);
-    return this.moniepointService.handleWebhookEvent(body);
+  async handleWebhook(
+    @Headers('moniepoint-webhook-id') webhookId: string,
+    @Headers('moniepoint-webhook-timestamp') timestamp: string,
+    @Headers('moniepoint-webhook-signature') signature: string,
+    @Req() req: RawBodyRequest<Request>,
+  ) {
+    const rawBody = req.rawBody?.toString() || JSON.stringify(req.body);
+    this.logger.log(`Received Moniepoint webhook: id=${webhookId ?? 'unknown'}`);
+    return this.moniepointService.processIncomingWebhook(rawBody, webhookId, timestamp, signature);
   }
 }

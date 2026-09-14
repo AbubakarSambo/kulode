@@ -7,10 +7,15 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OrderStatus } from '@prisma/client';
+import { createHmac } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { encryptSecret, decryptSecret } from '../../common';
 import { SetupMoniepointDto } from './dto';
+
+// Confirmed from Moniepoint's "Webhooks" developer docs. Purchases specifically — see
+// Push Payment Request API Reference for the PURCHASE transactionType this mirrors.
+const WEBHOOK_EVENT_TYPE = 'V1_POS_PURCHASE_TRANSACTION';
 
 // Mirrors OrdersService's PAYABLE_STATUSES — an order can still take a payment push while
 // OPEN/IN_KITCHEN/READY, or once a waiter has handed it to a cashier via markAwaitingPayment
@@ -93,6 +98,7 @@ export class MoniepointService {
         moniepointClientId: dto.clientId,
         moniepointClientSecretEncrypted: encryptSecret(dto.clientSecret, this.encryptionKey),
         moniepointTerminalSerial: dto.terminalSerial,
+        moniepointBusinessId: dto.businessId,
         moniepointAccessToken: null,
         moniepointAccessTokenExpiresAt: null,
       },
@@ -104,15 +110,23 @@ export class MoniepointService {
   async getStatus(organizationId: string) {
     const organization = await this.prisma.organization.findUnique({
       where: { id: organizationId },
-      select: { moniepointClientId: true, moniepointTerminalSerial: true },
+      select: {
+        moniepointClientId: true,
+        moniepointTerminalSerial: true,
+        moniepointBusinessId: true,
+        moniepointWebhookSubscriptionId: true,
+        moniepointWebhookSecretEncrypted: true,
+      },
     });
     if (!organization) {
       throw new NotFoundException('Organization not found');
     }
 
     return {
-      isSetup: !!(organization.moniepointClientId && organization.moniepointTerminalSerial),
+      isSetup: !!(organization.moniepointClientId && organization.moniepointTerminalSerial && organization.moniepointBusinessId),
       terminalSerial: organization.moniepointTerminalSerial,
+      isWebhookSubscribed: !!organization.moniepointWebhookSubscriptionId,
+      hasWebhookSecret: !!organization.moniepointWebhookSecretEncrypted,
     };
   }
 
@@ -125,10 +139,154 @@ export class MoniepointService {
         moniepointTerminalSerial: null,
         moniepointAccessToken: null,
         moniepointAccessTokenExpiresAt: null,
+        moniepointBusinessId: null,
+        moniepointWebhookSecretEncrypted: null,
+        moniepointWebhookSubscriptionId: null,
       },
     });
 
     return { success: true };
+  }
+
+  /**
+   * One-time (per org) call to tell Moniepoint where to POST transaction completion events.
+   * Must be re-run if the org's public API base URL ever changes. The response does NOT include
+   * a webhook secret — Moniepoint only shows that once, in the subscription's menu in their
+   * dashboard, so it has to be entered separately via setWebhookSecret.
+   */
+  async subscribeToWebhook(organizationId: string) {
+    const organization = await this.prisma.organization.findUnique({ where: { id: organizationId } });
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+    if (!organization.moniepointClientId || !organization.moniepointClientSecretEncrypted || !organization.moniepointBusinessId) {
+      throw new BadRequestException('Moniepoint POS is not set up for this organization');
+    }
+
+    const webhookBaseUrl = this.configService.get<string>('moniepoint.webhookBaseUrl');
+    if (!webhookBaseUrl) {
+      throw new InternalServerErrorException('MONIEPOINT_WEBHOOK_BASE_URL is not configured for this environment');
+    }
+
+    const accessToken = await this.getAccessToken(organizationId, organization.moniepointClientId, organization.moniepointClientSecretEncrypted);
+    const endpointUrl = `${webhookBaseUrl.replace(/\/$/, '')}/api/v1/webhooks/moniepoint`;
+
+    const subscription = await this.makeRequest<{ id: string; endpointUrl: string; eventTypes: string[]; status: string }>(
+      '/v1/webhook-subscriptions',
+      {
+        endpointUrl,
+        eventTypes: [WEBHOOK_EVENT_TYPE],
+        businessId: organization.moniepointBusinessId,
+      },
+      accessToken,
+    );
+
+    await this.prisma.organization.update({
+      where: { id: organizationId },
+      data: { moniepointWebhookSubscriptionId: subscription.id },
+    });
+
+    this.logger.log(`Moniepoint webhook subscription ${subscription.id} created for org ${organizationId} -> ${endpointUrl}`);
+    return subscription;
+  }
+
+  /**
+   * Stores the webhook secret the restaurant copies out of their Moniepoint dashboard after
+   * creating the subscription above — see subscribeToWebhook. Encrypted at rest like clientSecret.
+   */
+  async setWebhookSecret(organizationId: string, webhookSecret: string) {
+    const organization = await this.prisma.organization.findUnique({ where: { id: organizationId } });
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    await this.prisma.organization.update({
+      where: { id: organizationId },
+      data: { moniepointWebhookSecretEncrypted: encryptSecret(webhookSecret, this.encryptionKey) },
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * Best-effort signature check. Moniepoint's docs confirm the header names and that it's a
+   * Base64-encoded HMAC-SHA256, but their "Code Sample for Signature Verification" section
+   * (which spells out exactly what string gets signed) wasn't retrievable — so the concatenation
+   * below (`${webhookId}.${timestamp}.${rawBody}`, the common pattern used by Svix/Stripe-style
+   * webhook providers) is an educated guess, NOT confirmed. Returns both signatures so the
+   * caller can log them side by side on the first real delivery and correct this if they don't
+   * match — see the TODO(security) on the controller.
+   */
+  verifyWebhookSignature(rawBody: string, webhookId: string, timestamp: string, receivedSignature: string, secret: string): { valid: boolean; computedSignature: string } {
+    const signedPayload = `${webhookId}.${timestamp}.${rawBody}`;
+    const computedSignature = createHmac('sha256', secret).update(signedPayload).digest('base64');
+    return { valid: computedSignature === receivedSignature, computedSignature };
+  }
+
+  /**
+   * Parses a real Moniepoint webhook delivery and routes it into handleWebhookEvent. Payload
+   * shape per their docs: a "data" object containing merchantReference, transactionStatus
+   * (PENDING/APPROVED/...), responseMessage, etc. — different from the flat shape
+   * handleWebhookEvent itself takes, which mock mode calls directly.
+   *
+   * Logs a computed-vs-received signature comparison but does NOT reject on mismatch — see the
+   * SECURITY GAP note on handleWebhookEvent for why, and what has to change before this is safe.
+   */
+  async processIncomingWebhook(rawBody: string, webhookId: string, timestamp: string, signature: string) {
+    let parsed: any;
+    try {
+      parsed = JSON.parse(rawBody);
+    } catch {
+      throw new BadRequestException('Invalid JSON payload');
+    }
+
+    const data = parsed?.data ?? parsed;
+    const merchantReference: string | undefined = data?.merchantReference;
+    const transactionStatus: string | undefined = data?.transactionStatus;
+    const responseMessage: string | undefined = data?.responseMessage;
+
+    if (!merchantReference) {
+      this.logger.warn('Moniepoint webhook payload missing data.merchantReference — ignoring');
+      return { received: true };
+    }
+
+    const transaction = await this.prisma.moniepointTransaction.findUnique({ where: { merchantReference } });
+    if (!transaction) {
+      this.logger.warn(`Moniepoint webhook for unknown reference ${merchantReference}`);
+      return { received: true, reason: 'Unknown reference' };
+    }
+
+    if (webhookId && timestamp && signature) {
+      const organization = await this.prisma.organization.findUnique({
+        where: { id: transaction.organizationId },
+        select: { moniepointWebhookSecretEncrypted: true },
+      });
+      if (organization?.moniepointWebhookSecretEncrypted) {
+        const secret = decryptSecret(organization.moniepointWebhookSecretEncrypted, this.encryptionKey);
+        const { valid, computedSignature } = this.verifyWebhookSignature(rawBody, webhookId, timestamp, signature, secret);
+        if (!valid) {
+          this.logger.warn(
+            `Moniepoint webhook signature MISMATCH for ${merchantReference} — received="${signature}" computed="${computedSignature}". ` +
+              `Not rejecting yet (algorithm unconfirmed — see SECURITY GAP), but this needs correcting before going live.`,
+          );
+        } else {
+          this.logger.log(`Moniepoint webhook signature verified OK for ${merchantReference}`);
+        }
+      } else {
+        this.logger.warn(`No webhook secret stored for org ${transaction.organizationId} — cannot verify signature for ${merchantReference}. Run setWebhookSecret first.`);
+      }
+    }
+
+    if (transactionStatus === 'PENDING') {
+      return { received: true, stillPending: true };
+    }
+
+    const status = transactionStatus === 'APPROVED' ? 'SUCCESS' : 'FAILED';
+    return this.handleWebhookEvent({
+      merchantReference,
+      status,
+      failureReason: status === 'FAILED' ? responseMessage || `transactionStatus=${transactionStatus}` : undefined,
+    });
   }
 
   private async getAccessToken(organizationId: string, clientId: string, clientSecretEncrypted: string): Promise<string> {
@@ -251,12 +409,12 @@ export class MoniepointService {
    * Handles a completion notification for a pushed transaction — from a real Moniepoint webhook,
    * or the mock-mode simulator above.
    *
-   * SECURITY GAP: Moniepoint's public docs did not expose the webhook payload schema or a
-   * signature/secret verification mechanism for this endpoint (unlike Paystack's
-   * x-paystack-signature HMAC — see PaystackService.verifyWebhookSignature). Until that's
-   * confirmed with Moniepoint's integration support, this endpoint has NO way to prove a request
-   * actually came from Moniepoint, and MUST NOT be trusted in production as-is. Whatever
-   * verification they specify needs to be enforced in the controller before this method runs.
+   * SECURITY GAP: the controller logs a computed-vs-received signature comparison (see
+   * verifyWebhookSignature) but does NOT reject on mismatch yet, because the exact signed-string
+   * format is still an educated guess, not confirmed against a real delivery. Once a real webhook
+   * has been observed and the guess confirmed/corrected, the controller must start rejecting
+   * mismatches with 400 before this method ever runs — right now it doesn't, and this endpoint
+   * MUST NOT be trusted in production as-is.
    */
   async handleWebhookEvent(payload: { merchantReference: string; status: 'SUCCESS' | 'FAILED'; failureReason?: string }) {
     const { merchantReference, status, failureReason } = payload;
