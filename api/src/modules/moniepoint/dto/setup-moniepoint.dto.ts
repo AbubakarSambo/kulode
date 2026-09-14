@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsPositive, IsString, MaxLength } from 'class-validator';
+import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
+import { IsInt, IsNotEmpty, IsOptional, IsPositive, IsString, MaxLength } from 'class-validator';
 
 export class SetupMoniepointDto {
   @ApiProperty({ description: 'clientId generated from the restaurant\'s own Moniepoint business console (ERP integration)' })
@@ -20,8 +20,12 @@ export class SetupMoniepointDto {
   @MaxLength(100)
   terminalSerial: string;
 
-  @ApiProperty({ description: 'Integer business id shown alongside clientId on the same dashboard screen — required to register the webhook subscription' })
+  @ApiPropertyOptional({
+    description:
+      'Integer business id required to register the webhook subscription. Usually not needed here — we try to read it out of the OAuth access token\'s own claims when subscribing. Only set this if that auto-detection fails.',
+  })
+  @IsOptional()
   @IsInt()
   @IsPositive()
-  businessId: number;
+  businessId?: number;
 }
