@@ -16,6 +16,7 @@ import {
   UpdateMenuCategoryDto,
   CreateMenuItemDto,
   UpdateMenuItemDto,
+  SetMenuItemIngredientsDto,
 } from './dto';
 import { CurrentUser, Roles, Role } from '../../common';
 
@@ -115,5 +116,17 @@ export class MenuItemsController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.menuService.removeItem(organizationId, id);
+  }
+
+  // Full-replace, matching how categoryIds works on the item itself — the client always sends
+  // the complete recipe rather than diffing individual lines.
+  @Patch(':id/ingredients')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  setIngredients(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetMenuItemIngredientsDto,
+  ) {
+    return this.menuService.setIngredients(organizationId, id, dto);
   }
 }
