@@ -46,13 +46,15 @@ export const paystackConfig = registerAs("paystack", () => ({
 }));
 
 export const moniepointConfig = registerAs("moniepoint", () => ({
+  // Only token issuance (POST /v1/auth) lives here — confirmed working (real 401 "Invalid
+  // credentials" response, not a 404, when tested with fake creds).
   baseUrl: process.env.MONIEPOINT_POS_BASE_URL || "https://channel.moniepoint.com",
-  // GET /v1/introspect lives on a DIFFERENT host than auth/transactions/webhook-subscriptions —
-  // confirmed from a 404 hitting it on the "channel" host. Their own docs example used
-  // posapi.development.moniepoint.com for a dev environment; this guesses the production
-  // equivalent (unconfirmed — if wrong, introspection just fails closed and falls back to the
-  // manual businessId field, it doesn't break anything else).
-  posApiBaseUrl: process.env.MONIEPOINT_POS_API_BASE_URL || "https://posapi.moniepoint.com",
+  // Everything else (introspect, push transactions, webhook subscriptions) lives on this
+  // separate host — confirmed from Moniepoint's real interactive API docs at
+  // docs.pos.moniepoint.com, whose OpenAPI "Server" field is api.pos.moniepoint.com. (Two earlier
+  // guesses — posapi.moniepoint.com and posapi.development.moniepoint.com from a stale Confluence
+  // example — both 404'd in production before this was found.)
+  posApiBaseUrl: process.env.MONIEPOINT_POS_API_BASE_URL || "https://api.pos.moniepoint.com",
   // Encrypts each restaurant's Moniepoint clientSecret at rest — see src/common/encryption.ts.
   // Must be set in production; the fallback exists only so local dev doesn't hard-crash.
   encryptionKey: process.env.MONIEPOINT_ENCRYPTION_KEY || "dev-only-insecure-key-change-me",
