@@ -49,7 +49,7 @@ export class MoniepointService {
     private inventoryService: InventoryService,
   ) {
     this.baseUrl = this.configService.get<string>('moniepoint.baseUrl') || 'https://channel.moniepoint.com';
-    this.posApiBaseUrl = this.configService.get<string>('moniepoint.posApiBaseUrl') || 'https://posapi.moniepoint.com';
+    this.posApiBaseUrl = this.configService.get<string>('moniepoint.posApiBaseUrl') || 'https://api.pos.moniepoint.com';
     this.encryptionKey = this.configService.get<string>('moniepoint.encryptionKey') || '';
   }
 
@@ -447,6 +447,11 @@ export class MoniepointService {
 
     try {
       const accessToken = await this.getAccessToken(organizationId, organization.moniepointClientId!, organization.moniepointClientSecretEncrypted!);
+      // Also on posApiBaseUrl, not the "channel" host — confirmed from Moniepoint's real
+      // interactive API docs (docs.pos.moniepoint.com), which list Transactions under server
+      // https://api.pos.moniepoint.com alongside Introspection and Webhook Subscriptions. This
+      // was never exercised for real before (only mock mode), so it would have hit the same
+      // wrong-host 404 the other two calls did.
       await this.makeRequest(
         '/v1/transactions',
         {
@@ -456,6 +461,8 @@ export class MoniepointService {
           transactionType: 'PURCHASE',
         },
         accessToken,
+        'POST',
+        this.posApiBaseUrl,
       );
     } catch (error) {
       const failureReason = error instanceof Error ? error.message : 'Unknown error';
