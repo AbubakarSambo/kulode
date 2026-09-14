@@ -1,7 +1,7 @@
 import { Header } from '@/components/layout'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui'
 import { Link } from 'react-router-dom'
-import { Building, CreditCard, Tags, Sparkles, UserCog, Printer } from 'lucide-react'
+import { Building, CreditCard, Tags, Sparkles, UserCog, Printer, Radio } from 'lucide-react'
 import { useSubscription } from '@/hooks/useSubscription'
 import { useOverscrollBounce, useOrgModules } from '@/hooks'
 
@@ -52,6 +52,12 @@ export function SettingsPage() {
             description: 'Set up kitchen and bar printers for order dockets',
             icon: Printer,
             href: '/settings/printers',
+          },
+          {
+            title: 'Moniepoint POS',
+            description: 'Push order payments to your physical card terminal',
+            icon: Radio,
+            href: '/settings/moniepoint',
           },
         ]
       : []),

@@ -43,6 +43,7 @@ import {
   SettingsPage,
   UsersPage,
   PaystackPage,
+  MoniepointPage,
   CategoriesPage,
   ServiceItemsPage,
   OrganizationPage,
@@ -272,6 +273,7 @@ function App() {
               <Route path="/settings/services" element={<ServiceItemsPage />} />
               <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']} />}>
                 <Route path="/settings/printers" element={<PrintersPage />} />
+                <Route path="/settings/moniepoint" element={<MoniepointPage />} />
               </Route>
               <Route path="/settings/changelog" element={<ChangelogPage />} />
             </Route>
