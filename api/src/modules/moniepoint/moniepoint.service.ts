@@ -200,7 +200,9 @@ export class MoniepointService {
       {
         endpointUrl,
         eventTypes: [WEBHOOK_EVENT_TYPE],
-        businessId,
+        // Moniepoint's schema wants this as a JSON number, not a string — safe to convert since
+        // real values (confirmed up to 10 digits) are well within JS's safe-integer range.
+        businessId: Number(businessId),
       },
       accessToken,
     );
@@ -226,7 +228,7 @@ export class MoniepointService {
    * to the manual businessId field, not break the whole webhook subscription flow. If more than
    * one business is linked to these credentials we also bail out rather than picking arbitrarily.
    */
-  private async fetchBusinessIdFromIntrospect(accessToken: string): Promise<number | null> {
+  private async fetchBusinessIdFromIntrospect(accessToken: string): Promise<string | null> {
     let result: { businesses?: { id: number; businessName: string }[] };
     try {
       result = await this.makeRequest<{ businesses?: { id: number; businessName: string }[] }>(
@@ -253,7 +255,7 @@ export class MoniepointService {
       );
       return null;
     }
-    return businesses[0].id;
+    return String(businesses[0].id);
   }
 
   /**

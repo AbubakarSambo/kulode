@@ -217,7 +217,11 @@ model Organization {
   // subscription menu after creation, so it's entered manually via a follow-up endpoint — same
   // "encrypted, entered once" treatment as clientSecret. webhookSubscriptionId is Moniepoint's id
   // for the created subscription (lets us manage/replace it later).
-  moniepointBusinessId             Int?      @map("moniepoint_business_id")
+  // String, not Int — real values are 10-digit account-style numbers that overflow Postgres's
+  // 32-bit INTEGER (confirmed in testing: 8254744601). We never do arithmetic on it, only pass
+  // it through to Moniepoint's API (as a JSON number, well within JS's safe-integer range), so
+  // there's no reason to fight BigInt/JS-number-vs-bigint plumbing for it.
+  moniepointBusinessId             String?   @map("moniepoint_business_id")
   moniepointWebhookSecretEncrypted String?   @map("moniepoint_webhook_secret_encrypted")
   moniepointWebhookSubscriptionId  String?   @map("moniepoint_webhook_subscription_id")
 

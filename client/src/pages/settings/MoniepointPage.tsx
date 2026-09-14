@@ -60,8 +60,7 @@ export function MoniepointPage() {
   })
 
   const setupMutation = useMutation({
-    mutationFn: (data: SetupFormData) =>
-      moniepointApi.setup({ ...data, businessId: data.businessId ? Number(data.businessId) : undefined }),
+    mutationFn: (data: SetupFormData) => moniepointApi.setup({ ...data, businessId: data.businessId || undefined }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['moniepoint-status'] })
       setIsEditing(false)
