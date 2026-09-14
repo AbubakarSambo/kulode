@@ -218,11 +218,10 @@ function App() {
                 </Route>
               </Route>
 
-              {/* Inventory (invoicing-only) */}
+              {/* Inventory — available to POS-only and invoicing-only orgs alike, since it backs
+                  POS menu-item recipes (stock deduction on order-item SERVED) as well as invoices */}
               <Route element={<PlanGatedRoute requiredPlan="PRO" />}>
-                <Route element={<ModuleGatedRoute requiredModule="INVOICING" redirectTo="/pos/order/new" />}>
-                  <Route path="/inventory" element={<InventoryPage />} />
-                </Route>
+                <Route path="/inventory" element={<InventoryPage />} />
               </Route>
 
               {/* Restaurant POS (POS-only) */}
