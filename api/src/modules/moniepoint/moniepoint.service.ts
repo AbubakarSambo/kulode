@@ -462,6 +462,12 @@ export class MoniepointService {
           amount: Math.round(pushAmount),
           merchantReference,
           transactionType: 'PURCHASE',
+          // Required per Moniepoint's real interactive docs (docs.pos.moniepoint.com) — we were
+          // never sending this. The API accepted requests and returned success without it, but
+          // very plausibly never actually knew how to route the transaction (card entry vs.
+          // transfer vs. generic) without it — likely explains why nothing ever reached the
+          // terminal despite clean success responses on every prior attempt.
+          paymentMethod: 'CARD_PURCHASE',
         },
         apiKey,
         'POST',
