@@ -323,7 +323,16 @@ export class MoniepointService {
     const responseMessage: string | undefined = data?.responseMessage;
 
     if (!merchantReference) {
-      this.logger.warn('Moniepoint webhook payload missing data.merchantReference — ignoring');
+      // Not something we pushed — either an organic in-person sale on the terminal (nothing to
+      // do, we don't track those), or a bank transfer to the restaurant's known account, which we
+      // CAN try to reconcile against an open order by amount. See attemptTransferReconciliation.
+      const eventType: string | undefined = parsed?.eventType ?? parsed?.type ?? parsed?.event;
+      this.logger.log(`Moniepoint webhook payload missing data.merchantReference — eventType="${eventType ?? 'unknown'}" topLevelKeys=[${Object.keys(parsed ?? {}).join(', ')}]`);
+
+      if (typeof eventType === 'string' && eventType.toUpperCase().includes('TRANSFER')) {
+        return this.attemptTransferReconciliation(data);
+      }
+
       return { received: true };
     }
 
@@ -364,6 +373,84 @@ export class MoniepointService {
       status,
       failureReason: status === 'FAILED' ? responseMessage || `transactionStatus=${transactionStatus}` : undefined,
     });
+  }
+
+  /**
+   * Reconciles a bank transfer (paid to the restaurant's own known account, not a dynamic
+   * per-order virtual account) against an open order — by amount, since a transfer carries no
+   * merchantReference we control. Auto-confirms only when exactly one open order currently has
+   * that exact outstanding balance; any ambiguity (zero or multiple matches) is logged and left
+   * for manual reconciliation rather than guessed at, since a wrong auto-match would mark the
+   * wrong order paid. NOTE: the exact webhook payload shape for a transfer event is unconfirmed
+   * (we've only observed real Purchase events so far) — this assumes the same data.amount /
+   * data.businessId / data.transactionReference fields documented for purchases.
+   */
+  private async attemptTransferReconciliation(data: any): Promise<{ received: boolean; reconciled?: boolean; reason?: string }> {
+    const amount = Number(data?.amount);
+    const businessId: string | undefined = data?.businessId !== undefined ? String(data.businessId) : undefined;
+    const transactionReference: string | undefined = data?.transactionReference;
+
+    if (!amount || !businessId) {
+      this.logger.warn(`Transfer event missing amount or businessId — cannot reconcile. amount=${data?.amount} businessId=${data?.businessId}`);
+      return { received: true, reason: 'Missing amount or businessId' };
+    }
+
+    const organization = await this.prisma.organization.findFirst({ where: { moniepointBusinessId: businessId } });
+    if (!organization) {
+      this.logger.warn(`Transfer event for businessId ${businessId} — no matching organization found`);
+      return { received: true, reason: 'No matching organization' };
+    }
+
+    const candidates = await this.prisma.order.findMany({
+      where: { organizationId: organization.id, status: { in: PAYABLE_STATUSES } },
+    });
+    const matches = candidates.filter((o) => Math.round((Number(o.total) - Number(o.amountPaid)) * 100) === Math.round(amount * 100));
+
+    this.logger.log(
+      `Transfer reconciliation for org ${organization.id}: amount=${amount} ref=${transactionReference ?? 'none'} — ` +
+        `${candidates.length} open order(s), ${matches.length} matching this amount` +
+        (matches.length > 0 ? `: [${matches.map((o) => `${o.id} (₦${Number(o.total) - Number(o.amountPaid)})`).join(', ')}]` : ''),
+    );
+
+    if (matches.length !== 1) {
+      this.logger.warn(
+        matches.length === 0
+          ? `Transfer of ₦${amount} for org ${organization.id} matched no open order — needs manual reconciliation.`
+          : `Transfer of ₦${amount} for org ${organization.id} matched ${matches.length} open orders — ambiguous, needs manual reconciliation. Candidates: ${matches.map((o) => o.id).join(', ')}`,
+      );
+      return { received: true, reconciled: false, reason: matches.length === 0 ? 'No matching order' : 'Ambiguous — multiple matching orders' };
+    }
+
+    const order = matches[0];
+    await this.prisma.$transaction(async (tx) => {
+      const result = await tx.order.updateMany({
+        where: { id: order.id, status: { in: PAYABLE_STATUSES } },
+        data: { amountPaid: amount, status: 'CLOSED_PAID', closedAt: new Date() },
+      });
+
+      await tx.payment.create({
+        data: {
+          organizationId: organization.id,
+          orderId: order.id,
+          amount,
+          paymentMethod: 'MONIEPOINT_TRANSFER',
+          paymentDate: new Date(),
+          moniepointReference: transactionReference,
+          isAutoRecorded: true,
+          notes: result.count === 0 ? 'Received after order was already closed/cancelled — needs manual review' : undefined,
+        },
+      });
+
+      if (result.count === 0) return;
+
+      await this.inventoryService.deductForOrder(tx, order.id, organization.id);
+      if (order.tableId) {
+        await tx.restaurantTable.update({ where: { id: order.tableId }, data: { status: 'NEEDS_CLEANING' } });
+      }
+    });
+
+    this.logger.log(`Transfer of ₦${amount} auto-reconciled to order ${order.id} for org ${organization.id} (ref ${transactionReference ?? 'none'})`);
+    return { received: true, reconciled: true };
   }
 
   private async getAccessToken(organizationId: string, clientId: string, clientSecretEncrypted: string): Promise<string> {
