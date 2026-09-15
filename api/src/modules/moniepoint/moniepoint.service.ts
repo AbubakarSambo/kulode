@@ -333,7 +333,16 @@ export class MoniepointService {
       // transfer's shape). Remove once that's confirmed.
       this.logger.log(`Moniepoint webhook full payload: ${JSON.stringify(parsed)}`);
 
-      if (typeof eventType === 'string' && eventType.toUpperCase().includes('TRANSFER')) {
+      // Confirmed real payload shape (from V1_POS_PURCHASE_TRANSACTION events) nests a second,
+      // more specific transactionType inside `data` (e.g. "PURCHASE") alongside the top-level
+      // eventType — check both, since we don't yet know for certain which one actually varies
+      // for a transfer (never observed one).
+      const dataTransactionType: string | undefined = data?.transactionType;
+      const looksLikeTransfer =
+        (typeof eventType === 'string' && eventType.toUpperCase().includes('TRANSFER')) ||
+        (typeof dataTransactionType === 'string' && dataTransactionType.toUpperCase().includes('TRANSFER'));
+
+      if (looksLikeTransfer) {
         return this.attemptTransferReconciliation(data);
       }
 
@@ -390,7 +399,9 @@ export class MoniepointService {
    * data.businessId / data.transactionReference fields documented for purchases.
    */
   private async attemptTransferReconciliation(data: any): Promise<{ received: boolean; reconciled?: boolean; reason?: string }> {
-    const amount = Number(data?.amount);
+    // data.amount is in kobo — confirmed from real webhook payloads (e.g. amount:1081000 for a
+    // ₦10,810 purchase). Orders store totals in plain Naira, so convert before comparing.
+    const amount = Number(data?.amount) / 100;
     const businessId: string | undefined = data?.businessId !== undefined ? String(data.businessId) : undefined;
     const transactionReference: string | undefined = data?.transactionReference;
 
@@ -550,7 +561,11 @@ export class MoniepointService {
         '/v1/transactions',
         {
           terminalSerial,
-          amount: Math.round(pushAmount),
+          // Kobo, not Naira — confirmed from real webhook payloads (e.g. amount:1081000 for a
+          // ₦10,810 purchase). We were previously sending pushAmount as-is (e.g. 1410 meaning
+          // ₦1,410), which Moniepoint would have read as ₦14.10 — very plausibly why nothing
+          // ever visibly happened on the terminal despite clean success responses.
+          amount: Math.round(pushAmount * 100),
           merchantReference,
           transactionType: 'PURCHASE',
           // Required per Moniepoint's real interactive docs (docs.pos.moniepoint.com) — we were
