@@ -328,6 +328,10 @@ export class MoniepointService {
       // CAN try to reconcile against an open order by amount. See attemptTransferReconciliation.
       const eventType: string | undefined = parsed?.eventType ?? parsed?.type ?? parsed?.event;
       this.logger.log(`Moniepoint webhook payload missing data.merchantReference — eventType="${eventType ?? 'unknown'}" topLevelKeys=[${Object.keys(parsed ?? {}).join(', ')}]`);
+      // Temporary: full payload, to nail down what a Transfer event actually looks like (every
+      // real event observed so far has been V1_POS_PURCHASE_TRANSACTION — never confirmed a
+      // transfer's shape). Remove once that's confirmed.
+      this.logger.log(`Moniepoint webhook full payload: ${JSON.stringify(parsed)}`);
 
       if (typeof eventType === 'string' && eventType.toUpperCase().includes('TRANSFER')) {
         return this.attemptTransferReconciliation(data);
