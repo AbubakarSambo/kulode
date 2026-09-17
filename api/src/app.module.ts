@@ -34,6 +34,7 @@ import { PosReportsModule } from './modules/pos-reports';
 import { PrintersModule } from './modules/printers';
 import { OrderTypesModule } from './modules/order-types';
 import { PaymentTypesModule } from './modules/payment-types';
+import { FeedModule } from './modules/feed';
 import {
   JwtAuthGuard,
   RolesGuard,
@@ -81,6 +82,7 @@ import {
     PrintersModule,
     OrderTypesModule,
     PaymentTypesModule,
+    FeedModule,
   ],
   providers: [
     {

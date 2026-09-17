@@ -319,12 +319,15 @@ export class InventoryService {
   ) {
     const orderItems = await tx.orderItem.findMany({
       where: { orderId },
-      include: { menuItem: { select: { inventoryItemId: true } } },
+      include: { menuItem: { select: { inventoryItemId: true, ingredients: { select: { id: true } } } } },
     });
 
     const inventoryItemIds = Array.from(
       new Set(
         orderItems
+          // Items with a recipe are deducted per-line on SERVED via deductRecipeForOrderItem —
+          // skip them here or they'd be double-deducted against the same legacy inventoryItemId.
+          .filter((orderItem) => !orderItem.menuItem?.ingredients.length)
           .map((orderItem) => orderItem.menuItem?.inventoryItemId)
           .filter((id): id is string => !!id),
       ),
@@ -342,6 +345,7 @@ export class InventoryService {
 
     const movements: Prisma.StockMovementCreateManyInput[] = [];
     for (const orderItem of orderItems) {
+      if (orderItem.menuItem?.ingredients.length) continue;
       const inventoryItemId = orderItem.menuItem?.inventoryItemId;
       if (!inventoryItemId || !onHandById.has(inventoryItemId)) continue;
 
@@ -363,6 +367,51 @@ export class InventoryService {
         quantity: -deductQty,
         onHandBefore: currentOnHand,
         onHandAfter: newOnHand,
+      });
+    }
+
+    if (movements.length > 0) {
+      await tx.stockMovement.createMany({ data: movements });
+    }
+  }
+
+  // Called once per order item, the first time it transitions to SERVED (see
+  // OrdersService.updateItemStatus) — walks that item's recipe and decrements each ingredient's
+  // on-hand stock. Deliberately clamps at zero rather than throwing: a missing ingredient should
+  // surface as a stock discrepancy to reconcile later, not block a cashier from marking food served.
+  // No-ops for menu items without recipe lines (they're covered by the legacy deductForOrder path).
+  async deductRecipeForOrderItem(
+    tx: TransactionClient,
+    organizationId: string,
+    orderId: string,
+    menuItemId: string,
+    quantitySold: number,
+  ) {
+    const recipe = await tx.menuItemIngredient.findMany({ where: { menuItemId } });
+    if (recipe.length === 0) return;
+
+    const movements: Prisma.StockMovementCreateManyInput[] = [];
+    for (const line of recipe) {
+      const inventoryItem = await tx.inventoryItem.findUnique({ where: { id: line.inventoryItemId } });
+      if (!inventoryItem) continue;
+
+      const onHandBefore = toNumber(inventoryItem.onHandQuantity);
+      const deductQty = toNumber(line.quantityPerUnit) * quantitySold;
+      const onHandAfter = Math.max(0, onHandBefore - deductQty);
+
+      await tx.inventoryItem.update({
+        where: { id: line.inventoryItemId },
+        data: { onHandQuantity: onHandAfter },
+      });
+
+      movements.push({
+        organizationId,
+        inventoryItemId: line.inventoryItemId,
+        orderId,
+        type: 'ORDER_DEDUCTED',
+        quantity: onHandAfter - onHandBefore,
+        onHandBefore,
+        onHandAfter,
       });
     }
 

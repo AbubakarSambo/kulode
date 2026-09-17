@@ -288,6 +288,10 @@ model Organization {
   // Internal/QA org (e.g. the team's own testing account) — excluded from platform-admin
   // analytics (GMV, org counts, top orgs, etc.) so test data never pollutes real metrics.
   isTestAccount             Boolean            @default(false) @map("is_test_account")
+  // Platform-admin-only opt-in: whether this org's closed POS sales appear in the public
+  // accounting feed (see FeedModule / GET /public/feed/sales). Off by default so a shared
+  // feed secret never exposes a tenant that hasn't explicitly been granted access.
+  isAccountingFeedEnabled   Boolean            @default(false) @map("is_accounting_feed_enabled")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -814,14 +818,40 @@ model InventoryItem {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  invoiceItems   InvoiceItem[]
-  stockMovements StockMovement[]
-  menuItems      MenuItem[]
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoiceItems        InvoiceItem[]
+  stockMovements      StockMovement[]
+  menuItems           MenuItem[]
+  menuItemIngredients MenuItemIngredient[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
   @@map("inventory_items")
+}
+
+// A recipe line: how much of an inventory item one unit of a menu item consumes. Distinct from
+// MenuItem.inventoryItemId (a legacy single-item 1:1 link deducted whole-unit at order close) —
+// a menu item with ingredients here is deducted per-line, on SERVED, via
+// InventoryService.deductRecipeForOrderItem, and is excluded from the legacy close-time path to
+// avoid double-deducting the same stock.
+model MenuItemIngredient {
+  id              String  @id @default(uuid())
+  menuItemId      String  @map("menu_item_id")
+  inventoryItemId String  @map("inventory_item_id")
+  // Consumed per one unit of the menu item sold, in the InventoryItem's own onHandQuantity unit —
+  // there's no separate unit-of-measure concept yet, so both sides must already share units.
+  quantityPerUnit Decimal @map("quantity_per_unit") @db.Decimal(10, 3)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  menuItem      MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+
+  @@unique([menuItemId, inventoryItemId])
+  @@index([menuItemId])
+  @@index([inventoryItemId])
+  @@map("menu_item_ingredients")
 }
 
 // Stock movement log
@@ -1074,7 +1104,7 @@ model OrderType {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   tables       RestaurantTable[]
 
   @@unique([organizationId, name])
@@ -1119,10 +1149,11 @@ model MenuItem {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  organization  Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  inventoryItem InventoryItem?     @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  organization  Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem?       @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
   orderItems    OrderItem[]
   categories    MenuItemCategory[]
+  ingredients   MenuItemIngredient[]
 
   @@unique([organizationId, name])
   @@index([organizationId])

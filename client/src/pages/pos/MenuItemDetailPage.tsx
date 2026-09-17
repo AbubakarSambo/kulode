@@ -1,15 +1,15 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useForm } from 'react-hook-form'
+import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { ArrowLeft, Pencil, Trash2 } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, Plus, CookingPot } from 'lucide-react'
 import { Header } from '@/components/layout'
-import { Button, Input, Label, Textarea, Card, CardContent, Badge, ConfirmDialog } from '@/components/ui'
+import { Button, Input, Label, Textarea, Card, CardContent, Badge, ConfirmDialog, SearchableSelect } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
-import { menuCategoriesApi, menuItemsApi } from '@/api'
+import { menuCategoriesApi, menuItemsApi, inventoryApi } from '@/api'
 import { formatCurrency, formatDate, cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 
@@ -22,6 +22,16 @@ const itemSchema = z.object({
 })
 type ItemFormData = z.infer<typeof itemSchema>
 
+const recipeSchema = z.object({
+  ingredients: z.array(
+    z.object({
+      inventoryItemId: z.string().min(1, 'Choose an ingredient'),
+      quantityPerUnit: z.number().min(0.001, 'Must be greater than 0'),
+    }),
+  ),
+})
+type RecipeFormData = z.infer<typeof recipeSchema>
+
 function errorMessage(err: unknown, fallback: string) {
   return (err as { response?: { data?: { message?: string } } })?.response?.data?.message || fallback
 }
@@ -32,6 +42,7 @@ export function MenuItemDetailPage() {
   const queryClient = useQueryClient()
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [recipeOpen, setRecipeOpen] = useState(false)
   const user = useAuthStore((s) => s.user)
   // Cashiers can add menu items but not edit/delete existing ones — admin-only on the backend
   // too, so hide those controls here rather than let the request 403.
@@ -55,6 +66,12 @@ export function MenuItemDetailPage() {
     enabled: editOpen,
   })
 
+  const { data: inventoryItems } = useQuery({
+    queryKey: ['inventory-items'],
+    queryFn: () => inventoryApi.list(),
+    enabled: recipeOpen,
+  })
+
   const form = useForm<ItemFormData>({ resolver: zodResolver(itemSchema) })
   const selectedCategoryIds = form.watch('categoryIds') ?? []
 
@@ -66,6 +83,13 @@ export function MenuItemDetailPage() {
     )
   }
 
+  const recipeForm = useForm<RecipeFormData>({ resolver: zodResolver(recipeSchema), defaultValues: { ingredients: [] } })
+  const { fields: recipeFields, append: appendIngredient, remove: removeIngredient } = useFieldArray({
+    control: recipeForm.control,
+    name: 'ingredients',
+  })
+  const watchedIngredients = recipeForm.watch('ingredients')
+
   const updateItem = useMutation({
     mutationFn: (data: ItemFormData) => menuItemsApi.update(id!, data),
     onSuccess: () => {
@@ -75,6 +99,17 @@ export function MenuItemDetailPage() {
       setEditOpen(false)
     },
     onError: (err: unknown) => toast.error(errorMessage(err, 'Failed to update item')),
+  })
+
+  const saveRecipe = useMutation({
+    mutationFn: (data: RecipeFormData) => menuItemsApi.setIngredients(id!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['menu-items', id] })
+      queryClient.invalidateQueries({ queryKey: ['menu-items'] })
+      toast.success('Recipe updated')
+      setRecipeOpen(false)
+    },
+    onError: (err: unknown) => toast.error(errorMessage(err, 'Failed to update recipe')),
   })
 
   const deleteItem = useMutation({
@@ -196,6 +231,55 @@ export function MenuItemDetailPage() {
 
             <Card className="p-4">
               <CardContent className="p-0">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="flex items-center gap-1.5 font-semibold text-foreground">
+                    <CookingPot className="h-4 w-4 text-muted-foreground" /> Recipe
+                  </h3>
+                  {canManage && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        recipeForm.reset({
+                          ingredients: item.ingredients.map((line) => ({
+                            inventoryItemId: line.inventoryItemId,
+                            quantityPerUnit: line.quantityPerUnit,
+                          })),
+                        })
+                        setRecipeOpen(true)
+                      }}
+                    >
+                      <Pencil className="mr-1.5 h-4 w-4" /> {item.ingredients.length > 0 ? 'Edit Recipe' : 'Add Recipe'}
+                    </Button>
+                  )}
+                </div>
+                {item.ingredients.length === 0 ? (
+                  <p className="py-6 text-center text-sm text-muted-foreground">
+                    No recipe set — stock won't deplete when this item is served.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {item.ingredients.map((line) => (
+                      <div
+                        key={line.inventoryItemId}
+                        className="flex items-center justify-between rounded-xl border border-border p-3"
+                      >
+                        <div>
+                          <div className="text-sm font-semibold text-foreground">{line.name}</div>
+                          {line.sku && <div className="text-xs text-muted-foreground">SKU {line.sku}</div>}
+                        </div>
+                        <span className="text-sm font-semibold text-foreground">
+                          {line.quantityPerUnit} / order
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="p-4">
+              <CardContent className="p-0">
                 <h3 className="mb-3 font-semibold text-foreground">Recent Orders</h3>
                 {!history || history.recentOrders.length === 0 ? (
                   <p className="py-6 text-center text-sm text-muted-foreground">Never ordered yet</p>
@@ -291,6 +375,76 @@ export function MenuItemDetailPage() {
           </div>
           <Button type="submit" className="w-full" isLoading={updateItem.isPending}>
             Save Changes
+          </Button>
+        </form>
+      </Modal>
+
+      <Modal isOpen={recipeOpen} onClose={() => setRecipeOpen(false)} title="Edit Recipe">
+        <form onSubmit={recipeForm.handleSubmit((data) => saveRecipe.mutate(data))} className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Each line is consumed from inventory the moment this item is marked <strong>Served</strong> on the
+            kitchen board.
+          </p>
+
+          <div className="space-y-3">
+            {recipeFields.length === 0 && (
+              <p className="text-sm text-muted-foreground">No ingredients yet — add one below.</p>
+            )}
+            {recipeFields.map((field, index) => {
+              const chosenElsewhere = new Set(
+                watchedIngredients?.filter((_, i) => i !== index).map((line) => line.inventoryItemId),
+              )
+              const options = (inventoryItems ?? [])
+                .filter((inv) => inv.id === watchedIngredients?.[index]?.inventoryItemId || !chosenElsewhere.has(inv.id))
+                .map((inv) => ({ id: inv.id, label: inv.sku ? `${inv.name} · ${inv.sku}` : inv.name }))
+
+              return (
+                <div key={field.id} className="flex items-start gap-2">
+                  <div className="flex-1">
+                    <Label>Ingredient</Label>
+                    <SearchableSelect
+                      options={options}
+                      value={recipeForm.watch(`ingredients.${index}.inventoryItemId`) ?? ''}
+                      onChange={(value) => recipeForm.setValue(`ingredients.${index}.inventoryItemId`, value, { shouldValidate: true })}
+                      placeholder="Select inventory item"
+                      error={recipeForm.formState.errors.ingredients?.[index]?.inventoryItemId?.message}
+                    />
+                  </div>
+                  <div className="w-28">
+                    <Label>Qty / order</Label>
+                    <Input
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      error={recipeForm.formState.errors.ingredients?.[index]?.quantityPerUnit?.message}
+                      {...recipeForm.register(`ingredients.${index}.quantityPerUnit`, { valueAsNumber: true })}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="mt-6 text-destructive"
+                    onClick={() => removeIngredient(index)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              )
+            })}
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={() => appendIngredient({ inventoryItemId: '', quantityPerUnit: 1 })}
+          >
+            <Plus className="mr-1.5 h-4 w-4" /> Add Ingredient
+          </Button>
+
+          <Button type="submit" className="w-full" isLoading={saveRecipe.isPending}>
+            Save Recipe
           </Button>
         </form>
       </Modal>
