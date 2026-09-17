@@ -48,4 +48,12 @@ export class UpdatePlatformOrgDto {
   @IsOptional()
   @IsBoolean()
   isTestAccount?: boolean;
+
+  @ApiPropertyOptional({
+    example: false,
+    description: 'Whether this org\'s closed POS sales appear in the public accounting feed (GET /public/feed/sales)',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isAccountingFeedEnabled?: boolean;
 }

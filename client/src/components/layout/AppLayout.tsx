@@ -23,7 +23,6 @@ import {
   PaymentsIcon,
   VendorsIcon,
   ExpensesIcon,
-  InventoryIcon,
   ServicesIcon,
   ReportsIcon,
   AiChatIcon,
@@ -158,7 +157,6 @@ export function AppLayout() {
     {
       label: 'Catalog',
       items: [
-        { name: 'Product Inventory', href: '/inventory', icon: InventoryIcon, requiresPlan: 'PRO' as PlanTier, visible: hasInvoicing },
         { name: 'Services', href: '/settings/services', icon: ServicesIcon, visible: hasInvoicing },
       ] as MoreItem[],
     },
