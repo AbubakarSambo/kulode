@@ -74,6 +74,13 @@ export const googleSheetsConfig = registerAs("googleSheets", () => ({
   testSpreadsheetId: process.env.GOOGLE_SHEETS_TEST_SPREADSHEET_ID,
 }));
 
+export const accountingFeedConfig = registerAs("accountingFeed", () => ({
+  // Long random shared secret for the read-only accounting sales feed (see FeedModule). A
+  // single platform-wide secret, not per-org — which orgs' data it can see is controlled by
+  // Organization.isAccountingFeedEnabled instead, so this never has to be rotated per tenant.
+  secret: process.env.ACCOUNTING_FEED_SECRET,
+}));
+
 export const whatsappConfig = registerAs("whatsapp", () => ({
   phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
   accessToken: process.env.WHATSAPP_ACCESS_TOKEN,

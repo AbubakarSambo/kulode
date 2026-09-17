@@ -1133,6 +1133,7 @@ export class PlatformService {
     platformFeePercent?: number;
     enabledModules?: OrgModule;
     isTestAccount?: boolean;
+    isAccountingFeedEnabled?: boolean;
   }) {
     const updateData: any = {};
 
@@ -1158,6 +1159,10 @@ export class PlatformService {
 
     if (data.isTestAccount !== undefined) {
       updateData.isTestAccount = data.isTestAccount;
+    }
+
+    if (data.isAccountingFeedEnabled !== undefined) {
+      updateData.isAccountingFeedEnabled = data.isAccountingFeedEnabled;
     }
 
     const updated = await this.prisma.organization.update({
