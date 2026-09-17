@@ -894,6 +894,7 @@ export interface PlatformOrganization {
   subscriptionStatus: SubscriptionStatus
   isGrandfathered: boolean
   isTestAccount: boolean
+  isAccountingFeedEnabled: boolean
   platformFeePercent: number
   enabledModules: OrgModule
   createdAt: string
