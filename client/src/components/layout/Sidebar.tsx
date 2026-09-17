@@ -16,7 +16,6 @@ import {
   PaymentsIcon,
   VendorsIcon,
   ExpensesIcon,
-  InventoryIcon,
   ServicesIcon,
   ReportsIcon,
   AiChatIcon,
@@ -48,7 +47,6 @@ const navigationGroups = [
     title: 'Business Ops',
     items: [
       { name: 'Vendors', href: '/vendors', icon: VendorsIcon, requiresPlan: 'PRO' as PlanTier },
-      { name: 'Product Inventory', href: '/inventory', icon: InventoryIcon, requiresPlan: 'PRO' as PlanTier },
       { name: 'Services', href: '/settings/services', icon: ServicesIcon },
     ]
   },
