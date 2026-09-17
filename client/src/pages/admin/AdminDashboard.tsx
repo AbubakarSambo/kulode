@@ -1712,6 +1712,7 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
   const [subscriptionStatus, setSubscriptionStatus] = useState<string>(org.subscriptionStatus)
   const [isGrandfathered, setIsGrandfathered] = useState<boolean>(org.isGrandfathered)
   const [isTestAccount, setIsTestAccount] = useState<boolean>(org.isTestAccount)
+  const [isAccountingFeedEnabled, setIsAccountingFeedEnabled] = useState<boolean>(org.isAccountingFeedEnabled)
   const [platformFeePercent] = useState<number>(org.platformFeePercent)
   const [enabledModules, setEnabledModules] = useState<string>(org.enabledModules)
 
@@ -1723,6 +1724,7 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
       platformFeePercent?: number
       enabledModules?: OrgModule
       isTestAccount?: boolean
+      isAccountingFeedEnabled?: boolean
     }) => platformApi.updateOrganization(org.id, data),
     onSuccess: () => {
       toast.success('Organization config updated successfully')
@@ -1746,6 +1748,7 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
       platformFeePercent: Number(platformFeePercent),
       enabledModules: enabledModules as OrgModule,
       isTestAccount,
+      isAccountingFeedEnabled,
     })
   }
 
@@ -1859,6 +1862,20 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
                   type="checkbox"
                   checked={isTestAccount}
                   onChange={(e) => setIsTestAccount(e.target.checked)}
+                  className="h-5 w-5 rounded border-slate-300 text-primary focus:ring-primary/20 accent-[#0037b0] cursor-pointer"
+                />
+              </div>
+
+              <div className="flex items-center justify-between py-2">
+                <div className="space-y-0.5">
+                  <Label htmlFor="isAccountingFeedEnabled" className="text-xs font-semibold text-[#121c28]">Accounting Feed</Label>
+                  <p className="text-[10px] text-[#434655]">Include this org's closed POS sales in the public accounting feed (e.g. C.R.E.A.M.)</p>
+                </div>
+                <input
+                  id="isAccountingFeedEnabled"
+                  type="checkbox"
+                  checked={isAccountingFeedEnabled}
+                  onChange={(e) => setIsAccountingFeedEnabled(e.target.checked)}
                   className="h-5 w-5 rounded border-slate-300 text-primary focus:ring-primary/20 accent-[#0037b0] cursor-pointer"
                 />
               </div>

@@ -1008,6 +1008,7 @@ export class PlatformService {
           subscriptionStatus: true,
           isGrandfathered: true,
           isTestAccount: true,
+          isAccountingFeedEnabled: true,
           platformFeePercent: true,
           enabledModules: true,
           trialStartDate: true,
