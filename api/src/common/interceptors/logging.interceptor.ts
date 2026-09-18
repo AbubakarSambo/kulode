@@ -20,10 +20,14 @@ export class LoggingInterceptor implements NestInterceptor {
 
     response.on('finish', () => {
       const durationMs = Date.now() - start;
-      // Populated by JwtAuthGuard/passport for authenticated routes; absent on @Public() ones
-      // (login, webhooks) — omitted rather than logged as "undefined".
-      const organizationId = request.user?.organizationId;
-      const orgSuffix = organizationId ? ` org=${organizationId}` : '';
+      // Populated by JwtAuthGuard/passport for authenticated routes, or by PrintAgentGuard for
+      // /print-agent/* polling; absent on other @Public() routes (login, webhooks) — omitted
+      // rather than logged as "undefined".
+      const organizationId = request.user?.organizationId ?? request.organizationId;
+      const organizationName = request.organizationName;
+      const orgSuffix = organizationId
+        ? ` org=${organizationId}${organizationName ? ` (${organizationName})` : ''}`
+        : '';
       this.logger.log(`${method} ${originalUrl} ${response.statusCode} ${durationMs}ms${orgSuffix}`);
     });
 
