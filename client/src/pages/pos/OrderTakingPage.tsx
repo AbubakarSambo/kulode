@@ -56,7 +56,8 @@ export function OrderTakingPage() {
   const { data: organization } = useQuery({
     queryKey: ['organization'],
     queryFn: () => organizationsApi.getCurrent(),
-    staleTime: 60_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
   const vatEnabled = !!organization?.vatEnabled
   // Rates come back from the API as numeric-looking strings (Prisma Decimal serializes to string

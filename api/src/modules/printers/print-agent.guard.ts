@@ -20,13 +20,15 @@ export class PrintAgentGuard implements CanActivate {
 
     const organization = await this.prisma.organization.findUnique({
       where: { printAgentToken: token },
-      select: { id: true },
+      select: { id: true, name: true },
     });
     if (!organization) {
       throw new UnauthorizedException('Invalid print agent token');
     }
 
     request.organizationId = organization.id;
+    // Consumed by LoggingInterceptor so Railway logs show which org's agent is polling.
+    request.organizationName = organization.name;
     return true;
   }
 }
