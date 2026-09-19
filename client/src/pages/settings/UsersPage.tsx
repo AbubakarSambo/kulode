@@ -88,9 +88,12 @@ export function UsersPage() {
     (opt) => opt.value !== 'ADMIN' || !!currentUser?.roles.includes('SUPER_ADMIN'),
   )
 
+  const [page, setPage] = useState(1)
+  const limit = 20
+
   const { data, isLoading } = useQuery({
-    queryKey: ['users'],
-    queryFn: () => usersApi.list(),
+    queryKey: ['users', { page }],
+    queryFn: () => usersApi.list({ page, limit }),
   })
 
   const {
@@ -401,6 +404,24 @@ export function UsersPage() {
               </div>
             </CardContent>
           </Card>
+        )}
+        {data && data.meta.totalPages > 1 && (
+          <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
+            <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(page - 1)}>
+              Previous
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Page {page} of {data.meta.totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page === data.meta.totalPages}
+              onClick={() => setPage(page + 1)}
+            >
+              Next
+            </Button>
+          </div>
         )}
         </div>
       </div>
