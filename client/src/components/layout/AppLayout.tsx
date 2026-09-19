@@ -70,7 +70,7 @@ export function AppLayout() {
     if (path.startsWith('/payments')) return 'Payments'
     if (path.startsWith('/vendors')) return 'Vendors'
     if (path.startsWith('/expenses')) return 'Expenses'
-    if (path.startsWith('/inventory')) return 'Product Inventory'
+    if (path.startsWith('/inventory')) return 'Inventory'
     if (path.startsWith('/pos/orders')) return 'Orders'
     if (path.startsWith('/pos/customers')) return 'Customers'
     if (path.startsWith('/pos/menu')) return 'Menu'

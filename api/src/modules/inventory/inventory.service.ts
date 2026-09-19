@@ -61,6 +61,7 @@ export class InventoryService {
           description: dto.description,
           unitPrice: dto.unitPrice,
           reorderLevel: dto.reorderLevel ?? 0,
+          unitOfMeasure: dto.unitOfMeasure,
           sku: dto.sku,
           onHandQuantity: dto.initialStock ?? 0,
         },
@@ -109,6 +110,7 @@ export class InventoryService {
         ...(dto.description !== undefined && { description: dto.description }),
         ...(dto.unitPrice !== undefined && { unitPrice: dto.unitPrice }),
         ...(dto.reorderLevel !== undefined && { reorderLevel: dto.reorderLevel }),
+        ...(dto.unitOfMeasure !== undefined && { unitOfMeasure: dto.unitOfMeasure }),
         ...(dto.sku !== undefined && { sku: dto.sku }),
       },
     });

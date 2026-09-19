@@ -10,7 +10,7 @@ import {
 
 const ingredientsInclude = {
   ingredients: {
-    include: { inventoryItem: { select: { id: true, name: true, sku: true } } },
+    include: { inventoryItem: { select: { id: true, name: true, sku: true, unitOfMeasure: true } } },
   },
 } as const;
 
@@ -159,7 +159,7 @@ export class MenuService {
     T extends {
       ingredients: {
         quantityPerUnit: unknown;
-        inventoryItem: { id: string; name: string; sku: string | null };
+        inventoryItem: { id: string; name: string; sku: string | null; unitOfMeasure: string };
       }[];
     },
   >(item: T) {
@@ -170,6 +170,7 @@ export class MenuService {
         inventoryItemId: line.inventoryItem.id,
         name: line.inventoryItem.name,
         sku: line.inventoryItem.sku,
+        unitOfMeasure: line.inventoryItem.unitOfMeasure,
         quantityPerUnit: Number(line.quantityPerUnit),
       })),
     };

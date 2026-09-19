@@ -801,18 +801,30 @@ model ServiceItem {
   @@map("service_items")
 }
 
+enum UnitOfMeasure {
+  KG
+  G
+  L
+  ML
+  UNIT
+}
+
 // Inventory items (physical goods with stock tracking)
 model InventoryItem {
-  id               String  @id @default(uuid())
-  organizationId   String  @map("organization_id")
+  id               String        @id @default(uuid())
+  organizationId   String        @map("organization_id")
   name             String
   description      String?
-  unitPrice        Decimal @map("unit_price") @db.Decimal(12, 2)
-  onHandQuantity   Decimal @default(0) @map("on_hand_quantity") @db.Decimal(10, 2)
-  reservedQuantity Decimal @default(0) @map("reserved_quantity") @db.Decimal(10, 2)
-  reorderLevel     Decimal @default(0) @map("reorder_level") @db.Decimal(10, 2)
+  unitPrice        Decimal       @map("unit_price") @db.Decimal(12, 2)
+  onHandQuantity   Decimal       @default(0) @map("on_hand_quantity") @db.Decimal(10, 2)
+  reservedQuantity Decimal       @default(0) @map("reserved_quantity") @db.Decimal(10, 2)
+  reorderLevel     Decimal       @default(0) @map("reorder_level") @db.Decimal(10, 2)
+  // Labels what onHandQuantity/reservedQuantity/reorderLevel/quantityPerUnit (on any recipe line
+  // pointing here) actually count in — no conversion between units, so a recipe line just inherits
+  // whatever unit its ingredient is stocked in.
+  unitOfMeasure    UnitOfMeasure @default(UNIT) @map("unit_of_measure")
   sku              String?
-  isActive         Boolean @default(true) @map("is_active")
+  isActive         Boolean       @default(true) @map("is_active")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -838,8 +850,8 @@ model MenuItemIngredient {
   id              String  @id @default(uuid())
   menuItemId      String  @map("menu_item_id")
   inventoryItemId String  @map("inventory_item_id")
-  // Consumed per one unit of the menu item sold, in the InventoryItem's own onHandQuantity unit —
-  // there's no separate unit-of-measure concept yet, so both sides must already share units.
+  // Consumed per one unit of the menu item sold, in the linked InventoryItem's own unitOfMeasure —
+  // there's no cross-unit conversion, so this number is only meaningful alongside that item's unit.
   quantityPerUnit Decimal @map("quantity_per_unit") @db.Decimal(10, 3)
 
   createdAt DateTime @default(now()) @map("created_at")

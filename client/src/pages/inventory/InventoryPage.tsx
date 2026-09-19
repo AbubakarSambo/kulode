@@ -18,14 +18,14 @@ import {
   MoreVerticalIcon
 } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
-import { Button, Input, Label, Textarea, Card, CardContent, Badge, ConfirmDialog, EmptyState, DropdownPanel } from '@/components/ui'
+import { Button, Input, Label, Textarea, Select, Card, CardContent, Badge, ConfirmDialog, EmptyState, DropdownPanel } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { BottomSheet } from '@/components/shared'
 import { inventoryApi } from '@/api/inventory'
 import { useSubscription } from '@/hooks/useSubscription'
 
 import { formatCurrency, cn } from '@/lib/utils'
-import type { InventoryItem, StockMovement, StockMovementType } from '@/types'
+import type { InventoryItem, StockMovement, StockMovementType, UnitOfMeasure } from '@/types'
 import { InventoryIcon } from '@/components/ui/CustomIcons'
 import { useOverscrollBounce } from '@/hooks'
 import { posthog } from '@/lib/posthog'
@@ -38,6 +38,7 @@ const inventoryItemSchema = z.object({
   unitPrice: z.number().min(0, 'Price must be 0 or greater'),
   initialStock: z.number().min(0).optional(),
   reorderLevel: z.number().min(0).optional(),
+  unitOfMeasure: z.enum(['KG', 'G', 'L', 'ML', 'UNIT']),
   sku: z.string().optional(),
 })
 
@@ -46,6 +47,7 @@ const updateItemSchema = z.object({
   description: z.string().optional(),
   unitPrice: z.number().min(0, 'Price must be 0 or greater'),
   reorderLevel: z.number().min(0).optional(),
+  unitOfMeasure: z.enum(['KG', 'G', 'L', 'ML', 'UNIT']),
   sku: z.string().optional(),
 })
 
@@ -80,6 +82,18 @@ function movementColor(type: StockMovementType): string {
     case 'RESERVATION_RELEASED': return 'text-[#0037b0]'
   }
 }
+
+// Short suffix appended next to a quantity (e.g. "12 kg") — matches the unit whatever
+// onHandQuantity/reservedQuantity/reorderLevel/quantityPerUnit are actually counted in.
+const UNIT_SUFFIX: Record<UnitOfMeasure, string> = { KG: 'kg', G: 'g', L: 'L', ML: 'ml', UNIT: 'unit(s)' }
+
+const UNIT_OPTIONS: { value: UnitOfMeasure; label: string }[] = [
+  { value: 'UNIT', label: 'Units (each)' },
+  { value: 'KG', label: 'Kilograms (kg)' },
+  { value: 'G', label: 'Grams (g)' },
+  { value: 'L', label: 'Liters (L)' },
+  { value: 'ML', label: 'Milliliters (ml)' },
+]
 
 const getInitials = (name: string) => {
   if (!name) return '??'
@@ -141,7 +155,7 @@ export function InventoryPage() {
 
   const createForm = useForm<InventoryItemFormData>({
     resolver: zodResolver(inventoryItemSchema),
-    defaultValues: { name: '', description: '', unitPrice: 0, initialStock: 0, reorderLevel: 0, sku: '' },
+    defaultValues: { name: '', description: '', unitPrice: 0, initialStock: 0, reorderLevel: 0, unitOfMeasure: 'UNIT', sku: '' },
   })
 
   const createMutation = useMutation({
@@ -151,6 +165,7 @@ export function InventoryPage() {
       unitPrice: data.unitPrice,
       initialStock: data.initialStock || undefined,
       reorderLevel: data.reorderLevel || undefined,
+      unitOfMeasure: data.unitOfMeasure,
       sku: data.sku || undefined,
     }),
     onSuccess: () => {
@@ -179,6 +194,7 @@ export function InventoryPage() {
       description: data.description || undefined,
       unitPrice: data.unitPrice,
       reorderLevel: data.reorderLevel || undefined,
+      unitOfMeasure: data.unitOfMeasure,
       sku: data.sku || undefined,
     }),
     onSuccess: () => {
@@ -201,6 +217,7 @@ export function InventoryPage() {
       description: item.description || '',
       unitPrice: item.unitPrice,
       reorderLevel: item.reorderLevel,
+      unitOfMeasure: item.unitOfMeasure,
       sku: item.sku || '',
     })
   }
@@ -277,10 +294,10 @@ export function InventoryPage() {
   return (
     <div className="flex flex-1 flex-col overflow-hidden relative min-h-0">
       <Header
-        title="Product Inventory"
-        description="Track physical goods and stock levels"
+        title="Inventory"
+        description="Track ingredient and stock levels for your recipes"
         icon={InventoryIcon}
-        category="Business Ops"
+        category="Catalog & Setup"
         badgeText={items?.length}
         action={
           isExpired ? (
@@ -453,11 +470,11 @@ export function InventoryPage() {
                               <div className="flex items-center justify-center gap-4 text-xs">
                                 <div className="text-center">
                                   <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">On Hand</p>
-                                  <p className="font-bold text-slate-800 mt-0.5">{item.onHandQuantity}</p>
+                                  <p className="font-bold text-slate-800 mt-0.5">{item.onHandQuantity} {UNIT_SUFFIX[item.unitOfMeasure]}</p>
                                 </div>
                                 <div className="text-center">
                                   <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Reserved</p>
-                                  <p className="font-bold text-amber-600 mt-0.5">{item.reservedQuantity}</p>
+                                  <p className="font-bold text-amber-600 mt-0.5">{item.reservedQuantity} {UNIT_SUFFIX[item.unitOfMeasure]}</p>
                                 </div>
                                 <div className="text-center">
                                   <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Available</p>
@@ -465,7 +482,7 @@ export function InventoryPage() {
                                     "font-extrabold mt-0.5",
                                     item.availableQuantity <= 0 ? 'text-[#ba1a1a]' : 'text-emerald-700'
                                   )}>
-                                    {item.availableQuantity}
+                                    {item.availableQuantity} {UNIT_SUFFIX[item.unitOfMeasure]}
                                   </p>
                                 </div>
                               </div>
@@ -611,11 +628,11 @@ export function InventoryPage() {
                     <div className="grid grid-cols-3 gap-1 rounded-2xl bg-[#eef4ff]/35 border border-[#eef4ff]/50 p-3 text-center text-xs">
                       <div>
                         <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">On Hand</p>
-                        <p className="font-bold text-slate-800 mt-0.5">{item.onHandQuantity}</p>
+                        <p className="font-bold text-slate-800 mt-0.5">{item.onHandQuantity} {UNIT_SUFFIX[item.unitOfMeasure]}</p>
                       </div>
                       <div>
                         <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Reserved</p>
-                        <p className="font-bold text-amber-600 mt-0.5">{item.reservedQuantity}</p>
+                        <p className="font-bold text-amber-600 mt-0.5">{item.reservedQuantity} {UNIT_SUFFIX[item.unitOfMeasure]}</p>
                       </div>
                       <div>
                         <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Available</p>
@@ -623,7 +640,7 @@ export function InventoryPage() {
                           "font-extrabold mt-0.5",
                           item.availableQuantity <= 0 ? 'text-[#ba1a1a]' : 'text-emerald-700'
                         )}>
-                          {item.availableQuantity}
+                          {item.availableQuantity} {UNIT_SUFFIX[item.unitOfMeasure]}
                         </p>
                       </div>
                     </div>
@@ -752,8 +769,8 @@ export function InventoryPage() {
         ) : (
           <EmptyState
             icon={PackageIcon}
-            title={search ? "No product inventory items found" : "No product inventory items"}
-            description={search ? "Try adjusting your search terms." : "Add physical goods to track stock levels, issue alerts, and manage invoice reservations."}
+            title={search ? "No inventory items found" : "No inventory items"}
+            description={search ? "Try adjusting your search terms." : "Add ingredients and physical goods to track stock levels, get low-stock alerts, and power recipe deductions."}
             actionLabel={isExpired ? undefined : "Add your first item"}
             onAction={isExpired ? undefined : () => setCreateOpen(true)}
           />
@@ -870,6 +887,15 @@ export function InventoryPage() {
             </div>
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="create-unit" required>Unit</Label>
+            <Select id="create-unit" {...createForm.register('unitOfMeasure')}>
+              {UNIT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </Select>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="create-initial">Initial Stock</Label>
@@ -950,15 +976,25 @@ export function InventoryPage() {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="edit-reorder">Reorder Level</Label>
-            <Input
-              id="edit-reorder"
-              type="number"
-              step="0.01"
-              min="0"
-              {...editForm.register('reorderLevel', { valueAsNumber: true })}
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="edit-reorder">Reorder Level</Label>
+              <Input
+                id="edit-reorder"
+                type="number"
+                step="0.01"
+                min="0"
+                {...editForm.register('reorderLevel', { valueAsNumber: true })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-unit" required>Unit</Label>
+              <Select id="edit-unit" {...editForm.register('unitOfMeasure')}>
+                {UNIT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -982,7 +1018,11 @@ export function InventoryPage() {
         isOpen={!!adjustingItem}
         onClose={() => setAdjustingItem(null)}
         title={`Adjust Stock — ${adjustingItem?.name}`}
-        description={`Current on-hand: ${adjustingItem?.onHandQuantity} · Available: ${adjustingItem?.availableQuantity}`}
+        description={
+          adjustingItem
+            ? `Current on-hand: ${adjustingItem.onHandQuantity} ${UNIT_SUFFIX[adjustingItem.unitOfMeasure]} · Available: ${adjustingItem.availableQuantity} ${UNIT_SUFFIX[adjustingItem.unitOfMeasure]}`
+            : undefined
+        }
       >
         <form onSubmit={adjustForm.handleSubmit((d) => adjustMutation.mutate(d))} className="space-y-4">
           <div className="space-y-2">
@@ -1008,7 +1048,9 @@ export function InventoryPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="adj-qty" required>Quantity</Label>
+            <Label htmlFor="adj-qty" required>
+              Quantity{adjustingItem ? ` (${UNIT_SUFFIX[adjustingItem.unitOfMeasure]})` : ''}
+            </Label>
             <Input
               id="adj-qty"
               type="number"
@@ -1062,11 +1104,11 @@ export function InventoryPage() {
                     <p className="text-[10px] text-slate-400 font-semibold mt-1">{m.notes}</p>
                   )}
                   <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-                    {new Date(m.createdAt).toLocaleDateString()} · {m.onHandBefore} → {m.onHandAfter}
+                    {new Date(m.createdAt).toLocaleDateString()} · {m.onHandBefore} → {m.onHandAfter}{movementsItem ? ` ${UNIT_SUFFIX[movementsItem.unitOfMeasure]}` : ''}
                   </p>
                 </div>
                 <span className={cn("font-extrabold tabular-nums text-xs", m.quantity >= 0 ? 'text-emerald-700' : 'text-rose-600')}>
-                  {m.quantity >= 0 ? '+' : ''}{m.quantity}
+                  {m.quantity >= 0 ? '+' : ''}{m.quantity}{movementsItem ? ` ${UNIT_SUFFIX[movementsItem.unitOfMeasure]}` : ''}
                 </span>
               </div>
             ))}

@@ -12,6 +12,10 @@ import { Modal } from '@/components/shared/Modal'
 import { menuCategoriesApi, menuItemsApi, inventoryApi } from '@/api'
 import { formatCurrency, formatDate, cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
+import type { UnitOfMeasure } from '@/types'
+
+// Matches InventoryPage's UNIT_SUFFIX — kept in sync manually since it's a tiny, stable lookup.
+const UNIT_SUFFIX: Record<UnitOfMeasure, string> = { KG: 'kg', G: 'g', L: 'L', ML: 'ml', UNIT: 'unit(s)' }
 
 const itemSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -269,7 +273,7 @@ export function MenuItemDetailPage() {
                           {line.sku && <div className="text-xs text-muted-foreground">SKU {line.sku}</div>}
                         </div>
                         <span className="text-sm font-semibold text-foreground">
-                          {line.quantityPerUnit} / order
+                          {line.quantityPerUnit} {UNIT_SUFFIX[line.unitOfMeasure]} / order
                         </span>
                       </div>
                     ))}
@@ -397,6 +401,11 @@ export function MenuItemDetailPage() {
               const options = (inventoryItems ?? [])
                 .filter((inv) => inv.id === watchedIngredients?.[index]?.inventoryItemId || !chosenElsewhere.has(inv.id))
                 .map((inv) => ({ id: inv.id, label: inv.sku ? `${inv.name} · ${inv.sku}` : inv.name }))
+              // Recipe quantities have no cross-unit conversion — they're always in whatever unit
+              // the chosen ingredient is stocked in, so show that unit right next to the input.
+              const selectedUnit = inventoryItems?.find(
+                (inv) => inv.id === watchedIngredients?.[index]?.inventoryItemId,
+              )?.unitOfMeasure
 
               return (
                 <div key={field.id} className="flex items-start gap-2">
@@ -411,7 +420,7 @@ export function MenuItemDetailPage() {
                     />
                   </div>
                   <div className="w-28">
-                    <Label>Qty / order</Label>
+                    <Label>Qty / order{selectedUnit ? ` (${UNIT_SUFFIX[selectedUnit]})` : ''}</Label>
                     <Input
                       type="number"
                       step="0.001"

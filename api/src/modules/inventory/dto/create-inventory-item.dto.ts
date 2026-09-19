@@ -1,10 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { UnitOfMeasure } from '@prisma/client';
 import {
   IsNotEmpty,
   IsString,
   IsNumber,
   Min,
   IsOptional,
+  IsEnum,
   MaxLength,
 } from 'class-validator';
 
@@ -24,6 +26,15 @@ export class CreateInventoryItemDto {
   @IsNumber()
   @Min(0)
   unitPrice: number;
+
+  @ApiPropertyOptional({
+    enum: UnitOfMeasure,
+    example: UnitOfMeasure.UNIT,
+    description: 'What onHandQuantity/reorderLevel and any recipe line against this item are counted in',
+  })
+  @IsOptional()
+  @IsEnum(UnitOfMeasure)
+  unitOfMeasure?: UnitOfMeasure;
 
   @ApiPropertyOptional({ example: 10, description: 'Starting stock quantity' })
   @IsOptional()
