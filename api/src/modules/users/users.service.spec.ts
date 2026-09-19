@@ -150,26 +150,26 @@ describe('UsersService — user limit enforcement', () => {
 
   // ─── PRO plan limits ─────────────────────────────────────────────────────
 
-  it('allows user creation when ACTIVE PRO plan has 2 active users (limit is 3)', async () => {
+  it('allows user creation when ACTIVE PRO plan has 9 active users (limit is 10)', async () => {
     prisma.user.findUnique.mockResolvedValue(null);
     prisma.organization.findUnique.mockResolvedValue(orgWith({ planTier: 'PRO', subscriptionStatus: 'ACTIVE' }));
-    prisma.user.count.mockResolvedValue(2);
+    prisma.user.count.mockResolvedValue(9);
     setupTransactionMock(prisma);
 
     await expect(service.create(ORG_ID, createDto, [Role.SUPER_ADMIN])).resolves.toBeDefined();
   });
 
-  it('throws USER_LIMIT_REACHED when ACTIVE PRO plan already has 3 active users', async () => {
+  it('throws USER_LIMIT_REACHED when ACTIVE PRO plan already has 10 active users', async () => {
     prisma.user.findUnique.mockResolvedValue(null);
     prisma.organization.findUnique.mockResolvedValue(orgWith({ planTier: 'PRO', subscriptionStatus: 'ACTIVE' }));
-    prisma.user.count.mockResolvedValue(3);
+    prisma.user.count.mockResolvedValue(10);
 
     await expect(service.create(ORG_ID, createDto, [Role.SUPER_ADMIN])).rejects.toMatchObject({
       response: expect.objectContaining({
         code: 'USER_LIMIT_REACHED',
         currentPlan: 'PRO',
-        limit: 3,
-        current: 3,
+        limit: 10,
+        current: 10,
       }),
     });
   });
@@ -207,7 +207,7 @@ describe('UsersService — user limit enforcement', () => {
     prisma.organization.findUnique.mockResolvedValue(
       orgWith({ planTier: 'PRO', subscriptionStatus: 'TRIALING', trialEndDate: pastDate }),
     );
-    prisma.user.count.mockResolvedValue(2); // above FREE limit (1), below PRO limit (3)
+    prisma.user.count.mockResolvedValue(2); // above FREE limit (1), below PRO limit (10)
 
     await expect(service.create(ORG_ID, createDto, [Role.SUPER_ADMIN])).rejects.toMatchObject({
       response: expect.objectContaining({

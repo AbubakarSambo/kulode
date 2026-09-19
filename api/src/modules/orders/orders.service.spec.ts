@@ -15,7 +15,7 @@ type TxMock = ReturnType<typeof createTxMock>;
 
 function createTxMock() {
   return {
-    order: { updateMany: jest.fn(), findUniqueOrThrow: jest.fn(), update: jest.fn() },
+    order: { updateMany: jest.fn(), findUniqueOrThrow: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
     orderItem: {
       create: jest.fn(),
       // recomputeOrderTotals always re-derives subtotal from this — defaults to "no rows"
@@ -27,6 +27,10 @@ function createTxMock() {
     restaurantTable: { update: jest.fn() },
     payment: { create: jest.fn() },
     user: { findUnique: jest.fn() },
+    // Only reassignPayment reads these directly (WalletService itself is mocked wholesale, so
+    // its own tx.customer/tx.walletTransaction usage never reaches this mock).
+    customer: { findFirst: jest.fn() },
+    walletTransaction: { findMany: jest.fn() },
     idempotencyKey: { create: jest.fn(), update: jest.fn() },
   };
 }
@@ -76,7 +80,7 @@ describe('OrdersService — status transitions across the waiter/cashier split',
   let service: OrdersService;
   let prisma: ReturnType<typeof createMockPrisma>;
   let inventoryService: { deductForOrder: jest.Mock };
-  let walletService: { debit: jest.Mock };
+  let walletService: { debit: jest.Mock; credit: jest.Mock };
   let sheetSync: { enqueue: jest.Mock; enqueueMany: jest.Mock };
   let printingService: { dispatchDocketsForNewItems: jest.Mock; dispatchDocketsForCancellation: jest.Mock };
   let orderTypesService: { requiresTable: jest.Mock };
@@ -85,7 +89,7 @@ describe('OrdersService — status transitions across the waiter/cashier split',
   beforeEach(async () => {
     prisma = createMockPrisma();
     inventoryService = { deductForOrder: jest.fn() };
-    walletService = { debit: jest.fn() };
+    walletService = { debit: jest.fn(), credit: jest.fn() };
     sheetSync = { enqueue: jest.fn(), enqueueMany: jest.fn() };
     printingService = {
       dispatchDocketsForNewItems: jest.fn().mockResolvedValue(undefined),
@@ -331,6 +335,140 @@ describe('OrdersService — status transitions across the waiter/cashier split',
         service.closeWithPayment(ORG_ID, ORDER_ID, USER_ID, { ...dto, paymentMethod: 'CRYPTO' }),
       ).rejects.toThrow(BadRequestException);
       expect(prisma.__tx.payment.create).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── reassignPayment (wallet payment misattribution correction) ────────────
+
+  describe('reassignPayment', () => {
+    const FROM_CUSTOMER_ID = 'customer-a';
+    const TO_CUSTOMER_ID = 'customer-b';
+    const dto = {
+      toCustomerId: TO_CUSTOMER_ID,
+      reason: 'Cashier had the wrong customer selected',
+      clientRequestId: 'req-reassign-1',
+    };
+
+    function walletDebitWith(overrides: object) {
+      return {
+        id: 'wallet-txn-1',
+        organizationId: ORG_ID,
+        customerId: FROM_CUSTOMER_ID,
+        orderId: ORDER_ID,
+        type: 'ORDER_DEBIT',
+        amount: -5000,
+        paymentId: 'payment-old-1',
+        ...overrides,
+      };
+    }
+
+    beforeEach(() => {
+      prisma.__tx.order.findFirst.mockResolvedValue(orderWith({ customerId: FROM_CUSTOMER_ID }));
+      prisma.__tx.customer.findFirst.mockResolvedValue({ id: TO_CUSTOMER_ID, organizationId: ORG_ID });
+      prisma.__tx.walletTransaction.findMany.mockResolvedValue([walletDebitWith({})]);
+      prisma.__tx.payment.create.mockResolvedValue({ id: 'payment-new-1', amount: 5000, paymentMethod: 'WALLET' });
+      prisma.__tx.order.findUniqueOrThrow.mockResolvedValue(orderWith({ customerId: TO_CUSTOMER_ID }));
+    });
+
+    it('throws NotFoundException when the order does not exist', async () => {
+      prisma.__tx.order.findFirst.mockResolvedValue(null);
+      await expect(service.reassignPayment(ORG_ID, ORDER_ID, USER_ID, dto)).rejects.toThrow(NotFoundException);
+    });
+
+    it('rejects an order with no customer to reassign the payment from', async () => {
+      prisma.__tx.order.findFirst.mockResolvedValue(orderWith({ customerId: null }));
+      await expect(service.reassignPayment(ORG_ID, ORDER_ID, USER_ID, dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects reassigning to the customer the order is already attributed to', async () => {
+      prisma.__tx.order.findFirst.mockResolvedValue(orderWith({ customerId: TO_CUSTOMER_ID }));
+      await expect(service.reassignPayment(ORG_ID, ORDER_ID, USER_ID, dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws NotFoundException when the target customer does not exist', async () => {
+      prisma.__tx.customer.findFirst.mockResolvedValue(null);
+      await expect(service.reassignPayment(ORG_ID, ORDER_ID, USER_ID, dto)).rejects.toThrow(NotFoundException);
+    });
+
+    it('rejects an order that was never paid from a wallet', async () => {
+      prisma.__tx.walletTransaction.findMany.mockResolvedValue([]);
+      await expect(service.reassignPayment(ORG_ID, ORDER_ID, USER_ID, dto)).rejects.toThrow(BadRequestException);
+      expect(walletService.credit).not.toHaveBeenCalled();
+    });
+
+    it('rejects an order with more than one wallet charge against the current customer', async () => {
+      prisma.__tx.walletTransaction.findMany.mockResolvedValue([walletDebitWith({}), walletDebitWith({ id: 'wallet-txn-2' })]);
+      await expect(service.reassignPayment(ORG_ID, ORDER_ID, USER_ID, dto)).rejects.toThrow(BadRequestException);
+      expect(walletService.credit).not.toHaveBeenCalled();
+    });
+
+    it('refunds the original customer, re-attributes the order, and charges the correct customer', async () => {
+      const result = await service.reassignPayment(ORG_ID, ORDER_ID, USER_ID, dto);
+
+      // 1. The wrongly-charged customer is refunded the exact debited amount, referencing the
+      // original debit for audit purposes.
+      expect(walletService.credit).toHaveBeenCalledWith(
+        prisma.__tx,
+        ORG_ID,
+        FROM_CUSTOMER_ID,
+        USER_ID,
+        expect.objectContaining({
+          amount: 5000,
+          type: 'REFUND',
+          orderId: ORDER_ID,
+          paymentId: 'payment-old-1',
+          reference: 'wallet-txn-1',
+        }),
+      );
+
+      // 2. The order is re-attributed to the correct customer.
+      expect(prisma.__tx.order.update).toHaveBeenCalledWith({
+        where: { id: ORDER_ID },
+        data: { customerId: TO_CUSTOMER_ID },
+      });
+
+      // 3. A new payment record is created and the correct customer is charged for it.
+      expect(prisma.__tx.payment.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            organizationId: ORG_ID,
+            orderId: ORDER_ID,
+            recordedById: USER_ID,
+            amount: 5000,
+            paymentMethod: 'WALLET',
+          }),
+        }),
+      );
+      expect(walletService.debit).toHaveBeenCalledWith(
+        prisma.__tx,
+        ORG_ID,
+        TO_CUSTOMER_ID,
+        USER_ID,
+        expect.objectContaining({
+          amount: 5000,
+          type: 'ORDER_DEBIT',
+          orderId: ORDER_ID,
+          paymentId: 'payment-new-1',
+          notes: dto.reason,
+        }),
+      );
+
+      expect(result).toMatchObject({ customerId: TO_CUSTOMER_ID });
+    });
+
+    it('rolls back the whole correction when the correct customer lacks balance/credit to cover it', async () => {
+      walletService.debit.mockRejectedValue(
+        new BadRequestException('This customer does not have enough wallet balance or approved credit to cover this payment'),
+      );
+
+      await expect(service.reassignPayment(ORG_ID, ORDER_ID, USER_ID, dto)).rejects.toThrow(BadRequestException);
+
+      // The refund and re-attribution were attempted before the failing debit — a real
+      // transaction rolls all of this back atomically, which this unit test can't observe
+      // directly (the tx mock has no rollback semantics), but it documents the ordering: the
+      // failure happens on step 3, after steps 1 and 2 already ran within the same tx.
+      expect(walletService.credit).toHaveBeenCalled();
+      expect(prisma.__tx.order.update).toHaveBeenCalled();
     });
   });
 });

@@ -126,7 +126,7 @@ describe('SubscriptionService', () => {
       expect(result.subscriptionStatus).toBe('TRIALING');
       expect(result.trialDaysRemaining).toBeGreaterThan(0);
       expect(result.trialDaysRemaining).toBeLessThanOrEqual(15);
-      expect(result.limits.maxUsers).toBe(3);
+      expect(result.limits.maxUsers).toBe(10);
       expect(result.limits.maxInvoicesPerMonth).toBe(100);
     });
 
@@ -286,10 +286,10 @@ describe('SubscriptionService', () => {
       expect(result.reference).toBe('SUB-org-1234-12345');
       expect(result.accessCode).toBe('access123');
 
-      // Verify the correct amount was sent (12500 * 100 = 1250000 kobo)
+      // Verify the correct amount was sent (35000 * 100 = 3500000 kobo)
       const fetchCall = mockFetch.mock.calls[0];
       const body = JSON.parse(fetchCall[1].body);
-      expect(body.amount).toBe(1250000);
+      expect(body.amount).toBe(3500000);
       expect(body.email).toBe('user@test.com');
       expect(body.metadata.type).toBe('subscription');
       expect(body.metadata.plan_tier).toBe('PRO');
@@ -314,7 +314,7 @@ describe('SubscriptionService', () => {
       expect(result.paymentUrl).toBe('https://paystack.com/pay/xyz');
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body.amount).toBe(29500000); // 295000 * 100 kobo
+      expect(body.amount).toBe(50000000); // 500000 * 100 kobo
     });
 
     it('should throw if Paystack initialization fails', async () => {

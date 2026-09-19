@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { InventoryItem, StockMovement, ApiResponse } from '@/types'
+import type { InventoryItem, StockMovement, ApiResponse, UnitOfMeasure } from '@/types'
 
 export interface CreateInventoryItemData {
   name: string
@@ -7,6 +7,7 @@ export interface CreateInventoryItemData {
   unitPrice: number
   initialStock?: number
   reorderLevel?: number
+  unitOfMeasure?: UnitOfMeasure
   sku?: string
 }
 
@@ -15,6 +16,7 @@ export interface UpdateInventoryItemData {
   description?: string
   unitPrice?: number
   reorderLevel?: number
+  unitOfMeasure?: UnitOfMeasure
   sku?: string
 }
 

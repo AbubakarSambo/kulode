@@ -378,6 +378,8 @@ export type StockMovementType =
   | 'INVOICE_DEDUCTED'
   | 'RESERVATION_RELEASED'
 
+export type UnitOfMeasure = 'KG' | 'G' | 'L' | 'ML' | 'UNIT'
+
 export interface InventoryItem {
   id: string
   name: string
@@ -387,6 +389,7 @@ export interface InventoryItem {
   reservedQuantity: number
   availableQuantity: number
   reorderLevel: number
+  unitOfMeasure: UnitOfMeasure
   sku?: string
   isActive: boolean
   createdAt: string
@@ -445,6 +448,7 @@ export interface MenuItemIngredient {
   inventoryItemId: string
   name: string
   sku?: string
+  unitOfMeasure: UnitOfMeasure
   quantityPerUnit: number
 }
 
