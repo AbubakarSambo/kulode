@@ -55,8 +55,8 @@ export interface StaffOrderHistory {
 }
 
 export const usersApi = {
-  list: async (): Promise<PaginatedResponse<UserData>> => {
-    const response = await apiClient.get<ApiResponse<PaginatedResponse<UserData>>>('/users')
+  list: async (params?: { page?: number; limit?: number }): Promise<PaginatedResponse<UserData>> => {
+    const response = await apiClient.get<ApiResponse<PaginatedResponse<UserData>>>('/users', { params })
     return response.data.data
   },
   // Lightweight, broadly-accessible staff picker for one or more roles (e.g. assigning a waiter
