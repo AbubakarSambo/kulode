@@ -101,8 +101,9 @@ export class EmailService {
 
     @media screen and (max-width: 600px) {
       .email-container { width: 100% !important; padding: 16px !important; }
-      .email-card { padding: 24px !important; border-radius: 16px !important; }
-      .btn { display: block !important; width: 100% !important; box-sizing: border-box !important; text-align: center !important; border-left: 0px !important; border-right: 0px !important; }
+      .email-card { border-radius: 16px !important; }
+      .email-card-content { padding: 24px !important; }
+      .btn { display: block !important; width: 100% !important; box-sizing: border-box !important; text-align: center !important; border: 0 !important; padding: 14px 20px !important; }
     }
 
     @media (prefers-color-scheme: dark) {
@@ -217,7 +218,7 @@ export class EmailService {
       headline: 'Verify your email address',
       bodyHtml: `
         <p>Hi ${firstName},</p>
-        <p>Welcome to Tari1! We are excited to help you streamline your invoicing, collections, and financial operations.</p>
+        <p>Welcome to Tari1! We're excited to help you run your floor — taking orders, managing your menu and tables, tracking shifts, and keeping stock under control.</p>
         <p>Please click the button below to verify your email address and activate your account:</p>
       `,
       ctaText: 'Verify Email',
@@ -383,11 +384,11 @@ export class EmailService {
       bodyHtml: `
         <p>Hi ${firstName},</p>
         <p>We were unable to automatically renew your <strong>Tari1 ${planTier}</strong> subscription. This may be due to an expired card, insufficient funds, or a change in your billing details.</p>
-        <p>To avoid losing access to your invoicing tools and account features, please update your payment method and renew your subscription:</p>
+        <p>To avoid losing access to your POS — taking orders, managing tables, and running shifts — please update your payment method and renew your subscription:</p>
       `,
       ctaText: 'Update Payment & Renew',
       ctaUrl: loginUrl,
-      footerNote: 'Your data is completely safe, but invoicing capabilities will be temporarily locked until the renewal is successful.',
+      footerNote: 'Your data is completely safe, but order-taking and other account features will be temporarily locked until the renewal is successful.',
     });
 
     await this.sendEmail({
@@ -429,7 +430,7 @@ export class EmailService {
       bodyHtml: `
         <p>Hi ${firstName},</p>
         <p>This is a quick friendly reminder that your 30-day free trial of <strong>Tari1</strong> is ending in <strong>${daysRemaining} days</strong>.</p>
-        <p>To ensure uninterrupted access to your invoicing, reports, client lists, and expense tracking tools, please select a plan and add a payment method before your trial expires.</p>
+        <p>To keep uninterrupted access to order taking, your menu and tables, shift reports, and inventory, please select a plan and add a payment method before your trial expires.</p>
       `,
       ctaText: 'Select a Pricing Plan',
       ctaUrl: billingUrl,
@@ -452,12 +453,12 @@ export class EmailService {
       headline: 'Your free trial has ended',
       bodyHtml: `
         <p>Hi ${firstName},</p>
-        <p>Your 30-day trial of <strong>Tari1</strong> has officially expired, and your account invoicing features have been temporarily locked.</p>
-        <p>Your invoice data, clients, and expenses are completely safe, but you will need to subscribe to a paid plan to resume creating and managing invoices.</p>
+        <p>Your 30-day trial of <strong>Tari1</strong> has officially expired, and your account has been temporarily locked.</p>
+        <p>Your orders, menu, customers, and stock data are completely safe, but you will need to subscribe to a paid plan to resume taking orders and running your floor.</p>
       `,
       ctaText: 'Choose Plan & Upgrade',
       ctaUrl: billingUrl,
-      footerNote: 'Select the Starter plan at just ₦4,500/month to get started instantly.',
+      footerNote: 'Select the Starter plan at just ₦20,000/month to get started instantly.',
     });
 
     await this.sendEmail({
