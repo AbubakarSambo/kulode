@@ -552,12 +552,23 @@ export function OrderTakingPage() {
               <div className="text-xs font-medium text-muted-foreground">
                 {showTablePicker ? 'Table, Customer, Waiter & Notes' : 'Customer, Waiter & Notes'}
               </div>
-              <div className="truncate text-sm font-semibold text-foreground">
+              <div
+                className={cn(
+                  'truncate text-sm font-semibold',
+                  !selectedTableLabel && !selectedCustomerLabel && !selectedWaiterLabel && !orderNotes && showTablePicker
+                    ? 'text-amber-600'
+                    : 'text-foreground',
+                )}
+              >
                 {selectedTableLabel || selectedCustomerLabel || selectedWaiterLabel || orderNotes
                   ? [selectedTableLabel, selectedCustomerLabel, selectedWaiterLabel, orderNotes]
                       .filter(Boolean)
                       .join(' · ')
-                  : 'Not set (optional)'}
+                  // A table-requiring order type genuinely can't be sent without one — don't call
+                  // it "optional" right next to the thing silently blocking Send Order below.
+                  : showTablePicker
+                    ? 'Table required'
+                    : 'Not set (optional)'}
               </div>
             </div>
             <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -643,6 +654,9 @@ export function OrderTakingPage() {
               Send Order
             </Button>
           </div>
+          {cart.length > 0 && sourceRequiresTable && !effectiveTableId && (
+            <p className="mt-2 text-xs font-medium text-amber-600">Select a table above to send this order</p>
+          )}
         </div>
       </div>
 

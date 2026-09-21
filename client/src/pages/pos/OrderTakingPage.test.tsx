@@ -173,6 +173,9 @@ describe('OrderTakingPage', () => {
       await user.click(await screen.findByText('Burger'))
 
       expect(screen.getByRole('button', { name: 'Send Order' })).toBeDisabled()
+      // Explains *why* it's disabled, and doesn't mislabel the missing table as "optional".
+      expect(screen.getByText('Select a table above to send this order')).toBeInTheDocument()
+      expect(screen.getByText('Table required')).toBeInTheDocument()
     })
 
     it('enables Send Order once a table is attached via the assignments sheet', async () => {
@@ -190,6 +193,7 @@ describe('OrderTakingPage', () => {
       await user.click(await screen.findByText('Table 5'))
 
       expect(screen.getByRole('button', { name: 'Send Order' })).not.toBeDisabled()
+      expect(screen.queryByText('Select a table above to send this order')).not.toBeInTheDocument()
     })
 
     it('does not show the table picker when a tableId is already in the URL', async () => {

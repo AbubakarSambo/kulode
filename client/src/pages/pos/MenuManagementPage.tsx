@@ -22,7 +22,7 @@ const itemSchema = z.object({
   description: z.string().optional(),
   price: z.number().min(0, 'Price must be 0 or greater'),
   categoryIds: z.array(z.string()),
-  durationMinutes: z.number({ error: 'Prep time is required' }).min(0, 'Duration must be 0 or greater'),
+  durationMinutes: z.number().min(0, 'Duration must be 0 or greater').optional(),
 })
 
 type ItemFormData = z.infer<typeof itemSchema>
@@ -450,13 +450,17 @@ export function MenuManagementPage() {
             <Input type="number" step="0.01" placeholder="0.00" {...itemForm.register('price', { valueAsNumber: true })} />
           </div>
           <div>
-            <Label>Prep time (minutes)</Label>
+            <Label>Prep time (minutes, optional)</Label>
             <Input
               type="number"
               step="1"
               placeholder="Drives the kitchen ticket countdown"
               error={itemForm.formState.errors.durationMinutes?.message}
-              {...itemForm.register('durationMinutes', { valueAsNumber: true })}
+              {...itemForm.register('durationMinutes', {
+                // An empty field must become `undefined`, not NaN — valueAsNumber would otherwise
+                // fail validation instead of just leaving prep time unset.
+                setValueAs: (v) => (v === '' ? undefined : Number(v)),
+              })}
             />
           </div>
           <div>
