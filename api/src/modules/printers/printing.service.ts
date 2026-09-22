@@ -212,8 +212,12 @@ export class PrintingService {
   }
 
   async reportJobResult(organizationId: string, jobId: string, status: 'SENT' | 'FAILED', error?: string) {
-    const job = await this.prisma.printJob.findFirst({ where: { id: jobId, printer: { organizationId } } });
+    const job = await this.prisma.printJob.findFirst({
+      where: { id: jobId, printer: { organizationId } },
+      include: { printer: { include: { organization: { select: { name: true } } } } },
+    });
     if (!job) return;
+    const orgLabel = `${job.printer.organization.name} (${organizationId})`;
 
     await this.prisma.printJob.update({
       where: { id: job.id },
@@ -226,7 +230,9 @@ export class PrintingService {
     });
 
     if (status === 'FAILED') {
-      this.logger.warn(`Print agent reported failure for job ${jobId} (org ${organizationId}): ${error}`);
+      this.logger.warn(`Print agent reported failure for job ${jobId} (org ${orgLabel}): ${error}`);
+    } else {
+      this.logger.log(`Print agent confirmed job ${jobId} printed successfully (org ${orgLabel})`);
     }
   }
 
