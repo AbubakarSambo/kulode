@@ -486,7 +486,13 @@ export class SubscriptionService {
     });
 
     for (const org of renewableOrgs) {
-      await this.renewSubscription(org.id);
+      // One org's renewal failure (e.g. a transient DB error inside activateSubscription) must
+      // not abort the loop and skip renewal/expiry processing for every other org that night.
+      try {
+        await this.renewSubscription(org.id);
+      } catch (err) {
+        this.logger.error(`Failed to renew subscription for org ${org.id}: ${err.message}`);
+      }
     }
 
     // Expire anything that is past its end date and wasn't (or couldn't be) renewed

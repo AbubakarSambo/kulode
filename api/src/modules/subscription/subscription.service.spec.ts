@@ -611,6 +611,23 @@ describe('SubscriptionService', () => {
         },
       });
     });
+
+    it("does not let one org's renewal failure block other orgs or the expiry sweep", async () => {
+      prisma.organization.findMany.mockResolvedValue([{ id: 'org-fail' }, { id: 'org-ok' }]);
+      // First org's renewal blows up on an unrelated DB hiccup; second org simply has nothing to
+      // renew (renewSubscription returns false rather than throwing) — both must still be attempted.
+      prisma.organization.findUnique
+        .mockRejectedValueOnce(new Error('DB hiccup'))
+        .mockResolvedValueOnce(null);
+      prisma.organization.updateMany.mockResolvedValue({ count: 1 });
+
+      await expect(service.checkAndExpireSubscriptions()).resolves.toBeUndefined();
+
+      expect(prisma.organization.findUnique).toHaveBeenCalledTimes(2);
+      expect(prisma.organization.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { planTier: 'FREE', subscriptionStatus: 'EXPIRED' } }),
+      );
+    });
   });
 
   // ─── getPaymentHistory ────────────────────────────────────────────

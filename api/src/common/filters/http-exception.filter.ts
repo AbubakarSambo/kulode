@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import * as Sentry from '@sentry/nestjs';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -38,6 +39,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         `Unhandled exception: ${exception.message}`,
         exception.stack,
       );
+    }
+
+    // Report unexpected failures only — a validation error or a 404 is expected client-facing
+    // behavior, not a bug. Nest catches exceptions inside the request pipeline before they'd ever
+    // reach Sentry's own automatic process-level handlers, so this filter has to report them itself.
+    if (status >= 500) {
+      Sentry.captureException(exception);
     }
 
     response.status(status).json({
