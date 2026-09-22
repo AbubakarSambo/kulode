@@ -96,3 +96,6 @@ export { PaymentCallbackPage } from './payment/PaymentCallback'
 export { PublicInvoicePage } from './invoice/PublicInvoice'
 export { ShortLinkRedirectPage } from './invoice/ShortLinkRedirect'
 
+// Sentry verification — see DebugSentryPage.tsx
+export { DebugSentryPage } from './DebugSentryPage'
+

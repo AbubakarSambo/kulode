@@ -51,6 +51,7 @@ import {
   PaymentCallbackPage,
   PublicInvoicePage,
   ShortLinkRedirectPage,
+  DebugSentryPage,
   AdminDashboardPage,
   BillingPage,
   ChangelogPage,
@@ -147,6 +148,7 @@ function App() {
           <Route path="/payment/callback" element={<PaymentCallbackPage />} />
           <Route path="/i/:token" element={<PublicInvoicePage />} />
           <Route path="/p/:slug" element={<ShortLinkRedirectPage />} />
+          <Route path="/debug-sentry" element={<DebugSentryPage />} />
 
           {/* Protected routes */}
           <Route element={<ProtectedRoute />}>
