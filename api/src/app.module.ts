@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
+import { SentryModule } from '@sentry/nestjs/setup';
 import { ConfigModule } from './config';
 import { PrismaModule } from './modules/prisma';
 import { AuthModule } from './modules/auth';
@@ -21,6 +22,8 @@ import { SubscriptionModule } from './modules/subscription';
 import { InventoryModule } from './modules/inventory';
 import { TaxModule } from './modules/tax';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
+import { MaintenanceModule } from './modules/maintenance/maintenance.module';
+import { DebugController } from './common/debug/debug.controller';
 import { AiModule } from './modules/ai/ai.module';
 import { MenuModule } from './modules/menu';
 import { TablesModule } from './modules/tables';
@@ -48,6 +51,9 @@ import {
 
 @Module({
   imports: [
+    // Must be the first module — wires up Sentry's request-lifecycle instrumentation (no-ops if
+    // instrument.ts didn't call Sentry.init(), i.e. SENTRY_DSN isn't set).
+    SentryModule.forRoot(),
     ConfigModule,
     ThrottlerModule.forRoot([{ name: 'global', ttl: 60000, limit: 60 }]),
     ScheduleModule.forRoot(),
@@ -70,6 +76,7 @@ import {
     SubscriptionModule,
     TaxModule,
     OnboardingModule,
+    MaintenanceModule,
     AiModule,
     MenuModule,
     TablesModule,
@@ -84,6 +91,7 @@ import {
     PaymentTypesModule,
     FeedModule,
   ],
+  controllers: [DebugController],
   providers: [
     {
       provide: APP_GUARD,

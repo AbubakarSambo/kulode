@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { AppLayout } from '@/components/layout'
-import { ProtectedRoute, GuestRoute, PlanGatedRoute, ReadOnlyGatedRoute, ModuleGatedRoute } from '@/components/shared'
+import { ProtectedRoute, GuestRoute, PlanGatedRoute, ReadOnlyGatedRoute, ModuleGatedRoute, ErrorBoundary } from '@/components/shared'
 
 
 import { useAuthStore } from '@/stores/auth'
@@ -124,6 +124,7 @@ function AppVersionManager() {
 
 function App() {
   return (
+    <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <AppVersionManager />
       <BrowserRouter>
@@ -289,6 +290,7 @@ function App() {
       </BrowserRouter>
       <Toaster position="bottom-right" richColors duration={2500} />
     </QueryClientProvider>
+    </ErrorBoundary>
   )
 }
 
