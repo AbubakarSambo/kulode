@@ -23,6 +23,13 @@ import { cn } from '@/lib/utils'
 import type { PlanTier, BillingPeriod } from '@/types'
 import { posthog } from '@/lib/posthog'
 
+const PLAN_MAX_USERS: Record<string, number> = {
+  FREE: 1,
+  STARTER: 1,
+  PRO: 10,
+  BUSINESS: Infinity,
+}
+
 const PLAN_FEATURES: Record<string, { name: string; price: { monthly: number; annual: number }; description: string; features: string[] }> = {
   FREE: {
     name: 'Free / Expired',
@@ -416,6 +423,13 @@ export function BillingPage() {
                   const isCurrent = !isTrialing && effectivePlan === tier
                   const price = billingPeriod === 'MONTHLY' ? plan.price.monthly : plan.price.annual
                   const isUpgrade = !isCurrent
+                  const planMaxUsers = PLAN_MAX_USERS[tier]
+                  const activeUsers = subscription?.usage.activeUsers
+                  const seatsExceeded =
+                    !isCurrent &&
+                    planMaxUsers !== Infinity &&
+                    activeUsers != null &&
+                    activeUsers > planMaxUsers
 
                   // Premium card design tokens
                   const isPro = tier === 'PRO'
@@ -423,8 +437,8 @@ export function BillingPage() {
                     ? "relative border-2 border-[#0037b0] shadow-[0_12px_32px_rgba(0,55,176,0.08)] bg-card scale-[1.02] z-10"
                     : "relative border-0 bg-card shadow-[0_12px_32px_rgba(0,55,176,0.02)]"
 
-                  const buttonStyles = isCurrent
-                    ? "w-full rounded-xl bg-slate-50 dark:bg-slate-800/50 py-3.5 text-xs font-semibold text-slate-400 dark:text-slate-500 cursor-default text-center min-h-[44px] flex items-center justify-center"
+                  const buttonStyles = isCurrent || seatsExceeded
+                    ? "w-full rounded-xl bg-slate-50 dark:bg-slate-800/50 py-3.5 text-xs font-semibold text-slate-400 dark:text-slate-500 cursor-not-allowed text-center min-h-[44px] flex items-center justify-center"
                     : isPro
                       ? "w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] py-3.5 text-xs font-bold text-white shadow-md hover:shadow-lg hover:from-[#0037b0]/95 hover:to-blue-600/95 active:scale-[0.99] transition-all duration-150 cursor-pointer min-h-[44px]"
                       : tier === 'BUSINESS'
@@ -486,11 +500,20 @@ export function BillingPage() {
                         </div>
 
                         {/* CTA Subscribing Action */}
-                        <div className="pt-2">
+                        <div className="pt-2 space-y-2">
                           {isCurrent ? (
                             <div className={buttonStyles}>
                               Current Subscription
                             </div>
+                          ) : seatsExceeded ? (
+                            <>
+                              <div className={buttonStyles}>
+                                Not enough seats
+                              </div>
+                              <p className="text-[11px] text-slate-500 font-medium text-center leading-relaxed">
+                                You have {activeUsers} active users, above this plan's limit of {planMaxUsers}. Deactivate users to select this plan.
+                              </p>
+                            </>
                           ) : (
                             <button
                               onClick={() => handleSubscribe(tier)}
