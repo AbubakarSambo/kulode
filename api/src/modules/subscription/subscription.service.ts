@@ -117,6 +117,18 @@ export class SubscriptionService {
       throw new BadRequestException('Invalid plan tier');
     }
 
+    const maxUsers = PLAN_LIMITS[planTier].maxUsers;
+    if (maxUsers !== Infinity) {
+      const activeUsers = await this.prisma.user.count({
+        where: { organizationId, isActive: true },
+      });
+      if (activeUsers > maxUsers) {
+        throw new BadRequestException(
+          `Your organization has ${activeUsers} active users, which exceeds the ${planTier} plan's limit of ${maxUsers}. Deactivate users or choose a higher plan.`,
+        );
+      }
+    }
+
     const amount = billingPeriod === 'MONTHLY' ? prices.monthly : prices.annual;
     const reference = `SUB-${organizationId.slice(0, 8)}-${Date.now()}`;
 
