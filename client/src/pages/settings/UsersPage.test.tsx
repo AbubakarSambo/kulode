@@ -165,7 +165,7 @@ describe('UsersPage', () => {
       const user = userEvent.setup()
       mockUseOrgModules.mockReturnValue({ hasPos: true, hasInvoicing: false, enabledModules: 'POS' })
       renderPage()
-      await user.click(screen.getByText('Invite User'))
+      await user.click(screen.getAllByText('Invite User')[0])
 
       expect(screen.getByRole('button', { name: 'Waiter' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Cashier' })).toBeInTheDocument()
@@ -176,7 +176,7 @@ describe('UsersPage', () => {
       const user = userEvent.setup()
       mockUseOrgModules.mockReturnValue({ hasPos: false, hasInvoicing: true, enabledModules: 'INVOICING' })
       renderPage()
-      await user.click(screen.getByText('Invite User'))
+      await user.click(screen.getAllByText('Invite User')[0])
 
       expect(screen.getByRole('button', { name: 'Accountant' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Staff' })).toBeInTheDocument()
@@ -187,7 +187,7 @@ describe('UsersPage', () => {
       const user = userEvent.setup()
       setCurrentUser(['ADMIN'])
       renderPage()
-      await user.click(screen.getByText('Invite User'))
+      await user.click(screen.getAllByText('Invite User')[0])
 
       expect(screen.queryByRole('button', { name: 'Admin' })).not.toBeInTheDocument()
     })
@@ -196,7 +196,7 @@ describe('UsersPage', () => {
       const user = userEvent.setup()
       setCurrentUser(['SUPER_ADMIN'])
       renderPage()
-      await user.click(screen.getByText('Invite User'))
+      await user.click(screen.getAllByText('Invite User')[0])
 
       expect(screen.getByRole('button', { name: 'Admin' })).toBeInTheDocument()
     })
@@ -212,7 +212,7 @@ describe('UsersPage', () => {
       vi.mocked(usersApi.create).mockResolvedValue(userWith({ id: 'new-1' }))
       renderPage()
 
-      await user.click(screen.getByText('Invite User'))
+      await user.click(screen.getAllByText('Invite User')[0])
       await user.type(screen.getByLabelText(/first name/i), 'Grace')
       await user.type(screen.getByLabelText(/last name/i), 'Hopper')
       // WAITER is selected by default for a POS org and is PIN-eligible, so no email is required.
@@ -229,7 +229,7 @@ describe('UsersPage', () => {
       const user = userEvent.setup()
       renderPage()
 
-      await user.click(screen.getByText('Invite User'))
+      await user.click(screen.getAllByText('Invite User')[0])
       await user.type(screen.getByLabelText(/first name/i), 'Grace')
       await user.type(screen.getByLabelText(/last name/i), 'Hopper')
       await user.click(screen.getByRole('button', { name: 'Admin' }))

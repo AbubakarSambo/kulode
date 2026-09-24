@@ -105,9 +105,6 @@ export function PosDashboardPage() {
     setShareDropdownOpen((open) => !open)
   }
 
-  // Header's action slot is hidden on mobile (the shared Header component only renders at sm+),
-  // so this filter is rendered a second time below for small screens — otherwise it's simply
-  // unreachable there.
   const periodFilter = (
     <div className="flex items-center gap-2">
       <div className="relative inline-block text-left w-full sm:w-auto">
@@ -178,8 +175,6 @@ export function PosDashboardPage() {
         description="Sales, top items, and waiter performance for your restaurant"
         action={periodFilter}
       />
-
-      <div className="border-b border-border p-4 sm:hidden">{periodFilter}</div>
 
       <div className="flex-1 overflow-auto p-4 sm:p-6">
         <div className="mb-8 grid gap-4 grid-cols-2 lg:grid-cols-4">
