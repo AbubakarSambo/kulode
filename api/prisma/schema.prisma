@@ -1,6 +1,8 @@
 generator client {
   provider        = "prisma-client-js"
-  previewFeatures = ["relationJoins"]
+  // "tracing" emits the per-query spans Sentry's prismaIntegration (see src/instrument.ts)
+  // attaches to each request's trace — without it, Sentry only sees the outer HTTP span.
+  previewFeatures = ["relationJoins", "tracing"]
 }
 
 datasource db {
