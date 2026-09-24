@@ -182,11 +182,12 @@ export class UpdateOrganizationDto {
   receiptBankAccountName?: string;
 
   @ApiPropertyOptional({
-    example: '08130000101',
-    description: 'WhatsApp number the manager sends the daily sales summary to (e.g. the owner/boss)',
+    example: '08130000101, +2348030001111',
+    description:
+      'Comma-separated WhatsApp number(s) the manager sends the daily sales summary to (e.g. the owner/boss)',
   })
   @IsOptional()
   @IsString()
-  @MaxLength(50)
+  @MaxLength(500)
   ownerWhatsappPhone?: string;
 }

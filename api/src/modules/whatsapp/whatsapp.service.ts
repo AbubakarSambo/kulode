@@ -19,6 +19,15 @@ export interface SendInvoiceReminderParams {
   shareToken?: string | null;
 }
 
+export interface SendDailySalesSummaryParams {
+  organizationId: string;
+  toPhone: string;
+  summaryDate: string;
+  totalSales: string;
+  amountPaid: string;
+  outstandingCredit: string;
+}
+
 @Injectable()
 export class WhatsappService {
   private readonly logger = new Logger(WhatsappService.name);
@@ -26,6 +35,7 @@ export class WhatsappService {
   private readonly accessToken: string;
   private readonly apiVersion: string;
   private readonly reminderTemplateName: string;
+  private readonly summaryTemplateName: string;
   private readonly templateLanguage: string;
   private readonly webhookVerifyToken: string;
 
@@ -37,6 +47,7 @@ export class WhatsappService {
     this.accessToken = this.configService.get<string>('whatsapp.accessToken') || '';
     this.apiVersion = this.configService.get<string>('whatsapp.apiVersion') || 'v21.0';
     this.reminderTemplateName = this.configService.get<string>('whatsapp.reminderTemplateName') || 'payment_reminder';
+    this.summaryTemplateName = this.configService.get<string>('whatsapp.summaryTemplateName') || 'daily_sales_summary';
     this.templateLanguage = this.configService.get<string>('whatsapp.templateLanguage') || 'en';
     this.webhookVerifyToken = this.configService.get<string>('whatsapp.webhookVerifyToken') || '';
   }
@@ -166,6 +177,79 @@ export class WhatsappService {
           invoiceId: params.invoiceId,
           clientId: params.clientId,
           templateName: this.reminderTemplateName,
+          toPhone,
+          status: 'FAILED',
+          errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        },
+      });
+      throw error;
+    }
+  }
+
+  async sendDailySalesSummaryTemplate(params: SendDailySalesSummaryParams): Promise<{ providerMessageId: string | null }> {
+    const toPhone = this.normalizePhone(params.toPhone);
+
+    const payload = {
+      messaging_product: 'whatsapp',
+      to: toPhone,
+      type: 'template',
+      template: {
+        name: this.summaryTemplateName,
+        language: { code: this.templateLanguage },
+        components: [
+          {
+            type: 'body',
+            parameters: [
+              { type: 'text', text: params.summaryDate },
+              { type: 'text', text: params.totalSales },
+              { type: 'text', text: params.amountPaid },
+              { type: 'text', text: params.outstandingCredit },
+            ],
+          },
+        ],
+      },
+    };
+
+    if (this.isMockMode) {
+      this.logger.warn(
+        `[MOCK WHATSAPP] Would send "${this.summaryTemplateName}" template to ${toPhone} for org ${params.organizationId}`,
+      );
+      await this.prisma.whatsappMessage.create({
+        data: {
+          organizationId: params.organizationId,
+          templateName: this.summaryTemplateName,
+          toPhone,
+          status: 'SENT',
+          sentAt: new Date(),
+        },
+      });
+      return { providerMessageId: null };
+    }
+
+    try {
+      const data = await this.makeRequest<{ messages?: { id: string }[] }>(
+        `/${this.phoneNumberId}/messages`,
+        payload,
+      );
+      const providerMessageId = data.messages?.[0]?.id || null;
+
+      await this.prisma.whatsappMessage.create({
+        data: {
+          organizationId: params.organizationId,
+          templateName: this.summaryTemplateName,
+          toPhone,
+          status: 'SENT',
+          providerMessageId,
+          sentAt: new Date(),
+        },
+      });
+
+      return { providerMessageId };
+    } catch (error) {
+      await this.prisma.whatsappMessage.create({
+        data: {
+          organizationId: params.organizationId,
+          templateName: this.summaryTemplateName,
           toPhone,
           status: 'FAILED',
           errorMessage: error instanceof Error ? error.message : 'Unknown error',

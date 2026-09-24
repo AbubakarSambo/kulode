@@ -35,7 +35,7 @@ const organizationSchema = z.object({
   receiptBankName: z.string().max(255).optional(),
   receiptBankAccountNumber: z.string().max(50).optional(),
   receiptBankAccountName: z.string().max(255).optional(),
-  ownerWhatsappPhone: z.string().max(50).optional(),
+  ownerWhatsappPhone: z.string().max(500).optional(),
 })
 
 type OrganizationFormData = z.infer<typeof organizationSchema>
@@ -301,15 +301,16 @@ export function OrganizationPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="ownerWhatsappPhone">Boss's WhatsApp Number</Label>
+                <Label htmlFor="ownerWhatsappPhone">Boss's WhatsApp Number(s)</Label>
                 <Input
                   id="ownerWhatsappPhone"
-                  placeholder="e.g., 08130000101"
+                  placeholder="e.g., 08130000101, +2348030001111"
                   {...register('ownerWhatsappPhone')}
                   error={errors.ownerWhatsappPhone?.message}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Where the "Send via WhatsApp" button on the Dashboard sends the sales summary.
+                  Where the "Send via WhatsApp" button on the Dashboard sends the sales summary. Separate multiple
+                  numbers with commas.
                 </p>
               </div>
 

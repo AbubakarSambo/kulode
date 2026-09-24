@@ -64,15 +64,19 @@ export function PosDashboardPage() {
   const unpaidPct = totalOrders > 0 ? (breakdown!.closedUnpaid.count / totalOrders) * 100 : 0
   const openPct = showOpen && totalOrders > 0 ? (breakdown!.open.count / totalOrders) * 100 : 0
 
-  const shareSummary = () => {
+  // Settings stores this as a comma-separated list so a manager can send to more than one
+  // number (e.g. two owners) — split/trim/dedupe-empty here rather than at the settings layer,
+  // since every other consumer of the raw field (the nightly cron) needs the same parsing.
+  const ownerPhones = (organization?.ownerWhatsappPhone ?? '')
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean)
+  const [shareDropdownOpen, setShareDropdownOpen] = useState(false)
+
+  const shareSummary = (rawPhone: string) => {
     if (!summary) return
-    const phone = organization?.ownerWhatsappPhone ? normalizePhoneForWhatsApp(organization.ownerWhatsappPhone) : ''
-    if (!phone) {
-      toast.error('No WhatsApp number on file', {
-        description: "Add the boss's WhatsApp number in Settings → Organization to enable this.",
-      })
-      return
-    }
+    const phone = normalizePhoneForWhatsApp(rawPhone)
+    if (!phone) return
 
     const lines = [
       `📊 *Sales Summary — ${activeOption?.label}*`,
@@ -87,15 +91,51 @@ export function PosDashboardPage() {
     window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(text)}`, '_blank')
   }
 
+  const handleShareClick = () => {
+    if (ownerPhones.length === 0) {
+      toast.error('No WhatsApp number on file', {
+        description: "Add the boss's WhatsApp number in Settings → Organization to enable this.",
+      })
+      return
+    }
+    if (ownerPhones.length === 1) {
+      shareSummary(ownerPhones[0])
+      return
+    }
+    setShareDropdownOpen((open) => !open)
+  }
+
   // Header's action slot is hidden on mobile (the shared Header component only renders at sm+),
   // so this filter is rendered a second time below for small screens — otherwise it's simply
   // unreachable there.
   const periodFilter = (
     <div className="flex items-center gap-2">
-      <Button variant="outline" size="sm" onClick={shareSummary}>
-        <Share2 className="h-3.5 w-3.5" />
-        Send via WhatsApp
-      </Button>
+      <div className="relative inline-block text-left w-full sm:w-auto">
+        <Button variant="outline" size="sm" onClick={handleShareClick} className="w-full sm:w-auto">
+          <Share2 className="h-3.5 w-3.5" />
+          Send via WhatsApp
+        </Button>
+        <DropdownPanel
+          isOpen={shareDropdownOpen}
+          onClose={() => setShareDropdownOpen(false)}
+          align="right"
+          widthClass="w-full sm:w-56"
+          zIndexClass="z-20"
+        >
+          {ownerPhones.map((phone) => (
+            <button
+              key={phone}
+              onClick={() => {
+                shareSummary(phone)
+                setShareDropdownOpen(false)
+              }}
+              className="w-full text-left px-4 py-2.5 text-xs font-semibold text-foreground hover:bg-muted/50 transition-colors block"
+            >
+              {phone}
+            </button>
+          ))}
+        </DropdownPanel>
+      </div>
       <div className="relative inline-block text-left w-full sm:w-auto">
         <button
           onClick={() => setDropdownOpen(!dropdownOpen)}

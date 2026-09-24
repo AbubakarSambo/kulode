@@ -38,6 +38,7 @@ import { PrintersModule } from './modules/printers';
 import { OrderTypesModule } from './modules/order-types';
 import { PaymentTypesModule } from './modules/payment-types';
 import { FeedModule } from './modules/feed';
+import { SalesSummaryModule } from './modules/sales-summary/sales-summary.module';
 import {
   JwtAuthGuard,
   RolesGuard,
@@ -90,6 +91,7 @@ import {
     OrderTypesModule,
     PaymentTypesModule,
     FeedModule,
+    SalesSummaryModule,
   ],
   controllers: [DebugController],
   providers: [
