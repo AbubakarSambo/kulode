@@ -905,13 +905,18 @@ export class AuthService {
     // role to be PIN-eligible before treating them as a candidate.
     const eligible = candidates.filter((c) => c.roles.every((r) => PIN_ELIGIBLE_ROLES.includes(r as Role)));
 
-    let matched: (typeof eligible)[number] | undefined;
-    for (const candidate of eligible) {
-      if (candidate.pinHash && (await bcrypt.compare(dto.pin, candidate.pinHash))) {
-        matched = candidate;
-        break;
-      }
-    }
+    // bcrypt is deliberately CPU-expensive, so checking candidates one at a time (as this used to)
+    // costs N sequential bcrypt rounds on a wrong PIN or a match late in the list — on a shared
+    // terminal with a full staff roster, that's most of this endpoint's latency. `bcrypt` (the
+    // native binding, not bcryptjs) offloads each compare to libuv's thread pool, so running them
+    // concurrently gets real parallelism instead of just interleaving on the event loop.
+    const results = await Promise.all(
+      eligible.map(async (candidate) => ({
+        candidate,
+        isMatch: candidate.pinHash ? await bcrypt.compare(dto.pin, candidate.pinHash) : false,
+      })),
+    );
+    const matched = results.find((r) => r.isMatch)?.candidate;
 
     if (!matched) {
       const failures = (state?.count ?? 0) + 1;
