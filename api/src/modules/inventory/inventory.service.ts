@@ -392,30 +392,42 @@ export class InventoryService {
     const recipe = await tx.menuItemIngredient.findMany({ where: { menuItemId } });
     if (recipe.length === 0) return;
 
-    const movements: Prisma.StockMovementCreateManyInput[] = [];
-    for (const line of recipe) {
-      const inventoryItem = await tx.inventoryItem.findUnique({ where: { id: line.inventoryItemId } });
-      if (!inventoryItem) continue;
+    // One batched read instead of a `findUnique` per ingredient. Safe to update every line in
+    // parallel below (unlike deductForOrder's running tally above) since a recipe can't repeat
+    // the same ingredient twice — @@unique([menuItemId, inventoryItemId]) guarantees each line
+    // here touches a distinct inventory item, so there's no shared running total to serialize on.
+    const inventoryItemIds = recipe.map((line) => line.inventoryItemId);
+    const inventoryItems = await tx.inventoryItem.findMany({ where: { id: { in: inventoryItemIds } } });
+    const byId = new Map(inventoryItems.map((item) => [item.id, item]));
 
-      const onHandBefore = toNumber(inventoryItem.onHandQuantity);
-      const deductQty = toNumber(line.quantityPerUnit) * quantitySold;
-      const onHandAfter = Math.max(0, onHandBefore - deductQty);
+    const movements = (
+      await Promise.all(
+        recipe.map(async (line) => {
+          const inventoryItem = byId.get(line.inventoryItemId);
+          if (!inventoryItem) return null;
 
-      await tx.inventoryItem.update({
-        where: { id: line.inventoryItemId },
-        data: { onHandQuantity: onHandAfter },
-      });
+          const onHandBefore = toNumber(inventoryItem.onHandQuantity);
+          const deductQty = toNumber(line.quantityPerUnit) * quantitySold;
+          const onHandAfter = Math.max(0, onHandBefore - deductQty);
 
-      movements.push({
-        organizationId,
-        inventoryItemId: line.inventoryItemId,
-        orderId,
-        type: 'ORDER_DEDUCTED',
-        quantity: onHandAfter - onHandBefore,
-        onHandBefore,
-        onHandAfter,
-      });
-    }
+          await tx.inventoryItem.update({
+            where: { id: line.inventoryItemId },
+            data: { onHandQuantity: onHandAfter },
+          });
+
+          const movement: Prisma.StockMovementCreateManyInput = {
+            organizationId,
+            inventoryItemId: line.inventoryItemId,
+            orderId,
+            type: 'ORDER_DEDUCTED',
+            quantity: onHandAfter - onHandBefore,
+            onHandBefore,
+            onHandAfter,
+          };
+          return movement;
+        }),
+      )
+    ).filter((m): m is Prisma.StockMovementCreateManyInput => m !== null);
 
     if (movements.length > 0) {
       await tx.stockMovement.createMany({ data: movements });

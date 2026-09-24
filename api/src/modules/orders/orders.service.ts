@@ -580,26 +580,29 @@ export class OrdersService {
     const shouldDeductStock = dto.status === 'SERVED' && item.status !== 'SERVED' && item.menuItemId;
 
     // Interactive transaction (rather than the previous flat array) because recipe deduction has
-    // to read-then-write onHandQuantity, not just fire unconditional updates.
+    // to read-then-write onHandQuantity, not just fire unconditional updates. The three writes
+    // below don't touch each other's rows or read each other's results, so they run concurrently
+    // instead of one at a time — this fires on every item-status tap, the single most frequent
+    // write in the app.
     await this.prisma.$transaction(async (tx) => {
-      await tx.orderItem.update({
-        where: { id: itemId },
-        data: { status: dto.status, ...(timestampField && { [timestampField]: new Date() }) },
-      });
-
-      if (willTransitionOrder) {
-        await tx.order.update({ where: { id: orderId }, data: { status: newOrderStatus } });
-      }
-
-      if (shouldDeductStock) {
-        await this.inventoryService.deductRecipeForOrderItem(
-          tx,
-          organizationId,
-          orderId,
-          item.menuItemId!,
-          toNumber(item.quantity),
-        );
-      }
+      await Promise.all([
+        tx.orderItem.update({
+          where: { id: itemId },
+          data: { status: dto.status, ...(timestampField && { [timestampField]: new Date() }) },
+        }),
+        willTransitionOrder
+          ? tx.order.update({ where: { id: orderId }, data: { status: newOrderStatus } })
+          : Promise.resolve(null),
+        shouldDeductStock
+          ? this.inventoryService.deductRecipeForOrderItem(
+              tx,
+              organizationId,
+              orderId,
+              item.menuItemId!,
+              toNumber(item.quantity),
+            )
+          : Promise.resolve(null),
+      ]);
     });
 
     return { ...order, items, status: willTransitionOrder ? newOrderStatus! : order.status };
@@ -919,10 +922,15 @@ export class OrdersService {
       throw new BadRequestException('Cannot move items to the same order');
     }
 
-    const source = await this.prisma.order.findFirst({
-      where: { id: sourceOrderId, organizationId },
-      include: { items: true },
-    });
+    // Independent of each other — only organizationId and their own dto field — so they run as
+    // one round trip instead of the two-to-three sequential ones this used to be.
+    const [source, destinationLookup, organization] = await Promise.all([
+      this.prisma.order.findFirst({ where: { id: sourceOrderId, organizationId }, include: { items: true } }),
+      dto.destinationOrderId
+        ? this.prisma.order.findFirst({ where: { id: dto.destinationOrderId, organizationId } })
+        : Promise.resolve(null),
+      this.prisma.organization.findUniqueOrThrow({ where: { id: organizationId } }),
+    ]);
     if (!source) throw new NotFoundException('Order not found');
     if (!OPEN_STATUSES.includes(source.status)) {
       throw new BadRequestException(`Cannot move items off a ${source.status.toLowerCase()} order`);
@@ -962,9 +970,7 @@ export class OrdersService {
       }
     }
 
-    let destination = dto.destinationOrderId
-      ? await this.prisma.order.findFirst({ where: { id: dto.destinationOrderId, organizationId } })
-      : null;
+    let destination = destinationLookup;
     if (dto.destinationOrderId && !destination) {
       throw new NotFoundException('Destination order not found');
     }
@@ -982,20 +988,22 @@ export class OrdersService {
     // common case is splitting one table's tab into two checks, not relocating items elsewhere.
     const newOrderSource = destination ? undefined : dto.source ?? source.source;
     const newOrderTableId = destination ? undefined : dto.tableId ?? source.tableId ?? undefined;
-    if (!destination) {
-      const newSourceRequiresTable = await this.orderTypesService.requiresTable(organizationId, newOrderSource!);
-      if (newSourceRequiresTable && !newOrderTableId) {
-        throw new BadRequestException(`tableId is required for a new ${newOrderSource} order`);
-      }
+    // Independent of each other — the table lookup doesn't depend on whether the new order's
+    // type requires a table, just on newOrderTableId itself — so they run together.
+    const [newSourceRequiresTable, table] = await Promise.all([
+      !destination
+        ? this.orderTypesService.requiresTable(organizationId, newOrderSource!)
+        : Promise.resolve(false),
+      !destination && newOrderTableId
+        ? this.prisma.restaurantTable.findFirst({ where: { id: newOrderTableId, organizationId, isActive: true } })
+        : Promise.resolve(null),
+    ]);
+    if (!destination && newSourceRequiresTable && !newOrderTableId) {
+      throw new BadRequestException(`tableId is required for a new ${newOrderSource} order`);
     }
-    if (!destination && newOrderTableId) {
-      const table = await this.prisma.restaurantTable.findFirst({
-        where: { id: newOrderTableId, organizationId, isActive: true },
-      });
-      if (!table) throw new NotFoundException('Table not found');
+    if (!destination && newOrderTableId && !table) {
+      throw new NotFoundException('Table not found');
     }
-
-    const organization = await this.prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
 
     // Existing destination inherits its own settings (mirrors mergeOrders); a brand-new one gets
     // the org's current defaults, same as any other new order.
