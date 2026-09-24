@@ -87,6 +87,8 @@ export const whatsappConfig = registerAs("whatsapp", () => ({
   apiVersion: process.env.WHATSAPP_GRAPH_API_VERSION || "v21.0",
   reminderTemplateName:
     process.env.WHATSAPP_REMINDER_TEMPLATE_NAME || "payment_reminder",
+  summaryTemplateName:
+    process.env.WHATSAPP_SUMMARY_TEMPLATE_NAME || "daily_sales_summary",
   templateLanguage: process.env.WHATSAPP_TEMPLATE_LANGUAGE || "en",
   webhookVerifyToken: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "",
 }));
