@@ -81,9 +81,6 @@ export function PosReportsPage() {
   const hasSales = !!report && report.products.length > 0
   const activeOption = periodOptions.find((opt) => opt.value === period)
 
-  // Header's action slot is hidden on mobile (the shared Header component only renders at sm+),
-  // so this filter is rendered a second time below for small screens — otherwise it's simply
-  // unreachable there.
   const filterControls = (
     <div className="flex items-center gap-2 print:hidden">
       <div className="relative inline-block text-left w-full sm:w-auto">
@@ -151,8 +148,6 @@ export function PosReportsPage() {
         description="Sales and quantities by category and product for a chosen day or date range"
         action={filterControls}
       />
-
-      <div className="border-b border-border p-4 sm:hidden print:hidden">{filterControls}</div>
 
       <div className="flex-1 overflow-auto p-4 sm:p-6">
         {!isLoading && !hasSales && (

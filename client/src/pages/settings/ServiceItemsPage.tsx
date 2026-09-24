@@ -460,17 +460,6 @@ export function ServiceItemsPage() {
         )}
       </div>
 
-      {/* Mobile Floating Action Button */}
-      {!isExpired && (
-        <Button 
-          onClick={openCreateModal}
-          className="absolute bottom-6 right-6 z-40 sm:hidden w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all p-0"
-          aria-label="Add Service Item"
-        >
-          <HugeiconsIcon icon={PlusSignIcon} size={24} strokeWidth={1.5} />
-        </Button>
-      )}
-
       {/* Create/Edit Modal */}
       <Modal
         isOpen={isModalOpen}
