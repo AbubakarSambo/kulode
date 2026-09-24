@@ -32,7 +32,10 @@ export class SalesSummaryCron {
     this.logger.log(`Found ${orgs.length} org(s) eligible for a daily sales summary`);
 
     for (const org of orgs) {
-      if (!org.ownerWhatsappPhone) continue;
+      // Settings stores this as a comma-separated list so a manager can send to more than one
+      // number (e.g. two owners) — same parsing as the dashboard's "Send via WhatsApp" button.
+      const phones = (org.ownerWhatsappPhone ?? '').split(',').map((p) => p.trim()).filter(Boolean);
+      if (phones.length === 0) continue;
 
       try {
         const summary = await this.posDashboardService.getSummary(org.id, { period: ReportPeriod.TODAY });
@@ -40,18 +43,23 @@ export class SalesSummaryCron {
         const summaryDate = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
         const currency = (value: number) => value.toLocaleString('en-NG', { style: 'currency', currency: 'NGN' });
 
-        await this.whatsappService.sendDailySalesSummaryTemplate({
-          organizationId: org.id,
-          toPhone: org.ownerWhatsappPhone,
-          summaryDate,
-          totalSales: currency(summary.sales.total),
-          amountPaid: currency(summary.orderBreakdown.closedPaid.amount),
-          outstandingCredit: currency(summary.orderBreakdown.closedUnpaid.outstanding),
-        });
-
-        this.logger.log(`Daily sales summary sent (org: ${org.id})`);
+        for (const phone of phones) {
+          try {
+            await this.whatsappService.sendDailySalesSummaryTemplate({
+              organizationId: org.id,
+              toPhone: phone,
+              summaryDate,
+              totalSales: currency(summary.sales.total),
+              amountPaid: currency(summary.orderBreakdown.closedPaid.amount),
+              outstandingCredit: currency(summary.orderBreakdown.closedUnpaid.outstanding),
+            });
+            this.logger.log(`Daily sales summary sent (org: ${org.id}, phone: ${phone})`);
+          } catch (err) {
+            this.logger.error(`Failed to send daily sales summary to ${phone} for org ${org.id}: ${err.message}`);
+          }
+        }
       } catch (err) {
-        this.logger.error(`Failed to send daily sales summary for org ${org.id}: ${err.message}`);
+        this.logger.error(`Failed to build daily sales summary for org ${org.id}: ${err.message}`);
       }
     }
 
