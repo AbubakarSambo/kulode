@@ -35,6 +35,7 @@ const organizationSchema = z.object({
   receiptBankName: z.string().max(255).optional(),
   receiptBankAccountNumber: z.string().max(50).optional(),
   receiptBankAccountName: z.string().max(255).optional(),
+  ownerWhatsappPhone: z.string().max(50).optional(),
 })
 
 type OrganizationFormData = z.infer<typeof organizationSchema>
@@ -110,6 +111,7 @@ export function OrganizationPage() {
       receiptBankName: '',
       receiptBankAccountNumber: '',
       receiptBankAccountName: '',
+      ownerWhatsappPhone: '',
     },
   })
 
@@ -138,6 +140,7 @@ export function OrganizationPage() {
         receiptBankName: organization.receiptBankName || '',
         receiptBankAccountNumber: organization.receiptBankAccountNumber || '',
         receiptBankAccountName: organization.receiptBankAccountName || '',
+        ownerWhatsappPhone: organization.ownerWhatsappPhone || '',
       })
     }
   }, [organization, reset])
@@ -295,6 +298,19 @@ export function OrganizationPage() {
                     error={errors.phone?.message}
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="ownerWhatsappPhone">Boss's WhatsApp Number</Label>
+                <Input
+                  id="ownerWhatsappPhone"
+                  placeholder="e.g., 08130000101"
+                  {...register('ownerWhatsappPhone')}
+                  error={errors.ownerWhatsappPhone?.message}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Where the "Send via WhatsApp" button on the Dashboard sends the sales summary.
+                </p>
               </div>
 
               <div className="space-y-2">

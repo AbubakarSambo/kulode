@@ -38,6 +38,7 @@ export class OrganizationsService {
         receiptBankName: true,
         receiptBankAccountNumber: true,
         receiptBankAccountName: true,
+        ownerWhatsappPhone: true,
         businessType: true,
         organizationSize: true,
         enabledModules: true,
@@ -92,6 +93,7 @@ export class OrganizationsService {
         ...(dto.receiptBankName !== undefined && { receiptBankName: dto.receiptBankName }),
         ...(dto.receiptBankAccountNumber !== undefined && { receiptBankAccountNumber: dto.receiptBankAccountNumber }),
         ...(dto.receiptBankAccountName !== undefined && { receiptBankAccountName: dto.receiptBankAccountName }),
+        ...(dto.ownerWhatsappPhone !== undefined && { ownerWhatsappPhone: dto.ownerWhatsappPhone }),
       },
       select: {
         id: true,
@@ -120,6 +122,7 @@ export class OrganizationsService {
         receiptBankName: true,
         receiptBankAccountNumber: true,
         receiptBankAccountName: true,
+        ownerWhatsappPhone: true,
         businessType: true,
         organizationSize: true,
         enabledModules: true,

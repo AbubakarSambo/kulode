@@ -1,14 +1,15 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Users, Utensils } from 'lucide-react'
+import { ChevronDown, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Users, Utensils, Share2 } from 'lucide-react'
 import { ReceiptTextIcon } from '@hugeicons/core-free-icons'
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { Link } from 'react-router-dom'
+import { toast } from 'sonner'
 import { Header } from '@/components/layout'
-import { Card, CardContent, CardHeader, CardTitle, DropdownPanel, DatePicker, EmptyState } from '@/components/ui'
-import { posDashboardApi } from '@/api'
+import { Card, CardContent, CardHeader, CardTitle, DropdownPanel, DatePicker, EmptyState, Button } from '@/components/ui'
+import { posDashboardApi, organizationsApi } from '@/api'
 import type { ReportPeriod } from '@/api/reports'
-import { formatCurrency, formatPaymentMethod, cn } from '@/lib/utils'
+import { formatCurrency, formatPaymentMethod, normalizePhoneForWhatsApp, cn } from '@/lib/utils'
 
 const periodOptions: Array<{ value: ReportPeriod; label: string }> = [
   { value: 'TODAY', label: 'Today' },
@@ -42,6 +43,11 @@ export function PosDashboardPage() {
     refetchInterval: 15_000,
   })
 
+  const { data: organization } = useQuery({
+    queryKey: ['organization'],
+    queryFn: () => organizationsApi.getCurrent(),
+  })
+
   const activeOption = periodOptions.find((opt) => opt.value === period)
   const change = summary?.sales.change ?? null
 
@@ -58,11 +64,38 @@ export function PosDashboardPage() {
   const unpaidPct = totalOrders > 0 ? (breakdown!.closedUnpaid.count / totalOrders) * 100 : 0
   const openPct = showOpen && totalOrders > 0 ? (breakdown!.open.count / totalOrders) * 100 : 0
 
+  const shareSummary = () => {
+    if (!summary) return
+    const phone = organization?.ownerWhatsappPhone ? normalizePhoneForWhatsApp(organization.ownerWhatsappPhone) : ''
+    if (!phone) {
+      toast.error('No WhatsApp number on file', {
+        description: "Add the boss's WhatsApp number in Settings → Organization to enable this.",
+      })
+      return
+    }
+
+    const lines = [
+      `📊 *Sales Summary — ${activeOption?.label}*`,
+      ``,
+      `Total Sales: *${formatCurrency(summary.sales.total)}*`,
+      `Paid: ${formatCurrency(breakdown?.closedPaid.amount ?? 0)}`,
+      `Credit (unpaid): ${formatCurrency(breakdown?.closedUnpaid.outstanding ?? 0)}`,
+      ``,
+      `${totalOrders} orders total`,
+    ]
+    const text = lines.join('\n')
+    window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(text)}`, '_blank')
+  }
+
   // Header's action slot is hidden on mobile (the shared Header component only renders at sm+),
   // so this filter is rendered a second time below for small screens — otherwise it's simply
   // unreachable there.
   const periodFilter = (
     <div className="flex items-center gap-2">
+      <Button variant="outline" size="sm" onClick={shareSummary}>
+        <Share2 className="h-3.5 w-3.5" />
+        Send via WhatsApp
+      </Button>
       <div className="relative inline-block text-left w-full sm:w-auto">
         <button
           onClick={() => setDropdownOpen(!dropdownOpen)}

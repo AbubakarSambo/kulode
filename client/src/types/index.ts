@@ -159,6 +159,7 @@ export interface Organization {
   receiptBankName?: string
   receiptBankAccountNumber?: string
   receiptBankAccountName?: string
+  ownerWhatsappPhone?: string
   businessType?: string
   organizationSize?: string
   enabledModules?: OrgModule

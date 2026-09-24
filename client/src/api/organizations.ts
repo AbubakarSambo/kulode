@@ -27,6 +27,7 @@ export interface UpdateOrganizationData {
   receiptBankName?: string
   receiptBankAccountNumber?: string
   receiptBankAccountName?: string
+  ownerWhatsappPhone?: string
 }
 
 export const organizationsApi = {
