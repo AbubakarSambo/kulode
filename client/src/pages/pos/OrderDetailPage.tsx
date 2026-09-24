@@ -6,9 +6,9 @@ import { ArrowLeft, Download, Plus, X, UserPlus, Pencil, Search } from 'lucide-r
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Badge, Input, Label, SearchableSelect, Textarea } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
-import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, usersApi, tablesApi, orderTypesApi, paymentTypesApi } from '@/api'
+import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, usersApi, tablesApi, orderTypesApi, paymentTypesApi, organizationsApi } from '@/api'
 import { getQueuedActionsForLocalOrder, discardFailedAction, LOCAL_ORDER_PREFIX } from '@/lib/offlineOrderQueue'
-import { formatCurrency, formatPaymentMethod, cn } from '@/lib/utils'
+import { formatCurrency, formatPaymentMethod, normalizePhoneForWhatsApp, cn } from '@/lib/utils'
 import { printBill } from '@/lib/printBill'
 import { useAuthStore } from '@/stores/auth'
 import type { OrderItemStatus, MenuItem, OrderSource } from '@/types'
@@ -429,6 +429,11 @@ function SyncedOrderView({ id }: { id: string }) {
     refetchInterval: 10_000,
   })
 
+  const { data: organization } = useQuery({
+    queryKey: ['organization'],
+    queryFn: () => organizationsApi.getCurrent(),
+  })
+
   const { data: orderTypes } = useQuery({
     queryKey: ['order-types'],
     queryFn: () => orderTypesApi.list(),
@@ -731,6 +736,37 @@ function SyncedOrderView({ id }: { id: string }) {
     mutationFn: async () => printBill(await ordersApi.getReceiptData(id)),
     onError: () => toast.error('Failed to print bill'),
   })
+
+  const sendBillViaWhatsApp = () => {
+    if (!order) return
+    if (!order.customer?.phone) {
+      toast.error('No customer phone number on file', {
+        description: 'Attach a customer with a phone number to send the bill via WhatsApp.',
+      })
+      return
+    }
+
+    const lines = [
+      `Thanks for placing an order with ${organization?.name ?? 'us'}. Here's your bill`,
+      ``,
+      `Total Bill = ${formatCurrency(order.total)}`,
+      ...(organization?.receiptBankName
+        ? [
+            ``,
+            `Here are our payment details`,
+            ``,
+            `Bank: ${organization.receiptBankName}`,
+            `Acc. Number: ${organization.receiptBankAccountNumber}`,
+            `Acc. Name: ${organization.receiptBankAccountName}`,
+          ]
+        : []),
+      ``,
+      `Please kindly notify us once payment is made. Thanks for choosing us today.`,
+    ]
+    const text = lines.join('\n')
+    const phone = normalizePhoneForWhatsApp(order.customer.phone)
+    window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(text)}`, '_blank')
+  }
 
   const markAwaitingPayment = useMutation({
     mutationFn: () => ordersApi.markAwaitingPayment(id),
@@ -1218,6 +1254,14 @@ function SyncedOrderView({ id }: { id: string }) {
               isLoading={printBillMutation.isPending}
             >
               {order.status === 'CLOSED_PAID' ? 'Print Receipt' : 'Print Bill'}
+            </Button>
+          </div>
+        )}
+
+        {(isOpenStatus || order.status === 'CLOSED_UNPAID') && (
+          <div className="mt-3">
+            <Button variant="outline" className="w-full" onClick={sendBillViaWhatsApp}>
+              Send Bill via WhatsApp
             </Button>
           </div>
         )}
