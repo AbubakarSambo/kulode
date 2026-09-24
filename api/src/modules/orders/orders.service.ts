@@ -313,36 +313,33 @@ export class OrdersService {
       throw new BadRequestException(`tableId is required for ${source} orders`);
     }
 
-    if (dto.tableId) {
-      const table = await this.prisma.restaurantTable.findFirst({
-        where: { id: dto.tableId, organizationId, isActive: true },
-      });
-      if (!table) throw new NotFoundException('Table not found');
-    }
+    // None of these depend on each other's results — only on organizationId and their own dto
+    // field — so they run as one round trip instead of up to five sequential ones.
+    const [table, customer, waiter, pricedItems, organization] = await Promise.all([
+      dto.tableId
+        ? this.prisma.restaurantTable.findFirst({ where: { id: dto.tableId, organizationId, isActive: true } })
+        : Promise.resolve(null),
+      dto.customerId
+        ? this.prisma.customer.findFirst({ where: { id: dto.customerId, organizationId } })
+        : Promise.resolve(null),
+      dto.waiterId
+        ? // Matches usersApi.directory(['WAITER', 'CASHIER']) on the client — the "Assign a
+          // waiter" picker deliberately also offers cashiers (e.g. one ringing up a walk-in
+          // order), so validation here must accept the same set or a legitimately-picked
+          // cashier 404s at submit.
+          this.prisma.user.findFirst({
+            where: { id: dto.waiterId, organizationId, isActive: true, roles: { hasSome: ['WAITER', 'CASHIER'] } },
+          })
+        : Promise.resolve(null),
+      this.priceItems(organizationId, dto.items),
+      this.prisma.organization.findUniqueOrThrow({ where: { id: organizationId } }),
+    ]);
 
-    if (dto.customerId) {
-      const customer = await this.prisma.customer.findFirst({
-        where: { id: dto.customerId, organizationId },
-      });
-      if (!customer) throw new NotFoundException('Customer not found');
-    }
+    if (dto.tableId && !table) throw new NotFoundException('Table not found');
+    if (dto.customerId && !customer) throw new NotFoundException('Customer not found');
+    if (dto.waiterId && !waiter) throw new NotFoundException('Waiter not found');
 
-    if (dto.waiterId) {
-      // Matches usersApi.directory(['WAITER', 'CASHIER']) on the client — the "Assign a waiter"
-      // picker deliberately also offers cashiers (e.g. one ringing up a walk-in order), so
-      // validation here must accept the same set or a legitimately-picked cashier 404s at submit.
-      const waiter = await this.prisma.user.findFirst({
-        where: { id: dto.waiterId, organizationId, isActive: true, roles: { hasSome: ['WAITER', 'CASHIER'] } },
-      });
-      if (!waiter) throw new NotFoundException('Waiter not found');
-    }
-
-    const pricedItems = await this.priceItems(organizationId, dto.items);
     const subtotal = pricedItems.reduce((sum, i) => sum + i.amount, 0);
-
-    const organization = await this.prisma.organization.findUniqueOrThrow({
-      where: { id: organizationId },
-    });
 
     // Each charge type only applies at all if the org has it enabled; when enabled, it defaults
     // to "on" for a new order (matching the old always-on behavior) unless explicitly toggled off.
@@ -361,7 +358,7 @@ export class OrdersService {
     let isFreshExecution = false;
     const created = await runIdempotent(this.prisma, organizationId, 'ORDER_CREATE', dto.clientRequestId, async (tx) => {
       isFreshExecution = true;
-      const created = await tx.order.create({
+      const order = await tx.order.create({
         data: {
           organizationId,
           tableId: dto.tableId,
@@ -379,19 +376,20 @@ export class OrdersService {
           serviceChargeAmount,
           total,
           notes: dto.notes,
-          items: { create: pricedItems },
         },
-        include: this.orderInclude,
       });
 
-      if (dto.tableId) {
-        await tx.restaurantTable.update({
-          where: { id: dto.tableId },
-          data: { status: 'OCCUPIED' },
-        });
-      }
+      // A nested `items: { create: [...] }` on the order above would issue one INSERT per item;
+      // createMany batches them into a single round trip. Independent of the table update below,
+      // so both run together.
+      await Promise.all([
+        tx.orderItem.createMany({ data: pricedItems.map((i) => ({ ...i, orderId: order.id })) }),
+        dto.tableId
+          ? tx.restaurantTable.update({ where: { id: dto.tableId }, data: { status: 'OCCUPIED' } })
+          : Promise.resolve(null),
+      ]);
 
-      return created;
+      return tx.order.findUniqueOrThrow({ where: { id: order.id }, include: this.orderInclude });
     });
 
     // Skipped on an idempotent replay (isFreshExecution stays false) — a retried
