@@ -243,12 +243,12 @@ describe('UsersPage', () => {
     })
   })
 
-  describe('editing roles', () => {
+  describe('editing users', () => {
     it('only offers the edit action for users this account is allowed to modify', async () => {
       setCurrentUser(['ADMIN']) // not a Super Admin
       vi.mocked(usersApi.list).mockResolvedValue(
         paginated([
-          userWith({ id: 'self', firstName: 'Me', lastName: 'Self' }), // is the current user
+          userWith({ id: 'self', firstName: 'Me', lastName: 'Self', roles: ['ADMIN'] }), // is the current user
           userWith({ id: 'other-admin', firstName: 'Other', lastName: 'Admin', roles: ['ADMIN'] }), // ADMIN, editor isn't SUPER_ADMIN
           userWith({ id: 'staff-1', firstName: 'Regular', lastName: 'Staff', roles: ['STAFF'] }),
         ]),
@@ -260,15 +260,40 @@ describe('UsersPage', () => {
       renderPage()
       await screen.findByText('Me Self')
 
-      expect(within(screen.getByText('Me Self').closest('tr')!).queryByTitle('Edit roles')).not.toBeInTheDocument()
-      expect(within(screen.getByText('Other Admin').closest('tr')!).queryByTitle('Edit roles')).not.toBeInTheDocument()
-      expect(within(screen.getByText('Regular Staff').closest('tr')!).getByTitle('Edit roles')).toBeInTheDocument()
+      // Self is an ADMIN-tier target, and the acting user isn't a Super Admin — blocked entirely,
+      // same as any other Admin/Super Admin account this actor doesn't have rights over.
+      expect(within(screen.getByText('Me Self').closest('tr')!).queryByTitle('Edit user')).not.toBeInTheDocument()
+      expect(within(screen.getByText('Other Admin').closest('tr')!).queryByTitle('Edit user')).not.toBeInTheDocument()
+      expect(within(screen.getByText('Regular Staff').closest('tr')!).getByTitle('Edit user')).toBeInTheDocument()
     })
 
-    it('submits the updated role set for the target user', async () => {
+    it('lets a user edit their own email but not their own roles', async () => {
+      const user = userEvent.setup()
+      // Self is non-admin-tier here, so canEditProfile allows it even though canEditRoles never
+      // allows touching your own roles.
+      vi.mocked(usersApi.list).mockResolvedValue(
+        paginated([userWith({ id: 'self', firstName: 'Me', lastName: 'Self', roles: ['STAFF'], email: 'me@acme.com' })]),
+      )
+      mockUseAuthStore.mockImplementation((selector: (state: unknown) => unknown) =>
+        selector({ user: { id: 'self', roles: ['STAFF'] } }),
+      )
+
+      renderPage()
+      await screen.findByText('Me Self')
+
+      const row = screen.getByText('Me Self').closest('tr')!
+      await user.click(within(row).getByTitle('Edit user'))
+
+      expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
+      expect(screen.queryByText('Roles')).not.toBeInTheDocument()
+    })
+
+    it('submits the updated email and role set for the target user', async () => {
       const user = userEvent.setup()
       vi.mocked(usersApi.list).mockResolvedValue(
-        paginated([userWith({ id: 'staff-1', firstName: 'Regular', lastName: 'Staff', roles: ['WAITER'] })]),
+        paginated([
+          userWith({ id: 'staff-1', firstName: 'Regular', lastName: 'Staff', roles: ['WAITER'], email: 'staff@acme.com' }),
+        ]),
       )
       vi.mocked(usersApi.update).mockResolvedValue(userWith({ id: 'staff-1', roles: ['WAITER', 'CASHIER'] }))
 
@@ -276,13 +301,16 @@ describe('UsersPage', () => {
       await screen.findByText('Regular Staff')
 
       const row = screen.getByText('Regular Staff').closest('tr')!
-      await user.click(within(row).getByTitle('Edit roles'))
+      await user.click(within(row).getByTitle('Edit user'))
 
       await user.click(screen.getByRole('button', { name: 'Cashier' }))
-      await user.click(screen.getByRole('button', { name: 'Save Roles' }))
+      await user.click(screen.getByRole('button', { name: 'Save' }))
 
       await waitFor(() =>
-        expect(usersApi.update).toHaveBeenCalledWith('staff-1', { roles: expect.arrayContaining(['WAITER', 'CASHIER']) }),
+        expect(usersApi.update).toHaveBeenCalledWith('staff-1', {
+          email: 'staff@acme.com',
+          roles: expect.arrayContaining(['WAITER', 'CASHIER']),
+        }),
       )
     })
   })

@@ -33,10 +33,11 @@ const userSchema = z
 
 type UserFormData = z.infer<typeof userSchema>
 
-const editRolesSchema = z.object({
+const editUserSchema = z.object({
+  email: z.string().email('Invalid email').optional().or(z.literal('')),
   roles: z.array(z.string()).min(1, 'At least one role is required'),
 })
-type EditRolesFormData = z.infer<typeof editRolesSchema>
+type EditUserFormData = z.infer<typeof editUserSchema>
 
 const roleLabels: Record<UserRole, string> = {
   SUPER_ADMIN: 'Super Admin',
@@ -148,46 +149,54 @@ export function UsersPage() {
     },
   })
 
-  const editRolesForm = useForm<EditRolesFormData>({
-    resolver: zodResolver(editRolesSchema),
-    defaultValues: { roles: [] },
+  const editUserForm = useForm<EditUserFormData>({
+    resolver: zodResolver(editUserSchema),
+    defaultValues: { email: '', roles: [] },
   })
-  const editSelectedRoles = (editRolesForm.watch('roles') ?? []) as UserRole[]
+  const editSelectedRoles = (editUserForm.watch('roles') ?? []) as UserRole[]
   const toggleEditRole = (role: UserRole) => {
     const current = editSelectedRoles
-    editRolesForm.setValue(
+    editUserForm.setValue(
       'roles',
       current.includes(role) ? current.filter((r) => r !== role) : [...current, role],
       { shouldValidate: true },
     )
   }
 
-  // Backend forbids modifying your own roles, and only a Super Admin can touch an Admin account
-  // or promote someone into one — mirrored here so the edit action just isn't offered rather than
-  // opening a form that will fail on submit.
-  const canEditRoles = (target: UserData) =>
+  // Mirrors the backend's assertAdminActionAllowed: only a Super Admin may touch an Admin or
+  // Super Admin account's fields at all (email included) — everyone else can edit only
+  // non-admin-tier targets, themselves included.
+  const canEditProfile = (target: UserData) =>
     target.isActive &&
+    (!!currentUser?.roles.includes('SUPER_ADMIN') || !target.roles.some((r) => r === 'ADMIN' || r === 'SUPER_ADMIN'))
+
+  // Backend forbids modifying your own roles, and only a Super Admin can touch an Admin account's
+  // (or promote someone into one) roles specifically — mirrored here so the Roles section just
+  // isn't offered rather than opening a control that will fail on submit. Profile fields like
+  // email aren't restricted this way — see canEditProfile above.
+  const canEditRoles = (target: UserData) =>
     target.id !== currentUser?.id &&
     !target.roles.includes('SUPER_ADMIN') &&
     (!!currentUser?.roles.includes('SUPER_ADMIN') || !target.roles.includes('ADMIN'))
 
-  const updateRolesMutation = useMutation({
-    mutationFn: ({ id, roles }: { id: string; roles: UserRole[] }) => usersApi.update(id, { roles }),
+  const updateUserMutation = useMutation({
+    mutationFn: ({ id, email, roles }: { id: string; email?: string; roles: UserRole[] }) =>
+      usersApi.update(id, { ...(email !== undefined && { email }), roles }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
-      toast.success('Roles updated')
+      toast.success('User updated')
       setEditingUser(null)
     },
     onError: (error: any) => {
-      toast.error('Failed to update roles', {
+      toast.error('Failed to update user', {
         description: error.response?.data?.message,
       })
     },
   })
 
-  const openEditRoles = (target: UserData) => {
+  const openEditUser = (target: UserData) => {
     setEditingUser(target)
-    editRolesForm.reset({ roles: target.roles })
+    editUserForm.reset({ email: target.hasPlaceholderEmail ? '' : target.email, roles: target.roles })
   }
 
   const deleteMutation = useMutation({
@@ -351,12 +360,12 @@ export function UsersPage() {
                             <Send className="h-4 w-4" />
                           </Button>
                         )}
-                        {canEditRoles(user) && (
+                        {canEditProfile(user) && (
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => openEditRoles(user)}
-                            title="Edit roles"
+                            onClick={() => openEditUser(user)}
+                            title="Edit user"
                             className="h-8 w-8 p-0 rounded-lg"
                           >
                             <Pencil className="h-4 w-4" />
@@ -507,69 +516,85 @@ export function UsersPage() {
         </form>
       </Modal>
 
-      {/* Edit Roles Modal */}
+      {/* Edit User Modal */}
       <Modal
         isOpen={!!editingUser}
         onClose={() => {
           setEditingUser(null)
-          editRolesForm.reset({ roles: [] })
+          editUserForm.reset({ email: '', roles: [] })
         }}
-        title="Edit Roles"
-        description={editingUser ? `Change what ${editingUser.firstName} ${editingUser.lastName} has access to` : undefined}
+        title="Edit User"
+        description={editingUser ? `Change ${editingUser.firstName} ${editingUser.lastName}'s login and access` : undefined}
       >
         <form
-          onSubmit={editRolesForm.handleSubmit((data) =>
-            editingUser && updateRolesMutation.mutate({ id: editingUser.id, roles: data.roles as UserRole[] }),
+          onSubmit={editUserForm.handleSubmit((data) =>
+            editingUser &&
+            updateUserMutation.mutate({
+              id: editingUser.id,
+              // Placeholder emails (PIN-only accounts) aren't a real login field — leave untouched.
+              email: editingUser.hasPlaceholderEmail ? undefined : data.email,
+              roles: data.roles as UserRole[],
+            }),
           )}
           className="space-y-4"
         >
-          <div className="space-y-2">
-            <Label required>Roles</Label>
-            <p className="text-xs text-muted-foreground">
-              Select one or more — a user can hold multiple roles at once, with access being the
-              union of whatever each grants.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {(() => {
-                // Union of the normally-creatable options with whatever roles this user already
-                // holds — e.g. a role that predates a module switch shouldn't just disappear from
-                // the picker and get silently dropped on save.
-                const extra = (editingUser?.roles ?? [])
-                  .filter((r) => !roleOptions.some((opt) => opt.value === r))
-                  .map((r) => ({ value: r, label: roleLabels[r] }))
-                return [...roleOptions, ...extra]
-              })().map((opt) => {
-                const selected = editSelectedRoles.includes(opt.value)
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => toggleEditRole(opt.value)}
-                    className={cn(
-                      'rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
-                      selected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
-                    )}
-                  >
-                    {opt.label}
-                  </button>
-                )
-              })}
+          {editingUser && !editingUser.hasPlaceholderEmail && (
+            <div className="space-y-2">
+              <Label htmlFor="editUserEmail" required>Email</Label>
+              <p className="text-xs text-muted-foreground">This is what they log in with.</p>
+              <Input id="editUserEmail" type="email" {...editUserForm.register('email')} error={editUserForm.formState.errors.email?.message} />
             </div>
-            {editRolesForm.formState.errors.roles && (
-              <p className="text-xs text-destructive">{editRolesForm.formState.errors.roles.message}</p>
-            )}
-          </div>
+          )}
+
+          {editingUser && canEditRoles(editingUser) && (
+            <div className="space-y-2">
+              <Label required>Roles</Label>
+              <p className="text-xs text-muted-foreground">
+                Select one or more — a user can hold multiple roles at once, with access being the
+                union of whatever each grants.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {(() => {
+                  // Union of the normally-creatable options with whatever roles this user already
+                  // holds — e.g. a role that predates a module switch shouldn't just disappear from
+                  // the picker and get silently dropped on save.
+                  const extra = (editingUser?.roles ?? [])
+                    .filter((r) => !roleOptions.some((opt) => opt.value === r))
+                    .map((r) => ({ value: r, label: roleLabels[r] }))
+                  return [...roleOptions, ...extra]
+                })().map((opt) => {
+                  const selected = editSelectedRoles.includes(opt.value)
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => toggleEditRole(opt.value)}
+                      className={cn(
+                        'rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
+                        selected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  )
+                })}
+              </div>
+              {editUserForm.formState.errors.roles && (
+                <p className="text-xs text-destructive">{editUserForm.formState.errors.roles.message}</p>
+              )}
+            </div>
+          )}
 
           <div className="flex gap-3 pt-2">
-            <Button type="submit" isLoading={updateRolesMutation.isPending}>
-              Save Roles
+            <Button type="submit" isLoading={updateUserMutation.isPending}>
+              Save
             </Button>
             <Button
               type="button"
               variant="outline"
               onClick={() => {
                 setEditingUser(null)
-                editRolesForm.reset({ roles: [] })
+                editUserForm.reset({ email: '', roles: [] })
               }}
             >
               Cancel
