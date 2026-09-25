@@ -751,6 +751,20 @@ function SyncedOrderView({ id }: { id: string }) {
       ``,
       ...order.items.map((item) => `${item.quantity}x ${item.itemName} - ${formatCurrency(item.amount)}`),
       ``,
+      `Subtotal: ${formatCurrency(order.subtotal)}`,
+      ...(order.discountAmount > 0
+        ? [`Discount${order.discountType === 'PERCENTAGE' ? ` (${order.discountPercent}%)` : ''}: -${formatCurrency(order.discountAmount)}`]
+        : []),
+      ...(order.vatAmount > 0 || order.entertainmentTaxAmount > 0
+        ? [
+            ...(order.vatAmount > 0 ? [`VAT: ${formatCurrency(order.vatAmount)}`] : []),
+            ...(order.entertainmentTaxAmount > 0 ? [`Entertainment Tax: ${formatCurrency(order.entertainmentTaxAmount)}`] : []),
+          ]
+        : order.taxAmount > 0
+          ? [`Tax: ${formatCurrency(order.taxAmount)}`]
+          : []),
+      ...(order.serviceChargeAmount > 0 ? [`Service Charge: ${formatCurrency(order.serviceChargeAmount)}`] : []),
+      ``,
       `Total Bill = ${formatCurrency(order.total)}`,
       ...(organization?.receiptBankName
         ? [
