@@ -749,6 +749,8 @@ function SyncedOrderView({ id }: { id: string }) {
     const lines = [
       `Thanks for placing an order with ${organization?.name ?? 'us'}. Here's your bill`,
       ``,
+      ...order.items.map((item) => `${item.quantity}x ${item.itemName} - ${formatCurrency(item.amount)}`),
+      ``,
       `Total Bill = ${formatCurrency(order.total)}`,
       ...(organization?.receiptBankName
         ? [
