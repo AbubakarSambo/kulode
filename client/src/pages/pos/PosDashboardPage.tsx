@@ -81,7 +81,9 @@ export function PosDashboardPage() {
     const lines = [
       `📊 *Sales Summary — ${activeOption?.label}*`,
       ``,
-      `Total Sales: *${formatCurrency(summary.sales.total)}*`,
+      // Full value of everything sold in this period (paid + still-owed) — NOT summary.sales.total,
+      // which is only actual payments received and silently excludes any still-unpaid order.
+      `Total Sales: *${formatCurrency(closedValue)}*`,
       `Paid: ${formatCurrency(breakdown?.closedPaid.amount ?? 0)}`,
       `Credit (unpaid): ${formatCurrency(breakdown?.closedUnpaid.outstanding ?? 0)}`,
       ``,

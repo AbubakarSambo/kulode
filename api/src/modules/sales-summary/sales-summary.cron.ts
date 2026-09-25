@@ -49,7 +49,10 @@ export class SalesSummaryCron {
               organizationId: org.id,
               toPhone: phone,
               summaryDate,
-              totalSales: currency(summary.sales.total),
+              // Full value of everything sold today (paid + still-owed) — NOT
+              // summary.sales.total, which is only actual payments received today and silently
+              // excludes any order sitting CLOSED_UNPAID, undercounting a day with open credit.
+              totalSales: currency(summary.orderBreakdown.closedPaid.amount + summary.orderBreakdown.closedUnpaid.amount),
               amountPaid: currency(summary.orderBreakdown.closedPaid.amount),
               outstandingCredit: currency(summary.orderBreakdown.closedUnpaid.outstanding),
             });
