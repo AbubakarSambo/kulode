@@ -1,7 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { OpenShiftDto, CloseShiftDto, BackdateShiftDto } from './dto';
+import { applyShiftHours, businessDateFor, ShiftHours } from '../../common';
 
 function toNumber(val: Prisma.Decimal | number): number {
   return typeof val === 'number' ? val : Number(val);
@@ -9,7 +11,12 @@ function toNumber(val: Prisma.Decimal | number): number {
 
 @Injectable()
 export class ShiftsService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(ShiftsService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private readonly whatsappService: WhatsappService,
+  ) {}
 
   async findAll(organizationId: string) {
     return this.prisma.shift.findMany({
@@ -266,6 +273,68 @@ export class ShiftsService {
       }),
     ]);
 
+    try {
+      await this.sendShiftSummary(organizationId, closedAt);
+    } catch (err) {
+      // The shift is already closed at this point - a failure here shouldn't fail the close.
+      this.logger.error(`Failed to build shift close sales summary for org ${organizationId}: ${err.message}`);
+    }
+
     return this.findOne(organizationId, updatedShift.id);
+  }
+
+  // Fires the WhatsApp summary when a shift closes, scoped to the org's configured business-day
+  // window (org.shiftStartTime/shiftEndTime) rather than the closing shift's own openedAt..closedAt -
+  // this way the numbers tally with what the dashboard's "Today"/"Yesterday" filters show, even
+  // for orgs running more than one shift per business day. Replaces the old fixed 23:55 cron,
+  // which fired at a wall-clock time unrelated to when any org's business day actually ends.
+  private async sendShiftSummary(organizationId: string, closedAt: Date): Promise<void> {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { ownerWhatsappPhone: true, enabledModules: true, shiftStartTime: true, shiftEndTime: true },
+    });
+    if (!org || !['POS', 'BOTH'].includes(org.enabledModules)) return;
+
+    const phones = (org.ownerWhatsappPhone ?? '').split(',').map((p) => p.trim()).filter(Boolean);
+    if (phones.length === 0) return;
+
+    const shiftHours: ShiftHours = { shiftStartTime: org.shiftStartTime, shiftEndTime: org.shiftEndTime };
+    const businessDay = businessDateFor(closedAt, shiftHours);
+    const { startDate, endDate } = applyShiftHours(businessDay, businessDay, shiftHours);
+
+    const [closedPaidAgg, closedUnpaidAgg] = await Promise.all([
+      this.prisma.order.aggregate({
+        where: { organizationId, status: OrderStatus.CLOSED_PAID, closedAt: { gte: startDate, lte: endDate } },
+        _sum: { total: true },
+      }),
+      this.prisma.order.aggregate({
+        where: { organizationId, status: OrderStatus.CLOSED_UNPAID, closedAt: { gte: startDate, lte: endDate } },
+        _sum: { total: true, amountPaid: true },
+      }),
+    ]);
+
+    const closedPaidTotal = toNumber(closedPaidAgg._sum.total ?? 0);
+    const closedUnpaidTotal = toNumber(closedUnpaidAgg._sum.total ?? 0);
+    const closedUnpaidCollected = toNumber(closedUnpaidAgg._sum.amountPaid ?? 0);
+
+    const summaryDate = businessDay.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    const currency = (value: number) => value.toLocaleString('en-NG', { style: 'currency', currency: 'NGN' });
+
+    for (const phone of phones) {
+      try {
+        await this.whatsappService.sendDailySalesSummaryTemplate({
+          organizationId,
+          toPhone: phone,
+          summaryDate,
+          // Full value of everything sold in the business day so far (paid + still-owed) - not
+          // just payments received, which would silently exclude any order left CLOSED_UNPAID.
+          totalSales: currency(closedPaidTotal + closedUnpaidTotal),
+          amountPaid: currency(closedPaidTotal),
+          outstandingCredit: currency(closedUnpaidTotal - closedUnpaidCollected),
+        });
+      } catch (err) {
+        this.logger.error(`Failed to send shift close sales summary to ${phone} for org ${organizationId}: ${err.message}`);
+      }
+    }
   }
 }
