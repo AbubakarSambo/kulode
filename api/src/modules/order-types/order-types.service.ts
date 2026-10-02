@@ -100,9 +100,12 @@ export class OrderTypesService {
    * replaces the DTO-level `@IsIn(ORDER_SOURCES)` static enum check that used to guard this.
    */
   async requiresTable(organizationId: string, name: string): Promise<boolean> {
-    const orderType = await this.prisma.orderType.findFirst({
-      where: { organizationId, name, isActive: true },
-    });
+    // Goes through findAll (lazy-seeds the 4 defaults on first use) rather than a raw lookup —
+    // a brand-new org that's never opened the Order Types settings page or placed a table-
+    // requiring order (the other two paths that happen to trigger seeding) would otherwise have
+    // an empty order_types table and fail this check on a perfectly valid default name.
+    const types = await this.findAll(organizationId);
+    const orderType = types.find((t) => t.name === name);
     if (!orderType) {
       throw new BadRequestException(`"${name}" is not a valid order type for this organization`);
     }
