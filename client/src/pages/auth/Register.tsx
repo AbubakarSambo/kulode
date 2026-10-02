@@ -18,6 +18,7 @@ import {
 import { Logo } from '@/components/shared'
 import { useRegister, useMagicLinkRegister } from '@/hooks'
 import { posthog } from '@/lib/posthog'
+import { LEFT_PANEL_COPY, usePosModeFromSearchParam } from '@/lib/authLeftPanelCopy'
 
 const PASSWORD_RULES = [
   { label: 'At least 8 characters', test: (v: string) => v.length >= 8 },
@@ -35,10 +36,7 @@ const GOOGLE_AUTH_URL = import.meta.env.VITE_API_URL
 // the API defaults to RESTAURANT itself, so there's no behavior change for existing links.
 function usePosModeFromQuery(): 'RESTAURANT' | 'RETAIL' | undefined {
   const [searchParams] = useSearchParams()
-  const type = searchParams.get('type')?.toLowerCase()
-  if (type === 'retail') return 'RETAIL'
-  if (type === 'restaurant') return 'RESTAURANT'
-  return undefined
+  return usePosModeFromSearchParam(searchParams.get('type'))
 }
 
 const LANDING_URL = import.meta.env.DEV
@@ -61,30 +59,6 @@ type RegisterForm = z.infer<typeof registerSchema>
 
 const magicLinkSchema = registerSchema.omit({ password: true })
 type MagicLinkForm = z.infer<typeof magicLinkSchema>
-
-// RESTAURANT is the actual product default (Organization.posMode defaults to RESTAURANT
-// server-side when no `?type=` is given) — not a placeholder, so an organic signup with no
-// param gets the same restaurant-led pitch as `?type=restaurant`, never the old invoicing copy.
-const LEFT_PANEL_COPY = {
-  RESTAURANT: {
-    headline: <>Nigeria's modern restaurant & <span className="bg-gradient-to-r from-blue-300 via-indigo-200 to-white bg-clip-text text-transparent">bar POS</span></>,
-    description: 'Take orders tableside, fire tickets to the kitchen instantly, manage your floor, and reconcile every shift — even when the network drops.',
-    cardSubtitle: 'Point of sale, kitchen tickets, and shift reconciliation for Nigerian restaurants and bars.',
-    card1Title: 'Order Placed',
-    card1Subtitle: 'Table 4 · Dine In',
-    card2Line: <>Kitchen ticket fired to <span className="text-blue-600 underline">Bar + Kitchen</span></>,
-    amountLabel: 'Order Total',
-  },
-  RETAIL: {
-    headline: <>Nigeria's modern retail & <span className="bg-gradient-to-r from-blue-300 via-indigo-200 to-white bg-clip-text text-transparent">supermarket POS</span></>,
-    description: 'Scan barcodes at checkout, manage your catalog and stock levels, and reconcile every till — even when the network drops.',
-    cardSubtitle: 'Barcode-scan checkout, catalog, and stock management for Nigerian retail stores.',
-    card1Title: 'Item Scanned',
-    card1Subtitle: 'Coca-Cola 50cl',
-    card2Line: <>Receipt printed at <span className="text-blue-600 underline">Register 1</span></>,
-    amountLabel: 'Total Due',
-  },
-} as const
 
 function LeftPanel({ posMode }: { posMode?: 'RESTAURANT' | 'RETAIL' }) {
   const copy = LEFT_PANEL_COPY[posMode ?? 'RESTAURANT']

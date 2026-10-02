@@ -17,6 +17,7 @@ import {
 import { Logo } from "@/components/shared";
 import { useLogin, useResendVerification } from "@/hooks";
 import { posthog } from "@/lib/posthog";
+import { LEFT_PANEL_COPY, usePosModeFromSearchParam } from "@/lib/authLeftPanelCopy";
 import { Mail, MessageCircle, Pointer, ArrowLeft, Eye, EyeOff } from "lucide-react";
 
 const GOOGLE_AUTH_URL = import.meta.env.VITE_API_URL
@@ -41,10 +42,9 @@ export function LoginPage() {
   // forward the same `?type=restaurant|retail` a dedicated landing page sent, so that still sets
   // the right Organization.posMode. No-op for an existing user signing back in.
   const [searchParams] = useSearchParams();
-  const landingType = searchParams.get('type')?.toLowerCase();
-  const googleAuthUrl = landingType === 'retail' || landingType === 'restaurant'
-    ? `${GOOGLE_AUTH_URL}?type=${landingType}`
-    : GOOGLE_AUTH_URL;
+  const posMode = usePosModeFromSearchParam(searchParams.get('type'));
+  const googleAuthUrl = posMode ? `${GOOGLE_AUTH_URL}?type=${posMode.toLowerCase()}` : GOOGLE_AUTH_URL;
+  const copy = LEFT_PANEL_COPY[posMode ?? 'RESTAURANT'];
   const [showResend, setShowResend] = useState(false);
   const [loginEmail, setLoginEmail] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -114,10 +114,10 @@ export function LoginPage() {
         <div className="relative z-10 my-auto py-6 grid grid-cols-1 xl:grid-cols-12 gap-8 items-center">
           <div className="xl:col-span-6 space-y-6">
             <h1 className="text-4xl xl:text-5xl font-black leading-[1.1] tracking-tight text-white">
-              Nigeria's modern invoicing & <span className="bg-gradient-to-r from-blue-300 via-indigo-200 to-white bg-clip-text text-transparent">compliance engine</span>
+              {copy.headline}
             </h1>
             <p className="text-base text-blue-100/80 leading-relaxed max-w-lg">
-              Automate your billing, track expenses under tax categories, and auto-generate e-filing summaries compliant with FIRS & NFIU.
+              {copy.description}
             </p>
           </div>
           
@@ -138,8 +138,8 @@ export function LoginPage() {
                   <Mail size={14} className="text-white" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-slate-900 leading-tight">Invoice Sent</p>
-                  <p className="text-[8px] text-slate-500 leading-tight">via email ✉️</p>
+                  <p className="text-[10px] font-bold text-slate-900 leading-tight">{copy.card1Title}</p>
+                  <p className="text-[8px] text-slate-500 leading-tight">{copy.card1Subtitle}</p>
                 </div>
               </div>
 
@@ -150,14 +150,14 @@ export function LoginPage() {
                 </div>
                 <div>
                   <p className="text-[8px] text-[#128c7e] font-bold">Tari1 Notification</p>
-                  <p className="text-[9px] text-slate-800 leading-snug mt-0.5">Pay instantly at <span className="text-blue-600 underline">pay.tarione.com/inv-001</span></p>
+                  <p className="text-[9px] text-slate-800 leading-snug mt-0.5">{copy.card2Line}</p>
                 </div>
               </div>
 
               {/* Clicking to pay animation bubble */}
               <div className="absolute -bottom-6 -left-6 bg-white p-3.5 rounded-[24px] shadow-2xl border border-slate-100 max-w-[190px] animate-pay-flow text-slate-800">
                 <div className="text-center">
-                  <p className="text-[9px] text-slate-400">Amount Due</p>
+                  <p className="text-[9px] text-slate-400">{copy.amountLabel}</p>
                   <p className="text-xs font-extrabold text-[#0037b0] mb-1.5 tabular-nums">₦150,000.00</p>
                   <div className="relative inline-block w-full">
                     <div className="w-full text-white text-[9px] font-bold py-2 rounded-lg flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/20 relative animate-btn-pay select-none min-h-[28px]">
