@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { PosMode } from '@prisma/client';
+import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class MagicLinkRegisterDto {
   @ApiProperty({ example: 'CleanTex' })
@@ -24,6 +25,14 @@ export class MagicLinkRegisterDto {
   @IsNotEmpty()
   @IsEmail()
   email: string;
+
+  @ApiPropertyOptional({
+    enum: PosMode,
+    description: 'Which checkout flow to set up the new org for. Defaults to RESTAURANT when omitted.',
+  })
+  @IsOptional()
+  @IsEnum(PosMode)
+  posMode?: PosMode;
 
   @ApiPropertyOptional()
   @IsOptional()

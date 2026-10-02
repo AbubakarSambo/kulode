@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { InventoryItem, StockMovement, ApiResponse, UnitOfMeasure } from '@/types'
+import type { InventoryItem, StockMovement, ApiResponse, UnitOfMeasure, VatCategory } from '@/types'
 
 export interface CreateInventoryItemData {
   name: string
@@ -9,6 +9,10 @@ export interface CreateInventoryItemData {
   reorderLevel?: number
   unitOfMeasure?: UnitOfMeasure
   sku?: string
+  barcode?: string
+  sellPrice?: number
+  department?: string
+  vatCategory?: VatCategory
 }
 
 export interface UpdateInventoryItemData {
@@ -18,6 +22,17 @@ export interface UpdateInventoryItemData {
   reorderLevel?: number
   unitOfMeasure?: UnitOfMeasure
   sku?: string
+  barcode?: string
+  sellPrice?: number
+  department?: string
+  vatCategory?: VatCategory
+}
+
+export interface ImportInventoryResult {
+  total: number
+  created: number
+  failed: number
+  results: Array<{ row: number; name?: string; status: 'created' | 'error'; error?: string }>
 }
 
 export interface AdjustStockData {
@@ -53,6 +68,24 @@ export const inventoryApi = {
 
   getMovements: async (id: string): Promise<StockMovement[]> => {
     const response = await apiClient.get<ApiResponse<StockMovement[]>>(`/inventory-items/${id}/movements`)
+    return response.data.data
+  },
+
+  // Hit on every barcode scan in the retail checkout flow — throws (404) when nothing matches,
+  // which the caller surfaces as "unknown barcode" rather than treating as a transient error.
+  lookupByBarcode: async (barcode: string): Promise<InventoryItem> => {
+    const response = await apiClient.get<ApiResponse<InventoryItem>>('/inventory-items/lookup', {
+      params: { barcode },
+    })
+    return response.data.data
+  },
+
+  importCsv: async (file: File): Promise<ImportInventoryResult> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const response = await apiClient.post<ApiResponse<ImportInventoryResult>>('/inventory-items/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
     return response.data.data
   },
 }

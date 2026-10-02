@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -23,6 +23,7 @@ import { Modal } from '@/components/shared/Modal'
 import { BottomSheet } from '@/components/shared'
 import { inventoryApi } from '@/api/inventory'
 import { useSubscription } from '@/hooks/useSubscription'
+import { usePosMode } from '@/hooks/useOrgModules'
 
 import { formatCurrency, cn } from '@/lib/utils'
 import type { InventoryItem, StockMovement, StockMovementType, UnitOfMeasure } from '@/types'
@@ -40,6 +41,9 @@ const inventoryItemSchema = z.object({
   reorderLevel: z.number().min(0).optional(),
   unitOfMeasure: z.enum(['KG', 'G', 'L', 'ML', 'UNIT']),
   sku: z.string().optional(),
+  barcode: z.string().optional(),
+  sellPrice: z.number().min(0).optional(),
+  department: z.string().optional(),
 })
 
 const updateItemSchema = z.object({
@@ -49,6 +53,9 @@ const updateItemSchema = z.object({
   reorderLevel: z.number().min(0).optional(),
   unitOfMeasure: z.enum(['KG', 'G', 'L', 'ML', 'UNIT']),
   sku: z.string().optional(),
+  barcode: z.string().optional(),
+  sellPrice: z.number().min(0).optional(),
+  department: z.string().optional(),
 })
 
 const adjustStockSchema = z.object({
@@ -119,6 +126,8 @@ export function InventoryPage() {
   const [limitOpen, setLimitOpen] = useState(false)
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
   const { isReadOnlyMode: isExpired } = useSubscription()
+  const { isRetail } = usePosMode()
+  const importInputRef = useRef<HTMLInputElement>(null)
 
 
   const openMobileFilters = () => {
@@ -155,7 +164,7 @@ export function InventoryPage() {
 
   const createForm = useForm<InventoryItemFormData>({
     resolver: zodResolver(inventoryItemSchema),
-    defaultValues: { name: '', description: '', unitPrice: 0, initialStock: 0, reorderLevel: 0, unitOfMeasure: 'UNIT', sku: '' },
+    defaultValues: { name: '', description: '', unitPrice: 0, initialStock: 0, reorderLevel: 0, unitOfMeasure: 'UNIT', sku: '', barcode: '', department: '' },
   })
 
   const createMutation = useMutation({
@@ -167,6 +176,9 @@ export function InventoryPage() {
       reorderLevel: data.reorderLevel || undefined,
       unitOfMeasure: data.unitOfMeasure,
       sku: data.sku || undefined,
+      barcode: data.barcode || undefined,
+      sellPrice: data.sellPrice || undefined,
+      department: data.department || undefined,
     }),
     onSuccess: () => {
       posthog.capture('inventory_item_created')
@@ -196,6 +208,9 @@ export function InventoryPage() {
       reorderLevel: data.reorderLevel || undefined,
       unitOfMeasure: data.unitOfMeasure,
       sku: data.sku || undefined,
+      barcode: data.barcode || undefined,
+      sellPrice: data.sellPrice || undefined,
+      department: data.department || undefined,
     }),
     onSuccess: () => {
       posthog.capture('inventory_item_updated')
@@ -219,6 +234,9 @@ export function InventoryPage() {
       reorderLevel: item.reorderLevel,
       unitOfMeasure: item.unitOfMeasure,
       sku: item.sku || '',
+      barcode: item.barcode || '',
+      sellPrice: item.sellPrice ?? undefined,
+      department: item.department || '',
     })
   }
 
@@ -241,6 +259,32 @@ export function InventoryPage() {
   const handleDeleteTrigger = (item: InventoryItem) => {
     setItemToDelete(item)
     setDeleteConfirmOpen(true)
+  }
+
+  // ─── CSV catalog import (RETAIL posMode only) ──────────────────────────
+
+  const importMutation = useMutation({
+    mutationFn: (file: File) => inventoryApi.importCsv(file),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['inventory-items'] })
+      if (result.failed > 0) {
+        toast.warning(`Imported ${result.created} of ${result.total} items — ${result.failed} failed`, {
+          description: result.results.find((r) => r.status === 'error')?.error,
+        })
+      } else {
+        toast.success(`Imported ${result.created} items`)
+      }
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onError: (error: any) => {
+      toast.error('Import failed', { description: error.response?.data?.message })
+    },
+  })
+
+  const handleImportFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (file) importMutation.mutate(file)
   }
 
   // ─── Adjust stock form ──────────────────────────────────────────────────
@@ -294,8 +338,8 @@ export function InventoryPage() {
   return (
     <div className="flex flex-1 flex-col overflow-hidden relative min-h-0">
       <Header
-        title="Inventory"
-        description="Track ingredient and stock levels for your recipes"
+        title={isRetail ? 'Catalog' : 'Inventory'}
+        description={isRetail ? 'Products sold at checkout — barcode, price, and stock' : 'Track ingredient and stock levels for your recipes'}
         icon={InventoryIcon}
         category="Catalog & Setup"
         badgeText={items?.length}
@@ -309,10 +353,30 @@ export function InventoryPage() {
               Add Item
             </Button>
           ) : (
-            <Button onClick={() => setCreateOpen(true)}>
-              <HugeiconsIcon icon={PlusSignIcon} className="mr-2 h-4 w-4" strokeWidth={1.5} />
-              Add Item
-            </Button>
+            <div className="flex items-center gap-2">
+              {isRetail && (
+                <>
+                  <input
+                    ref={importInputRef}
+                    type="file"
+                    accept=".csv"
+                    className="hidden"
+                    onChange={handleImportFileSelected}
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => importInputRef.current?.click()}
+                    isLoading={importMutation.isPending}
+                  >
+                    Import CSV
+                  </Button>
+                </>
+              )}
+              <Button onClick={() => setCreateOpen(true)}>
+                <HugeiconsIcon icon={PlusSignIcon} className="mr-2 h-4 w-4" strokeWidth={1.5} />
+                Add Item
+              </Button>
+            </div>
           )
         }
       />
@@ -896,6 +960,34 @@ export function InventoryPage() {
             </Select>
           </div>
 
+          {isRetail && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="create-barcode">Barcode</Label>
+                <Input id="create-barcode" placeholder="Scan or type" {...createForm.register('barcode')} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="create-sellprice">Sell Price</Label>
+                <Input
+                  id="create-sellprice"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="Price charged at checkout"
+                  {...createForm.register('sellPrice', { valueAsNumber: true })}
+                />
+                <p className="text-xs text-muted-foreground">Required to sell this item at checkout — Unit Price above is your cost, not what the customer pays.</p>
+              </div>
+            </div>
+          )}
+
+          {isRetail && (
+            <div className="space-y-2">
+              <Label htmlFor="create-department">Department</Label>
+              <Input id="create-department" placeholder="e.g., Beverages" {...createForm.register('department')} />
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="create-initial">Initial Stock</Label>
@@ -996,6 +1088,34 @@ export function InventoryPage() {
               </Select>
             </div>
           </div>
+
+          {isRetail && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="edit-barcode">Barcode</Label>
+                <Input id="edit-barcode" placeholder="Scan or type" {...editForm.register('barcode')} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-sellprice">Sell Price</Label>
+                <Input
+                  id="edit-sellprice"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="Price charged at checkout"
+                  {...editForm.register('sellPrice', { valueAsNumber: true })}
+                />
+                <p className="text-xs text-muted-foreground">Required to sell this item at checkout — Unit Price above is your cost, not what the customer pays.</p>
+              </div>
+            </div>
+          )}
+
+          {isRetail && (
+            <div className="space-y-2">
+              <Label htmlFor="edit-department">Department</Label>
+              <Input id="edit-department" placeholder="e.g., Beverages" {...editForm.register('department')} />
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="edit-desc">Description</Label>

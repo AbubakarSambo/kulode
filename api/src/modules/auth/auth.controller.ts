@@ -5,7 +5,9 @@ import { AuthGuard } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto, AuthResponseDto, VerifyEmailDto, SetPasswordDto, ResendVerificationDto, ForgotPasswordDto, ResetPasswordDto, MagicLinkRegisterDto, PinLoginDto } from './dto';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { Public, CurrentUser, CurrentUserData } from '../../common';
+import { PosMode } from '@prisma/client';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -127,10 +129,11 @@ export class AuthController {
 
   @Public()
   @Get('google')
-  @UseGuards(AuthGuard('google'))
+  @UseGuards(GoogleAuthGuard)
   @ApiOperation({ summary: 'Initiate Google OAuth login' })
   async googleAuth() {
-    // Passport redirects to Google — no body needed
+    // Passport redirects to Google — no body needed. GoogleAuthGuard encodes ?type= as the
+    // OAuth `state` param so it survives the round trip to Google and back (see its own comment).
   }
 
   @Public()
@@ -140,7 +143,11 @@ export class AuthController {
   async googleCallback(@Req() req: any, @Res() res: any) {
     const frontendUrl = this.configService.get<string>('google.frontendUrl');
     try {
-      const { token, isNewUser } = await this.authService.findOrCreateGoogleUser(req.user);
+      // Echoed back verbatim by Google from the `state` we sent in GoogleAuthGuard — only read
+      // on the "new org" branch inside findOrCreateGoogleUser, so it's harmless/ignored for an
+      // existing user signing back in via a link that happens to carry a stale/different `type`.
+      const posMode: PosMode = req.query?.state === 'RETAIL' ? 'RETAIL' : 'RESTAURANT';
+      const { token, isNewUser } = await this.authService.findOrCreateGoogleUser(req.user, posMode);
       return res.redirect(`${frontendUrl}/auth/google/callback?token=${token}&new=${isNewUser}`);
     } catch {
       return res.redirect(`${frontendUrl}/login?error=google_auth_failed`);

@@ -229,7 +229,7 @@ function PendingOrderView({ localOrderId }: { localOrderId: string }) {
     ]
   }, [queuedActions])
 
-  const estimatedTotal = allItems.reduce((sum, i) => sum + (menuItemById.get(i.menuItemId)?.price ?? 0) * i.quantity, 0)
+  const estimatedTotal = allItems.reduce((sum, i) => sum + (menuItemById.get(i.menuItemId ?? '')?.price ?? 0) * i.quantity, 0)
 
   const addItems = useMutation({
     mutationFn: (items: CreateOrderItemData[]) => ordersApi.addItems(localOrderId, items),
@@ -285,10 +285,10 @@ function PendingOrderView({ localOrderId }: { localOrderId: string }) {
             <Card key={`${item.menuItemId}-${idx}`} className="p-4">
               <CardContent className="flex items-center justify-between p-0">
                 <div className="font-semibold text-foreground">
-                  {item.quantity}x {menuItemById.get(item.menuItemId)?.name ?? 'Item'}
+                  {item.quantity}x {menuItemById.get(item.menuItemId ?? '')?.name ?? 'Item'}
                 </div>
                 <div className="font-semibold text-foreground">
-                  {formatCurrency((menuItemById.get(item.menuItemId)?.price ?? 0) * item.quantity)}
+                  {formatCurrency((menuItemById.get(item.menuItemId ?? '')?.price ?? 0) * item.quantity)}
                 </div>
               </CardContent>
             </Card>

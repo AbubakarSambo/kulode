@@ -25,6 +25,7 @@ export class InventoryService {
       reservedQuantity: toNumber(item.reservedQuantity),
       reorderLevel: toNumber(item.reorderLevel),
       unitPrice: toNumber(item.unitPrice),
+      sellPrice: item.sellPrice != null ? toNumber(item.sellPrice) : null,
       availableQuantity: toNumber(item.onHandQuantity) - toNumber(item.reservedQuantity),
     };
   }
@@ -45,12 +46,31 @@ export class InventoryService {
     return this.addAvailable(item);
   }
 
+  // Used by the retail checkout scan flow — looked up on every barcode scan, so it stays a single
+  // indexed lookup (organizationId+barcode is unique) rather than a fuzzy/partial search.
+  async findByBarcode(organizationId: string, barcode: string) {
+    const item = await this.prisma.inventoryItem.findFirst({
+      where: { organizationId, barcode, isActive: true },
+    });
+    if (!item) throw new NotFoundException('No item found for this barcode');
+    return this.addAvailable(item);
+  }
+
   async create(organizationId: string, userId: string, dto: CreateInventoryItemDto) {
     const existing = await this.prisma.inventoryItem.findUnique({
       where: { organizationId_name: { organizationId, name: dto.name } },
     });
     if (existing) {
       throw new ConflictException('An inventory item with this name already exists');
+    }
+
+    if (dto.barcode) {
+      const existingBarcode = await this.prisma.inventoryItem.findUnique({
+        where: { organizationId_barcode: { organizationId, barcode: dto.barcode } },
+      });
+      if (existingBarcode) {
+        throw new ConflictException('An inventory item with this barcode already exists');
+      }
     }
 
     const item = await this.prisma.$transaction(async (tx) => {
@@ -64,6 +84,10 @@ export class InventoryService {
           unitOfMeasure: dto.unitOfMeasure,
           sku: dto.sku,
           onHandQuantity: dto.initialStock ?? 0,
+          barcode: dto.barcode,
+          sellPrice: dto.sellPrice,
+          department: dto.department,
+          vatCategory: dto.vatCategory,
         },
       });
 
@@ -88,6 +112,67 @@ export class InventoryService {
     return this.addAvailable(item);
   }
 
+  // Loads a retail catalog from a CSV (name,barcode,sellPrice,unitPrice,department,unitOfMeasure,
+  // reorderLevel,initialStock,sku — header required, unknown columns ignored). A supermarket's
+  // catalog runs to hundreds/thousands of SKUs, so this replaces hand-creating items one at a time.
+  // Each row is created independently (not one all-or-nothing transaction) so one bad row — a
+  // duplicate barcode, a missing name — doesn't block every other row in the file from loading;
+  // the caller gets a per-row success/error report back instead.
+  async bulkImport(organizationId: string, userId: string, csv: string) {
+    const lines = csv.split(/\r?\n/).filter((line) => line.trim().length > 0);
+    if (lines.length < 2) {
+      throw new BadRequestException('CSV must have a header row and at least one data row');
+    }
+
+    const header = lines[0].split(',').map((h) => h.trim().toLowerCase());
+    const col = (name: string) => header.indexOf(name.toLowerCase());
+    const nameIdx = col('name');
+    if (nameIdx === -1) {
+      throw new BadRequestException('CSV header must include a "name" column');
+    }
+
+    const results: Array<{ row: number; name?: string; status: 'created' | 'error'; error?: string }> = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const cells = lines[i].split(',').map((c) => c.trim());
+      const get = (name: string) => {
+        const idx = col(name);
+        return idx === -1 ? undefined : cells[idx] || undefined;
+      };
+
+      const name = get('name');
+      if (!name) {
+        results.push({ row: i + 1, status: 'error', error: 'Missing name' });
+        continue;
+      }
+
+      try {
+        const unitPriceRaw = get('unitprice') ?? get('sellprice') ?? '0';
+        await this.create(organizationId, userId, {
+          name,
+          barcode: get('barcode'),
+          sellPrice: get('sellprice') ? Number(get('sellprice')) : undefined,
+          unitPrice: Number(unitPriceRaw),
+          department: get('department'),
+          unitOfMeasure: get('unitofmeasure') as any,
+          reorderLevel: get('reorderlevel') ? Number(get('reorderlevel')) : undefined,
+          initialStock: get('initialstock') ? Number(get('initialstock')) : undefined,
+          sku: get('sku'),
+        });
+        results.push({ row: i + 1, name, status: 'created' });
+      } catch (err) {
+        results.push({ row: i + 1, name, status: 'error', error: err instanceof Error ? err.message : 'Unknown error' });
+      }
+    }
+
+    return {
+      total: results.length,
+      created: results.filter((r) => r.status === 'created').length,
+      failed: results.filter((r) => r.status === 'error').length,
+      results,
+    };
+  }
+
   async update(organizationId: string, id: string, dto: UpdateInventoryItemDto) {
     const item = await this.prisma.inventoryItem.findFirst({
       where: { id, organizationId, isActive: true },
@@ -103,6 +188,15 @@ export class InventoryService {
       }
     }
 
+    if (dto.barcode && dto.barcode !== item.barcode) {
+      const existingBarcode = await this.prisma.inventoryItem.findUnique({
+        where: { organizationId_barcode: { organizationId, barcode: dto.barcode } },
+      });
+      if (existingBarcode) {
+        throw new ConflictException('An inventory item with this barcode already exists');
+      }
+    }
+
     const updated = await this.prisma.inventoryItem.update({
       where: { id },
       data: {
@@ -112,6 +206,10 @@ export class InventoryService {
         ...(dto.reorderLevel !== undefined && { reorderLevel: dto.reorderLevel }),
         ...(dto.unitOfMeasure !== undefined && { unitOfMeasure: dto.unitOfMeasure }),
         ...(dto.sku !== undefined && { sku: dto.sku }),
+        ...(dto.barcode !== undefined && { barcode: dto.barcode }),
+        ...(dto.sellPrice !== undefined && { sellPrice: dto.sellPrice }),
+        ...(dto.department !== undefined && { department: dto.department }),
+        ...(dto.vatCategory !== undefined && { vatCategory: dto.vatCategory }),
       },
     });
 
@@ -324,13 +422,19 @@ export class InventoryService {
       include: { menuItem: { select: { inventoryItemId: true, ingredients: { select: { id: true } } } } },
     });
 
+    // Resolves the InventoryItem to deduct for one order item: a direct retail sale
+    // (inventoryItemId set, no menuItem at all) or a legacy whole-unit MenuItem link —
+    // never both, and never a recipe item (those are deducted per-line on SERVED, see below).
+    const resolveInventoryItemId = (orderItem: (typeof orderItems)[number]) => {
+      if (orderItem.inventoryItemId) return orderItem.inventoryItemId;
+      if (orderItem.menuItem?.ingredients.length) return undefined;
+      return orderItem.menuItem?.inventoryItemId ?? undefined;
+    };
+
     const inventoryItemIds = Array.from(
       new Set(
         orderItems
-          // Items with a recipe are deducted per-line on SERVED via deductRecipeForOrderItem —
-          // skip them here or they'd be double-deducted against the same legacy inventoryItemId.
-          .filter((orderItem) => !orderItem.menuItem?.ingredients.length)
-          .map((orderItem) => orderItem.menuItem?.inventoryItemId)
+          .map((orderItem) => resolveInventoryItemId(orderItem))
           .filter((id): id is string => !!id),
       ),
     );
@@ -347,8 +451,7 @@ export class InventoryService {
 
     const movements: Prisma.StockMovementCreateManyInput[] = [];
     for (const orderItem of orderItems) {
-      if (orderItem.menuItem?.ingredients.length) continue;
-      const inventoryItemId = orderItem.menuItem?.inventoryItemId;
+      const inventoryItemId = resolveInventoryItemId(orderItem);
       if (!inventoryItemId || !onHandById.has(inventoryItemId)) continue;
 
       const deductQty = toNumber(orderItem.quantity);

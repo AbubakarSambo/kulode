@@ -2,8 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import { useForm, UseFormReturn } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Link } from 'react-router-dom'
-import { Eye, EyeOff, Mail, MessageCircle, Pointer, ArrowLeft, Check } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Eye, EyeOff, Mail, MessageCircle, Pointer, ArrowLeft, Check, Store, ShoppingBag } from 'lucide-react'
 import {
   Button,
   Input,
@@ -18,6 +18,7 @@ import {
 import { Logo } from '@/components/shared'
 import { useRegister, useMagicLinkRegister } from '@/hooks'
 import { posthog } from '@/lib/posthog'
+import { LEFT_PANEL_COPY, usePosModeFromSearchParam } from '@/lib/authLeftPanelCopy'
 
 const PASSWORD_RULES = [
   { label: 'At least 8 characters', test: (v: string) => v.length >= 8 },
@@ -28,6 +29,15 @@ const PASSWORD_RULES = [
 const GOOGLE_AUTH_URL = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/api/v1/auth/google`
   : '/api/v1/auth/google'
+
+// A dedicated restaurant/retail landing page links here as `?type=restaurant` or `?type=retail`
+// so the new org gets set up with the right Organization.posMode from the start, instead of
+// everyone silently landing on the RESTAURANT default. Anything else/missing is left undefined —
+// the API defaults to RESTAURANT itself, so there's no behavior change for existing links.
+function usePosModeFromQuery(): 'RESTAURANT' | 'RETAIL' | undefined {
+  const [searchParams] = useSearchParams()
+  return usePosModeFromSearchParam(searchParams.get('type'))
+}
 
 const LANDING_URL = import.meta.env.DEV
   ? `http://${window.location.hostname}:4321`
@@ -50,7 +60,8 @@ type RegisterForm = z.infer<typeof registerSchema>
 const magicLinkSchema = registerSchema.omit({ password: true })
 type MagicLinkForm = z.infer<typeof magicLinkSchema>
 
-function LeftPanel() {
+function LeftPanel({ posMode }: { posMode?: 'RESTAURANT' | 'RETAIL' }) {
+  const copy = LEFT_PANEL_COPY[posMode ?? 'RESTAURANT']
   return (
     <div className="hidden lg:flex lg:col-span-7 flex-col justify-between p-16 text-white relative overflow-hidden bg-[#00247d] bg-gradient-to-br from-[#001c66] via-[#00247d] to-[#0037b0] border-r border-white/5">
       {/* Floating decorative circles */}
@@ -68,10 +79,10 @@ function LeftPanel() {
       <div className="relative z-10 my-auto py-6 grid grid-cols-1 xl:grid-cols-12 gap-8 items-center">
         <div className="xl:col-span-6 space-y-6">
           <h1 className="text-4xl xl:text-5xl font-semibold leading-[1.1] tracking-[-0.02em] text-white">
-            Nigeria's modern invoicing & <span className="bg-gradient-to-r from-blue-300 via-indigo-200 to-white bg-clip-text text-transparent">compliance engine</span>
+            {copy.headline}
           </h1>
           <p className="text-base text-blue-100/80 leading-relaxed max-w-lg">
-            Automate your billing, track expenses under tax categories, and auto-generate e-filing summaries compliant with FIRS & NFIU.
+            {copy.description}
           </p>
         </div>
         
@@ -92,8 +103,8 @@ function LeftPanel() {
                 <Mail size={14} className="text-white" />
               </div>
               <div>
-                <p className="text-[10px] font-bold text-slate-900 leading-tight">Invoice Sent</p>
-                <p className="text-[8px] text-slate-500 leading-tight">via email ✉️</p>
+                <p className="text-[10px] font-bold text-slate-900 leading-tight">{copy.card1Title}</p>
+                <p className="text-[8px] text-slate-500 leading-tight">{copy.card1Subtitle}</p>
               </div>
             </div>
 
@@ -104,14 +115,14 @@ function LeftPanel() {
               </div>
               <div>
                 <p className="text-[8px] text-[#128c7e] font-bold">Tari1 Notification</p>
-                <p className="text-[9px] text-slate-800 leading-snug mt-0.5">Pay instantly at <span className="text-blue-600 underline">pay.tarione.com/inv-001</span></p>
+                <p className="text-[9px] text-slate-800 leading-snug mt-0.5">{copy.card2Line}</p>
               </div>
             </div>
 
             {/* Clicking to pay animation bubble */}
             <div className="absolute -bottom-6 -left-6 bg-white p-3.5 rounded-[24px] shadow-2xl border border-slate-100 max-w-[190px] animate-pay-flow text-slate-800">
               <div className="text-center">
-                <p className="text-[9px] text-slate-400">Amount Due</p>
+                <p className="text-[9px] text-slate-400">{copy.amountLabel}</p>
                 <p className="text-xs font-extrabold text-[#0037b0] mb-1.5 tabular-nums">₦150,000.00</p>
                 <div className="relative inline-block w-full">
                   <div className="w-full text-white text-[9px] font-bold py-2 rounded-lg flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/20 relative animate-btn-pay select-none min-h-[28px]">
@@ -138,7 +149,28 @@ function LeftPanel() {
   )
 }
 
-function GoogleButton() {
+// Only rendered when `?type=` was actually present on the URL — an organic signup with no
+// query param gets no banner at all (it's silently defaulting to RESTAURANT, nothing to confirm).
+function SignupTypeBanner({ posMode }: { posMode?: 'RESTAURANT' | 'RETAIL' }) {
+  // RESTAURANT is the real default (matches Organization.posMode's own default), so this always
+  // renders — confirming the default out loud is better than silently defaulting with no banner.
+  const isRetail = (posMode ?? 'RESTAURANT') === 'RETAIL'
+  const Icon = isRetail ? ShoppingBag : Store
+  const label = isRetail ? 'Setting up a retail / supermarket store' : 'Setting up a restaurant / bar POS'
+  return (
+    <div className="mb-4 flex items-center justify-center gap-2 rounded-xl bg-[#eef4ff] px-4 py-2.5 text-sm font-semibold text-[#0037b0]">
+      <Icon className="h-4 w-4 shrink-0" />
+      <span>{label}</span>
+    </div>
+  )
+}
+
+function GoogleButton({ posMode }: { posMode?: 'RESTAURANT' | 'RETAIL' }) {
+  // The whole OAuth flow leaves and re-enters our server via Google's redirect, so a query param
+  // can't just ride along like it would on a same-origin link — the API thread this through as
+  // the OAuth `state` param instead (see GoogleAuthGuard server-side); here we only need to put it
+  // on the initial /auth/google request.
+  const googleAuthUrl = posMode ? `${GOOGLE_AUTH_URL}?type=${posMode.toLowerCase()}` : GOOGLE_AUTH_URL
   return (
     <>
       <div className="relative w-full">
@@ -146,7 +178,7 @@ function GoogleButton() {
         <div className="absolute -top-2.5 right-4 z-10 bg-[#eef4ff] text-[#0037b0] border border-[#0037b0]/25 text-[10px] font-semibold px-2.5 py-0.5 rounded-full tracking-wide shadow-sm select-none">
           recommended
         </div>
-        <a href={GOOGLE_AUTH_URL} className="w-full block" onClick={() => posthog.capture('google_oauth_initiated', { page: 'register' })}>
+        <a href={googleAuthUrl} className="w-full block" onClick={() => posthog.capture('google_oauth_initiated', { page: 'register' })}>
           <Button type="button" variant="outline" className="w-full gap-3 py-6 rounded-2xl border-slate-200/80 hover:bg-slate-50 text-slate-700 font-bold active:scale-98 transition-all duration-200 shadow-[0_8px_24px_rgba(0,55,176,0.05)] hover:shadow-[0_8px_24px_rgba(0,55,176,0.12)] hover:border-[#0037b0]/30">
             <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
@@ -257,6 +289,8 @@ function SharedFields({
 export function RegisterPage() {
   const registerMutation = useRegister()
   const magicLinkMutation = useMagicLinkRegister()
+  const posMode = usePosModeFromQuery()
+  const cardSubtitle = LEFT_PANEL_COPY[posMode ?? 'RESTAURANT'].cardSubtitle
   const [showPassword, setShowPassword] = useState(false)
   const [useMagicLink, setUseMagicLink] = useState(true)
   const hasTrackedStart = useState(false)
@@ -286,20 +320,20 @@ export function RegisterPage() {
   }
 
   const handleMagicLinkSubmit = (data: MagicLinkForm) => {
-     
+
     if (Date.now() - mountedAt.current < 1500) return
-    magicLinkMutation.mutate(data)
+    magicLinkMutation.mutate({ ...data, posMode })
   }
 
   const handlePasswordSubmit = (data: RegisterForm) => {
-     
+
     if (Date.now() - mountedAt.current < 1500) return
-    registerMutation.mutate(data)
+    registerMutation.mutate({ ...data, posMode })
   }
 
   return (
     <div className="min-h-screen grid grid-cols-1 lg:grid-cols-12 bg-[#faf8ff] font-sans antialiased">
-      <LeftPanel />
+      <LeftPanel posMode={posMode} />
 
       {/* Right Form Panel */}
       <div className="flex flex-col items-center justify-center p-6 md:p-12 lg:col-span-5 bg-background">
@@ -324,11 +358,12 @@ export function RegisterPage() {
               </a>
             </div>
             <CardTitle className="text-2xl font-semibold text-slate-900 tracking-tight">Create your account</CardTitle>
-            <CardDescription className="text-xs text-slate-500 mt-1">Professional invoicing, payments, and compliance for Nigerian small businesses, freelancers, and DNFBPs.</CardDescription>
+            <CardDescription className="text-xs text-slate-500 mt-1">{cardSubtitle}</CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-4">
-            <GoogleButton />
+            <SignupTypeBanner posMode={posMode} />
+            <GoogleButton posMode={posMode} />
           </CardContent>
 
           <CardContent className="pt-0">
