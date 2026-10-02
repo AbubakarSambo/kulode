@@ -106,11 +106,12 @@ export function RetailCheckoutPage() {
     }
     setIsCharging(true)
     try {
-      // "Takeaway" is a built-in order type seeded for every org (see OrderTypesService) that
-      // doesn't require a table — reused here rather than adding a dedicated retail order type,
-      // since nothing about table/kitchen routing applies to a scan-and-sell checkout anyway.
+      // "Retail Sale" is the dedicated order type OrderTypesService seeds for RETAIL-posMode orgs
+      // (doesn't require a table) — kept distinct from the restaurant defaults like "Takeaway" so
+      // platform-wide reports that group orders by source never conflate a supermarket checkout
+      // sale with a restaurant's actual takeaway order.
       const order = await ordersApi.create({
-        source: 'Takeaway',
+        source: 'Retail Sale',
         items: cart.map((line) => ({ inventoryItemId: line.inventoryItemId, quantity: line.quantity })),
       })
       if ('__offlinePending' in order) {

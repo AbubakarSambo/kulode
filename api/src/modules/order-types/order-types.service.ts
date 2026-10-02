@@ -13,19 +13,33 @@ export class OrderTypesService {
     });
     if (existing.length > 0) return existing;
 
-    // Lazily seed the 4 default types the first time an org (new, or newly POS-enabled) asks
+    // Lazily seed the default types the first time an org (new, or newly POS-enabled) asks
     // for its order types — covers every path that can flip an org onto POS without needing to
-    // hook every place enabledModules gets written.
+    // hook every place enabledModules/posMode gets written.
     return this.seedDefaults(organizationId);
   }
 
   private async seedDefaults(organizationId: string) {
-    const defaults = [
-      { name: 'Dine In', sortOrder: 0, requiresTable: true },
-      { name: 'Takeaway', sortOrder: 1, requiresTable: false },
-      { name: 'Delivery', sortOrder: 2, requiresTable: false },
-      { name: 'Third Party', sortOrder: 3, requiresTable: false },
-    ];
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { posMode: true },
+    });
+
+    // A distinct name per posMode (not reusing "Takeaway" for a retail sale) matters beyond just
+    // labeling — Order.source is grouped raw across every org in platform-wide reporting
+    // (PlatformService's order-source breakdown), so two unrelated businesses' sales landing
+    // under the same string would conflate a restaurant's real takeaway orders with a
+    // supermarket's checkout sales in any cross-org aggregate.
+    const defaults =
+      org?.posMode === 'RETAIL'
+        ? [{ name: 'Retail Sale', sortOrder: 0, requiresTable: false }]
+        : [
+            { name: 'Dine In', sortOrder: 0, requiresTable: true },
+            { name: 'Takeaway', sortOrder: 1, requiresTable: false },
+            { name: 'Delivery', sortOrder: 2, requiresTable: false },
+            { name: 'Third Party', sortOrder: 3, requiresTable: false },
+          ];
+
     await this.prisma.orderType.createMany({
       data: defaults.map((d) => ({ organizationId, ...d })),
       skipDuplicates: true,
