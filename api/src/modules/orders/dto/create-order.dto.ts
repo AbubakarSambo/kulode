@@ -14,10 +14,15 @@ import {
 } from 'class-validator';
 
 export class CreateOrderItemDto {
-  @ApiProperty()
-  @IsNotEmpty()
+  @ApiPropertyOptional({ description: 'A restaurant-menu item (RESTAURANT posMode). Exactly one of menuItemId/inventoryItemId is required.' })
+  @IsOptional()
   @IsUUID()
-  menuItemId: string;
+  menuItemId?: string;
+
+  @ApiPropertyOptional({ description: 'A retail catalog item sold directly, e.g. scanned by barcode (RETAIL posMode). Exactly one of menuItemId/inventoryItemId is required.' })
+  @IsOptional()
+  @IsUUID()
+  inventoryItemId?: string;
 
   @ApiProperty({ example: 2 })
   @IsNumber()

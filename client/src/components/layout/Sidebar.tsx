@@ -7,7 +7,7 @@ import { useLogout, useSwitchUser } from '@/hooks'
 import { isPinEligible } from '@/lib/pin'
 import { Logo } from '@/components/shared'
 import { useSubscription } from '@/hooks/useSubscription'
-import { useOrgModules } from '@/hooks/useOrgModules'
+import { useOrgModules, usePosMode } from '@/hooks/useOrgModules'
 import type { PlanTier, UserRole } from '@/types'
 import {
   DashboardIcon,
@@ -128,6 +128,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const userIsPinEligible = !!user && isPinEligible(user.roles)
   const { hasRequiredPlan } = useSubscription()
   const { hasPos, hasInvoicing } = useOrgModules()
+  const { isRetail } = usePosMode()
 
   const [collapsedPref, setCollapsedPref] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -165,6 +166,10 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   // list — it backs POS menu-item recipes (stock deduction on order-item SERVED) as well as
   // invoicing, so it stays visible for POS-only orgs too.
   const INVOICING_ONLY_HREFS = ['/clients', '/invoices', '/tax', '/reports', '/ai-chat', '/payments', '/dashboard', '/settings/services', '/vendors', '/expenses']
+
+  // No tables/kitchen/menu-recipe concepts in a retail (scan-and-sell) org — these restaurant-only
+  // nav items are hidden the same way INVOICING_ONLY_HREFS is hidden for POS-only orgs.
+  const RESTAURANT_ONLY_HREFS = ['/pos/tables', '/pos/kitchen', '/pos/drinks', '/pos/menu', '/pos/categories', '/pos/order-types']
 
   // Waiters handle selling, order tracking, customer lookup, and the table list
   const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/customers', '/pos/tables', '/pos/reports']
@@ -214,6 +219,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
     .map((group) => ({
       ...group,
       items: group.items.filter((item) => {
+        if (isRetail && RESTAURANT_ONLY_HREFS.includes(item.href)) return false
         if (restrictedHrefsUnion) return restrictedHrefsUnion.includes(item.href)
         if (INVOICING_ONLY_HREFS.includes(item.href) && !hasInvoicing) return false
         if ((item.href === '/reports' || item.href === '/ai-chat') && !canViewReports) return false

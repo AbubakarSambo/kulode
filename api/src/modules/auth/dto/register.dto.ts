@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { PosMode } from '@prisma/client';
 import {
   IsEmail,
+  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -42,6 +44,14 @@ export class RegisterDto {
     message: 'Password must be at least 8 characters and contain at least 1 uppercase letter and 1 number or special character',
   })
   password: string;
+
+  @ApiPropertyOptional({
+    enum: PosMode,
+    description: 'Which checkout flow to set up the new org for. Defaults to RESTAURANT when omitted — set via a `?type=` query param on the landing page/register link that referred this signup.',
+  })
+  @IsOptional()
+  @IsEnum(PosMode)
+  posMode?: PosMode;
 
   @ApiPropertyOptional()
   @IsOptional()

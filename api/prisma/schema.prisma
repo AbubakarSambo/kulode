@@ -94,6 +94,23 @@ enum StockMovementType {
   ORDER_DEDUCTED
 }
 
+// Which checkout flow and catalog shape an organization uses — gates whether the client routes
+// to the menu/table/kitchen-ticket flow or the barcode-scan retail checkout, and whether
+// OrderItem.inventoryItemId (direct SKU sale) is accepted instead of menuItemId.
+enum PosMode {
+  RESTAURANT
+  RETAIL
+}
+
+// Per-product VAT treatment for retail SKUs (e.g. zero-rated groceries vs. standard-rated
+// goods) — distinct from the restaurant side's single org-level vatEnabled/vatApplied flags,
+// since a supermarket's basket mixes rates within one order.
+enum VatCategory {
+  STANDARD
+  ZERO_RATED
+  EXEMPT
+}
+
 enum PlanTier {
   FREE
   STARTER
@@ -264,6 +281,7 @@ model Organization {
   businessType            String?   @map("business_type")
   organizationSize        String?   @map("organization_size")
   enabledModules          OrgModule @default(POS) @map("enabled_modules")
+  posMode                 PosMode   @default(RESTAURANT) @map("pos_mode")
   onboardingDismissedAt   DateTime? @map("onboarding_dismissed_at")
   clientReminderSentAt    DateTime? @map("client_reminder_sent_at")
 
@@ -833,6 +851,14 @@ model InventoryItem {
   sku              String?
   isActive         Boolean       @default(true) @map("is_active")
 
+  // Retail catalog fields — only populated for orgs selling this item directly (Organization.posMode
+  // RETAIL); a restaurant's raw-ingredient InventoryItem rows leave these null and keep selling
+  // through a MenuItem instead. barcode is scoped per-org so two tenants can stock the same product.
+  barcode     String?
+  sellPrice   Decimal?    @map("sell_price") @db.Decimal(12, 2)
+  department  String?
+  vatCategory VatCategory @default(STANDARD) @map("vat_category")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -842,8 +868,10 @@ model InventoryItem {
   stockMovements      StockMovement[]
   menuItems           MenuItem[]
   menuItemIngredients MenuItemIngredient[]
+  orderItems          OrderItem[]
 
   @@unique([organizationId, name])
+  @@unique([organizationId, barcode])
   @@index([organizationId])
   @@map("inventory_items")
 }
@@ -1401,19 +1429,23 @@ model IdempotencyKey {
 }
 
 model OrderItem {
-  id           String          @id @default(uuid())
-  orderId      String          @map("order_id")
-  menuItemId   String?         @map("menu_item_id")
-  itemName     String          @map("item_name")
-  quantity     Decimal         @db.Decimal(10, 2)
-  unitPrice    Decimal         @map("unit_price") @db.Decimal(12, 2)
-  amount       Decimal         @db.Decimal(12, 2)
-  notes        String?
-  status       OrderItemStatus @default(PENDING)
+  id              String          @id @default(uuid())
+  orderId         String          @map("order_id")
+  menuItemId      String?         @map("menu_item_id")
+  // Set instead of menuItemId for a retail (Organization.posMode RETAIL) sale, where the product
+  // sold is the InventoryItem itself — no MenuItem/recipe layer in between. A single order never
+  // sets both: see OrdersService line-resolution for menuItemId vs. inventoryItemId.
+  inventoryItemId String?         @map("inventory_item_id")
+  itemName        String          @map("item_name")
+  quantity        Decimal         @db.Decimal(10, 2)
+  unitPrice       Decimal         @map("unit_price") @db.Decimal(12, 2)
+  amount          Decimal         @db.Decimal(12, 2)
+  notes           String?
+  status          OrderItemStatus @default(PENDING)
   // Whoever's actually making this item — any active platform user, not a fixed "chef"/"barman"
   // role, since who's tagged for kitchen vs. drinks varies by org. Set by whoever's coordinating
   // the station (expo/manager), not by the assignee themselves.
-  assignedToId String?         @map("assigned_to_id")
+  assignedToId    String?         @map("assigned_to_id")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1428,14 +1460,16 @@ model OrderItem {
   servedAt DateTime? @map("served_at")
 
   // Relations
-  order      Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order         Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
   // itemName is a point-in-time snapshot so order history/receipts still show what was
   // ordered after the menu item itself is hard-deleted; menuItem may be null once that happens.
-  menuItem   MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
-  assignedTo User?     @relation("OrderItemAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  menuItem      MenuItem?      @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  assignedTo    User?          @relation("OrderItemAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
   @@index([menuItemId])
+  @@index([inventoryItemId])
   @@index([assignedToId])
   @@map("order_items")
 }

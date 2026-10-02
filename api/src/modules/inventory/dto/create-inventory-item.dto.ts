@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { UnitOfMeasure } from '@prisma/client';
+import { UnitOfMeasure, VatCategory } from '@prisma/client';
 import {
   IsNotEmpty,
   IsString,
@@ -53,4 +53,33 @@ export class CreateInventoryItemDto {
   @IsString()
   @MaxLength(100)
   sku?: string;
+
+  @ApiPropertyOptional({
+    example: '6291041500213',
+    description: 'Scanned barcode (UPC/EAN), unique per organization. Retail catalog only.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  barcode?: string;
+
+  @ApiPropertyOptional({
+    example: 1200,
+    description: 'Retail price charged to the customer, distinct from unitPrice (cost). Required to sell this item directly in a RETAIL org.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  sellPrice?: number;
+
+  @ApiPropertyOptional({ example: 'Beverages', description: 'Retail department/aisle grouping' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  department?: string;
+
+  @ApiPropertyOptional({ enum: VatCategory, example: VatCategory.STANDARD })
+  @IsOptional()
+  @IsEnum(VatCategory)
+  vatCategory?: VatCategory;
 }

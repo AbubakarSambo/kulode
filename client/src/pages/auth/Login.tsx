@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Button,
   Input,
@@ -37,6 +37,14 @@ type LoginForm = z.infer<typeof loginSchema>;
 export function LoginPage() {
   const login = useLogin();
   const resend = useResendVerification();
+  // A brand-new user can land here (not just /register) and auto-create their org via Google —
+  // forward the same `?type=restaurant|retail` a dedicated landing page sent, so that still sets
+  // the right Organization.posMode. No-op for an existing user signing back in.
+  const [searchParams] = useSearchParams();
+  const landingType = searchParams.get('type')?.toLowerCase();
+  const googleAuthUrl = landingType === 'retail' || landingType === 'restaurant'
+    ? `${GOOGLE_AUTH_URL}?type=${landingType}`
+    : GOOGLE_AUTH_URL;
   const [showResend, setShowResend] = useState(false);
   const [loginEmail, setLoginEmail] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -202,7 +210,7 @@ export function LoginPage() {
           </CardHeader>
 
           <CardContent className="space-y-4">
-            <a href={GOOGLE_AUTH_URL} className="w-full block" onClick={() => posthog.capture('google_oauth_initiated', { page: 'login' })}>
+            <a href={googleAuthUrl} className="w-full block" onClick={() => posthog.capture('google_oauth_initiated', { page: 'login' })}>
               <Button type="button" variant="outline" className="w-full gap-3 py-6 rounded-2xl border-slate-200/80 hover:bg-slate-50 text-slate-700 font-bold active:scale-98 transition-all duration-200">
                 <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
                   <path

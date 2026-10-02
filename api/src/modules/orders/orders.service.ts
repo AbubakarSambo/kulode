@@ -274,27 +274,62 @@ export class OrdersService {
 
   private async priceItems(
     organizationId: string,
-    items: Array<{ menuItemId: string; quantity: number; notes?: string }>,
+    items: Array<{ menuItemId?: string; inventoryItemId?: string; quantity: number; notes?: string }>,
   ) {
-    const menuItemIds = [...new Set(items.map((i) => i.menuItemId))];
-    const menuItems = await this.prisma.menuItem.findMany({
-      where: { id: { in: menuItemIds }, organizationId },
-    });
+    for (const item of items) {
+      if (!!item.menuItemId === !!item.inventoryItemId) {
+        throw new BadRequestException('Each order item must set exactly one of menuItemId or inventoryItemId');
+      }
+    }
 
-    const byId = new Map(menuItems.map((m) => [m.id, m]));
+    const menuItemIds = [...new Set(items.map((i) => i.menuItemId).filter((id): id is string => !!id))];
+    const inventoryItemIds = [...new Set(items.map((i) => i.inventoryItemId).filter((id): id is string => !!id))];
+
+    const [menuItems, inventoryItems] = await Promise.all([
+      menuItemIds.length > 0
+        ? this.prisma.menuItem.findMany({ where: { id: { in: menuItemIds }, organizationId } })
+        : Promise.resolve([]),
+      // Retail sale of a catalog item directly, by barcode lookup or manual pick — not a
+      // MenuItem/recipe sale, see OrderItem.inventoryItemId.
+      inventoryItemIds.length > 0
+        ? this.prisma.inventoryItem.findMany({ where: { id: { in: inventoryItemIds }, organizationId, isActive: true } })
+        : Promise.resolve([]),
+    ]);
+
+    const menuItemById = new Map(menuItems.map((m) => [m.id, m]));
+    const inventoryItemById = new Map(inventoryItems.map((i) => [i.id, i]));
 
     return items.map((item) => {
-      const menuItem = byId.get(item.menuItemId);
-      if (!menuItem) {
-        throw new NotFoundException(`Menu item ${item.menuItemId} not found`);
+      if (item.menuItemId) {
+        const menuItem = menuItemById.get(item.menuItemId);
+        if (!menuItem) {
+          throw new NotFoundException(`Menu item ${item.menuItemId} not found`);
+        }
+        if (!menuItem.isAvailable) {
+          throw new BadRequestException(`"${menuItem.name}" is currently unavailable`);
+        }
+        const unitPrice = toNumber(menuItem.price);
+        return {
+          menuItemId: menuItem.id,
+          itemName: menuItem.name,
+          quantity: item.quantity,
+          unitPrice,
+          amount: Math.round(unitPrice * item.quantity * 100) / 100,
+          notes: item.notes,
+        };
       }
-      if (!menuItem.isAvailable) {
-        throw new BadRequestException(`"${menuItem.name}" is currently unavailable`);
+
+      const inventoryItem = inventoryItemById.get(item.inventoryItemId!);
+      if (!inventoryItem) {
+        throw new NotFoundException(`Catalog item ${item.inventoryItemId} not found`);
       }
-      const unitPrice = toNumber(menuItem.price);
+      if (inventoryItem.sellPrice == null) {
+        throw new BadRequestException(`"${inventoryItem.name}" is not set up for direct sale (no sell price)`);
+      }
+      const unitPrice = toNumber(inventoryItem.sellPrice);
       return {
-        menuItemId: menuItem.id,
-        itemName: menuItem.name,
+        inventoryItemId: inventoryItem.id,
+        itemName: inventoryItem.name,
         quantity: item.quantity,
         unitPrice,
         amount: Math.round(unitPrice * item.quantity * 100) / 100,

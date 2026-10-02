@@ -3,6 +3,10 @@
 // and Invoicing nav groups/routes.
 export type OrgModule = 'POS' | 'INVOICING' | 'BOTH'
 
+// Which checkout flow and catalog shape a POS-module org uses — gates whether the client
+// routes to the menu/table/kitchen-ticket flow or the barcode-scan retail checkout.
+export type PosMode = 'RESTAURANT' | 'RETAIL'
+
 // Plan types
 export type PlanTier = 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS'
 export type SubscriptionStatus = 'TRIALING' | 'ACTIVE' | 'PAST_DUE' | 'CANCELLED' | 'EXPIRED'
@@ -72,6 +76,7 @@ export interface User {
     businessType?: string
     organizationSize?: string
     enabledModules?: OrgModule
+    posMode?: PosMode
     vatEnabled?: boolean
     taxRate?: number
     entertainmentTaxEnabled?: boolean
@@ -128,6 +133,9 @@ export interface RegisterData {
   firstName: string
   lastName: string
   password: string
+  // Set from a `?type=restaurant|retail` query param on the landing page/register link that
+  // referred this signup — see pages/auth/Register.tsx. Omitted defaults to RESTAURANT server-side.
+  posMode?: PosMode
 }
 
 // Organization
@@ -163,6 +171,7 @@ export interface Organization {
   businessType?: string
   organizationSize?: string
   enabledModules?: OrgModule
+  posMode?: PosMode
   rcNumber?: string
   tin?: string
   googleSheetId?: string
@@ -381,6 +390,8 @@ export type StockMovementType =
 
 export type UnitOfMeasure = 'KG' | 'G' | 'L' | 'ML' | 'UNIT'
 
+export type VatCategory = 'STANDARD' | 'ZERO_RATED' | 'EXEMPT'
+
 export interface InventoryItem {
   id: string
   name: string
@@ -393,6 +404,11 @@ export interface InventoryItem {
   unitOfMeasure: UnitOfMeasure
   sku?: string
   isActive: boolean
+  // Retail catalog fields — only set for items sold directly in a RETAIL posMode org.
+  barcode?: string
+  sellPrice?: number | null
+  department?: string
+  vatCategory: VatCategory
   createdAt: string
   updatedAt: string
 }
@@ -480,13 +496,15 @@ export interface RestaurantTable {
 
 export interface OrderItem {
   id: string
-  menuItemId: string
+  menuItemId: string | null
   menuItem: {
     id: string
     name: string
     durationMinutes?: number
     categories: { category: { name: string; kind: MenuCategoryKind } }[]
   } | null
+  // Set instead of menuItemId for a retail (posMode RETAIL) sale of a catalog item directly.
+  inventoryItemId?: string | null
   itemName: string
   quantity: number
   unitPrice: number

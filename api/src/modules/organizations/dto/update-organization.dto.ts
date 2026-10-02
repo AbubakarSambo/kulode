@@ -11,7 +11,7 @@ import {
   Min,
   Max,
 } from 'class-validator';
-import { OrgModule } from '@prisma/client';
+import { OrgModule, PosMode } from '@prisma/client';
 
 const TIME_OF_DAY_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -141,6 +141,14 @@ export class UpdateOrganizationDto {
   @IsOptional()
   @IsEnum(OrgModule)
   enabledModules?: OrgModule;
+
+  @ApiPropertyOptional({
+    enum: PosMode,
+    description: 'Which checkout flow this org uses — restaurant (menu/tables/kitchen) or retail (barcode-scan catalog)',
+  })
+  @IsOptional()
+  @IsEnum(PosMode)
+  posMode?: PosMode;
 
   @ApiPropertyOptional({ example: 'RC1234567', description: 'CAC registration number' })
   @IsOptional()

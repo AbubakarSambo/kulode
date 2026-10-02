@@ -7,6 +7,7 @@ import { ProtectedRoute, GuestRoute, PlanGatedRoute, ReadOnlyGatedRoute, ModuleG
 
 
 import { useAuthStore } from '@/stores/auth'
+import { usePosMode } from '@/hooks/useOrgModules'
 import { getPostAuthRoute } from '@/lib/authRouting'
 import { useVersionCheck } from '@/hooks/useVersionCheck'
 import { WhatsNewModal } from '@/components/changelog/WhatsNewModal'
@@ -74,6 +75,7 @@ const PaymentTypesPage = lazy(() => import('@/pages/pos/PaymentTypesPage').then(
 const WaiterDetailPage = lazy(() => import('@/pages/pos/WaiterDetailPage').then((m) => ({ default: m.WaiterDetailPage })))
 const TablesFloorPage = lazy(() => import('@/pages/pos/TablesFloorPage').then((m) => ({ default: m.TablesFloorPage })))
 const OrderTakingPage = lazy(() => import('@/pages/pos/OrderTakingPage').then((m) => ({ default: m.OrderTakingPage })))
+const RetailCheckoutPage = lazy(() => import('@/pages/pos/RetailCheckoutPage').then((m) => ({ default: m.RetailCheckoutPage })))
 const OrderDetailPage = lazy(() => import('@/pages/pos/OrderDetailPage').then((m) => ({ default: m.OrderDetailPage })))
 const OrdersListPage = lazy(() => import('@/pages/pos/OrdersListPage').then((m) => ({ default: m.OrdersListPage })))
 const ShiftPage = lazy(() => import('@/pages/pos/ShiftPage').then((m) => ({ default: m.ShiftPage })))
@@ -84,6 +86,14 @@ const DrinksTicketsPage = lazy(() => import('@/pages/kitchen/DrinksTicketsPage')
 const PosReportsPage = lazy(() => import('@/pages/pos/PosReportsPage').then((m) => ({ default: m.PosReportsPage })))
 const PosAiChatPage = lazy(() => import('@/pages/pos/PosAiChatPage').then((m) => ({ default: m.PosAiChatPage })))
 const PrintersPage = lazy(() => import('@/pages/settings/PrintersPage').then((m) => ({ default: m.PrintersPage })))
+
+// Same URL for both posModes so nav links, role allow-lists (WAITER/CASHIER_ALLOWED_HREFS in
+// Sidebar), and deep links to "Sell" keep working unchanged — only which checkout UI renders
+// underneath differs.
+function PosCheckoutRoute() {
+  const { isRetail } = usePosMode()
+  return isRetail ? <RetailCheckoutPage /> : <OrderTakingPage />
+}
 
 function HomeRedirect() {
   const { isAuthenticated, _hasHydrated, user } = useAuthStore()
@@ -249,7 +259,7 @@ function App() {
                 <Route path="/pos/payment-types" element={<PaymentTypesPage />} />
                 <Route path="/pos/waiters/:id" element={<WaiterDetailPage />} />
                 <Route path="/pos/tables" element={<TablesFloorPage />} />
-                <Route path="/pos/order/new" element={<OrderTakingPage />} />
+                <Route path="/pos/order/new" element={<PosCheckoutRoute />} />
                 <Route path="/pos/orders" element={<OrdersListPage />} />
                 <Route path="/pos/orders/:id" element={<OrderDetailPage />} />
                 <Route path="/pos/shift" element={<ShiftPage />} />

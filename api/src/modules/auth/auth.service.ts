@@ -13,7 +13,7 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { RegisterDto, LoginDto, AuthResponseDto, VerifyEmailDto, SetPasswordDto, ResendVerificationDto, ForgotPasswordDto, ResetPasswordDto, MagicLinkRegisterDto, PinLoginDto } from './dto';
-import { TokenType } from '@prisma/client';
+import { TokenType, PosMode } from '@prisma/client';
 import { PIN_ELIGIBLE_ROLES, Role } from '../../common';
 
 @Injectable()
@@ -77,6 +77,7 @@ export class AuthService {
           trialStartDate: now,
           trialEndDate: trialEnd,
           enabledModules: 'POS',
+          posMode: dto.posMode ?? 'RESTAURANT',
         },
       });
 
@@ -175,6 +176,7 @@ export class AuthService {
           trialStartDate: now,
           trialEndDate: trialEnd,
           enabledModules: 'POS',
+          posMode: dto.posMode ?? 'RESTAURANT',
         },
       });
 
@@ -325,6 +327,7 @@ export class AuthService {
               isPaystackVerified: org.isPaystackVerified,
               businessType: org.businessType,
               enabledModules: org.enabledModules,
+              posMode: org.posMode,
               organizationSize: org.organizationSize,
               vatEnabled: org.vatEnabled,
               taxRate: Number(org.taxRate),
@@ -404,6 +407,7 @@ export class AuthService {
           isPaystackVerified: user.organization.isPaystackVerified,
           businessType: user.organization.businessType,
           enabledModules: user.organization.enabledModules,
+          posMode: user.organization.posMode,
           organizationSize: user.organization.organizationSize,
           vatEnabled: user.organization.vatEnabled,
           taxRate: Number(user.organization.taxRate),
@@ -481,6 +485,7 @@ export class AuthService {
           isPaystackVerified: user.organization.isPaystackVerified,
           businessType: user.organization.businessType,
           enabledModules: user.organization.enabledModules,
+          posMode: user.organization.posMode,
           organizationSize: user.organization.organizationSize,
           vatEnabled: user.organization.vatEnabled,
           taxRate: Number(user.organization.taxRate),
@@ -645,12 +650,19 @@ export class AuthService {
     };
   }
 
-  async findOrCreateGoogleUser(googleUser: {
-    googleId: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-  }): Promise<{ token: string; isNewUser: boolean }> {
+  async findOrCreateGoogleUser(
+    googleUser: {
+      googleId: string;
+      email: string;
+      firstName: string;
+      lastName: string;
+    },
+    // Only used on the "new user, new org" branch below — ignored when merging into an existing
+    // account, same as enabledModules already is. Comes from the `state` round-trip on the
+    // Google OAuth redirect (see GoogleAuthGuard), since a `?type=` query param can't otherwise
+    // survive the trip through Google and back.
+    posMode?: PosMode,
+  ): Promise<{ token: string; isNewUser: boolean }> {
     const email = googleUser.email.toLowerCase();
     let isNewUser = false;
 
@@ -696,6 +708,7 @@ export class AuthService {
               trialStartDate: now,
               trialEndDate: trialEnd,
               enabledModules: 'POS',
+              posMode: posMode ?? 'RESTAURANT',
             },
           });
 
@@ -815,6 +828,7 @@ export class AuthService {
         isPaystackVerified: user.organization.isPaystackVerified,
         businessType: user.organization.businessType,
         enabledModules: user.organization.enabledModules,
+        posMode: user.organization.posMode,
         organizationSize: user.organization.organizationSize,
         vatEnabled: user.organization.vatEnabled,
         taxRate: Number(user.organization.taxRate),
@@ -866,6 +880,7 @@ export class AuthService {
           isPaystackVerified: user.organization.isPaystackVerified,
           businessType: user.organization.businessType,
           enabledModules: user.organization.enabledModules,
+          posMode: user.organization.posMode,
           organizationSize: user.organization.organizationSize,
           vatEnabled: user.organization.vatEnabled,
           taxRate: Number(user.organization.taxRate),

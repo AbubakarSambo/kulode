@@ -233,6 +233,55 @@ describe('AuthService — register', () => {
     );
   });
 
+  it('defaults posMode to RESTAURANT when omitted', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+    prisma.organization.findUnique.mockResolvedValue(null);
+    const tx = {
+      organization: { create: jest.fn().mockResolvedValue(mockOrg) },
+      user: { create: jest.fn().mockResolvedValue(mockUser) },
+      expenseCategory: { createMany: jest.fn().mockResolvedValue({ count: 7 }) },
+      emailVerificationToken: { create: jest.fn().mockResolvedValue({}) },
+    };
+    prisma.$transaction.mockImplementation(async (cb: any) => cb(tx));
+
+    await service.register({
+      email: 'owner@newbiz.com',
+      password: 'pass',
+      firstName: 'Ada',
+      lastName: 'Obi',
+      organizationName: 'New Biz Ltd',
+    } as any);
+
+    expect(tx.organization.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ posMode: 'RESTAURANT' }) }),
+    );
+  });
+
+  it('honors an explicit posMode (e.g. from a ?type=retail landing page)', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+    prisma.organization.findUnique.mockResolvedValue(null);
+    const tx = {
+      organization: { create: jest.fn().mockResolvedValue(mockOrg) },
+      user: { create: jest.fn().mockResolvedValue(mockUser) },
+      expenseCategory: { createMany: jest.fn().mockResolvedValue({ count: 7 }) },
+      emailVerificationToken: { create: jest.fn().mockResolvedValue({}) },
+    };
+    prisma.$transaction.mockImplementation(async (cb: any) => cb(tx));
+
+    await service.register({
+      email: 'owner@retailbiz.com',
+      password: 'pass',
+      firstName: 'Ada',
+      lastName: 'Obi',
+      organizationName: 'Retail Biz Ltd',
+      posMode: 'RETAIL',
+    } as any);
+
+    expect(tx.organization.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ posMode: 'RETAIL' }) }),
+    );
+  });
+
   it('throws ConflictException when organization slug already exists', async () => {
     prisma.user.findUnique.mockResolvedValue(null); // no email conflict
     prisma.organization.findUnique.mockResolvedValue(mockOrg); // slug conflict

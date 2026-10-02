@@ -9,7 +9,10 @@ import {
 } from '@/lib/offlineOrderQueue'
 
 export interface CreateOrderItemData {
-  menuItemId: string
+  // Exactly one of menuItemId/inventoryItemId — menuItemId for a restaurant order, inventoryItemId
+  // for a retail (scan-to-cart) sale of a catalog item directly.
+  menuItemId?: string
+  inventoryItemId?: string
   quantity: number
   notes?: string
 }
@@ -66,7 +69,7 @@ export interface PendingOrder {
   __offlinePending: true
   localOrderId: string
   tableId?: string
-  items: { menuItemId: string; quantity: number; notes?: string }[]
+  items: { menuItemId?: string; inventoryItemId?: string; quantity: number; notes?: string }[]
 }
 
 /** Marker for a mutation (add-items/close) that got queued rather than applied immediately. */

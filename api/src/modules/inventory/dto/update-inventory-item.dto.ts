@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { UnitOfMeasure } from '@prisma/client';
+import { UnitOfMeasure, VatCategory } from '@prisma/client';
 import {
   IsString,
   IsNumber,
@@ -43,4 +43,27 @@ export class UpdateInventoryItemDto {
   @IsString()
   @MaxLength(100)
   sku?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  barcode?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  sellPrice?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  department?: string;
+
+  @ApiPropertyOptional({ enum: VatCategory })
+  @IsOptional()
+  @IsEnum(VatCategory)
+  vatCategory?: VatCategory;
 }
