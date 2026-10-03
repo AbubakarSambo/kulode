@@ -19,13 +19,27 @@ export interface SendInvoiceReminderParams {
   shareToken?: string | null;
 }
 
-export interface SendDailySalesSummaryParams {
+// Params map 1:1, in order, to the shift_report template's {{1}}..{{14}} placeholders —
+// see ShiftsService.sendShiftSummary for how each is computed. Today's Sales duplicates
+// paidToday's value (Meta templates require strictly sequential, non-reused placeholders,
+// so the same figure needs its own slot even though it's rendered twice in the message).
+export interface SendShiftReportParams {
   organizationId: string;
   toPhone: string;
-  summaryDate: string;
+  orgName: string;
+  dateRange: string;
   totalSales: string;
-  amountPaid: string;
-  outstandingCredit: string;
+  orderCount: string;
+  avgOrder: string;
+  totalPayments: string;
+  paidToday: string;
+  creditSales: string;
+  variance: string;
+  totalCollected: string;
+  todaysSales: string;
+  creditRepayments: string;
+  deposits: string;
+  paymentBreakdown: string;
 }
 
 @Injectable()
@@ -36,6 +50,7 @@ export class WhatsappService {
   private readonly apiVersion: string;
   private readonly reminderTemplateName: string;
   private readonly summaryTemplateName: string;
+  private readonly shiftReportTemplateName: string;
   private readonly templateLanguage: string;
   private readonly webhookVerifyToken: string;
 
@@ -48,6 +63,7 @@ export class WhatsappService {
     this.apiVersion = this.configService.get<string>('whatsapp.apiVersion') || 'v21.0';
     this.reminderTemplateName = this.configService.get<string>('whatsapp.reminderTemplateName') || 'payment_reminder';
     this.summaryTemplateName = this.configService.get<string>('whatsapp.summaryTemplateName') || 'daily_sales_summary';
+    this.shiftReportTemplateName = this.configService.get<string>('whatsapp.shiftReportTemplateName') || 'shift_report';
     this.templateLanguage = this.configService.get<string>('whatsapp.templateLanguage') || 'en';
     this.webhookVerifyToken = this.configService.get<string>('whatsapp.webhookVerifyToken') || '';
   }
@@ -186,25 +202,38 @@ export class WhatsappService {
     }
   }
 
-  async sendDailySalesSummaryTemplate(params: SendDailySalesSummaryParams): Promise<{ providerMessageId: string | null }> {
+  async sendShiftReportTemplate(params: SendShiftReportParams): Promise<{ providerMessageId: string | null }> {
     const toPhone = this.normalizePhone(params.toPhone);
+
+    // Order matters — must match the shift_report template's {{1}}..{{14}} placeholders exactly.
+    const bodyValues = [
+      params.orgName,
+      params.dateRange,
+      params.totalSales,
+      params.orderCount,
+      params.avgOrder,
+      params.totalPayments,
+      params.paidToday,
+      params.creditSales,
+      params.variance,
+      params.totalCollected,
+      params.todaysSales,
+      params.creditRepayments,
+      params.deposits,
+      params.paymentBreakdown,
+    ];
 
     const payload = {
       messaging_product: 'whatsapp',
       to: toPhone,
       type: 'template',
       template: {
-        name: this.summaryTemplateName,
+        name: this.shiftReportTemplateName,
         language: { code: this.templateLanguage },
         components: [
           {
             type: 'body',
-            parameters: [
-              { type: 'text', text: params.summaryDate },
-              { type: 'text', text: params.totalSales },
-              { type: 'text', text: params.amountPaid },
-              { type: 'text', text: params.outstandingCredit },
-            ],
+            parameters: bodyValues.map((text) => ({ type: 'text', text })),
           },
         ],
       },
@@ -212,12 +241,12 @@ export class WhatsappService {
 
     if (this.isMockMode) {
       this.logger.warn(
-        `[MOCK WHATSAPP] Would send "${this.summaryTemplateName}" template to ${toPhone} for org ${params.organizationId}`,
+        `[MOCK WHATSAPP] Would send "${this.shiftReportTemplateName}" template to ${toPhone} for org ${params.organizationId}`,
       );
       await this.prisma.whatsappMessage.create({
         data: {
           organizationId: params.organizationId,
-          templateName: this.summaryTemplateName,
+          templateName: this.shiftReportTemplateName,
           toPhone,
           status: 'SENT',
           sentAt: new Date(),
@@ -236,7 +265,7 @@ export class WhatsappService {
       await this.prisma.whatsappMessage.create({
         data: {
           organizationId: params.organizationId,
-          templateName: this.summaryTemplateName,
+          templateName: this.shiftReportTemplateName,
           toPhone,
           status: 'SENT',
           providerMessageId,
@@ -249,7 +278,7 @@ export class WhatsappService {
       await this.prisma.whatsappMessage.create({
         data: {
           organizationId: params.organizationId,
-          templateName: this.summaryTemplateName,
+          templateName: this.shiftReportTemplateName,
           toPhone,
           status: 'FAILED',
           errorMessage: error instanceof Error ? error.message : 'Unknown error',

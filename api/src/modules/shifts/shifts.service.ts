@@ -9,6 +9,16 @@ function toNumber(val: Prisma.Decimal | number): number {
   return typeof val === 'number' ? val : Number(val);
 }
 
+// "18:00" -> "6:00 PM". Organization.shiftStartTime/shiftEndTime are stored as plain "HH:mm"
+// strings (see schema comment on Organization), never a Date — no timezone conversion needed.
+function formatTime12h(hhmm: string): string {
+  const [hourStr, minuteStr] = hhmm.split(':');
+  const hour24 = Number(hourStr);
+  const period = hour24 >= 12 ? 'PM' : 'AM';
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  return `${hour12}:${minuteStr} ${period}`;
+}
+
 @Injectable()
 export class ShiftsService {
   private readonly logger = new Logger(ShiftsService.name);
@@ -291,7 +301,7 @@ export class ShiftsService {
   private async sendShiftSummary(organizationId: string, closedAt: Date): Promise<void> {
     const org = await this.prisma.organization.findUnique({
       where: { id: organizationId },
-      select: { ownerWhatsappPhone: true, enabledModules: true, shiftStartTime: true, shiftEndTime: true },
+      select: { name: true, ownerWhatsappPhone: true, enabledModules: true, shiftStartTime: true, shiftEndTime: true },
     });
     if (!org || !['POS', 'BOTH'].includes(org.enabledModules)) return;
 
@@ -302,38 +312,90 @@ export class ShiftsService {
     const businessDay = businessDateFor(closedAt, shiftHours);
     const { startDate, endDate } = applyShiftHours(businessDay, businessDay, shiftHours);
 
-    const [closedPaidAgg, closedUnpaidAgg] = await Promise.all([
-      this.prisma.order.aggregate({
-        where: { organizationId, status: OrderStatus.CLOSED_PAID, closedAt: { gte: startDate, lte: endDate } },
-        _sum: { total: true },
-      }),
-      this.prisma.order.aggregate({
-        where: { organizationId, status: OrderStatus.CLOSED_UNPAID, closedAt: { gte: startDate, lte: endDate } },
-        _sum: { total: true, amountPaid: true },
-      }),
-    ]);
+    const [closedPaidAgg, closedUnpaidAgg, varianceAgg, paymentBreakdown, totalPaymentsAgg, creditRepaymentsAgg, depositsAgg] =
+      await Promise.all([
+        this.prisma.order.aggregate({
+          where: { organizationId, status: OrderStatus.CLOSED_PAID, closedAt: { gte: startDate, lte: endDate } },
+          _sum: { total: true },
+          _count: { id: true },
+        }),
+        this.prisma.order.aggregate({
+          where: { organizationId, status: OrderStatus.CLOSED_UNPAID, closedAt: { gte: startDate, lte: endDate } },
+          _sum: { total: true, amountPaid: true },
+          _count: { id: true },
+        }),
+        // Till variance across every shift closed in the business day, not just the one that
+        // just triggered this — same day-scoping as the rest of this report.
+        this.prisma.shift.aggregate({
+          where: { organizationId, status: 'CLOSED', closedAt: { gte: startDate, lte: endDate } },
+          _sum: { variance: true },
+        }),
+        // Reused as-is from the single-shift close flow (paymentBreakdownDuringShift) — it only
+        // groups Payment rows by paymentMethod within a window, so the business-day window works
+        // exactly the same as a single shift's open/close window.
+        this.paymentBreakdownDuringShift(organizationId, startDate, endDate),
+        // Every payment that actually landed today, regardless of which order/day it belongs to —
+        // the honest "total money collected" figure, not a derived sum of the other buckets below.
+        this.prisma.payment.aggregate({
+          where: { organizationId, createdAt: { gte: startDate, lte: endDate } },
+          _sum: { amount: true },
+        }),
+        // Paid today, but for an order that was finalized on an *earlier* business day — i.e.
+        // money collected today against old credit, not today's own sales.
+        this.prisma.payment.aggregate({
+          where: {
+            organizationId,
+            createdAt: { gte: startDate, lte: endDate },
+            order: { closedAt: { lt: startDate } },
+          },
+          _sum: { amount: true },
+        }),
+        this.prisma.walletTransaction.aggregate({
+          where: { organizationId, type: 'TOPUP', createdAt: { gte: startDate, lte: endDate } },
+          _sum: { amount: true },
+        }),
+      ]);
 
     const closedPaidTotal = toNumber(closedPaidAgg._sum.total ?? 0);
     const closedUnpaidTotal = toNumber(closedUnpaidAgg._sum.total ?? 0);
-    const closedUnpaidCollected = toNumber(closedUnpaidAgg._sum.amountPaid ?? 0);
+    const orderCount = closedPaidAgg._count.id + closedUnpaidAgg._count.id;
+    const totalSales = closedPaidTotal + closedUnpaidTotal;
+    const avgOrder = orderCount > 0 ? totalSales / orderCount : 0;
+    const variance = toNumber(varianceAgg._sum.variance ?? 0);
+    const totalCollected = toNumber(totalPaymentsAgg._sum.amount ?? 0) + toNumber(depositsAgg._sum.amount ?? 0);
+    const creditRepayments = toNumber(creditRepaymentsAgg._sum.amount ?? 0);
+    const deposits = toNumber(depositsAgg._sum.amount ?? 0);
 
-    const summaryDate = businessDay.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    const dayLabel = businessDay.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    const dateRange = `${dayLabel} (${formatTime12h(org.shiftStartTime)} – ${formatTime12h(org.shiftEndTime)})`;
     const currency = (value: number) => value.toLocaleString('en-NG', { style: 'currency', currency: 'NGN' });
+    const paymentBreakdownLine = paymentBreakdown
+      .map((row) => `${row.paymentMethod}: ${currency(row.expectedAmount)}`)
+      .join(' | ');
 
     for (const phone of phones) {
       try {
-        await this.whatsappService.sendDailySalesSummaryTemplate({
+        await this.whatsappService.sendShiftReportTemplate({
           organizationId,
           toPhone: phone,
-          summaryDate,
-          // Full value of everything sold in the business day so far (paid + still-owed) - not
-          // just payments received, which would silently exclude any order left CLOSED_UNPAID.
-          totalSales: currency(closedPaidTotal + closedUnpaidTotal),
-          amountPaid: currency(closedPaidTotal),
-          outstandingCredit: currency(closedUnpaidTotal - closedUnpaidCollected),
+          orgName: org.name,
+          dateRange,
+          totalSales: currency(totalSales),
+          orderCount: String(orderCount),
+          avgOrder: currency(avgOrder),
+          // Mirrors Total Sales rather than being separately tracked — see plan notes.
+          totalPayments: currency(totalSales),
+          paidToday: currency(closedPaidTotal),
+          creditSales: currency(closedUnpaidTotal),
+          variance: currency(variance),
+          totalCollected: currency(totalCollected),
+          todaysSales: currency(closedPaidTotal),
+          creditRepayments: currency(creditRepayments),
+          deposits: currency(deposits),
+          paymentBreakdown: paymentBreakdownLine,
         });
       } catch (err) {
-        this.logger.error(`Failed to send shift close sales summary to ${phone} for org ${organizationId}: ${err.message}`);
+        this.logger.error(`Failed to send shift close report to ${phone} for org ${organizationId}: ${err.message}`);
       }
     }
   }
