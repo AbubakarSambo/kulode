@@ -321,6 +321,7 @@ export class MoniepointService {
     const merchantReference: string | undefined = data?.merchantReference;
     const transactionStatus: string | undefined = data?.transactionStatus;
     const responseMessage: string | undefined = data?.responseMessage;
+    const responseCode: string | undefined = data?.responseCode;
 
     if (!merchantReference) {
       // Not something we pushed — either an organic in-person sale on the terminal (nothing to
@@ -380,7 +381,11 @@ export class MoniepointService {
       return { received: true, stillPending: true };
     }
 
-    const status = transactionStatus === 'APPROVED' ? 'SUCCESS' : 'FAILED';
+    const isSuccessful =
+      transactionStatus === 'APPROVED' ||
+      transactionStatus === 'SUCCESSFUL' ||
+      responseCode === '00';
+    const status = isSuccessful ? 'SUCCESS' : 'FAILED';
     return this.handleWebhookEvent({
       merchantReference,
       status,
