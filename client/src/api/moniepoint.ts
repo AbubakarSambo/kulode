@@ -32,6 +32,26 @@ export interface MoniepointTransaction {
   completedAt: string | null
 }
 
+export interface MoniepointUnreconciledTransferSenderMetadata {
+  customerName?: string
+  customerAccountNumber?: string
+  customerBank?: string
+  narration?: string
+}
+
+export interface MoniepointUnreconciledTransfer {
+  id: string
+  amount: string
+  transactionReference: string | null
+  senderMetadata: MoniepointUnreconciledTransferSenderMetadata | null
+  status: 'PENDING_REVIEW' | 'RESOLVED' | 'IGNORED'
+  matchReason: string
+  resolvedOrder?: { id: string; source: string; total: number; table?: { name: string } | null } | null
+  resolvedBy?: { id: string; firstName: string; lastName: string } | null
+  resolutionNotes: string | null
+  createdAt: string
+}
+
 export const moniepointApi = {
   getStatus: async (): Promise<MoniepointStatus> => {
     const response = await apiClient.get<ApiResponse<MoniepointStatus>>('/organizations/moniepoint-status')
@@ -65,6 +85,26 @@ export const moniepointApi = {
     const response = await apiClient.post<ApiResponse<{ success: boolean }>>('/organizations/moniepoint-webhook-secret', {
       webhookSecret,
     })
+    return response.data.data
+  },
+  listUnreconciledTransfers: async (status?: 'PENDING_REVIEW' | 'RESOLVED' | 'IGNORED'): Promise<MoniepointUnreconciledTransfer[]> => {
+    const response = await apiClient.get<ApiResponse<MoniepointUnreconciledTransfer[]>>('/moniepoint-unreconciled-transfers', {
+      params: status ? { status } : undefined,
+    })
+    return response.data.data
+  },
+  assignUnreconciledTransfer: async (id: string, orderId: string) => {
+    const response = await apiClient.post<ApiResponse<MoniepointUnreconciledTransfer>>(
+      `/moniepoint-unreconciled-transfers/${id}/assign`,
+      { orderId },
+    )
+    return response.data.data
+  },
+  ignoreUnreconciledTransfer: async (id: string, notes?: string) => {
+    const response = await apiClient.post<ApiResponse<MoniepointUnreconciledTransfer>>(
+      `/moniepoint-unreconciled-transfers/${id}/ignore`,
+      { notes },
+    )
     return response.data.data
   },
 }
