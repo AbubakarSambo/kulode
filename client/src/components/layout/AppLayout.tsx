@@ -124,6 +124,8 @@ export function AppLayout() {
     '/pos/drinks': { name: 'Drinks', icon: Martini },
     '/pos/shift': { name: 'Shift', icon: Clock },
     '/pos/reports': { name: 'POS Reports', icon: Receipt },
+    '/pos/payments': { name: 'Payments', icon: CreditCard },
+    '/pos/unreconciled-transfers': { name: 'Transfers', icon: Landmark },
   }
 
   const navItems = restrictedHrefsUnion
