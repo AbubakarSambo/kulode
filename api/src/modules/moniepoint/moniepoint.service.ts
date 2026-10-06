@@ -505,12 +505,25 @@ export class MoniepointService {
     transactionReference: string | undefined,
     recordedById?: string,
   ) {
-    const outstanding = Number(order.total) - Number(order.amountPaid);
-    const varianceKobo = Math.round(outstanding * 100) - Math.round(amount * 100);
+    // Mirrors OrdersService.closeWithPayment's semantics exactly — amountPaid ACCUMULATES on top of
+    // whatever's already been recorded (e.g. a prior partial cash payment), and the order only
+    // actually closes once that total covers the bill; a transfer that's merely part of a split
+    // payment leaves the order in CLOSED_UNPAID (still payable, still shows a running balance) for
+    // the rest to be collected normally. The original version of this method set amountPaid to just
+    // the transfer's own amount and force-closed unconditionally — harmless for the narrow case it
+    // was written for (a transfer that happens to equal the *entire* outstanding balance, with
+    // nothing paid before it), but silently wrong the moment any other payment touches the same
+    // order, which the manual "Apply to Order" flow (assignUnreconciledTransfer) makes easy to hit.
+    const outstandingBefore = Number(order.total) - Number(order.amountPaid);
+    const varianceKobo = Math.round(outstandingBefore * 100) - Math.round(amount * 100);
+    const newAmountPaid = Math.round((Number(order.amountPaid) + amount) * 100) / 100;
+    const isFinalPayment = newAmountPaid >= Number(order.total) - 0.01;
     await this.prisma.$transaction(async (tx) => {
       const result = await tx.order.updateMany({
         where: { id: order.id, status: { in: PAYABLE_STATUSES } },
-        data: { amountPaid: amount, status: 'CLOSED_PAID', closedAt: new Date() },
+        data: isFinalPayment
+          ? { amountPaid: newAmountPaid, status: 'CLOSED_PAID', closedAt: new Date() }
+          : { amountPaid: newAmountPaid, status: 'CLOSED_UNPAID' },
       });
 
       await tx.payment.create({
@@ -526,13 +539,15 @@ export class MoniepointService {
           notes:
             result.count === 0
               ? 'Received after order was already closed/cancelled — needs manual review'
-              : varianceKobo !== 0
-                ? `${recordedById ? 'Manually reconciled' : 'Auto-reconciled within tolerance'} — received ₦${amount}, outstanding was ₦${outstanding} (₦${Math.abs(varianceKobo) / 100} ${varianceKobo > 0 ? 'short' : 'over'})`
-                : undefined,
+              : !isFinalPayment
+                ? `Partial payment — ₦${newAmountPaid} of ₦${order.total} paid so far`
+                : varianceKobo !== 0
+                  ? `${recordedById ? 'Manually reconciled' : 'Auto-reconciled within tolerance'} — received ₦${amount}, outstanding was ₦${outstandingBefore} (₦${Math.abs(varianceKobo) / 100} ${varianceKobo > 0 ? 'short' : 'over'})`
+                  : undefined,
         },
       });
 
-      if (result.count === 0) return;
+      if (result.count === 0 || !isFinalPayment) return;
 
       await this.inventoryService.deductForOrder(tx, order.id, organizationId);
       if (order.tableId) {
