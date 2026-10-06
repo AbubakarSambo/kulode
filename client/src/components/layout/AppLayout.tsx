@@ -15,6 +15,7 @@ import {
   ListOrdered,
   CreditCard,
   Martini,
+  Landmark,
 } from 'lucide-react'
 import {
   DashboardIcon,
@@ -97,10 +98,10 @@ export function AppLayout() {
   const KITCHEN_ALLOWED_HREFS = ['/pos/kitchen', '/pos/drinks', '/pos/reports']
   // Cashiers close out orders and take payment, and can now manage the table list — no need for
   // menu/waiter management or analytics
-  const CASHIER_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/tables', '/pos/reports']
+  const CASHIER_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/tables', '/pos/reports', '/pos/payments', '/pos/unreconciled-transfers']
   // Supervisors get floor oversight but not menu/category editing, or user management (staff
   // roster lives entirely on the admin-only Users page).
-  const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/kitchen', '/pos/drinks', '/pos/reports']
+  const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/kitchen', '/pos/drinks', '/pos/reports', '/pos/unreconciled-transfers']
   const RESTRICTED_ROLE_HREFS: Partial<Record<UserRole, string[]>> = {
     WAITER: WAITER_ALLOWED_HREFS,
     PASS: KITCHEN_ALLOWED_HREFS,
@@ -201,6 +202,13 @@ export function AppLayout() {
         { name: 'POS Reports', href: '/pos/reports', icon: ReportsIcon, visible: hasPos },
         { name: 'AI Chat', href: '/ai-chat', icon: AiChatIcon, requiresPlan: 'PRO' as PlanTier, visible: canViewReports && hasInvoicing },
         { name: 'AI Chat', href: '/pos/ai-chat', icon: AiChatIcon, requiresPlan: 'PRO' as PlanTier, visible: hasPos && isAdmin },
+        { name: 'Payments', href: '/pos/payments', icon: CreditCard, visible: hasPos && (isAdmin || userRoles.includes('CASHIER')) },
+        {
+          name: 'Unreconciled Transfers',
+          href: '/pos/unreconciled-transfers',
+          icon: Landmark,
+          visible: hasPos && (isAdmin || userRoles.includes('CASHIER') || userRoles.includes('SUPERVISOR')),
+        },
       ] as MoreItem[],
     },
     {
