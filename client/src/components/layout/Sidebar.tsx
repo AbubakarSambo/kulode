@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, X, CreditCard, ChefHat, Clock, Receipt, Users, ShoppingCart, Tag, Timer, UserCog, RefreshCw, LayoutGrid, ListOrdered, Martini, Package } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, CreditCard, ChefHat, Clock, Receipt, Users, ShoppingCart, Tag, Timer, UserCog, RefreshCw, LayoutGrid, ListOrdered, Martini, Package, Landmark } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { useLogout, useSwitchUser } from '@/hooks'
@@ -91,6 +91,7 @@ const navigationGroups = [
     items: [
       { name: 'Reports', href: '/pos/reports', icon: ReportsIcon, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Payments', href: '/pos/payments', icon: CreditCard, requiresPlan: undefined as PlanTier | undefined },
+      { name: 'Unreconciled Transfers', href: '/pos/unreconciled-transfers', icon: Landmark, requiresPlan: undefined as PlanTier | undefined },
       { name: 'AI Chat', href: '/pos/ai-chat', icon: AiChatIcon, requiresPlan: 'PRO' as PlanTier | undefined },
     ]
   },
@@ -190,11 +191,13 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
     '/pos/reports',
     '/pos/menu',
     '/pos/categories',
+    '/pos/unreconciled-transfers',
+    '/pos/payments',
   ]
 
   // Supervisors get floor oversight (orders, customers, shift, kitchen) but not menu/category
   // editing or user management (staff roster lives entirely on the admin-only Users page).
-  const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/kitchen', '/pos/drinks', '/pos/reports']
+  const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/kitchen', '/pos/drinks', '/pos/reports', '/pos/unreconciled-transfers']
 
   // Roles that get a tight nav allowlist rather than the broader access every other role has.
   // A user with multiple roles sees the UNION of what each individually unlocks — e.g. a
@@ -225,7 +228,8 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         if (INVOICING_ONLY_HREFS.includes(item.href) && !hasInvoicing) return false
         if ((item.href === '/reports' || item.href === '/ai-chat') && !canViewReports) return false
         if (item.href === '/pos/ai-chat' && !isAdmin) return false
-        if (item.href === '/pos/payments' && !isAdmin) return false
+        if (item.href === '/pos/payments' && !isAdmin && !userRoles.includes('CASHIER')) return false
+        if (item.href === '/pos/unreconciled-transfers' && !isAdmin) return false
         if (
           (item.href === '/payments' ||
             item.href === '/expenses' ||

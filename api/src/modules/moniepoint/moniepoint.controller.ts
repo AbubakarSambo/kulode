@@ -5,6 +5,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   ParseUUIDPipe,
   Headers,
   Req,
@@ -14,8 +15,8 @@ import {
 import { Request } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { MoniepointService } from './moniepoint.service';
-import { SetupMoniepointDto, PushPaymentDto, SetWebhookSecretDto } from './dto';
-import { CurrentUser, Public, Roles, Role } from '../../common';
+import { SetupMoniepointDto, PushPaymentDto, SetWebhookSecretDto, AssignUnreconciledTransferDto, IgnoreUnreconciledTransferDto } from './dto';
+import { CurrentUser, CurrentUserData, Public, Roles, Role } from '../../common';
 
 @ApiTags('Moniepoint POS')
 @Controller()
@@ -64,6 +65,41 @@ export class MoniepointController {
     @CurrentUser('organizationId') organizationId: string,
   ) {
     return this.moniepointService.pushOrderPayment(organizationId, orderId, dto.amount);
+  }
+
+  @Get('moniepoint-unreconciled-transfers')
+  @ApiBearerAuth()
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.SUPERVISOR, Role.CASHIER)
+  @ApiOperation({ summary: "List bank transfers into the merchant's account that couldn't be auto-matched to an order" })
+  async listUnreconciledTransfers(
+    @CurrentUser('organizationId') organizationId: string,
+    @Query('status') status?: 'PENDING_REVIEW' | 'RESOLVED' | 'IGNORED',
+  ) {
+    return this.moniepointService.listUnreconciledTransfers(organizationId, status);
+  }
+
+  @Post('moniepoint-unreconciled-transfers/:id/assign')
+  @ApiBearerAuth()
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.SUPERVISOR, Role.CASHIER)
+  @ApiOperation({ summary: 'Manually apply an unreconciled transfer to a specific order' })
+  async assignUnreconciledTransfer(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AssignUnreconciledTransferDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.moniepointService.assignUnreconciledTransfer(user.organizationId, id, dto.orderId, user.id);
+  }
+
+  @Post('moniepoint-unreconciled-transfers/:id/ignore')
+  @ApiBearerAuth()
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.SUPERVISOR, Role.CASHIER)
+  @ApiOperation({ summary: "Mark an unreconciled transfer as not belonging to any order" })
+  async ignoreUnreconciledTransfer(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: IgnoreUnreconciledTransferDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.moniepointService.ignoreUnreconciledTransfer(user.organizationId, id, user.id, dto.notes);
   }
 
   @Post('organizations/moniepoint-subscribe-webhook')

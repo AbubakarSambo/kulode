@@ -40,7 +40,7 @@ export class PaymentsController {
   // Registered before 'payments/:id' — a literal path must come first or Nest/Express would try
   // to match "pos" against the :id param route instead.
   @Get('payments/pos')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.CASHIER)
   @ApiOperation({ summary: 'List POS (order-linked) payments, kept separate from invoice payments' })
   @ApiResponse({ status: 200, description: 'List of POS payments' })
   async findAllPos(

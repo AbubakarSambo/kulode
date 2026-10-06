@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus, Prisma } from '@prisma/client';
 import { createHmac } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
@@ -17,16 +17,19 @@ import { SetupMoniepointDto } from './dto';
 // Push Payment Request API Reference for the PURCHASE transactionType this mirrors.
 const WEBHOOK_EVENT_TYPE = 'V1_POS_PURCHASE_TRANSACTION';
 
-// Confirmed via the live OpenAPI spec (api.pos.moniepoint.com/v3/api-docs) — we were previously
-// only subscribing to WEBHOOK_EVENT_TYPE above, so attemptTransferReconciliation below could never
-// fire: Moniepoint was never asked to send transfer events in the first place, not a delivery
-// failure on their end. V1_TRANSFER_TRANSACTION is the best-guess match for a customer transferring
-// into the merchant's own account (unprefixed, unlike the POS-initiated events); kept distinct from
-// V1_POS_TRANSFER_TRANSACTION, which per the spec's naming pattern (mirrors how PURCHASE/WITHDRAWAL
-// etc. all have a "done via POS" variant) looks like a transfer the merchant sends FROM the
-// terminal, not one a customer sends in — included anyway since this is unconfirmed against a real
-// delivery and over-subscribing is harmless (processIncomingWebhook already no-ops gracefully on an
-// event shape it doesn't recognize).
+// We were previously only subscribing to WEBHOOK_EVENT_TYPE above, so attemptTransferReconciliation
+// below could never fire: Moniepoint was never asked to send transfer events in the first place,
+// not a delivery failure on their end.
+//
+// CONFIRMED against real deliveries (2026-10-06): a customer transferring directly into a
+// merchant's Moniepoint account comes through as eventType V1_POS_TRANSFER_TRANSACTION (NOT the
+// unprefixed V1_TRANSFER_TRANSACTION, despite that name looking like the obvious match) — payload
+// has transactionType: "POS_TRANSFER", transactionStatus: "APPROVED", and a `metaData` JSON string
+// with customerName/customerAccountNumber/customerBank/narration (richer than attemptTransferReconciliation
+// currently uses — worth matching on narration before falling back to amount, see its own comment).
+// V1_TRANSFER_TRANSACTION is kept subscribed too since it's harmless (processIncomingWebhook
+// no-ops gracefully on a shape it doesn't recognize) and its actual real-world trigger is still
+// unconfirmed.
 const TRANSFER_WEBHOOK_EVENT_TYPES = ['V1_TRANSFER_TRANSACTION', 'V1_POS_TRANSFER_TRANSACTION'];
 
 // Mirrors OrdersService's PAYABLE_STATUSES — an order can still take a payment push while
@@ -457,17 +460,58 @@ export class MoniepointService {
     );
 
     if (matches.length !== 1) {
+      const matchReason =
+        matches.length === 0
+          ? 'No matching order'
+          : `Ambiguous — multiple matching orders: ${matches.map((o) => o.id).join(', ')}`;
       this.logger.warn(
         matches.length === 0
           ? `Transfer of ₦${amount} for org ${organization.id} matched no open order — needs manual reconciliation.`
           : `Transfer of ₦${amount} for org ${organization.id} matched ${matches.length} open orders — ambiguous, needs manual reconciliation. Candidates: ${matches.map((o) => o.id).join(', ')}`,
       );
+      // Parse the nested metaData string (customerName/customerAccountNumber/customerBank/narration
+      // on real transfer deliveries — see TRANSFER_WEBHOOK_EVENT_TYPES comment) so a human reviewing
+      // this later has sender identity to go on, not just an amount.
+      let senderMetadata: Prisma.InputJsonValue | undefined;
+      if (typeof data?.metaData === 'string') {
+        try {
+          senderMetadata = JSON.parse(data.metaData);
+        } catch {
+          senderMetadata = { raw: data.metaData };
+        }
+      }
+      await this.prisma.moniepointUnreconciledTransfer.create({
+        data: {
+          organizationId: organization.id,
+          amount,
+          transactionReference,
+          senderMetadata,
+          matchReason,
+        },
+      });
       return { received: true, reconciled: false, reason: matches.length === 0 ? 'No matching order' : 'Ambiguous — multiple matching orders' };
     }
 
     const order = matches[0];
+    await this.closeOrderForTransfer(organization.id, order, amount, transactionReference);
+
+    this.logger.log(`Transfer of ₦${amount} auto-reconciled to order ${order.id} for org ${organization.id} (ref ${transactionReference ?? 'none'})`);
+    return { received: true, reconciled: true };
+  }
+
+  // Shared by the auto-match path above and the manual "assign" endpoint below — closes the order,
+  // records the Payment, deducts inventory, and flips the table, same as a normal transfer
+  // reconciliation. `recordedById` is only set on a manual assignment (a human picked this order);
+  // auto-matches have no user to attribute it to.
+  private async closeOrderForTransfer(
+    organizationId: string,
+    order: { id: string; total: Prisma.Decimal | number | string; amountPaid: Prisma.Decimal | number | string; tableId: string | null },
+    amount: number,
+    transactionReference: string | undefined,
+    recordedById?: string,
+  ) {
     const outstanding = Number(order.total) - Number(order.amountPaid);
-    const varianceKobo = Math.round(outstanding * 100) - amountKobo;
+    const varianceKobo = Math.round(outstanding * 100) - Math.round(amount * 100);
     await this.prisma.$transaction(async (tx) => {
       const result = await tx.order.updateMany({
         where: { id: order.id, status: { in: PAYABLE_STATUSES } },
@@ -476,32 +520,78 @@ export class MoniepointService {
 
       await tx.payment.create({
         data: {
-          organizationId: organization.id,
+          organizationId,
           orderId: order.id,
+          recordedById,
           amount,
           paymentMethod: 'MONIEPOINT_TRANSFER',
           paymentDate: new Date(),
           moniepointReference: transactionReference,
-          isAutoRecorded: true,
+          isAutoRecorded: !recordedById,
           notes:
             result.count === 0
               ? 'Received after order was already closed/cancelled — needs manual review'
               : varianceKobo !== 0
-                ? `Auto-reconciled within tolerance — received ₦${amount}, outstanding was ₦${outstanding} (₦${Math.abs(varianceKobo) / 100} ${varianceKobo > 0 ? 'short' : 'over'})`
+                ? `${recordedById ? 'Manually reconciled' : 'Auto-reconciled within tolerance'} — received ₦${amount}, outstanding was ₦${outstanding} (₦${Math.abs(varianceKobo) / 100} ${varianceKobo > 0 ? 'short' : 'over'})`
                 : undefined,
         },
       });
 
       if (result.count === 0) return;
 
-      await this.inventoryService.deductForOrder(tx, order.id, organization.id);
+      await this.inventoryService.deductForOrder(tx, order.id, organizationId);
       if (order.tableId) {
         await tx.restaurantTable.update({ where: { id: order.tableId }, data: { status: 'NEEDS_CLEANING' } });
       }
     });
+  }
 
-    this.logger.log(`Transfer of ₦${amount} auto-reconciled to order ${order.id} for org ${organization.id} (ref ${transactionReference ?? 'none'})`);
-    return { received: true, reconciled: true };
+  async listUnreconciledTransfers(organizationId: string, status?: 'PENDING_REVIEW' | 'RESOLVED' | 'IGNORED') {
+    return this.prisma.moniepointUnreconciledTransfer.findMany({
+      where: { organizationId, status: status ?? 'PENDING_REVIEW' },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        resolvedOrder: { select: { id: true, source: true, total: true, table: { select: { name: true } } } },
+        resolvedBy: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+  }
+
+  async assignUnreconciledTransfer(organizationId: string, id: string, orderId: string, userId: string) {
+    const transfer = await this.prisma.moniepointUnreconciledTransfer.findFirst({ where: { id, organizationId } });
+    if (!transfer) {
+      throw new NotFoundException('Unreconciled transfer not found');
+    }
+    if (transfer.status !== 'PENDING_REVIEW') {
+      throw new BadRequestException(`This transfer is already ${transfer.status.toLowerCase()}`);
+    }
+
+    const order = await this.prisma.order.findFirst({ where: { id: orderId, organizationId } });
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    await this.closeOrderForTransfer(organizationId, order, Number(transfer.amount), transfer.transactionReference ?? undefined, userId);
+
+    return this.prisma.moniepointUnreconciledTransfer.update({
+      where: { id },
+      data: { status: 'RESOLVED', resolvedOrderId: orderId, resolvedById: userId, resolvedAt: new Date() },
+    });
+  }
+
+  async ignoreUnreconciledTransfer(organizationId: string, id: string, userId: string, notes?: string) {
+    const transfer = await this.prisma.moniepointUnreconciledTransfer.findFirst({ where: { id, organizationId } });
+    if (!transfer) {
+      throw new NotFoundException('Unreconciled transfer not found');
+    }
+    if (transfer.status !== 'PENDING_REVIEW') {
+      throw new BadRequestException(`This transfer is already ${transfer.status.toLowerCase()}`);
+    }
+
+    return this.prisma.moniepointUnreconciledTransfer.update({
+      where: { id },
+      data: { status: 'IGNORED', resolvedById: userId, resolvedAt: new Date(), resolutionNotes: notes },
+    });
   }
 
   private async getAccessToken(organizationId: string, clientId: string, clientSecretEncrypted: string): Promise<string> {

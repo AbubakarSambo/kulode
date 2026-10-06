@@ -340,18 +340,19 @@ model Organization {
   directors            OrganizationDirector[]
 
   // Restaurant POS
-  restaurantTables       RestaurantTable[]
-  menuCategories         MenuCategory[]
-  menuItems              MenuItem[]
-  orders                 Order[]
-  orderTypes             OrderType[]
-  paymentTypes           PaymentType[]
-  shifts                 Shift[]
-  idempotencyKeys        IdempotencyKey[]
-  walletTransactions     WalletTransaction[]
-  sheetSyncQueue         SheetSyncQueueEntry[]
-  printers               Printer[]
-  moniepointTransactions MoniepointTransaction[]
+  restaurantTables                RestaurantTable[]
+  menuCategories                  MenuCategory[]
+  menuItems                       MenuItem[]
+  orders                          Order[]
+  orderTypes                      OrderType[]
+  paymentTypes                    PaymentType[]
+  shifts                          Shift[]
+  idempotencyKeys                 IdempotencyKey[]
+  walletTransactions              WalletTransaction[]
+  sheetSyncQueue                  SheetSyncQueueEntry[]
+  printers                        Printer[]
+  moniepointTransactions          MoniepointTransaction[]
+  moniepointUnreconciledTransfers MoniepointUnreconciledTransfer[]
 
   @@map("organizations")
 }
@@ -391,20 +392,21 @@ model User {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  organization       Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdInvoices    Invoice[]                @relation("CreatedByUser")
-  recordedPayments   Payment[]                @relation("RecordedByUser")
-  recordedExpenses   Expense[]                @relation("RecordedByUser")
-  verificationTokens EmailVerificationToken[]
-  taxReportLogs      TaxReportLog[]
-  chatSessions       ChatSession[]
-  createdOrders      Order[]                  @relation("OrderCreatedByUser")
-  waiterOrders       Order[]                  @relation("OrderWaiter")
-  assignedOrderItems OrderItem[]              @relation("OrderItemAssignedTo")
-  discountsApplied   Order[]                  @relation("OrderDiscountAppliedBy")
-  openedShifts       Shift[]                  @relation("ShiftOpenedByUser")
-  closedShifts       Shift[]                  @relation("ShiftClosedByUser")
-  walletTransactions WalletTransaction[]
+  organization                  Organization                     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdInvoices               Invoice[]                        @relation("CreatedByUser")
+  recordedPayments              Payment[]                        @relation("RecordedByUser")
+  recordedExpenses              Expense[]                        @relation("RecordedByUser")
+  verificationTokens            EmailVerificationToken[]
+  taxReportLogs                 TaxReportLog[]
+  chatSessions                  ChatSession[]
+  createdOrders                 Order[]                          @relation("OrderCreatedByUser")
+  waiterOrders                  Order[]                          @relation("OrderWaiter")
+  assignedOrderItems            OrderItem[]                      @relation("OrderItemAssignedTo")
+  discountsApplied              Order[]                          @relation("OrderDiscountAppliedBy")
+  openedShifts                  Shift[]                          @relation("ShiftOpenedByUser")
+  closedShifts                  Shift[]                          @relation("ShiftClosedByUser")
+  walletTransactions            WalletTransaction[]
+  resolvedUnreconciledTransfers MoniepointUnreconciledTransfer[] @relation("ResolvedUnreconciledTransfer")
 
   @@index([organizationId])
   @@map("users")
@@ -742,6 +744,51 @@ model MoniepointTransaction {
   @@index([organizationId])
   @@index([orderId])
   @@map("moniepoint_transactions")
+}
+
+enum MoniepointUnreconciledTransferStatus {
+  PENDING_REVIEW
+  RESOLVED
+  IGNORED
+}
+
+// A bank transfer straight into the merchant's Moniepoint account that attemptTransferReconciliation
+// couldn't confidently auto-match to exactly one open order (zero matches, or 2+ orders within
+// TRANSFER_AMOUNT_TOLERANCE_KOBO of the amount) — previously only logged, with no durable record a
+// human could act on. Staff resolve these manually (see /pos/unreconciled-transfers) by picking the
+// right order, or mark as IGNORED when the transfer genuinely isn't for any order.
+model MoniepointUnreconciledTransfer {
+  id             String @id @default(uuid())
+  organizationId String @map("organization_id")
+
+  amount               Decimal                              @db.Decimal(12, 2)
+  transactionReference String?                              @map("transaction_reference")
+  // Raw metaData from the webhook — customerName/customerAccountNumber/customerBank/narration when
+  // present (see moniepoint.service.ts attemptTransferReconciliation). Kept as-is (Json) since the
+  // exact shape of a transfer webhook was never formally confirmed against docs, only real deliveries.
+  senderMetadata       Json?                                @map("sender_metadata")
+  status               MoniepointUnreconciledTransferStatus @default(PENDING_REVIEW)
+  // Why it didn't auto-match — "No matching order" or "Ambiguous — multiple matching orders", plus
+  // the candidate order ids when ambiguous, for context when a human reviews it.
+  matchReason          String                               @map("match_reason")
+
+  resolvedOrderId String?   @map("resolved_order_id")
+  resolvedById    String?   @map("resolved_by")
+  resolvedAt      DateTime? @map("resolved_at")
+  // Free-text reason when marked IGNORED (e.g. "customer sent for something unrelated to an order").
+  resolutionNotes String?   @map("resolution_notes")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  resolvedOrder Order?       @relation(fields: [resolvedOrderId], references: [id])
+  resolvedBy    User?        @relation("ResolvedUnreconciledTransfer", fields: [resolvedById], references: [id])
+
+  @@index([organizationId])
+  @@index([status])
+  @@map("moniepoint_unreconciled_transfers")
 }
 
 // Expense categories
@@ -1339,17 +1386,18 @@ model Order {
   updatedAt DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  organization           Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  table                  RestaurantTable?        @relation(fields: [tableId], references: [id], onDelete: SetNull)
-  customer               Customer?               @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  waiter                 User?                   @relation("OrderWaiter", fields: [waiterId], references: [id], onDelete: SetNull)
-  createdBy              User                    @relation("OrderCreatedByUser", fields: [createdById], references: [id])
-  items                  OrderItem[]
-  payments               Payment[]
-  stockMovements         StockMovement[]
-  walletTransactions     WalletTransaction[]
-  printJobs              PrintJob[]
-  moniepointTransactions MoniepointTransaction[]
+  organization                    Organization                     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  table                           RestaurantTable?                 @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  customer                        Customer?                        @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  waiter                          User?                            @relation("OrderWaiter", fields: [waiterId], references: [id], onDelete: SetNull)
+  createdBy                       User                             @relation("OrderCreatedByUser", fields: [createdById], references: [id])
+  items                           OrderItem[]
+  payments                        Payment[]
+  stockMovements                  StockMovement[]
+  walletTransactions              WalletTransaction[]
+  printJobs                       PrintJob[]
+  moniepointTransactions          MoniepointTransaction[]
+  moniepointUnreconciledTransfers MoniepointUnreconciledTransfer[]
 
   @@index([organizationId])
   @@index([tableId])

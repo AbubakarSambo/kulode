@@ -48,11 +48,30 @@ Once `status.isSetup` is true, staff clicks **Subscribe**.
 1. If `businessId` wasn't supplied in step 1, calls `GET /v1/introspect` on `posApiBaseUrl` (Bearer: the `mptp_...` API Key) to auto-detect it (`service.ts:188-201, 240-268`). Fails with a 400 telling staff to re-enter `businessId` manually if introspect is ambiguous/fails (e.g. the key is linked to multiple businesses).
 2. Calls `POST /v1/webhook-subscriptions` on `posApiBaseUrl` with:
    - `endpointUrl` = `MONIEPOINT_WEBHOOK_BASE_URL` + `/api/v1/webhooks/moniepoint`
-   - `eventTypes: ["V1_POS_PURCHASE_TRANSACTION"]`
+   - `eventTypes: [WEBHOOK_EVENT_TYPE, ...TRANSFER_WEBHOOK_EVENT_TYPES]` — as of 2026-10-06: `['V1_POS_PURCHASE_TRANSACTION', 'V1_TRANSFER_TRANSACTION', 'V1_POS_TRANSFER_TRANSACTION']` (`moniepoint.service.ts:16-30`)
    - `businessId`
 3. Stores the returned subscription id in `moniepointWebhookSubscriptionId`.
 
 **If this fails with `401 Invalid key provided.`**, the #1 cause is the wrong "API Key" was used in step 1 — go back and confirm the `clientSecret` value is the `mptp_...` one, not the ERP-integration-screen one.
+
+**Critical gotcha found 2026-10-06 — getting the event types wrong silently drops real money events, with zero error anywhere:** this code originally only subscribed to `V1_POS_PURCHASE_TRANSACTION` (card-present pushes). That means **bank transfers straight into the merchant's Moniepoint account were never delivered to us at all** — not a bug in `attemptTransferReconciliation`, not a Moniepoint outage, just never asked for. There is no error, no failed webhook, nothing in logs — the transfer just silently never generates a Tarione event, indefinitely, until the subscription is fixed.
+
+Confirmed against real deliveries: a customer transferring into a merchant's account arrives as `eventType: "V1_POS_TRANSFER_TRANSACTION"` (payload has `transactionType: "POS_TRANSFER"`, `transactionStatus: "APPROVED"`, `responseCode: "00"`, and a `metaData` JSON string containing `customerName`/`customerAccountNumber`/`customerBank`/`narration` — e.g. `"MOB: To MONIEPOINT MICROFINANCE BANK|ALMOND CAFE LTD - FROM SAMBO ABUBAKAR"`). The unprefixed `V1_TRANSFER_TRANSACTION` *looks* like the obvious match by name but has never actually been observed firing — it's kept subscribed anyway since it's harmless to over-subscribe (`processIncomingWebhook` no-ops gracefully on a shape it doesn't recognize).
+
+**If an already-onboarded org's bank transfers aren't showing up in `/pos/payments` at all** (not even as an unmatched-reconciliation log warning), check its live subscription's `eventTypes` directly rather than assuming the app code — a subscription created/modified outside the current code path (manually, or by an older code version) can be missing `V1_POS_TRANSFER_TRANSACTION` even if the org otherwise looks "fully set up":
+```bash
+curl -s "https://api.pos.moniepoint.com/v1/webhook-subscriptions" \
+  -H "Authorization: Bearer <mptp_... API Key>" \
+  -H "POS_BUSINESS_ID: <businessId>"
+```
+If it's missing, fix it immediately without a redeploy via `PUT /v1/webhook-subscriptions/{subscriptionId}` (requires `status` plus the full desired `endpointUrl`/`eventTypes` — Moniepoint's API rejects the PUT with `"Endpoint URL is required"` if you omit it, even though their own OpenAPI spec doesn't mark it required):
+```bash
+curl -X PUT "https://api.pos.moniepoint.com/v1/webhook-subscriptions/<subscriptionId>" \
+  -H "Authorization: Bearer <mptp_... API Key>" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"ACTIVE","endpointUrl":"https://api.tarione.com/api/v1/webhooks/moniepoint","eventTypes":["V1_POS_PURCHASE_TRANSACTION","V1_TRANSFER_TRANSACTION","V1_POS_TRANSFER_TRANSACTION", ...whatever else it already had]}'
+```
+The full canonical event-type enum (confirmed from `GET https://api.pos.moniepoint.com/v3/api-docs`, their live OpenAPI spec — a much more reliable source than the Confluence prose docs, which are frequently incomplete/stale): `V1_POS_TRANSACTION`, `V1_POS_WITHDRAWAL_TRANSACTION`, `V1_POS_PURCHASE_TRANSACTION`, `V1_POS_CARD_TRANSFER_TRANSACTION`, `V1_POS_BILL_PAYMENT_TRANSACTION`, `V1_POS_TRANSFER_TRANSACTION`, `V1_TRANSFER_TRANSACTION`, `V1_POS_COLLECTION_TRANSACTION`, `V1_POS_PAY_CODE_TRANSACTION`, `V1_POS_AIRTIME_TRANSACTION`, `V1_POS_BOOM_TRANSACTION`, `V1_POS_DATA_PURCHASE`.
 
 ## 3. Save the webhook secret
 
@@ -72,8 +91,28 @@ The settings UI gates each step above on this. Once all four are true/set, onboa
 
 ## 5. Day-to-day use
 
-- `POST /orders/:id/moniepoint-push` (`moniepoint.controller.ts:56-67`, roles STAFF/ACCOUNTANT/CASHIER/ADMIN/SUPER_ADMIN) pushes a card charge to the terminal via `POST /v1/transactions` on `posApiBaseUrl` (amount in kobo, `paymentMethod: CARD_PURCHASE`).
-- Completion arrives asynchronously via `POST /webhooks/moniepoint` (public endpoint, `controller.ts:107-120`), which finalizes the pushed transaction's status and also does amount-based reconciliation for raw bank transfers that weren't pushed by the app.
+**Terminal (card-present) push**, from the Close Order modal (`client/src/pages/pos/OrderDetailPage.tsx`):
+- Staff selects **"Moniepoint POS"** as the payment method — this option only appears once `isSetup && isWebhookSubscribed && hasWebhookSecret` are all true for the org (gated on `GET /organizations/moniepoint-status`).
+- Tapping **"Push to Terminal"** calls `moniepointApi.pushPayment(orderId, amount)` → `POST /orders/:id/moniepoint-push` (`moniepoint.controller.ts:56-67`, roles STAFF/ACCOUNTANT/CASHIER/ADMIN/SUPER_ADMIN) → `POST /v1/transactions` on `posApiBaseUrl` (amount in kobo, `paymentMethod: CARD_PURCHASE`).
+- The modal stays open, polling `GET /moniepoint-transactions/:merchantReference` every 3s, showing a "waiting for payment on terminal {serial}…" spinner. On SUCCESS it auto-closes and confirms; on FAILED it shows the failure reason with a "Try again" link.
+- A push stays `PENDING` until the webhook resolves it — retrying while one's still pending is blocked (`400 A payment push is already pending for this order`) until it's reset or resolves. To manually unstick a stale one:
+  ```sql
+  UPDATE moniepoint_transactions SET status='FAILED', failure_reason='Manually reset — stale pending push', completed_at=now(), updated_at=now() WHERE merchant_reference='<ref>';
+  ```
+
+**Bank transfers straight into the merchant's account** (no terminal involved) reconcile automatically via `attemptTransferReconciliation` (`moniepoint.service.ts`, triggered when a webhook arrives with no `merchantReference` — see the event-types gotcha in step 2 above for why this can silently never fire at all). It matches by amount against currently-open orders:
+- Requires **exactly one** open order within `TRANSFER_AMOUNT_TOLERANCE_KOBO` (±₦50) of the transferred amount to auto-confirm — 0 or 2+ matches logs a warning and leaves it for manual reconciliation rather than guessing.
+- **This is still amount-based, which is inherently risky with real money** — on 2026-10-06 a ₦1,000 transfer auto-matched to the wrong order (an unrelated ₦1,000 "Water" order that happened to be open at the time, while the transfer was actually meant for something else). The tolerance-band design correctly refuses to guess when there's genuine ambiguity (2+ candidates), but it can't tell "exactly one open order happens to owe this amount" apart from "this transfer is actually for this order" — those look identical to the matching logic. Real sender identity (`customerName`/`customerAccountNumber`/`customerBank`/`narration`) is present in the webhook's `metaData` field (stored on unmatched transfers, see below) but not yet used for matching — narration-based matching (first pass, before falling back to amount) would meaningfully reduce this risk and is worth building before leaning on this harder.
+- Successfully reconciled transfers land as a `Payment` with `paymentMethod: 'MONIEPOINT_TRANSFER'`, `isAutoRecorded: true` — visible at **`/pos/payments`** (see below).
+- A transfer with 0 or 2+ candidate matches is persisted as a `MoniepointUnreconciledTransfer` row (`status: PENDING_REVIEW`) — see below for where to act on it. Before 2026-10-06 this was only ever a server log line with no durable record.
+
+**`/pos/payments`** (`client/src/pages/pos/PosPaymentsPage.tsx`, route gated ADMIN/SUPER_ADMIN) — a dedicated list of order-linked payments, separate from the invoice-oriented `/payments` page (mixing the two produced dead invoice links for order-linked rows). Shows order/table, method (with an "auto" badge for webhook-recorded ones), Moniepoint reference, notes (including a variance note when a transfer reconciled within tolerance rather than exactly), recorded-by, date, amount. Backed by `GET /payments/pos` (`payments.controller.ts`, same role gate) — a plain-string `paymentMethod` filter is exact-match (case-sensitive), surfaced in the UI as a dropdown rather than free text to avoid that trap.
+
+**`/pos/unreconciled-transfers`** (`client/src/pages/pos/UnreconciledTransfersPage.tsx`, route gated ADMIN/SUPER_ADMIN) — the manual-reconciliation screen for transfers `attemptTransferReconciliation` couldn't confidently match. Lists each `PENDING_REVIEW` transfer (amount, why it didn't match, sender name/bank/narration when present, received time) with two actions:
+- **Apply to Order** → `POST /moniepoint-unreconciled-transfers/:id/assign { orderId }` (`moniepoint.service.ts` → `assignUnreconciledTransfer`) — closes the picked order via the same `closeOrderForTransfer` helper the auto-match path uses (Payment created with `recordedById` set and `isAutoRecorded: false`, inventory deducted, table flipped), then marks the transfer `RESOLVED`.
+- **Ignore** → `POST /moniepoint-unreconciled-transfers/:id/ignore { notes? }` — marks it `IGNORED` with an optional note, for a transfer that's genuinely unrelated to any order.
+
+Model: `MoniepointUnreconciledTransfer` (`schema.prisma`) — `amount`, `transactionReference`, `senderMetadata` (Json, the parsed webhook `metaData`), `matchReason`, `status`, plus `resolvedOrderId`/`resolvedById`/`resolvedAt`/`resolutionNotes` once acted on.
 
 ## 6. Disconnect
 
@@ -81,7 +120,10 @@ The settings UI gates each step above on this. Once all four are true/set, onboa
 
 ## Known gaps — fix before relying on this in production
 
-1. **Webhook signature verification is implemented but not enforced.** A mismatch is only logged, never rejected (`verifyWebhookSignature`, `service.ts:297-301`; see the `TODO(security)` at `controller.ts:101-106` and the `SECURITY GAP` note at `service.ts:605-615`). Anyone who discovers the webhook URL could currently forge a "payment succeeded" event for any `merchantReference` they can guess or observe.
+1. **Webhook signature verification is implemented but not enforced.** A mismatch is only logged, never rejected (`verifyWebhookSignature`, `service.ts:297-301`; see the `TODO(security)` at `controller.ts:101-106` and the `SECURITY GAP` note at `service.ts:605-615`). Anyone who discovers the webhook URL could currently forge a "payment succeeded" event for any `merchantReference` they can guess or observe. The signed-string format (`${webhookId}.${timestamp}.${rawBody}`) is still an educated guess, not confirmed against docs — header *names* (`moniepoint-webhook-id`/`-timestamp`/`-signature`) are confirmed correct, just not the signing algorithm/string construction.
 2. **Webhook transaction-status mapping was fixed 2026-10-05** (`fix/moniepoint-webhook-status-mapping`) — it previously only recognized `transactionStatus === 'APPROVED'` as success, but Moniepoint actually sends `'SUCCESSFUL'`, so real successful payments were being recorded as FAILED. Now also accepts `'SUCCESSFUL'` and `responseCode === '00'`.
 3. **Setup credentials weren't trimmed of whitespace before storage** — fixed 2026-10-05 (`fix/moniepoint-credentials-trim-whitespace`). Copy-pasting a key with a trailing space/newline used to silently corrupt the stored credential.
 4. **The "which API Key" confusion documented above** is the single biggest time-sink in onboarding so far — consider updating the in-app field label/help text for `clientSecret` to explicitly say "from POS APPS Developer → API Keys, not the ERP Integration screen" so this isn't rediscovered by trial and error every time.
+5. **Webhook subscriptions were missing the transfer event types entirely** — fixed in code 2026-10-06 (new subscriptions now request `V1_TRANSFER_TRANSACTION` + `V1_POS_TRANSFER_TRANSACTION` alongside the purchase event) and patched live on both existing orgs' subscriptions via a direct `PUT` call. See the full writeup in step 2 above — this is the single most consequential gap found so far, since it means **zero bank transfers were ever being recorded for any org**, silently, with no error anywhere, for as long as this integration has existed. **Any org onboarded before 2026-10-06 should have its live subscription's `eventTypes` checked** (via the curl in step 2) rather than assumed correct.
+6. **Amount-based transfer reconciliation misattributed a real payment to the wrong order on 2026-10-06** (see step 5 above) — exact/tolerance amount-matching is fundamentally unable to distinguish "this transfer is for this order" from "this order coincidentally owes the same amount." **A manual-reconciliation UI was built the same day** (`/pos/unreconciled-transfers`) so no-match/ambiguous cases at least have a durable record and a place to act on them, and a wrong auto-match can be manually fixed (reopen the order, reassign the payment) — but there's still no built-in "undo" button for a bad auto-match, and narration-based matching (using the real `customerName`/`narration` data confirmed present in the webhook payload, now captured on `MoniepointUnreconciledTransfer.senderMetadata`) would reduce — not eliminate — the risk of a wrong auto-match happening in the first place. Worth building before this is relied on for real volume.
+7. **A pushed terminal transaction has been observed stuck `PENDING` indefinitely, never appearing on the physical device at all** (ALMOND CAFE LTD, businessId `1120895`, both terminal serials tried) — confirmed not caused by: wrong credentials, wrong businessId, wrong terminal serial (verified against the physical device's Settings → System screen), mock mode, or an API-level error (every push returns `201`/`PENDING` cleanly). Unresolved as of 2026-10-06; escalated to Moniepoint's integration support (`pos-integrations@moniepoint.com`). If this recurs on a new org, it's a Moniepoint-side/terminal-activation issue, not something to keep debugging from our side — go straight to support with the `merchantReference`/`terminalSerial`/timestamp.
