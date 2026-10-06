@@ -14,7 +14,7 @@ import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
 import { ReceiptPdfService } from './receipt-pdf.service';
-import { CreatePaymentDto, UpdatePaymentDto, PaymentFilterDto } from './dto';
+import { CreatePaymentDto, UpdatePaymentDto, PaymentFilterDto, PosPaymentFilterDto } from './dto';
 import { CurrentUser, CurrentUserData, Roles, Role } from '../../common';
 
 @ApiTags('Payments')
@@ -35,6 +35,19 @@ export class PaymentsController {
     @Query() filter: PaymentFilterDto,
   ) {
     return this.paymentsService.findAll(organizationId, filter);
+  }
+
+  // Registered before 'payments/:id' — a literal path must come first or Nest/Express would try
+  // to match "pos" against the :id param route instead.
+  @Get('payments/pos')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'List POS (order-linked) payments, kept separate from invoice payments' })
+  @ApiResponse({ status: 200, description: 'List of POS payments' })
+  async findAllPos(
+    @CurrentUser('organizationId') organizationId: string,
+    @Query() filter: PosPaymentFilterDto,
+  ) {
+    return this.paymentsService.findAllPos(organizationId, filter);
   }
 
   @Get('payments/:id')

@@ -333,6 +333,7 @@ export interface Payment {
   paystackFees?: number
   platformFees?: number
   netAmount?: number
+  moniepointReference?: string
   invoice?: {
     id: string
     invoiceNumber: string
@@ -341,6 +342,14 @@ export interface Payment {
       id: string
       name: string
     }
+  }
+  order?: {
+    id: string
+    source: string
+    status: string
+    total: number
+    table?: { id: string; name: string } | null
+    customer?: { id: string; name: string } | null
   }
   recordedBy?: {
     id: string

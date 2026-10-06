@@ -27,6 +27,14 @@ const PAYABLE_STATUSES: OrderStatus[] = [
   OrderStatus.CLOSED_UNPAID,
 ];
 
+// Transfer reconciliation matches by amount (a transfer carries no merchantReference we control).
+// A small tolerance absorbs bank-fee-sized discrepancies (e.g. the sender's bank shaving a few
+// naira off); it deliberately does NOT widen to "closest match" — that would auto-confirm against
+// a completely unrelated transfer just because it's the nearest in value, which risks marking the
+// wrong order paid. Uniqueness within this band is still required; 2+ orders within tolerance
+// falls back to manual reconciliation same as before.
+const TRANSFER_AMOUNT_TOLERANCE_KOBO = 5000; // ₦50
+
 // How long before its real expiry we treat a cached OAuth token as stale, so we never fire a
 // push with a token that expires mid-flight.
 const TOKEN_REFRESH_BUFFER_MS = 60_000;
@@ -396,12 +404,13 @@ export class MoniepointService {
   /**
    * Reconciles a bank transfer (paid to the restaurant's own known account, not a dynamic
    * per-order virtual account) against an open order — by amount, since a transfer carries no
-   * merchantReference we control. Auto-confirms only when exactly one open order currently has
-   * that exact outstanding balance; any ambiguity (zero or multiple matches) is logged and left
-   * for manual reconciliation rather than guessed at, since a wrong auto-match would mark the
-   * wrong order paid. NOTE: the exact webhook payload shape for a transfer event is unconfirmed
-   * (we've only observed real Purchase events so far) — this assumes the same data.amount /
-   * data.businessId / data.transactionReference fields documented for purchases.
+   * merchantReference we control. Auto-confirms only when exactly one open order's outstanding
+   * balance falls within TRANSFER_AMOUNT_TOLERANCE_KOBO of the transferred amount; any ambiguity
+   * (zero or multiple matches within tolerance) is logged and left for manual reconciliation
+   * rather than guessed at, since a wrong auto-match would mark the wrong order paid. NOTE: the
+   * exact webhook payload shape for a transfer event is unconfirmed (we've only observed real
+   * Purchase events so far) — this assumes the same data.amount / data.businessId /
+   * data.transactionReference fields documented for purchases.
    */
   private async attemptTransferReconciliation(data: any): Promise<{ received: boolean; reconciled?: boolean; reason?: string }> {
     // data.amount is in kobo — confirmed from real webhook payloads (e.g. amount:1081000 for a
@@ -424,11 +433,14 @@ export class MoniepointService {
     const candidates = await this.prisma.order.findMany({
       where: { organizationId: organization.id, status: { in: PAYABLE_STATUSES } },
     });
-    const matches = candidates.filter((o) => Math.round((Number(o.total) - Number(o.amountPaid)) * 100) === Math.round(amount * 100));
+    const amountKobo = Math.round(amount * 100);
+    const matches = candidates.filter(
+      (o) => Math.abs(Math.round((Number(o.total) - Number(o.amountPaid)) * 100) - amountKobo) <= TRANSFER_AMOUNT_TOLERANCE_KOBO,
+    );
 
     this.logger.log(
       `Transfer reconciliation for org ${organization.id}: amount=${amount} ref=${transactionReference ?? 'none'} — ` +
-        `${candidates.length} open order(s), ${matches.length} matching this amount` +
+        `${candidates.length} open order(s), ${matches.length} within ±₦${TRANSFER_AMOUNT_TOLERANCE_KOBO / 100} of this amount` +
         (matches.length > 0 ? `: [${matches.map((o) => `${o.id} (₦${Number(o.total) - Number(o.amountPaid)})`).join(', ')}]` : ''),
     );
 
@@ -442,6 +454,8 @@ export class MoniepointService {
     }
 
     const order = matches[0];
+    const outstanding = Number(order.total) - Number(order.amountPaid);
+    const varianceKobo = Math.round(outstanding * 100) - amountKobo;
     await this.prisma.$transaction(async (tx) => {
       const result = await tx.order.updateMany({
         where: { id: order.id, status: { in: PAYABLE_STATUSES } },
@@ -457,7 +471,12 @@ export class MoniepointService {
           paymentDate: new Date(),
           moniepointReference: transactionReference,
           isAutoRecorded: true,
-          notes: result.count === 0 ? 'Received after order was already closed/cancelled — needs manual review' : undefined,
+          notes:
+            result.count === 0
+              ? 'Received after order was already closed/cancelled — needs manual review'
+              : varianceKobo !== 0
+                ? `Auto-reconciled within tolerance — received ₦${amount}, outstanding was ₦${outstanding} (₦${Math.abs(varianceKobo) / 100} ${varianceKobo > 0 ? 'short' : 'over'})`
+                : undefined,
         },
       });
 

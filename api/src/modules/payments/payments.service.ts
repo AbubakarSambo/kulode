@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreatePaymentDto, UpdatePaymentDto, PaymentFilterDto } from './dto';
+import { CreatePaymentDto, UpdatePaymentDto, PaymentFilterDto, PosPaymentFilterDto } from './dto';
 import { paginate } from '../../common';
 import { InventoryService } from '../inventory/inventory.service';
 
@@ -56,6 +56,62 @@ export class PaymentsService {
               client: {
                 select: { id: true, name: true }
               }
+            },
+          },
+          recordedBy: {
+            select: { id: true, firstName: true, lastName: true },
+          },
+        },
+      }),
+      this.prisma.payment.count({ where }),
+    ]);
+
+    return paginate(payments, total, page, limit);
+  }
+
+  // POS (order-linked) payments, kept separate from invoice payments deliberately — orderId is
+  // never set alongside invoiceId (see Payment.orderId/invoiceId in schema.prisma), and mixing the
+  // two in one list meant order-linked rows (Moniepoint pushes/transfers, cash at the till, etc.)
+  // rendered with a dead invoice link in the invoice-oriented /payments UI.
+  async findAllPos(organizationId: string, filter: PosPaymentFilterDto) {
+    const { page = 1, limit = 20, paymentMethod, orderId, startDate, endDate } = filter;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.PaymentWhereInput = { organizationId, orderId: { not: null } };
+
+    if (paymentMethod) {
+      where.paymentMethod = paymentMethod;
+    }
+
+    if (orderId) {
+      where.orderId = orderId;
+    }
+
+    if (startDate || endDate) {
+      where.paymentDate = {};
+      if (startDate) {
+        where.paymentDate.gte = startDate;
+      }
+      if (endDate) {
+        where.paymentDate.lte = endDate;
+      }
+    }
+
+    const [payments, total] = await Promise.all([
+      this.prisma.payment.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { paymentDate: 'desc' },
+        include: {
+          order: {
+            select: {
+              id: true,
+              source: true,
+              status: true,
+              total: true,
+              table: { select: { id: true, name: true } },
+              customer: { select: { id: true, name: true } },
             },
           },
           recordedBy: {

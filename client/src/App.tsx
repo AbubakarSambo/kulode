@@ -84,6 +84,7 @@ const CustomerDetailPage = lazy(() => import('@/pages/pos/CustomerDetailPage').t
 const KitchenTicketsPage = lazy(() => import('@/pages/kitchen/KitchenTicketsPage').then((m) => ({ default: m.KitchenTicketsPage })))
 const DrinksTicketsPage = lazy(() => import('@/pages/kitchen/DrinksTicketsPage').then((m) => ({ default: m.DrinksTicketsPage })))
 const PosReportsPage = lazy(() => import('@/pages/pos/PosReportsPage').then((m) => ({ default: m.PosReportsPage })))
+const PosPaymentsPage = lazy(() => import('@/pages/pos/PosPaymentsPage').then((m) => ({ default: m.PosPaymentsPage })))
 const PosAiChatPage = lazy(() => import('@/pages/pos/PosAiChatPage').then((m) => ({ default: m.PosAiChatPage })))
 const PrintersPage = lazy(() => import('@/pages/settings/PrintersPage').then((m) => ({ default: m.PrintersPage })))
 
@@ -276,6 +277,9 @@ function App() {
                   <Route path="/pos/drinks" element={<DrinksTicketsPage />} />
                 </Route>
                 <Route path="/pos/reports" element={<PosReportsPage />} />
+                <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'SUPER_ADMIN']} />}>
+                  <Route path="/pos/payments" element={<PosPaymentsPage />} />
+                </Route>
                 <Route element={<PlanGatedRoute requiredPlan="PRO" />}>
                   <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'SUPER_ADMIN']} />}>
                     <Route path="/pos/ai-chat" element={<PosAiChatPage />} />

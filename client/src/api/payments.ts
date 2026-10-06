@@ -10,6 +10,15 @@ export interface PaymentFilters {
   endDate?: string
 }
 
+export interface PosPaymentFilters {
+  page?: number
+  limit?: number
+  paymentMethod?: string
+  orderId?: string
+  startDate?: string
+  endDate?: string
+}
+
 export interface CreatePaymentData {
   amount: number
   paymentMethod: PaymentMethod
@@ -36,6 +45,20 @@ export const paymentsApi = {
 
   get: async (id: string): Promise<Payment> => {
     const response = await apiClient.get<ApiResponse<Payment>>(`/payments/${id}`)
+    return response.data.data
+  },
+
+  // POS (order-linked) payments — kept separate from invoice payments, see payments.service.ts.
+  listPos: async (filters: PosPaymentFilters = {}): Promise<PaginatedResponse<Payment>> => {
+    const params = new URLSearchParams()
+    if (filters.page) params.append('page', filters.page.toString())
+    if (filters.limit) params.append('limit', filters.limit.toString())
+    if (filters.paymentMethod) params.append('paymentMethod', filters.paymentMethod)
+    if (filters.orderId) params.append('orderId', filters.orderId)
+    if (filters.startDate) params.append('startDate', filters.startDate)
+    if (filters.endDate) params.append('endDate', filters.endDate)
+
+    const response = await apiClient.get<ApiResponse<PaginatedResponse<Payment>>>(`/payments/pos?${params}`)
     return response.data.data
   },
 

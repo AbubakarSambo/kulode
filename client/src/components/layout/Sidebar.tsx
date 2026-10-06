@@ -90,6 +90,7 @@ const navigationGroups = [
     title: 'POS Insights',
     items: [
       { name: 'Reports', href: '/pos/reports', icon: ReportsIcon, requiresPlan: undefined as PlanTier | undefined },
+      { name: 'Payments', href: '/pos/payments', icon: CreditCard, requiresPlan: undefined as PlanTier | undefined },
       { name: 'AI Chat', href: '/pos/ai-chat', icon: AiChatIcon, requiresPlan: 'PRO' as PlanTier | undefined },
     ]
   },
@@ -224,6 +225,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         if (INVOICING_ONLY_HREFS.includes(item.href) && !hasInvoicing) return false
         if ((item.href === '/reports' || item.href === '/ai-chat') && !canViewReports) return false
         if (item.href === '/pos/ai-chat' && !isAdmin) return false
+        if (item.href === '/pos/payments' && !isAdmin) return false
         if (
           (item.href === '/payments' ||
             item.href === '/expenses' ||

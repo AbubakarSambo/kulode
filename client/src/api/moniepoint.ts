@@ -15,9 +15,36 @@ export interface MoniepointSetupData {
   businessId?: string
 }
 
+export interface MoniepointPushResult {
+  merchantReference: string
+  status: 'PENDING' | 'SUCCESS' | 'FAILED'
+  amount: number
+}
+
+export interface MoniepointTransaction {
+  id: string
+  orderId: string
+  merchantReference: string
+  terminalSerial: string
+  amount: string
+  status: 'PENDING' | 'SUCCESS' | 'FAILED'
+  failureReason: string | null
+  completedAt: string | null
+}
+
 export const moniepointApi = {
   getStatus: async (): Promise<MoniepointStatus> => {
     const response = await apiClient.get<ApiResponse<MoniepointStatus>>('/organizations/moniepoint-status')
+    return response.data.data
+  },
+  pushPayment: async (orderId: string, amount?: number): Promise<MoniepointPushResult> => {
+    const response = await apiClient.post<ApiResponse<MoniepointPushResult>>(`/orders/${orderId}/moniepoint-push`, {
+      amount,
+    })
+    return response.data.data
+  },
+  getTransaction: async (merchantReference: string): Promise<MoniepointTransaction> => {
+    const response = await apiClient.get<ApiResponse<MoniepointTransaction>>(`/moniepoint-transactions/${merchantReference}`)
     return response.data.data
   },
   setup: async (data: MoniepointSetupData) => {
