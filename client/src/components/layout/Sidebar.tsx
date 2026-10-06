@@ -229,7 +229,13 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         if ((item.href === '/reports' || item.href === '/ai-chat') && !canViewReports) return false
         if (item.href === '/pos/ai-chat' && !isAdmin) return false
         if (item.href === '/pos/payments' && !isAdmin && !userRoles.includes('CASHIER')) return false
-        if (item.href === '/pos/unreconciled-transfers' && !isAdmin) return false
+        if (
+          item.href === '/pos/unreconciled-transfers' &&
+          !isAdmin &&
+          !userRoles.includes('CASHIER') &&
+          !userRoles.includes('SUPERVISOR')
+        )
+          return false
         if (
           (item.href === '/payments' ||
             item.href === '/expenses' ||
