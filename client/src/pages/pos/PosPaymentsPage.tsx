@@ -1,11 +1,16 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { CreditCard } from 'lucide-react'
+import { CreditCardIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
-import { Button, Input, Card, CardContent, Badge, EmptyState } from '@/components/ui'
-import { paymentsApi } from '@/api'
+import { Button, Input, Select, Card, CardContent, Badge, EmptyState } from '@/components/ui'
+import { paymentsApi, paymentTypesApi } from '@/api'
 import { formatCurrency, formatDateTime, formatPaymentMethod } from '@/lib/utils'
+
+// Reserved/hardcoded literals (never part of the per-org PaymentType list — see Payment.paymentMethod
+// in schema.prisma) plus whatever custom PaymentTypes this org has configured, built below.
+const FIXED_METHODS = ['CASH', 'BANK_TRANSFER', 'CARD', 'PAYSTACK', 'WALLET', 'MONIEPOINT_POS', 'MONIEPOINT_TRANSFER', 'OTHER']
 
 // POS (order-linked) payments only — invoice payments live at /payments. Kept as a separate page
 // rather than merged into that one since the two are rendered very differently (order/table info
@@ -29,21 +34,36 @@ export function PosPaymentsPage() {
       }),
   })
 
+  const { data: paymentTypes } = useQuery({
+    queryKey: ['payment-types'],
+    queryFn: () => paymentTypesApi.list(),
+  })
+  const methodOptions = useMemo(() => {
+    const custom = (paymentTypes ?? []).map((t) => t.name).filter((name) => !FIXED_METHODS.includes(name))
+    return [...FIXED_METHODS, ...custom]
+  }, [paymentTypes])
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Header title="POS Payments" description="Payments recorded against orders — cash, card, Paystack, Moniepoint, wallet" icon={CreditCard} badgeText={data?.meta.total} />
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mb-4 flex flex-wrap gap-3">
-          <Input
-            placeholder="Filter by method (e.g. CASH, MONIEPOINT_POS)"
+          <Select
             value={paymentMethod}
             onChange={(e) => {
               setPaymentMethod(e.target.value)
               setPage(1)
             }}
             className="max-w-xs"
-          />
+          >
+            <option value="">All methods</option>
+            {methodOptions.map((m) => (
+              <option key={m} value={m}>
+                {formatPaymentMethod(m)}
+              </option>
+            ))}
+          </Select>
           <Input
             type="date"
             value={startDate}
@@ -69,7 +89,7 @@ export function PosPaymentsPage() {
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           </div>
         ) : !data || data.data.length === 0 ? (
-          <EmptyState icon={CreditCard} title="No POS payments yet" description="Payments taken against orders will show up here" />
+          <EmptyState icon={CreditCardIcon} title="No POS payments yet" description="Payments taken against orders will show up here" />
         ) : (
           <>
             {/* Desktop table */}
