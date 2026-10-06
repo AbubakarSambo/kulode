@@ -17,6 +17,18 @@ import { SetupMoniepointDto } from './dto';
 // Push Payment Request API Reference for the PURCHASE transactionType this mirrors.
 const WEBHOOK_EVENT_TYPE = 'V1_POS_PURCHASE_TRANSACTION';
 
+// Confirmed via the live OpenAPI spec (api.pos.moniepoint.com/v3/api-docs) — we were previously
+// only subscribing to WEBHOOK_EVENT_TYPE above, so attemptTransferReconciliation below could never
+// fire: Moniepoint was never asked to send transfer events in the first place, not a delivery
+// failure on their end. V1_TRANSFER_TRANSACTION is the best-guess match for a customer transferring
+// into the merchant's own account (unprefixed, unlike the POS-initiated events); kept distinct from
+// V1_POS_TRANSFER_TRANSACTION, which per the spec's naming pattern (mirrors how PURCHASE/WITHDRAWAL
+// etc. all have a "done via POS" variant) looks like a transfer the merchant sends FROM the
+// terminal, not one a customer sends in — included anyway since this is unconfirmed against a real
+// delivery and over-subscribing is harmless (processIncomingWebhook already no-ops gracefully on an
+// event shape it doesn't recognize).
+const TRANSFER_WEBHOOK_EVENT_TYPES = ['V1_TRANSFER_TRANSACTION', 'V1_POS_TRANSFER_TRANSACTION'];
+
 // Mirrors OrdersService's PAYABLE_STATUSES — an order can still take a payment push while
 // OPEN/IN_KITCHEN/READY, or once a waiter has handed it to a cashier via markAwaitingPayment
 // (CLOSED_UNPAID).
@@ -217,7 +229,7 @@ export class MoniepointService {
       '/v1/webhook-subscriptions',
       {
         endpointUrl,
-        eventTypes: [WEBHOOK_EVENT_TYPE],
+        eventTypes: [WEBHOOK_EVENT_TYPE, ...TRANSFER_WEBHOOK_EVENT_TYPES],
         // Moniepoint's schema wants this as a JSON number, not a string — safe to convert since
         // real values (confirmed up to 10 digits) are well within JS's safe-integer range.
         businessId: Number(businessId),
