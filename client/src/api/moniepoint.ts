@@ -45,8 +45,10 @@ export interface MoniepointUnreconciledTransfer {
   transactionReference: string | null
   senderMetadata: MoniepointUnreconciledTransferSenderMetadata | null
   status: 'PENDING_REVIEW' | 'RESOLVED' | 'IGNORED'
+  resolutionType?: 'ORDER' | 'WALLET_TOPUP' | 'OTHER' | null
   matchReason: string
   resolvedOrder?: { id: string; source: string; total: number; table?: { name: string } | null } | null
+  resolvedCustomer?: { id: string; name: string } | null
   resolvedBy?: { id: string; firstName: string; lastName: string } | null
   resolutionNotes: string | null
   createdAt: string
@@ -97,6 +99,13 @@ export const moniepointApi = {
     const response = await apiClient.post<ApiResponse<MoniepointUnreconciledTransfer>>(
       `/moniepoint-unreconciled-transfers/${id}/assign`,
       { orderId },
+    )
+    return response.data.data
+  },
+  resolveUnreconciledTransferToWallet: async (id: string, customerId: string, notes?: string) => {
+    const response = await apiClient.post<ApiResponse<MoniepointUnreconciledTransfer>>(
+      `/moniepoint-unreconciled-transfers/${id}/resolve-wallet`,
+      { customerId, notes },
     )
     return response.data.data
   },

@@ -15,7 +15,14 @@ import {
 import { Request } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { MoniepointService } from './moniepoint.service';
-import { SetupMoniepointDto, PushPaymentDto, SetWebhookSecretDto, AssignUnreconciledTransferDto, IgnoreUnreconciledTransferDto } from './dto';
+import {
+  SetupMoniepointDto,
+  PushPaymentDto,
+  SetWebhookSecretDto,
+  AssignUnreconciledTransferDto,
+  IgnoreUnreconciledTransferDto,
+  ResolveToWalletUnreconciledTransferDto,
+} from './dto';
 import { CurrentUser, CurrentUserData, Public, Roles, Role } from '../../common';
 
 @ApiTags('Moniepoint POS')
@@ -88,6 +95,18 @@ export class MoniepointController {
     @CurrentUser() user: CurrentUserData,
   ) {
     return this.moniepointService.assignUnreconciledTransfer(user.organizationId, id, dto.orderId, user.id);
+  }
+
+  @Post('moniepoint-unreconciled-transfers/:id/resolve-wallet')
+  @ApiBearerAuth()
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.SUPERVISOR, Role.CASHIER)
+  @ApiOperation({ summary: "Mark an unreconciled transfer as a wallet top-up and credit the chosen customer's wallet" })
+  async resolveUnreconciledTransferToWallet(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ResolveToWalletUnreconciledTransferDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.moniepointService.resolveUnreconciledTransferToWallet(user.organizationId, id, dto.customerId, user.id, dto.notes);
   }
 
   @Post('moniepoint-unreconciled-transfers/:id/ignore')
