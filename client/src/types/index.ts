@@ -534,7 +534,10 @@ export interface OrderPayment {
   id: string
   amount: number
   paymentMethod: string
+  // Date-only in the DB (no time component) — use `createdAt` instead when time-of-day matters,
+  // e.g. in a list showing when a payment was actually taken.
   paymentDate: string
+  createdAt: string
 }
 
 export interface Order {

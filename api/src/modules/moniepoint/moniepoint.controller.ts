@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Delete,
   Body,
   Param,
@@ -22,6 +23,8 @@ import {
   AssignUnreconciledTransferDto,
   IgnoreUnreconciledTransferDto,
   ResolveToWalletUnreconciledTransferDto,
+  CreateMoniepointTerminalDto,
+  UpdateMoniepointTerminalDto,
 } from './dto';
 import { CurrentUser, CurrentUserData, Public, Roles, Role } from '../../common';
 
@@ -35,13 +38,55 @@ export class MoniepointController {
   @Post('organizations/setup-moniepoint')
   @ApiBearerAuth()
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: "Store this restaurant's own Moniepoint POS credentials (clientId/clientSecret/terminalSerial)" })
+  @ApiOperation({ summary: "Store this restaurant's own Moniepoint POS business account credentials (clientId/clientSecret)" })
   @ApiResponse({ status: 201, description: 'Credentials saved' })
   async setup(
     @Body() dto: SetupMoniepointDto,
     @CurrentUser('organizationId') organizationId: string,
   ) {
     return this.moniepointService.setupCredentials(organizationId, dto);
+  }
+
+  @Get('organizations/moniepoint-terminals')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "List this organization's Moniepoint terminals" })
+  async listTerminals(@CurrentUser('organizationId') organizationId: string) {
+    return this.moniepointService.listTerminals(organizationId);
+  }
+
+  @Post('organizations/moniepoint-terminals')
+  @ApiBearerAuth()
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'Register a new physical terminal under this organization\'s Moniepoint business account' })
+  @ApiResponse({ status: 201, description: 'Terminal added' })
+  async createTerminal(
+    @Body() dto: CreateMoniepointTerminalDto,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.moniepointService.createTerminal(organizationId, dto.serial, dto.label);
+  }
+
+  @Patch('organizations/moniepoint-terminals/:id')
+  @ApiBearerAuth()
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'Rename/update or deactivate a terminal' })
+  async updateTerminal(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateMoniepointTerminalDto,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.moniepointService.updateTerminal(organizationId, id, dto);
+  }
+
+  @Delete('organizations/moniepoint-terminals/:id')
+  @ApiBearerAuth()
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'Remove a terminal (transaction history is kept, it just can no longer be pushed to)' })
+  async removeTerminal(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return this.moniepointService.removeTerminal(organizationId, id);
   }
 
   @Get('organizations/moniepoint-status')
@@ -71,7 +116,7 @@ export class MoniepointController {
     @Body() dto: PushPaymentDto,
     @CurrentUser('organizationId') organizationId: string,
   ) {
-    return this.moniepointService.pushOrderPayment(organizationId, orderId, dto.amount);
+    return this.moniepointService.pushOrderPayment(organizationId, orderId, dto.terminalId, dto.amount);
   }
 
   @Get('moniepoint-unreconciled-transfers')

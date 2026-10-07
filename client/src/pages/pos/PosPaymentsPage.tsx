@@ -6,7 +6,7 @@ import { CreditCardIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Button, Input, Select, Card, CardContent, Badge, EmptyState } from '@/components/ui'
 import { paymentsApi, paymentTypesApi } from '@/api'
-import { formatCurrency, formatDate, formatPaymentMethod } from '@/lib/utils'
+import { formatCurrency, formatDateTime, formatPaymentMethod } from '@/lib/utils'
 
 // Reserved/hardcoded literals (never part of the per-org PaymentType list — see Payment.paymentMethod
 // in schema.prisma) plus whatever custom PaymentTypes this org has configured, built below.
@@ -136,7 +136,7 @@ export function PosPaymentsPage() {
                         <td className="px-4 py-3 text-sm text-muted-foreground">
                           {payment.recordedBy ? `${payment.recordedBy.firstName} ${payment.recordedBy.lastName}` : '—'}
                         </td>
-                        <td className="px-4 py-3 text-sm text-muted-foreground">{formatDate(payment.paymentDate)}</td>
+                        <td className="px-4 py-3 text-sm text-muted-foreground">{formatDateTime(payment.createdAt)}</td>
                         <td className="px-4 py-3 text-right font-semibold text-foreground">{formatCurrency(payment.amount)}</td>
                       </tr>
                     ))}
@@ -170,7 +170,7 @@ export function PosPaymentsPage() {
                       </div>
                       <span className="font-semibold text-foreground">{formatCurrency(payment.amount)}</span>
                     </div>
-                    <div className="mt-2 text-xs text-muted-foreground">{formatDate(payment.paymentDate)}</div>
+                    <div className="mt-2 text-xs text-muted-foreground">{formatDateTime(payment.createdAt)}</div>
                     {(payment.moniepointReference || payment.reference) && (
                       <div className="mt-1 text-xs text-muted-foreground">{payment.moniepointReference ?? payment.reference}</div>
                     )}

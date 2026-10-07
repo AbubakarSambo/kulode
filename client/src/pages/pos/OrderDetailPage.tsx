@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { ArrowLeft, Download, Plus, X, UserPlus, Pencil, Search } from 'lucide-react'
 import { Header } from '@/components/layout'
-import { Button, Card, CardContent, Badge, Input, Label, SearchableSelect, Textarea } from '@/components/ui'
+import { Button, Card, CardContent, Badge, Input, Label, Select, SearchableSelect, Textarea } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, usersApi, tablesApi, orderTypesApi, paymentTypesApi, organizationsApi } from '@/api'
 import { moniepointApi } from '@/api/moniepoint'
@@ -465,8 +465,18 @@ function SyncedOrderView({ id }: { id: string }) {
     queryFn: () => moniepointApi.getStatus(),
     enabled: closeModalOpen,
   })
+  const activeTerminals = useMemo(() => (moniepointStatus?.terminals ?? []).filter((t) => t.isActive), [moniepointStatus])
   const moniepointReady =
-    !!moniepointStatus?.isSetup && moniepointStatus.isWebhookSubscribed && moniepointStatus.hasWebhookSecret
+    !!moniepointStatus?.isSetup && moniepointStatus.isWebhookSubscribed && moniepointStatus.hasWebhookSecret && activeTerminals.length > 0
+
+  // Most orgs only have one terminal — don't make staff pick from a dropdown of one. The picker
+  // only appears once there's a real choice to make (see the modal's MONIEPOINT branch below).
+  const [selectedTerminalId, setSelectedTerminalId] = useState('')
+  useEffect(() => {
+    if (activeTerminals.length === 1) {
+      setSelectedTerminalId(activeTerminals[0].id)
+    }
+  }, [activeTerminals])
   // Org-managed methods first, Paystack/Wallet/Moniepoint always tacked on last — those are
   // hardcoded/protected, never part of the editable PaymentType list (Wallet only offered when a
   // customer is attached; Moniepoint only offered once the org has fully onboarded it, same checks
@@ -844,7 +854,7 @@ function SyncedOrderView({ id }: { id: string }) {
         return ordersApi.paystackCheckout(id, { paymentMethod, customerEmail })
       }
       if (paymentMethod === 'MONIEPOINT') {
-        return moniepointApi.pushPayment(id, paymentAmount)
+        return moniepointApi.pushPayment(id, selectedTerminalId, paymentAmount)
       }
       return ordersApi.close(id, {
         paymentMethod,
@@ -1544,6 +1554,24 @@ function SyncedOrderView({ id }: { id: string }) {
             </div>
           )}
 
+          {paymentMethod === 'MONIEPOINT' && activeTerminals.length > 1 && (
+            <div className="space-y-2">
+              <Label htmlFor="terminalId" required>
+                Terminal
+              </Label>
+              <Select id="terminalId" value={selectedTerminalId} onChange={(e) => setSelectedTerminalId(e.target.value)}>
+                <option value="" disabled>
+                  Choose a terminal…
+                </option>
+                {activeTerminals.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
+
           <div className="rounded-xl bg-muted p-4 text-center">
             {amountPaidSoFar > 0 && (
               <div className="mb-2 flex justify-between border-b border-border pb-2 text-sm text-muted-foreground">
@@ -1567,6 +1595,7 @@ function SyncedOrderView({ id }: { id: string }) {
               isLoading={closeOrder.isPending}
               disabled={
                 (paymentMethod === 'PAYSTACK' && !customerEmail) ||
+                (paymentMethod === 'MONIEPOINT' && !selectedTerminalId) ||
                 (paymentMethod === 'OTHER' && !otherPaymentNote.trim()) ||
                 (paymentMethod === 'WALLET' &&
                   !!walletBalance &&

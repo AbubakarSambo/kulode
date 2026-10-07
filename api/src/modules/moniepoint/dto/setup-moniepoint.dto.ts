@@ -14,12 +14,6 @@ export class SetupMoniepointDto {
   @MaxLength(500)
   clientSecret: string;
 
-  @ApiProperty({ description: 'Serial number of the physical terminal to push payments to, from the restaurant\'s Moniepoint dashboard' })
-  @IsNotEmpty()
-  @IsString()
-  @MaxLength(100)
-  terminalSerial: string;
-
   @ApiPropertyOptional({
     description:
       'Numeric business id (as a string — can exceed 32-bit int range) required to register the webhook subscription. Usually not needed here — we try to auto-detect it via GET /v1/introspect when subscribing. Only set this if that auto-detection fails.',
