@@ -475,9 +475,10 @@ model Customer {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  orders             Order[]
-  walletTransactions WalletTransaction[]
+  organization              Organization                     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  orders                    Order[]
+  walletTransactions        WalletTransaction[]
+  walletTopUpsFromTransfers MoniepointUnreconciledTransfer[]
 
   @@unique([organizationId, phone])
   @@index([organizationId])
@@ -752,6 +753,16 @@ enum MoniepointUnreconciledTransferStatus {
   IGNORED
 }
 
+// How a transfer was actually accounted for — distinct from `status` (PENDING_REVIEW is always
+// null here; RESOLVED splits into ORDER vs WALLET_TOPUP; IGNORED is always OTHER). Lets the UI
+// show "Applied to Table 4" vs "Credited to Jane's wallet" vs a plain dismissal instead of just a
+// generic "Resolved"/"Ignored" badge.
+enum UnreconciledTransferResolutionType {
+  ORDER
+  WALLET_TOPUP
+  OTHER
+}
+
 // A bank transfer straight into the merchant's Moniepoint account that attemptTransferReconciliation
 // couldn't confidently auto-match to exactly one open order (zero matches, or 2+ orders within
 // TRANSFER_AMOUNT_TOLERANCE_KOBO of the amount) — previously only logged, with no durable record a
@@ -772,19 +783,28 @@ model MoniepointUnreconciledTransfer {
   // the candidate order ids when ambiguous, for context when a human reviews it.
   matchReason          String                               @map("match_reason")
 
-  resolvedOrderId String?   @map("resolved_order_id")
-  resolvedById    String?   @map("resolved_by")
-  resolvedAt      DateTime? @map("resolved_at")
+  // Which bucket this was resolved into — ORDER/WALLET_TOPUP set together with status RESOLVED,
+  // OTHER set together with status IGNORED. Null while PENDING_REVIEW, and null on rows resolved
+  // before this field existed (they're all pre-wallet-topup ORDER assignments or plain IGNOREs —
+  // infer from resolvedOrderId/status if ever needed, no backfill required).
+  resolutionType     UnreconciledTransferResolutionType? @map("resolution_type")
+  resolvedOrderId    String?                             @map("resolved_order_id")
+  // Set when resolutionType is WALLET_TOPUP — the customer whose wallet was credited for this
+  // transfer's amount (e.g. "customer paid by transfer for a wallet top-up, not an order").
+  resolvedCustomerId String?                             @map("resolved_customer_id")
+  resolvedById       String?                             @map("resolved_by")
+  resolvedAt         DateTime?                           @map("resolved_at")
   // Free-text reason when marked IGNORED (e.g. "customer sent for something unrelated to an order").
-  resolutionNotes String?   @map("resolution_notes")
+  resolutionNotes    String?                             @map("resolution_notes")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  resolvedOrder Order?       @relation(fields: [resolvedOrderId], references: [id])
-  resolvedBy    User?        @relation("ResolvedUnreconciledTransfer", fields: [resolvedById], references: [id])
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  resolvedOrder    Order?       @relation(fields: [resolvedOrderId], references: [id])
+  resolvedCustomer Customer?    @relation(fields: [resolvedCustomerId], references: [id])
+  resolvedBy       User?        @relation("ResolvedUnreconciledTransfer", fields: [resolvedById], references: [id])
 
   @@index([organizationId])
   @@index([status])

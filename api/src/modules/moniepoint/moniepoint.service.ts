@@ -10,6 +10,7 @@ import { OrderStatus, Prisma } from '@prisma/client';
 import { createHmac } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { WalletService } from '../wallet/wallet.service';
 import { encryptSecret, decryptSecret } from '../../common';
 import { SetupMoniepointDto } from './dto';
 
@@ -70,6 +71,7 @@ export class MoniepointService {
     private configService: ConfigService,
     private prisma: PrismaService,
     private inventoryService: InventoryService,
+    private walletService: WalletService,
   ) {
     this.baseUrl = this.configService.get<string>('moniepoint.baseUrl') || 'https://channel.moniepoint.com';
     this.posApiBaseUrl = this.configService.get<string>('moniepoint.posApiBaseUrl') || 'https://api.pos.moniepoint.com';
@@ -442,11 +444,17 @@ export class MoniepointService {
 
     const candidates = await this.prisma.order.findMany({
       where: { organizationId: organization.id, status: { in: PAYABLE_STATUSES } },
+      include: { table: { select: { name: true } } },
     });
     const amountKobo = Math.round(amount * 100);
     const matches = candidates.filter(
       (o) => Math.abs(Math.round((Number(o.total) - Number(o.amountPaid)) * 100) - amountKobo) <= TRANSFER_AMOUNT_TOLERANCE_KOBO,
     );
+    // Table name (falling back to the order source, e.g. "Hotel Room Service") plus the
+    // outstanding balance — an order has no human-facing short code, only a UUID `id`, so this is
+    // what actually lets a human reviewing matchReason tell two ambiguous candidates apart.
+    const describeOrderForReview = (o: (typeof matches)[number]) =>
+      `${o.table?.name ?? o.source} (₦${(Number(o.total) - Number(o.amountPaid)).toLocaleString()} due)`;
 
     this.logger.log(
       `Transfer reconciliation for org ${organization.id}: amount=${amount} ref=${transactionReference ?? 'none'} — ` +
@@ -458,7 +466,7 @@ export class MoniepointService {
       const matchReason =
         matches.length === 0
           ? 'No matching order'
-          : `Ambiguous — multiple matching orders: ${matches.map((o) => o.id).join(', ')}`;
+          : `Ambiguous — multiple matching orders: ${matches.map(describeOrderForReview).join(', ')}`;
       this.logger.warn(
         matches.length === 0
           ? `Transfer of ₦${amount} for org ${organization.id} matched no open order — needs manual reconciliation.`
@@ -562,6 +570,7 @@ export class MoniepointService {
       orderBy: { createdAt: 'desc' },
       include: {
         resolvedOrder: { select: { id: true, source: true, total: true, table: { select: { name: true } } } },
+        resolvedCustomer: { select: { id: true, name: true } },
         resolvedBy: { select: { id: true, firstName: true, lastName: true } },
       },
     });
@@ -585,7 +594,43 @@ export class MoniepointService {
 
     return this.prisma.moniepointUnreconciledTransfer.update({
       where: { id },
-      data: { status: 'RESOLVED', resolvedOrderId: orderId, resolvedById: userId, resolvedAt: new Date() },
+      data: { status: 'RESOLVED', resolutionType: 'ORDER', resolvedOrderId: orderId, resolvedById: userId, resolvedAt: new Date() },
+    });
+  }
+
+  // For a transfer that isn't for any order — the customer was topping up their wallet balance
+  // by bank transfer rather than paying for an order. Credits the transfer's amount straight to
+  // their wallet (same ledger WalletService.topUp uses for a CASH/CARD top-up), so the money is
+  // actually accounted for rather than just dismissed.
+  async resolveUnreconciledTransferToWallet(organizationId: string, id: string, customerId: string, userId: string, notes?: string) {
+    const transfer = await this.prisma.moniepointUnreconciledTransfer.findFirst({ where: { id, organizationId } });
+    if (!transfer) {
+      throw new NotFoundException('Unreconciled transfer not found');
+    }
+    if (transfer.status !== 'PENDING_REVIEW') {
+      throw new BadRequestException(`This transfer is already ${transfer.status.toLowerCase()}`);
+    }
+
+    await this.walletService.topUp(organizationId, customerId, userId, {
+      amount: Number(transfer.amount),
+      paymentMethod: 'BANK_TRANSFER',
+      reference: transfer.transactionReference ?? undefined,
+      notes: notes ?? 'Wallet top-up via unreconciled Moniepoint transfer',
+      // Deterministic from the transfer being resolved exactly once, rather than a fresh UUID —
+      // a retry of this same resolve call (e.g. a dropped response) can't double-credit the wallet.
+      clientRequestId: id,
+    });
+
+    return this.prisma.moniepointUnreconciledTransfer.update({
+      where: { id },
+      data: {
+        status: 'RESOLVED',
+        resolutionType: 'WALLET_TOPUP',
+        resolvedCustomerId: customerId,
+        resolvedById: userId,
+        resolvedAt: new Date(),
+        resolutionNotes: notes,
+      },
     });
   }
 
@@ -600,7 +645,7 @@ export class MoniepointService {
 
     return this.prisma.moniepointUnreconciledTransfer.update({
       where: { id },
-      data: { status: 'IGNORED', resolvedById: userId, resolvedAt: new Date(), resolutionNotes: notes },
+      data: { status: 'IGNORED', resolutionType: 'OTHER', resolvedById: userId, resolvedAt: new Date(), resolutionNotes: notes },
     });
   }
 

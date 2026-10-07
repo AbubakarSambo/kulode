@@ -8,7 +8,8 @@ import { isPinEligible } from '@/lib/pin'
 import { Logo } from '@/components/shared'
 import { useSubscription } from '@/hooks/useSubscription'
 import { useOrgModules, usePosMode } from '@/hooks/useOrgModules'
-import type { PlanTier, UserRole } from '@/types'
+import { getRestrictedHrefsUnion } from '@/lib/posRoleNav'
+import type { PlanTier } from '@/types'
 import {
   DashboardIcon,
   ClientsIcon,
@@ -173,49 +174,10 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   // nav items are hidden the same way INVOICING_ONLY_HREFS is hidden for POS-only orgs.
   const RESTAURANT_ONLY_HREFS = ['/pos/tables', '/pos/kitchen', '/pos/drinks', '/pos/menu', '/pos/categories', '/pos/order-types']
 
-  // Waiters handle selling, order tracking, customer lookup, and the table list
-  const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/customers', '/pos/tables', '/pos/reports']
-
-  // Pass/Runner are kitchen-only roles — the ticket board is the only page they can see
-  const KITCHEN_ALLOWED_HREFS = ['/pos/kitchen', '/pos/drinks', '/pos/reports']
-
-  // Cashiers can also sell, close out orders and take payment, manage the table list, and view/add
-  // menu items and categories (not edit/delete — that stays admin-only) — no waiter management or
-  // analytics beyond reports
-  const CASHIER_ALLOWED_HREFS = [
-    '/pos/order/new',
-    '/pos/orders',
-    '/pos/customers',
-    '/pos/shift',
-    '/pos/tables',
-    '/pos/reports',
-    '/pos/menu',
-    '/pos/categories',
-    '/pos/unreconciled-transfers',
-    '/pos/payments',
-  ]
-
-  // Supervisors get floor oversight (orders, customers, shift, kitchen) but not menu/category
-  // editing or user management (staff roster lives entirely on the admin-only Users page).
-  const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/kitchen', '/pos/drinks', '/pos/reports', '/pos/unreconciled-transfers']
-
-  // Roles that get a tight nav allowlist rather than the broader access every other role has.
-  // A user with multiple roles sees the UNION of what each individually unlocks — e.g. a
-  // Waiter+Pass user sees Sell/Orders/Customers AND the kitchen board. But if ANY assigned role
-  // is unrestricted (not in this map), that's already a superset of these allowlists, so the
-  // tight filtering is skipped entirely in favor of the normal broader rules below.
-  const RESTRICTED_ROLE_HREFS: Partial<Record<UserRole, string[]>> = {
-    WAITER: WAITER_ALLOWED_HREFS,
-    PASS: KITCHEN_ALLOWED_HREFS,
-    RUNNER: KITCHEN_ALLOWED_HREFS,
-    KITCHEN: KITCHEN_ALLOWED_HREFS,
-    CASHIER: CASHIER_ALLOWED_HREFS,
-    SUPERVISOR: SUPERVISOR_ALLOWED_HREFS,
-  }
-  const hasUnrestrictedRole = userRoles.some((r) => !(r in RESTRICTED_ROLE_HREFS))
-  const restrictedHrefsUnion = hasUnrestrictedRole
-    ? null
-    : Array.from(new Set(userRoles.flatMap((r) => RESTRICTED_ROLE_HREFS[r] ?? [])))
+  // Role → allowed-hrefs lists live in posRoleNav.ts, shared with AppLayout.tsx (mobile bottom
+  // dock), so the two can't silently drift apart the way they already have twice — see that
+  // file's header comment for the incident history.
+  const restrictedHrefsUnion = getRestrictedHrefsUnion(userRoles)
 
   // Filter groups and items
   const filteredNavGroups = navigationGroups
@@ -224,7 +186,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       ...group,
       items: group.items.filter((item) => {
         if (isRetail && RESTAURANT_ONLY_HREFS.includes(item.href)) return false
-        if (restrictedHrefsUnion) return restrictedHrefsUnion.includes(item.href)
+        if (restrictedHrefsUnion) return (restrictedHrefsUnion as string[]).includes(item.href)
         if (INVOICING_ONLY_HREFS.includes(item.href) && !hasInvoicing) return false
         if ((item.href === '/reports' || item.href === '/ai-chat') && !canViewReports) return false
         if (item.href === '/pos/ai-chat' && !isAdmin) return false

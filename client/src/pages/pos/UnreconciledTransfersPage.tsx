@@ -4,9 +4,9 @@ import { toast } from 'sonner'
 import { Landmark } from 'lucide-react'
 import { BankIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
-import { Button, Card, CardContent, EmptyState, SearchableSelect, Textarea } from '@/components/ui'
+import { Button, Card, CardContent, EmptyState, SearchableSelect, Select, Textarea } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
-import { ordersApi } from '@/api'
+import { ordersApi, customersApi } from '@/api'
 import { moniepointApi } from '@/api/moniepoint'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
 import type { MoniepointUnreconciledTransfer } from '@/api/moniepoint'
@@ -17,9 +17,13 @@ import type { MoniepointUnreconciledTransfer } from '@/api/moniepoint'
 export function UnreconciledTransfersPage() {
   const queryClient = useQueryClient()
   const [assignTarget, setAssignTarget] = useState<MoniepointUnreconciledTransfer | null>(null)
+  const [walletTarget, setWalletTarget] = useState<MoniepointUnreconciledTransfer | null>(null)
   const [ignoreTarget, setIgnoreTarget] = useState<MoniepointUnreconciledTransfer | null>(null)
   const [selectedOrderId, setSelectedOrderId] = useState('')
   const [orderSearch, setOrderSearch] = useState('')
+  const [selectedCustomerId, setSelectedCustomerId] = useState('')
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [walletNotes, setWalletNotes] = useState('')
   const [ignoreNotes, setIgnoreNotes] = useState('')
 
   const { data: transfers, isLoading } = useQuery({
@@ -42,6 +46,16 @@ export function UnreconciledTransfersPage() {
     label: `${o.table?.name ?? o.source} — ${formatCurrency(Number(o.total) - Number(o.amountPaid))} due`,
   }))
 
+  const { data: customersPage } = useQuery({
+    queryKey: ['customers', { search: customerSearch }],
+    queryFn: () => customersApi.list({ search: customerSearch || undefined, limit: 50 }),
+    enabled: !!walletTarget,
+  })
+  const customerOptions = (customersPage?.data ?? []).map((c) => ({
+    id: c.id,
+    label: c.phone ? `${c.name} — ${c.phone}` : c.name,
+  }))
+
   const assignMutation = useMutation({
     mutationFn: ({ id, orderId }: { id: string; orderId: string }) => moniepointApi.assignUnreconciledTransfer(id, orderId),
     onSuccess: () => {
@@ -53,6 +67,22 @@ export function UnreconciledTransfersPage() {
     onError: (err: unknown) => {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
       toast.error(message || 'Failed to apply transfer')
+    },
+  })
+
+  const walletMutation = useMutation({
+    mutationFn: ({ id, customerId, notes }: { id: string; customerId: string; notes?: string }) =>
+      moniepointApi.resolveUnreconciledTransferToWallet(id, customerId, notes),
+    onSuccess: () => {
+      toast.success('Transfer credited to customer wallet')
+      queryClient.invalidateQueries({ queryKey: ['moniepoint-unreconciled-transfers'] })
+      setWalletTarget(null)
+      setSelectedCustomerId('')
+      setWalletNotes('')
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to credit wallet')
     },
   })
 
@@ -101,14 +131,26 @@ export function UnreconciledTransfersPage() {
                       )}
                       <div className="mt-2 text-xs text-muted-foreground">{formatDateTime(t.createdAt)}</div>
                     </div>
-                    <div className="flex shrink-0 gap-2">
-                      <Button variant="outline" size="sm" onClick={() => setIgnoreTarget(t)}>
-                        Ignore
-                      </Button>
-                      <Button size="sm" onClick={() => setAssignTarget(t)}>
-                        Apply to Order
-                      </Button>
-                    </div>
+                    {/* A single resolve-as dropdown rather than one button per path — wallet top-up and
+                        "other" are just as valid an outcome as an order match, not an afterthought
+                        next to a primary "Apply to Order" action. */}
+                    <Select
+                      className="w-auto min-w-[11rem] shrink-0"
+                      value=""
+                      onChange={(e) => {
+                        const action = e.target.value
+                        if (action === 'order') setAssignTarget(t)
+                        else if (action === 'wallet') setWalletTarget(t)
+                        else if (action === 'other') setIgnoreTarget(t)
+                      }}
+                    >
+                      <option value="" disabled>
+                        Resolve as…
+                      </option>
+                      <option value="order">Apply to Order</option>
+                      <option value="wallet">Wallet Top-up</option>
+                      <option value="other">Other / Ignore</option>
+                    </Select>
                   </div>
                 </CardContent>
               </Card>
@@ -139,6 +181,39 @@ export function UnreconciledTransfersPage() {
             onClick={() => assignTarget && assignMutation.mutate({ id: assignTarget.id, orderId: selectedOrderId })}
           >
             Apply
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={!!walletTarget} onClose={() => setWalletTarget(null)} title="Credit Customer Wallet">
+        <div className="space-y-4">
+          {walletTarget && (
+            <p className="text-sm text-muted-foreground">
+              Crediting <span className="font-semibold text-foreground">{formatCurrency(Number(walletTarget.amount))}</span> to the
+              selected customer's wallet — not tied to any order.
+            </p>
+          )}
+          <SearchableSelect
+            options={customerOptions}
+            value={selectedCustomerId}
+            onChange={setSelectedCustomerId}
+            onSearchChange={setCustomerSearch}
+            placeholder="Search customers by name or phone…"
+          />
+          <Textarea
+            placeholder="Optional note (e.g. sender detail that identified the customer)"
+            value={walletNotes}
+            onChange={(e) => setWalletNotes(e.target.value)}
+          />
+          <Button
+            className="w-full"
+            disabled={!selectedCustomerId}
+            isLoading={walletMutation.isPending}
+            onClick={() =>
+              walletTarget && walletMutation.mutate({ id: walletTarget.id, customerId: selectedCustomerId, notes: walletNotes || undefined })
+            }
+          >
+            Credit Wallet
           </Button>
         </div>
       </Modal>

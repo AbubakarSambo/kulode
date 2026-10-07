@@ -45,7 +45,8 @@ import { useSubscription } from '@/hooks/useSubscription'
 import { useOrgModules } from '@/hooks/useOrgModules'
 import { cn } from '@/lib/utils'
 import { isPinEligible } from '@/lib/pin'
-import type { PlanTier, UserRole } from '@/types'
+import { getRestrictedHrefsUnion, type AllowedHref } from '@/lib/posRoleNav'
+import type { PlanTier } from '@/types'
 
 export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -91,31 +92,15 @@ export function AppLayout() {
   }
 
   const userRoles = user?.roles ?? []
-  // Waiters only handle selling, order tracking, and customer lookup; Pass/Runner only see the
-  // kitchen ticket board. A user with multiple roles gets the UNION of what each unlocks — same
-  // logic as Sidebar.tsx, kept in lockstep since this is the parallel mobile-nav rendering.
-  const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/customers', '/pos/tables', '/pos/reports']
-  const KITCHEN_ALLOWED_HREFS = ['/pos/kitchen', '/pos/drinks', '/pos/reports']
-  // Cashiers close out orders and take payment, and can now manage the table list — no need for
-  // menu/waiter management or analytics
-  const CASHIER_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/tables', '/pos/reports', '/pos/payments', '/pos/unreconciled-transfers']
-  // Supervisors get floor oversight but not menu/category editing, or user management (staff
-  // roster lives entirely on the admin-only Users page).
-  const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/kitchen', '/pos/drinks', '/pos/reports', '/pos/unreconciled-transfers']
-  const RESTRICTED_ROLE_HREFS: Partial<Record<UserRole, string[]>> = {
-    WAITER: WAITER_ALLOWED_HREFS,
-    PASS: KITCHEN_ALLOWED_HREFS,
-    RUNNER: KITCHEN_ALLOWED_HREFS,
-    KITCHEN: KITCHEN_ALLOWED_HREFS,
-    CASHIER: CASHIER_ALLOWED_HREFS,
-    SUPERVISOR: SUPERVISOR_ALLOWED_HREFS,
-  }
-  const hasUnrestrictedRole = userRoles.some((r) => !(r in RESTRICTED_ROLE_HREFS))
-  const restrictedHrefsUnion = hasUnrestrictedRole
-    ? null
-    : Array.from(new Set(userRoles.flatMap((r) => RESTRICTED_ROLE_HREFS[r] ?? [])))
 
-  const RESTRICTED_NAV_ITEMS_BY_HREF: Record<string, { name: string; icon: typeof ShoppingCart }> = {
+  // Role → allowed-hrefs lists live in posRoleNav.ts, shared with Sidebar.tsx, so the two can't
+  // drift apart the way they already have twice (see that file's header comment for the incident
+  // history). The icon/name lookup below is typed as `Record<AllowedHref, ...>` — every href any
+  // role list can produce MUST have an entry here, or it's a compile error, not a silent
+  // `undefined` icon crash in production.
+  const restrictedHrefsUnion = getRestrictedHrefsUnion(userRoles)
+
+  const RESTRICTED_NAV_ITEMS_BY_HREF: Record<AllowedHref, { name: string; icon: typeof ShoppingCart }> = {
     '/pos/order/new': { name: 'Sell', icon: ShoppingCart },
     '/pos/orders': { name: 'Orders', icon: Receipt },
     '/pos/tables': { name: 'Tables', icon: LayoutGrid },
@@ -126,6 +111,8 @@ export function AppLayout() {
     '/pos/reports': { name: 'POS Reports', icon: Receipt },
     '/pos/payments': { name: 'Payments', icon: CreditCard },
     '/pos/unreconciled-transfers': { name: 'Transfers', icon: Landmark },
+    '/pos/menu': { name: 'Menu', icon: ChefHat },
+    '/pos/categories': { name: 'Categories', icon: Tag },
   }
 
   const navItems = restrictedHrefsUnion
@@ -225,7 +212,7 @@ export function AppLayout() {
     .map((group) => ({
       ...group,
       items: group.items.filter((item) =>
-        restrictedHrefsUnion ? restrictedHrefsUnion.includes(item.href) : item.visible !== false,
+        restrictedHrefsUnion ? (restrictedHrefsUnion as string[]).includes(item.href) : item.visible !== false,
       ),
     }))
     .filter((group) => group.items.length > 0)
