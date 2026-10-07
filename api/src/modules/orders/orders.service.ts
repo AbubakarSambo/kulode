@@ -23,7 +23,7 @@ import {
   ApplyDiscountDto,
   ReassignOrderPaymentDto,
 } from './dto';
-import { paginate, runIdempotent } from '../../common';
+import { paginate, runIdempotent, resolvePayment } from '../../common';
 
 const OPEN_STATUSES: OrderStatus[] = [OrderStatus.OPEN, OrderStatus.IN_KITCHEN, OrderStatus.READY];
 // CLOSED_UNPAID means "a waiter marked this ready for payment, a cashier hasn't taken it yet" —
@@ -1393,8 +1393,11 @@ export class OrdersService {
     if (amount > remaining + 0.01) {
       throw new BadRequestException(`Amount exceeds the remaining balance of ${remaining}`);
     }
-    const isFinalPayment = amount >= remaining - 0.01;
-    const newAmountPaid = Math.round((toNumber(order.amountPaid) + amount) * 100) / 100;
+    // A payment landing within ₦1 of the full remaining balance closes the order outright — see
+    // resolvePayment's own comment; the sub-₦1 shortfall is written off rather than left as a
+    // stray balance the order can never otherwise close out (nobody's chasing down kobo change).
+    const rawAmountPaid = Math.round((toNumber(order.amountPaid) + amount) * 100) / 100;
+    const { amountPaid: newAmountPaid, isComplete: isFinalPayment, writeOff } = resolvePayment(rawAmountPaid, toNumber(order.total));
 
     return runIdempotent(this.prisma, organizationId, 'ORDER_CLOSE', clientRequestId, async (tx) => {
       // Conditional update guards against a concurrent close/cancel racing past the check above —
@@ -1422,7 +1425,10 @@ export class OrdersService {
           paymentMethod: dto.paymentMethod,
           paymentDate: new Date(),
           reference: dto.reference,
-          notes: dto.notes,
+          notes:
+            writeOff > 0
+              ? [dto.notes, `₦${writeOff} shortfall written off (within tolerance)`].filter(Boolean).join(' — ')
+              : dto.notes,
         },
       });
 

@@ -11,7 +11,7 @@ import { createHmac } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { WalletService } from '../wallet/wallet.service';
-import { encryptSecret, decryptSecret } from '../../common';
+import { encryptSecret, decryptSecret, resolvePayment } from '../../common';
 import { SetupMoniepointDto } from './dto';
 
 // Confirmed from Moniepoint's "Webhooks" developer docs. Purchases specifically — see
@@ -591,8 +591,12 @@ export class MoniepointService {
     // order, which the manual "Apply to Order" flow (assignUnreconciledTransfer) makes easy to hit.
     const outstandingBefore = Number(order.total) - Number(order.amountPaid);
     const varianceKobo = Math.round(outstandingBefore * 100) - Math.round(amount * 100);
-    const newAmountPaid = Math.round((Number(order.amountPaid) + amount) * 100) / 100;
-    const isFinalPayment = newAmountPaid >= Number(order.total) - 0.01;
+    const rawAmountPaid = Math.round((Number(order.amountPaid) + amount) * 100) / 100;
+    // A bank transfer this close to the full balance is treated as paid in full — the till rarely
+    // moves exact kobo, and the restaurant doesn't chase a sub-₦1 remainder. See resolvePayment's
+    // own comment; `amount` (what was actually received) still gets recorded as-is on the Payment
+    // row below, only the Order's amountPaid/status reflect the write-off.
+    const { amountPaid: newAmountPaid, isComplete: isFinalPayment, writeOff } = resolvePayment(rawAmountPaid, Number(order.total));
     await this.prisma.$transaction(async (tx) => {
       const result = await tx.order.updateMany({
         where: { id: order.id, status: { in: PAYABLE_STATUSES } },
@@ -615,10 +619,12 @@ export class MoniepointService {
             result.count === 0
               ? 'Received after order was already closed/cancelled — needs manual review'
               : !isFinalPayment
-                ? `Partial payment — ₦${newAmountPaid} of ₦${order.total} paid so far`
-                : varianceKobo !== 0
-                  ? `${recordedById ? 'Manually reconciled' : 'Auto-reconciled within tolerance'} — received ₦${amount}, outstanding was ₦${outstandingBefore} (₦${Math.abs(varianceKobo) / 100} ${varianceKobo > 0 ? 'short' : 'over'})`
-                  : undefined,
+                ? `Partial payment — ₦${rawAmountPaid} of ₦${order.total} paid so far`
+                : writeOff > 0
+                  ? `Received ₦${amount} — ₦${writeOff} shortfall written off (within tolerance)`
+                  : varianceKobo !== 0
+                    ? `${recordedById ? 'Manually reconciled' : 'Auto-reconciled within tolerance'} — received ₦${amount}, outstanding was ₦${outstandingBefore} (₦${Math.abs(varianceKobo) / 100} ${varianceKobo > 0 ? 'short' : 'over'})`
+                    : undefined,
         },
       });
 
