@@ -46,11 +46,14 @@ export class PaymentsService {
         where,
         skip,
         take: limit,
-        orderBy: { paymentDate: 'desc' },
+        // paymentDate is date-only (@db.Date) — every payment made today ties on it, so without a
+        // secondary key same-day rows have no guaranteed order even though the UI shows their
+        // actual time via createdAt. This keeps the two in sync.
+        orderBy: [{ paymentDate: 'desc' }, { createdAt: 'desc' }],
         include: {
           invoice: {
-            select: { 
-              id: true, 
+            select: {
+              id: true,
               invoiceNumber: true, 
               total: true,
               client: {
@@ -102,7 +105,8 @@ export class PaymentsService {
         where,
         skip,
         take: limit,
-        orderBy: { paymentDate: 'desc' },
+        // See findAll's comment on this same pairing — paymentDate alone ties within a day.
+        orderBy: [{ paymentDate: 'desc' }, { createdAt: 'desc' }],
         include: {
           order: {
             select: {
