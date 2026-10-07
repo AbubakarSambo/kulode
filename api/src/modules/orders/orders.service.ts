@@ -484,6 +484,7 @@ export class OrdersService {
         where: { id },
         data: {
           ...totals,
+          itemsModifiedAt: new Date(),
           ...(reopening && { status: OrderStatus.OPEN, closedAt: null }),
         },
         include: this.orderInclude,
@@ -738,7 +739,7 @@ export class OrdersService {
           order.entertainmentTaxApplied,
           order.serviceChargeApplied,
         );
-        await tx.order.update({ where: { id: orderId }, data: totals });
+        await tx.order.update({ where: { id: orderId }, data: { ...totals, itemsModifiedAt: new Date() } });
       }
 
       return tx.order.findUniqueOrThrow({ where: { id: orderId }, include: this.orderInclude });
@@ -1124,7 +1125,7 @@ export class OrdersService {
         destEntertainmentApplied,
         destServiceChargeApplied,
       );
-      await tx.order.update({ where: { id: destination.id }, data: destTotals });
+      await tx.order.update({ where: { id: destination.id }, data: { ...destTotals, itemsModifiedAt: new Date() } });
 
       const remainingCount = await tx.orderItem.count({ where: { orderId: sourceOrderId } });
       const sourceResult = await tx.order.updateMany({
@@ -1132,14 +1133,17 @@ export class OrdersService {
         data:
           remainingCount === 0
             ? { status: 'CANCELLED', notes: source.notes ? `${source.notes} — items moved to order ${destination.id}` : `Items moved to order ${destination.id}` }
-            : await this.recomputeOrderTotals(
-                tx,
-                sourceOrderId,
-                organization,
-                source.vatApplied,
-                source.entertainmentTaxApplied,
-                source.serviceChargeApplied,
-              ),
+            : {
+                ...(await this.recomputeOrderTotals(
+                  tx,
+                  sourceOrderId,
+                  organization,
+                  source.vatApplied,
+                  source.entertainmentTaxApplied,
+                  source.serviceChargeApplied,
+                )),
+                itemsModifiedAt: new Date(),
+              },
       });
       if (sourceResult.count === 0) {
         throw new BadRequestException('This order is no longer available');

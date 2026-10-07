@@ -1425,9 +1425,15 @@ model Order {
   discountAppliedById String? @map("discount_applied_by")
   discountAppliedBy   User?   @relation("OrderDiscountAppliedBy", fields: [discountAppliedById], references: [id], onDelete: SetNull)
 
-  closedAt  DateTime? @map("closed_at")
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
+  closedAt        DateTime? @map("closed_at")
+  // Set only when a waiter adds/edits/removes an item on an order already sent to the kitchen —
+  // deliberately separate from `updatedAt`, which also bumps on the kitchen's own per-item status
+  // taps (Pending -> On It -> Served) and would otherwise make a ticket jump the queue just from
+  // being worked on. The kitchen board sorts by whichever of createdAt/this is more recent, so a
+  // genuinely-modified order floats back to the top without reshuffling on ordinary progress.
+  itemsModifiedAt DateTime? @map("items_modified_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   // Relations
   organization                    Organization                     @relation(fields: [organizationId], references: [id], onDelete: Cascade)

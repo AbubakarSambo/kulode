@@ -571,6 +571,10 @@ export interface Order {
   closedAt?: string
   createdAt: string
   updatedAt: string
+  // Set only when a waiter adds/edits/removes an item after the order was placed — distinct from
+  // `updatedAt`, which also bumps on the kitchen's own per-item status taps. Used by the kitchen
+  // board to float a genuinely-modified order back to the top without reshuffling on every tap.
+  itemsModifiedAt?: string | null
   items: OrderItem[]
   payments: OrderPayment[]
 }

@@ -210,6 +210,13 @@ function TicketCard({ order, items, now }: { order: Order; items: OrderItem[]; n
   const waiterName = order.waiter ? `${order.waiter.firstName} ${order.waiter.lastName}` : undefined
   const waiterOrTable = [waiterName, order.table?.name].filter(Boolean).join(' · ') || '—'
   const placedAt = new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  // Who actually placed the order — not always the waiter it's assigned to (e.g. a host or
+  // cashier can create it on a waiter's behalf), so shown as its own line rather than folded
+  // into waiterOrTable.
+  const createdByName = order.createdBy ? `${order.createdBy.firstName} ${order.createdBy.lastName}` : undefined
+  // Only set by a waiter-side item add/edit/remove after the order was placed — never by the
+  // kitchen's own status taps — so this only lights up for a real modification (see Order type).
+  const wasModified = !!order.itemsModifiedAt
 
   return (
     <Card className="w-full overflow-hidden p-0">
@@ -287,8 +294,12 @@ function TicketCard({ order, items, now }: { order: Order; items: OrderItem[]; n
         {/* Timer / order type / waiter+table, anchored to the right */}
         <div className="flex flex-row items-center gap-3 border-t border-border pt-3 sm:ml-auto sm:flex-col sm:items-end sm:gap-2 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0 sm:text-right">
           <CountdownTimer order={order} items={items} now={now} />
-          <Badge variant="default">{order.source}</Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="default">{order.source}</Badge>
+            {wasModified && <Badge variant="warning">Updated</Badge>}
+          </div>
           <div className="text-xs font-semibold text-muted-foreground">{waiterOrTable}</div>
+          {createdByName && <div className="text-xs text-muted-foreground">By {createdByName}</div>}
           <div className="text-xs text-muted-foreground">Placed {placedAt}</div>
         </div>
       </CardContent>
@@ -328,14 +339,21 @@ export function StationTicketsPage({
     refetchInterval: 5_000,
   })
 
+  // Newest-activity first — a brand-new ticket, or one a waiter just added/edited an item on,
+  // needs to land where staff are already looking, not off the bottom of an already-full board.
+  // Deliberately NOT `order.updatedAt` — that also bumps on the kitchen's own per-item status taps
+  // (Pending -> On It -> Served), which would otherwise reshuffle the board just from being worked
+  // on. `itemsModifiedAt` only moves on an actual waiter-side item change (see Order's schema
+  // comment), so ordinary progress doesn't jump a ticket back to the top.
+  const ticketActivityTime = (order: Order) =>
+    Math.max(new Date(order.createdAt).getTime(), order.itemsModifiedAt ? new Date(order.itemsModifiedAt).getTime() : 0)
+
   const tickets = useMemo(() => {
     const merged = data?.data ?? []
     return merged
       .map((order) => ({ order, items: order.items.filter((item) => itemStation(item) === station) }))
       .filter((t) => t.items.length > 0)
-      // Newest first — a brand-new ticket needs to land where staff are already looking, not off
-      // the bottom of an already-full board.
-      .sort((a, b) => new Date(b.order.createdAt).getTime() - new Date(a.order.createdAt).getTime())
+      .sort((a, b) => ticketActivityTime(b.order) - ticketActivityTime(a.order))
   }, [data, station])
 
   // "New order" sound — a distinct chime plays whenever an order id shows up on this station's
