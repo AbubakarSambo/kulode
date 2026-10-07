@@ -62,7 +62,7 @@ function OrderDetailPanel({ orderId }: { orderId: string }) {
           {order.payments.map((p) => (
             <div key={p.id} className="flex items-center justify-between text-xs text-muted-foreground">
               <span>
-                {formatPaymentMethod(p.paymentMethod)} · {formatDateTime(p.paymentDate)}
+                {formatPaymentMethod(p.paymentMethod)} · {formatDateTime(p.createdAt)}
               </span>
               <span>{formatCurrency(p.amount)}</span>
             </div>
