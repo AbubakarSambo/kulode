@@ -226,14 +226,15 @@ model Organization {
   settlementBank         String? @map("settlement_bank")
   isPaystackVerified     Boolean @default(false) @map("is_paystack_verified")
 
-  // Moniepoint POS terminal push-to-pay — the restaurant's own physical terminal and their own
-  // Moniepoint business account (ERP integration), not a Tarione-owned credential. clientSecret
-  // is encrypted at rest (see EncryptionService); clientId/terminalSerial are not secret but are
-  // meaningless without it. accessToken/accessTokenExpiresAt cache the OAuth token from POST
+  // Moniepoint POS terminal push-to-pay — the restaurant's own Moniepoint business account (ERP
+  // integration), not a Tarione-owned credential. One business account (clientId/clientSecret/
+  // businessId) can have several physical terminals under it — see MoniepointTerminal — so the
+  // terminal serial itself is NOT stored here (moved off this model when multi-terminal support
+  // was added; see that model's header comment). clientSecret is encrypted at rest (see
+  // EncryptionService). accessToken/accessTokenExpiresAt cache the OAuth token from POST
   // /v1/auth so we don't re-authenticate on every push.
   moniepointClientId               String?   @map("moniepoint_client_id")
   moniepointClientSecretEncrypted  String?   @map("moniepoint_client_secret_encrypted")
-  moniepointTerminalSerial         String?   @map("moniepoint_terminal_serial")
   moniepointAccessToken            String?   @map("moniepoint_access_token")
   moniepointAccessTokenExpiresAt   DateTime? @map("moniepoint_access_token_expires_at")
   // businessId (integer) is separate from clientId — required by POST /v1/webhook-subscriptions.
@@ -352,6 +353,7 @@ model Organization {
   sheetSyncQueue                  SheetSyncQueueEntry[]
   printers                        Printer[]
   moniepointTransactions          MoniepointTransaction[]
+  moniepointTerminals             MoniepointTerminal[]
   moniepointUnreconciledTransfers MoniepointUnreconciledTransfer[]
 
   @@map("organizations")
@@ -745,6 +747,28 @@ model MoniepointTransaction {
   @@index([organizationId])
   @@index([orderId])
   @@map("moniepoint_transactions")
+}
+
+// A physical card terminal under the org's single Moniepoint business account (credentials stay
+// on Organization — see its header comment). A business can have several of these (front counter,
+// bar, etc); pushOrderPayment takes a terminalId and looks up its serial here instead of reading
+// a single serial off the org row.
+model MoniepointTerminal {
+  id             String  @id @default(uuid())
+  organizationId String  @map("organization_id")
+  serial         String
+  label          String
+  isActive       Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, serial])
+  @@index([organizationId])
+  @@map("moniepoint_terminals")
 }
 
 enum MoniepointUnreconciledTransferStatus {

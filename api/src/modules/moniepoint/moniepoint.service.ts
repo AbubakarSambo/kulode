@@ -113,9 +113,12 @@ export class MoniepointService {
 
   /**
    * Restaurant self-onboarding: they enable ERP integration on their own Moniepoint business
-   * console, generate a clientId/clientSecret scoped to their business, and copy their
-   * terminal's serial — none of this comes from Tarione. Overwrites any previous credentials
-   * and drops the cached token, since it was minted for the old clientId/clientSecret pair.
+   * console and generate a clientId/clientSecret scoped to their business — none of this comes
+   * from Tarione. One business account can have several physical terminals under it (see
+   * MoniepointTerminal), so no terminal serial is set here; add at least one via
+   * createTerminal/updateTerminal before a payment can actually be pushed. Overwrites any
+   * previous credentials and drops the cached token, since it was minted for the old
+   * clientId/clientSecret pair.
    */
   async setupCredentials(organizationId: string, dto: SetupMoniepointDto) {
     const organization = await this.prisma.organization.findUnique({ where: { id: organizationId } });
@@ -128,7 +131,6 @@ export class MoniepointService {
       data: {
         moniepointClientId: dto.clientId,
         moniepointClientSecretEncrypted: encryptSecret(dto.clientSecret, this.encryptionKey),
-        moniepointTerminalSerial: dto.terminalSerial,
         moniepointBusinessId: dto.businessId,
         moniepointAccessToken: null,
         moniepointAccessTokenExpiresAt: null,
@@ -143,7 +145,6 @@ export class MoniepointService {
       where: { id: organizationId },
       select: {
         moniepointClientId: true,
-        moniepointTerminalSerial: true,
         moniepointBusinessId: true,
         moniepointWebhookSubscriptionId: true,
         moniepointWebhookSecretEncrypted: true,
@@ -153,31 +154,92 @@ export class MoniepointService {
       throw new NotFoundException('Organization not found');
     }
 
+    const terminals = await this.listTerminals(organizationId);
+
     return {
       // businessId deliberately excluded — it's usually only known after subscribeToWebhook
       // auto-detects it from the access token, which happens after this is already "set up".
-      isSetup: !!(organization.moniepointClientId && organization.moniepointTerminalSerial),
-      terminalSerial: organization.moniepointTerminalSerial,
+      // Credentials and terminals are independent: isSetup reflects the business account only —
+      // a connected account with zero terminals still can't actually push a payment, which the
+      // frontend derives from `terminals` itself rather than a second combined flag here.
+      isSetup: !!organization.moniepointClientId,
+      terminals,
       isWebhookSubscribed: !!organization.moniepointWebhookSubscriptionId,
       hasWebhookSecret: !!organization.moniepointWebhookSecretEncrypted,
     };
   }
 
   async disconnect(organizationId: string) {
-    await this.prisma.organization.update({
-      where: { id: organizationId },
-      data: {
-        moniepointClientId: null,
-        moniepointClientSecretEncrypted: null,
-        moniepointTerminalSerial: null,
-        moniepointAccessToken: null,
-        moniepointAccessTokenExpiresAt: null,
-        moniepointBusinessId: null,
-        moniepointWebhookSecretEncrypted: null,
-        moniepointWebhookSubscriptionId: null,
-      },
-    });
+    await this.prisma.$transaction([
+      this.prisma.moniepointTerminal.deleteMany({ where: { organizationId } }),
+      this.prisma.organization.update({
+        where: { id: organizationId },
+        data: {
+          moniepointClientId: null,
+          moniepointClientSecretEncrypted: null,
+          moniepointAccessToken: null,
+          moniepointAccessTokenExpiresAt: null,
+          moniepointBusinessId: null,
+          moniepointWebhookSecretEncrypted: null,
+          moniepointWebhookSubscriptionId: null,
+        },
+      }),
+    ]);
 
+    return { success: true };
+  }
+
+  async listTerminals(organizationId: string) {
+    return this.prisma.moniepointTerminal.findMany({
+      where: { organizationId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async createTerminal(organizationId: string, serial: string, label: string) {
+    const organization = await this.prisma.organization.findUnique({ where: { id: organizationId } });
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+    if (!organization.moniepointClientId) {
+      throw new BadRequestException('Connect your Moniepoint business account before adding a terminal');
+    }
+
+    try {
+      return await this.prisma.moniepointTerminal.create({
+        data: { organizationId, serial, label },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new BadRequestException('A terminal with this serial is already registered for your organization');
+      }
+      throw error;
+    }
+  }
+
+  async updateTerminal(organizationId: string, id: string, data: { serial?: string; label?: string; isActive?: boolean }) {
+    const terminal = await this.prisma.moniepointTerminal.findFirst({ where: { id, organizationId } });
+    if (!terminal) {
+      throw new NotFoundException('Terminal not found');
+    }
+
+    try {
+      return await this.prisma.moniepointTerminal.update({ where: { id }, data });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new BadRequestException('A terminal with this serial is already registered for your organization');
+      }
+      throw error;
+    }
+  }
+
+  async removeTerminal(organizationId: string, id: string) {
+    const terminal = await this.prisma.moniepointTerminal.findFirst({ where: { id, organizationId } });
+    if (!terminal) {
+      throw new NotFoundException('Terminal not found');
+    }
+
+    await this.prisma.moniepointTerminal.delete({ where: { id } });
     return { success: true };
   }
 
@@ -683,13 +745,22 @@ export class MoniepointService {
    * transaction (202 Accepted); actual success/failure only arrives later via webhook (see
    * handleWebhookEvent), or — in mock mode — a simulated timer standing in for that webhook.
    */
-  async pushOrderPayment(organizationId: string, orderId: string, amount?: number) {
+  async pushOrderPayment(organizationId: string, orderId: string, terminalId: string, amount?: number) {
     const organization = await this.prisma.organization.findUnique({ where: { id: organizationId } });
     if (!organization) {
       throw new NotFoundException('Organization not found');
     }
-    if (!this.isMockMode && (!organization.moniepointClientId || !organization.moniepointClientSecretEncrypted || !organization.moniepointTerminalSerial)) {
+    if (!this.isMockMode && (!organization.moniepointClientId || !organization.moniepointClientSecretEncrypted)) {
       throw new BadRequestException('Moniepoint POS is not set up for this organization');
+    }
+
+    // A business account can have several terminals (front counter, bar, …) — the caller picks
+    // which physical device this push goes to. Still required in mock mode so the mock flow
+    // exercises the same terminal-ownership check real pushes get; mock orgs just need at least
+    // one terminal row created via createTerminal like any other org.
+    const terminal = await this.prisma.moniepointTerminal.findFirst({ where: { id: terminalId, organizationId, isActive: true } });
+    if (!terminal) {
+      throw new NotFoundException('Terminal not found');
     }
 
     const order = await this.prisma.order.findFirst({ where: { id: orderId, organizationId } });
@@ -708,7 +779,7 @@ export class MoniepointService {
     }
 
     const pushAmount = amount ?? Number(order.total) - Number(order.amountPaid);
-    const terminalSerial = organization.moniepointTerminalSerial || 'MOCK-TERMINAL';
+    const terminalSerial = terminal.serial;
     const merchantReference = `MNP-${order.id.slice(0, 8)}-${Date.now()}`;
 
     const transaction = await this.prisma.moniepointTransaction.create({
