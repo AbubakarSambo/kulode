@@ -355,6 +355,7 @@ model Organization {
   moniepointTransactions          MoniepointTransaction[]
   moniepointTerminals             MoniepointTerminal[]
   moniepointUnreconciledTransfers MoniepointUnreconciledTransfer[]
+  userMemberships                 UserOrganization[]
 
   @@map("organizations")
 }
@@ -410,8 +411,32 @@ model User {
   walletTransactions            WalletTransaction[]
   resolvedUnreconciledTransfers MoniepointUnreconciledTransfer[] @relation("ResolvedUnreconciledTransfer")
 
+  organizationMemberships       UserOrganization[]
+
   @@index([organizationId])
   @@map("users")
+}
+
+// Membership of a user in an organization, beyond their primary `User.organizationId`.
+// Lets one admin account hold access to multiple restaurants/organizations (e.g. a chain
+// owner) with independent roles per org, while `User.organizationId`/`User.roles` keep
+// serving as the "default/last-active org" for everything that isn't switch-aware yet.
+model UserOrganization {
+  id             String     @id @default(uuid())
+  userId         String     @map("user_id")
+  organizationId String     @map("organization_id")
+  roles          UserRole[] @default([STAFF])
+  isDefault      Boolean    @default(false) @map("is_default")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@map("user_organizations")
 }
 
 // Email verification and password setup tokens
