@@ -8,3 +8,4 @@ export * from './resend-verification.dto';
 export * from './forgot-password.dto';
 export * from './reset-password.dto';
 export * from './pin-login.dto';
+export * from './switch-organization.dto';

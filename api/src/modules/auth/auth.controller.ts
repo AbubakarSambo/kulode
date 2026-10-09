@@ -4,7 +4,7 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
-import { RegisterDto, LoginDto, AuthResponseDto, VerifyEmailDto, SetPasswordDto, ResendVerificationDto, ForgotPasswordDto, ResetPasswordDto, MagicLinkRegisterDto, PinLoginDto } from './dto';
+import { RegisterDto, LoginDto, AuthResponseDto, VerifyEmailDto, SetPasswordDto, ResendVerificationDto, ForgotPasswordDto, ResetPasswordDto, MagicLinkRegisterDto, PinLoginDto, SwitchOrganizationDto } from './dto';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { Public, CurrentUser, CurrentUserData } from '../../common';
 import { PosMode } from '@prisma/client';
@@ -161,6 +161,27 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getProfile(@CurrentUser() user: CurrentUserData) {
     return this.authService.getProfile(user.id);
+  }
+
+  @Get('my-organizations')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List organizations the current user can switch into' })
+  @ApiResponse({ status: 200, description: 'List of organization memberships' })
+  async getMyOrganizations(@CurrentUser() user: CurrentUserData) {
+    return this.authService.getMyOrganizations(user.id);
+  }
+
+  @Post('switch-org')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Switch the active organization for the current session' })
+  @ApiResponse({ status: 200, description: 'Switched successfully', type: AuthResponseDto })
+  @ApiResponse({ status: 401, description: 'Not a member of the requested organization' })
+  async switchOrganization(
+    @CurrentUser() user: CurrentUserData,
+    @Body() dto: SwitchOrganizationDto,
+  ): Promise<AuthResponseDto> {
+    return this.authService.switchOrganization(user.id, dto.organizationId);
   }
 
   @Post('verify-password')
