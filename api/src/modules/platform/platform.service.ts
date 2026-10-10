@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { PlanTier, SubscriptionStatus, OrgModule } from '@prisma/client';
+import { PlanTier, SubscriptionStatus, OrgModule, UserRole } from '@prisma/client';
 
 @Injectable()
 export class PlatformService {
@@ -1221,5 +1221,73 @@ export class PlatformService {
       where: { id: vendorId },
       data: { paystackSubaccountStatus: 'ACTIVE' },
     });
+  }
+
+  /**
+   * Looks up a user by exact email across all organizations, for platform admins who know
+   * a user's email but not their id/org (the regular users module only searches within the
+   * caller's own org).
+   */
+  async findUserByEmail(email: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        organizationId: true,
+        organization: { select: { id: true, name: true, slug: true } },
+        organizationMemberships: {
+          select: {
+            organizationId: true,
+            roles: true,
+            isDefault: true,
+            organization: { select: { id: true, name: true, slug: true } },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return user;
+  }
+
+  /**
+   * Grants a user access to another organization by creating/updating their UserOrganization
+   * membership row. This is the only way to add a user to an org they're not already in —
+   * there is no self-service "join org" flow, by design (orgs are tenant boundaries).
+   */
+  async grantOrganizationAccess(userId: string, organizationId: string, roles?: UserRole[]) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const organization = await this.prisma.organization.findUnique({ where: { id: organizationId } });
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    const membership = await this.prisma.userOrganization.upsert({
+      where: { userId_organizationId: { userId, organizationId } },
+      create: {
+        userId,
+        organizationId,
+        roles: roles && roles.length > 0 ? roles : user.roles,
+        isDefault: false,
+      },
+      update: roles && roles.length > 0 ? { roles } : {},
+    });
+
+    return {
+      organizationId: membership.organizationId,
+      organizationName: organization.name,
+      roles: membership.roles,
+      isDefault: membership.isDefault,
+    };
   }
 }

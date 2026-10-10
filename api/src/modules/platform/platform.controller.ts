@@ -1,8 +1,9 @@
-import { Controller, Get, Patch, Param, Query, Body, UseGuards, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Param, Query, Body, UseGuards, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { PlatformService } from './platform.service';
 import { PlatformAdminGuard } from '../../common/guards/platform-admin.guard';
 import { UpdatePlatformOrgDto } from './dto/update-platform-org.dto';
+import { GrantOrgAccessDto } from './dto/grant-org-access.dto';
 import { PlanTier, SubscriptionStatus } from '@prisma/client';
 
 @ApiTags('Platform')
@@ -89,6 +90,25 @@ export class PlatformController {
   @ApiResponse({ status: 200, description: 'Vendor payout status updated' })
   async activateVendorPayout(@Param('vendorId') vendorId: string) {
     return this.platformService.activateVendorPayout(vendorId);
+  }
+
+  @Get('users/by-email')
+  @ApiOperation({ summary: 'Look up a user by exact email across all organizations' })
+  @ApiResponse({ status: 200, description: 'User and their current organization memberships' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async findUserByEmail(@Query('email') email: string) {
+    return this.platformService.findUserByEmail(email);
+  }
+
+  @Post('users/:userId/organizations')
+  @ApiOperation({ summary: 'Grant a user access to another organization (creates/updates their membership)' })
+  @ApiResponse({ status: 200, description: 'Membership created or updated' })
+  @ApiResponse({ status: 404, description: 'User or organization not found' })
+  async grantOrganizationAccess(
+    @Param('userId') userId: string,
+    @Body() dto: GrantOrgAccessDto,
+  ) {
+    return this.platformService.grantOrganizationAccess(userId, dto.organizationId, dto.roles);
   }
 }
 
