@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useLogout, useSwitchUser } from '@/hooks'
 import { isPinEligible } from '@/lib/pin'
 import { Logo } from '@/components/shared'
+import { OrgSwitcher } from './OrgSwitcher'
 import { useSubscription } from '@/hooks/useSubscription'
 import { useOrgModules, usePosMode } from '@/hooks/useOrgModules'
 import { getRestrictedHrefsUnion } from '@/lib/posRoleNav'
@@ -432,9 +433,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                 <p className="truncate text-sm font-bold text-slate-800">
                   {user?.firstName} {user?.lastName}
                 </p>
-                <p className="truncate text-[10px] font-semibold text-slate-400 mt-0.5">
-                  {user?.organizationName}
-                </p>
+                <OrgSwitcher />
               </div>
 
               {/* Tooltip for user profile when collapsed */}
