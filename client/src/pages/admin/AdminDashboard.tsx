@@ -22,12 +22,12 @@ import {
   CheckmarkCircle02Icon,
 } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
-import { Card, CardContent, Badge, Input, FilterSelect, Button, Label } from '@/components/ui'
+import { Card, CardContent, Badge, Input, FilterSelect, Button, Label, SearchableSelect } from '@/components/ui'
 import { platformApi } from '@/api/platform'
 import { useAuthStore } from '@/stores/auth'
 import { formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
-import type { PlatformOrganizationDetails, PlatformOrganization, OrgModule } from '@/types'
+import type { PlatformOrganizationDetails, PlatformOrganization, OrgModule, UserRole } from '@/types'
 import {
   ResponsiveContainer,
   AreaChart,
@@ -199,7 +199,7 @@ export function AdminDashboardPage() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'pos' | 'organizations' | 'revenue' | 'vendorPayouts'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'pos' | 'organizations' | 'revenue' | 'vendorPayouts' | 'userAccess'>('overview')
   const [periodFilter, setPeriodFilter] = useState<'current_month' | 'last_30_days' | 'last_90_days' | 'ytd'>('current_month')
 
   const getComparisonLabel = (filter: typeof periodFilter) => {
@@ -345,7 +345,7 @@ export function AdminDashboardPage() {
 
   if (!user?.isPlatformAdmin) return null
 
-  const handleTabChange = (tab: 'overview' | 'pos' | 'organizations' | 'revenue' | 'vendorPayouts') => {
+  const handleTabChange = (tab: 'overview' | 'pos' | 'organizations' | 'revenue' | 'vendorPayouts' | 'userAccess') => {
     setActiveTab(tab)
   }
 
@@ -378,7 +378,7 @@ export function AdminDashboardPage() {
       {/* Tabs Navigation */}
       <div className="px-6 border-b border-slate-200/50 bg-white">
         <div className="flex gap-6">
-          {(['overview', 'pos', 'organizations', 'revenue', 'vendorPayouts'] as const).map((tab) => (
+          {(['overview', 'pos', 'organizations', 'revenue', 'vendorPayouts', 'userAccess'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => handleTabChange(tab)}
@@ -393,6 +393,7 @@ export function AdminDashboardPage() {
               {tab === 'organizations' && 'Organizations'}
               {tab === 'revenue' && 'Revenue & Billing'}
               {tab === 'vendorPayouts' && 'Vendor Payouts'}
+              {tab === 'userAccess' && 'Multi-Org Access'}
               {activeTab === tab && (
                 <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0037b0] rounded-full" />
               )}
@@ -1668,11 +1669,204 @@ export function AdminDashboardPage() {
             </Card>
           </div>
         )}
+
+        {/* USER ACCESS TAB */}
+        {activeTab === 'userAccess' && <UserOrgAccessPanel />}
       </div>
 
       {/* Edit Organization Modal */}
       {editingOrgId && (
         <EditOrgModal orgId={editingOrgId} onClose={() => setEditingOrgId(null)} />
+      )}
+    </div>
+  )
+}
+
+const GRANTABLE_ROLES: UserRole[] = [
+  'SUPER_ADMIN',
+  'ADMIN',
+  'ACCOUNTANT',
+  'STAFF',
+  'MANAGER',
+  'SUPERVISOR',
+  'CASHIER',
+  'WAITER',
+  'PASS',
+  'RUNNER',
+  'KITCHEN',
+]
+
+function UserOrgAccessPanel() {
+  const queryClient = useQueryClient()
+  const [email, setEmail] = useState('')
+  const [lookedUpEmail, setLookedUpEmail] = useState('')
+  const [orgSearch, setOrgSearch] = useState('')
+  const [targetOrgId, setTargetOrgId] = useState('')
+  const [roleOverride, setRoleOverride] = useState<string>('')
+
+  const {
+    data: foundUser,
+    isFetching: isLookingUp,
+    isError: lookupFailed,
+    refetch: refetchUser,
+  } = useQuery({
+    queryKey: ['platform', 'user-by-email', lookedUpEmail],
+    queryFn: () => platformApi.findUserByEmail(lookedUpEmail),
+    enabled: !!lookedUpEmail,
+    retry: false,
+  })
+
+  const { data: orgOptions } = useQuery({
+    queryKey: ['platform', 'organizations', 'picker', orgSearch],
+    queryFn: () => platformApi.getOrganizations({ search: orgSearch || undefined, limit: 20 }),
+  })
+
+  const grantMutation = useMutation({
+    mutationFn: () =>
+      platformApi.grantOrganizationAccess(
+        foundUser!.id,
+        targetOrgId,
+        roleOverride ? [roleOverride as UserRole] : undefined,
+      ),
+    onSuccess: (result) => {
+      toast.success(`Granted access to ${result.organizationName}`, {
+        description: `Roles: ${result.roles.join(', ')}`,
+      })
+      setTargetOrgId('')
+      setRoleOverride('')
+      queryClient.invalidateQueries({ queryKey: ['platform', 'user-by-email', lookedUpEmail] })
+    },
+    onError: (error: any) => {
+      toast.error('Failed to grant organization access', {
+        description: error.response?.data?.message || 'Please try again',
+      })
+    },
+  })
+
+  const handleLookup = () => {
+    const trimmed = email.trim()
+    if (!trimmed) return
+    if (trimmed === lookedUpEmail) {
+      refetchUser()
+    } else {
+      setLookedUpEmail(trimmed)
+    }
+  }
+
+  const existingOrgIds = new Set(foundUser?.organizationMemberships.map((m) => m.organizationId))
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.02)] rounded-3xl bg-white">
+        <CardContent className="p-6 space-y-4">
+          <div>
+            <h3 className="text-sm font-bold text-[#121c28]">Find a user</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              Look up a user by exact email across all organizations to see and manage their memberships.
+            </p>
+          </div>
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <Label htmlFor="grant-email">Email</Label>
+              <Input
+                id="grant-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleLookup()}
+                placeholder="user@example.com"
+              />
+            </div>
+            <Button type="button" onClick={handleLookup} isLoading={isLookingUp} className="min-h-[44px]">
+              Look up
+            </Button>
+          </div>
+          {lookupFailed && (
+            <p className="text-xs font-semibold text-red-600">No user found with that email.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {foundUser && (
+        <>
+          <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.02)] rounded-3xl bg-white">
+            <CardContent className="p-6 space-y-4">
+              <div>
+                <h3 className="text-sm font-bold text-[#121c28]">
+                  {foundUser.firstName} {foundUser.lastName}
+                </h3>
+                <p className="text-xs text-slate-500">{foundUser.email}</p>
+              </div>
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Current organization memberships
+                </p>
+                {foundUser.organizationMemberships.map((m) => (
+                  <div
+                    key={m.organizationId}
+                    className="flex items-center justify-between px-4 py-3 rounded-xl bg-[#f8f9ff]"
+                  >
+                    <span className="text-sm font-semibold text-[#121c28]">{m.organization.name}</span>
+                    <div className="flex items-center gap-2">
+                      {m.isDefault && (
+                        <Badge variant="secondary" className="text-[9px] px-2 py-0.5">
+                          Default
+                        </Badge>
+                      )}
+                      <span className="text-xs text-slate-500">{m.roles.join(', ')}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.02)] rounded-3xl bg-white">
+            <CardContent className="p-6 space-y-4">
+              <div>
+                <h3 className="text-sm font-bold text-[#121c28]">Grant access to another organization</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Leave role blank to default to this user's current roles at their primary organization.
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="grant-org">Organization</Label>
+                <SearchableSelect
+                  id="grant-org"
+                  value={targetOrgId}
+                  onChange={setTargetOrgId}
+                  onSearchChange={setOrgSearch}
+                  placeholder="Search organizations..."
+                  options={(orgOptions?.items || [])
+                    .filter((org) => !existingOrgIds.has(org.id))
+                    .map((org) => ({ id: org.id, label: org.name }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="grant-role">Role override (optional)</Label>
+                <FilterSelect
+                  id="grant-role"
+                  value={roleOverride}
+                  onChange={setRoleOverride}
+                  placeholder="Use their current roles"
+                  options={[
+                    { value: '', label: "Use their current roles" },
+                    ...GRANTABLE_ROLES.map((r) => ({ value: r, label: r })),
+                  ]}
+                />
+              </div>
+              <Button
+                type="button"
+                onClick={() => grantMutation.mutate()}
+                isLoading={grantMutation.isPending}
+                disabled={!targetOrgId}
+                className="min-h-[44px]"
+              >
+                Grant access
+              </Button>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   )

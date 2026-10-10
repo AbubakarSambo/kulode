@@ -997,3 +997,25 @@ export interface PlatformOrganizationDetails extends PlatformOrganization {
   }>
 }
 
+export interface PlatformUserLookup {
+  id: string
+  email: string
+  firstName: string
+  lastName: string
+  organizationId: string
+  organization: { id: string; name: string; slug: string }
+  organizationMemberships: Array<{
+    organizationId: string
+    roles: UserRole[]
+    isDefault: boolean
+    organization: { id: string; name: string; slug: string }
+  }>
+}
+
+export interface GrantedOrgAccess {
+  organizationId: string
+  organizationName: string
+  roles: UserRole[]
+  isDefault: boolean
+}
+
