@@ -18,7 +18,12 @@ function createMockPrisma() {
     },
     organization: {
       findUnique: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
       create: jest.fn(),
+    },
+    userOrganization: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
     },
     emailVerificationToken: {
       findUnique: jest.fn(),
@@ -329,5 +334,91 @@ describe('AuthService — JWT payload shape', () => {
         roles: mockUser.roles,
       }),
     );
+  });
+});
+
+// ─── switchOrganization / getMyOrganizations ────────────────────────────────────
+
+describe('AuthService — switchOrganization', () => {
+  let service: AuthService;
+  let prisma: ReturnType<typeof createMockPrisma>;
+
+  beforeEach(async () => {
+    prisma = createMockPrisma();
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: JwtService, useValue: createMockJwt() },
+        { provide: ConfigService, useValue: createMockConfig() },
+        { provide: EmailService, useValue: createMockEmail() },
+      ],
+    }).compile();
+
+    service = module.get<AuthService>(AuthService);
+    jest.clearAllMocks();
+  });
+
+  it('throws UnauthorizedException when the user has no membership in the target org', async () => {
+    prisma.userOrganization.findUnique.mockResolvedValue(null);
+
+    await expect(service.switchOrganization('user-1', 'org-2')).rejects.toThrow(UnauthorizedException);
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('mints a token scoped to the target org and its membership roles on success', async () => {
+    const membership = { userId: 'user-1', organizationId: 'org-2', roles: ['MANAGER'], isDefault: false };
+    const targetOrg = { ...mockOrg, id: 'org-2', name: 'Second Branch' };
+
+    prisma.userOrganization.findUnique.mockResolvedValue(membership);
+    prisma.user.findUnique.mockResolvedValue(mockUser);
+    prisma.organization.findUniqueOrThrow.mockResolvedValue(targetOrg);
+
+    const jwtService = { sign: jest.fn().mockReturnValue('switched-token') };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: JwtService, useValue: jwtService },
+        { provide: ConfigService, useValue: createMockConfig() },
+        { provide: EmailService, useValue: createMockEmail() },
+      ],
+    }).compile();
+    service = module.get<AuthService>(AuthService);
+
+    const result = await service.switchOrganization('user-1', 'org-2');
+
+    expect(jwtService.sign).toHaveBeenCalledWith(
+      expect.objectContaining({ sub: 'user-1', organizationId: 'org-2', roles: ['MANAGER'] }),
+    );
+    expect(result.accessToken).toBe('switched-token');
+    expect(result.user.organizationId).toBe('org-2');
+    expect(result.user.organizationName).toBe('Second Branch');
+    expect(result.user.roles).toEqual(['MANAGER']);
+  });
+
+  it('getMyOrganizations lists memberships with the default org first', async () => {
+    prisma.userOrganization.findMany.mockResolvedValue([
+      {
+        organizationId: 'org-1',
+        roles: ['SUPER_ADMIN'],
+        isDefault: true,
+        organization: { id: 'org-1', name: 'Acme Ltd', slug: 'acme-ltd' },
+      },
+      {
+        organizationId: 'org-2',
+        roles: ['MANAGER'],
+        isDefault: false,
+        organization: { id: 'org-2', name: 'Second Branch', slug: 'second-branch' },
+      },
+    ]);
+
+    const result = await service.getMyOrganizations('user-1');
+
+    expect(result).toEqual([
+      { organizationId: 'org-1', organizationName: 'Acme Ltd', organizationSlug: 'acme-ltd', roles: ['SUPER_ADMIN'], isDefault: true },
+      { organizationId: 'org-2', organizationName: 'Second Branch', organizationSlug: 'second-branch', roles: ['MANAGER'], isDefault: false },
+    ]);
   });
 });
