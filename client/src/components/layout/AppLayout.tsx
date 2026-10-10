@@ -35,6 +35,7 @@ import {
   LockIcon,
 } from '@/components/ui/CustomIcons'
 import { Sidebar } from './Sidebar'
+import { OrgSwitcher } from './OrgSwitcher'
 import { WelcomeStepper } from '@/components/WelcomeStepper'
 import { TrialBanner } from '../shared/TrialBanner'
 import { SubscriptionExpiredBanner } from '../shared/SubscriptionExpiredBanner'
@@ -358,9 +359,7 @@ export function AppLayout() {
                     <p className="truncate text-sm font-bold text-foreground">
                       {user?.firstName} {user?.lastName}
                     </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {user?.organizationName}
-                    </p>
+                    <OrgSwitcher />
                   </div>
                 </div>
 
