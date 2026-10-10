@@ -44,8 +44,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  private async getValidatedUser(userId: string): Promise<ValidatedUser | null> {
-    const cached = this.cache.get(userId);
+  // `activeOrganizationId` is undefined for a token issued against the user's own default org
+  // (the vast majority of tokens) — that path is unchanged from before multi-org support and
+  // stays a single query. It's only set for a token minted by POST /auth/switch-org, in which
+  // case we re-verify membership (and pull that org's roles) from UserOrganization on every
+  // cache miss rather than trusting the JWT's roles claim, since membership can be revoked.
+  private async getValidatedUser(
+    userId: string,
+    activeOrganizationId?: string,
+  ): Promise<ValidatedUser | null> {
+    const cacheKey = activeOrganizationId ? `${userId}:${activeOrganizationId}` : userId;
+    const cached = this.cache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       return cached.user;
     }
@@ -68,27 +77,47 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       },
     });
 
-    const user =
-      row && row.isActive
-        ? {
-            id: row.id,
-            email: row.email,
-            organizationId: row.organizationId,
-            roles: row.roles,
-            firstName: row.firstName,
-            lastName: row.lastName,
-            isPlatformAdmin: row.isPlatformAdmin,
-          }
-        : null;
+    let user: ValidatedUser | null = null;
+    if (row && row.isActive) {
+      if (activeOrganizationId && activeOrganizationId !== row.organizationId) {
+        const membership = await this.prisma.userOrganization.findUnique({
+          where: { userId_organizationId: { userId, organizationId: activeOrganizationId } },
+          select: { roles: true },
+        });
+        // No membership (revoked since the token was issued, or a forged claim) — fail closed
+        // rather than silently falling back to the user's default org.
+        user = membership
+          ? {
+              id: row.id,
+              email: row.email,
+              organizationId: activeOrganizationId,
+              roles: membership.roles,
+              firstName: row.firstName,
+              lastName: row.lastName,
+              isPlatformAdmin: row.isPlatformAdmin,
+            }
+          : null;
+      } else {
+        user = {
+          id: row.id,
+          email: row.email,
+          organizationId: row.organizationId,
+          roles: row.roles,
+          firstName: row.firstName,
+          lastName: row.lastName,
+          isPlatformAdmin: row.isPlatformAdmin,
+        };
+      }
+    }
 
-    this.cache.set(userId, { user, expiresAt: Date.now() + JwtStrategy.CACHE_TTL_MS });
+    this.cache.set(cacheKey, { user, expiresAt: Date.now() + JwtStrategy.CACHE_TTL_MS });
     return user;
   }
 
   async validate(payload: JwtPayload) {
-    const user = await this.getValidatedUser(payload.sub);
+    const user = await this.getValidatedUser(payload.sub, payload.organizationId);
     if (!user) {
-      throw new UnauthorizedException('User not found or inactive');
+      throw new UnauthorizedException('User not found, inactive, or no longer a member of this organization');
     }
     return user;
   }
