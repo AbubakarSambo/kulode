@@ -8,6 +8,9 @@ import type {
   PlatformOrganization,
   PendingVendorPayout,
   OrgModule,
+  PlatformUserLookup,
+  GrantedOrgAccess,
+  UserRole,
 } from '@/types'
 
 export const platformApi = {
@@ -67,6 +70,25 @@ export const platformApi = {
 
   activateVendorPayout: async (vendorId: string): Promise<PendingVendorPayout> => {
     const response = await apiClient.patch<ApiResponse<PendingVendorPayout>>(`/platform/vendor-payouts/${vendorId}/activate`)
+    return response.data.data
+  },
+
+  findUserByEmail: async (email: string): Promise<PlatformUserLookup> => {
+    const response = await apiClient.get<ApiResponse<PlatformUserLookup>>('/platform/users/by-email', {
+      params: { email },
+    })
+    return response.data.data
+  },
+
+  grantOrganizationAccess: async (
+    userId: string,
+    organizationId: string,
+    roles?: UserRole[],
+  ): Promise<GrantedOrgAccess> => {
+    const response = await apiClient.post<ApiResponse<GrantedOrgAccess>>(
+      `/platform/users/${userId}/organizations`,
+      { organizationId, roles },
+    )
     return response.data.data
   },
 }

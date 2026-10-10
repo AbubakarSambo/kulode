@@ -950,6 +950,57 @@ export class AuthService {
     return this.buildAuthResponse(matched, accessToken);
   }
 
+  // Lists the orgs this user can switch into: their default org (from User.organizationId,
+  // always present) plus any additional UserOrganization memberships. A chain admin invited into
+  // other restaurants will have rows beyond the default; most users will only ever see the one.
+  async getMyOrganizations(userId: string) {
+    const memberships = await this.prisma.userOrganization.findMany({
+      where: { userId },
+      select: {
+        organizationId: true,
+        roles: true,
+        isDefault: true,
+        organization: { select: { id: true, name: true, slug: true } },
+      },
+      orderBy: { isDefault: 'desc' },
+    });
+
+    return memberships.map((m) => ({
+      organizationId: m.organizationId,
+      organizationName: m.organization.name,
+      organizationSlug: m.organization.slug,
+      roles: m.roles,
+      isDefault: m.isDefault,
+    }));
+  }
+
+  // Re-signs the caller's token with a different active organization. Membership is re-verified
+  // here (not just trusted from the client) — this is the only place that's allowed to change
+  // which org a token grants access to, everything downstream (JwtStrategy, every org-scoped
+  // query) just trusts whatever org this mints into the token.
+  async switchOrganization(userId: string, organizationId: string): Promise<any> {
+    const membership = await this.prisma.userOrganization.findUnique({
+      where: { userId_organizationId: { userId, organizationId } },
+    });
+
+    if (!membership) {
+      throw new UnauthorizedException('You do not have access to this organization');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { organization: true },
+    });
+
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('User not found or inactive');
+    }
+
+    const target = await this.prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
+    const accessToken = this.generateToken({ ...user, organizationId, roles: membership.roles });
+    return this.buildAuthResponse({ ...user, organizationId, roles: membership.roles, organization: target }, accessToken);
+  }
+
   private async generateUniqueSlug(name: string): Promise<string> {
     const baseSlug = this.generateSlug(name);
     let slug = baseSlug;

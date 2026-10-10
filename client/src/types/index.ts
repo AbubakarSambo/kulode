@@ -111,6 +111,14 @@ export interface AuthResponse {
   user: User
 }
 
+export interface OrganizationMembership {
+  organizationId: string
+  organizationName: string
+  organizationSlug: string
+  roles: UserRole[]
+  isDefault: boolean
+}
+
 export interface RegisterResponse {
   message: string
   email: string
@@ -987,5 +995,27 @@ export interface PlatformOrganizationDetails extends PlatformOrganization {
     isActive: boolean
     createdAt: string
   }>
+}
+
+export interface PlatformUserLookup {
+  id: string
+  email: string
+  firstName: string
+  lastName: string
+  organizationId: string
+  organization: { id: string; name: string; slug: string }
+  organizationMemberships: Array<{
+    organizationId: string
+    roles: UserRole[]
+    isDefault: boolean
+    organization: { id: string; name: string; slug: string }
+  }>
+}
+
+export interface GrantedOrgAccess {
+  organizationId: string
+  organizationName: string
+  roles: UserRole[]
+  isDefault: boolean
 }
 

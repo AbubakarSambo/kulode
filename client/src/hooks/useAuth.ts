@@ -1,8 +1,9 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { authApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
+import { queryClient } from '@/lib/queryClient'
 import { posthog } from '@/lib/posthog'
 import { getPostAuthRoute as postAuthRoute } from '@/lib/authRouting'
 import type { LoginCredentials, RegisterData } from '@/types'
@@ -167,6 +168,42 @@ export function useLogout() {
     toast.success('Logged out')
     navigate('/login')
   }
+}
+
+// Orgs the current user can switch into — only worth fetching for someone who's actually
+// authenticated, since the endpoint is behind JwtAuthGuard.
+export function useMyOrganizations() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+
+  return useQuery({
+    queryKey: ['auth', 'my-organizations'],
+    queryFn: () => authApi.getMyOrganizations(),
+    enabled: isAuthenticated,
+    staleTime: 1000 * 60,
+  })
+}
+
+export function useSwitchOrganization() {
+  const navigate = useNavigate()
+  const setAuth = useAuthStore((state) => state.setAuth)
+
+  return useMutation({
+    mutationFn: (organizationId: string) => authApi.switchOrganization(organizationId),
+    onSuccess: (data) => {
+      setAuth(data.user, data.accessToken)
+      // Every org-scoped query (orders, menu, inventory, reports, ...) was cached under the
+      // previous org — none of those cache keys are org-namespaced, so a stale cache hit here
+      // would silently show restaurant A's data under restaurant B's session. Clear the slate.
+      queryClient.clear()
+      posthog.capture('organization_switched', { organizationId: data.user.organizationId })
+      toast.success('Switched organization', { description: data.user.organizationName })
+      navigate(postAuthRoute(data.user))
+    },
+    onError: (error: any) => {
+      const message = error.response?.data?.message || 'Failed to switch organization'
+      toast.error('Switch failed', { description: message })
+    },
+  })
 }
 
 // For PIN-eligible roles on a shared terminal — hands off to the PIN pad instead of the full

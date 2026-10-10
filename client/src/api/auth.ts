@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { AuthResponse, RegisterResponse, TokenValidation, LoginCredentials, RegisterData, User, ApiResponse } from '@/types'
+import type { AuthResponse, RegisterResponse, TokenValidation, LoginCredentials, RegisterData, User, ApiResponse, OrganizationMembership } from '@/types'
 
 export const authApi = {
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
@@ -9,6 +9,16 @@ export const authApi = {
 
   pinLogin: async (organizationId: string, pin: string): Promise<AuthResponse> => {
     const response = await apiClient.post<ApiResponse<AuthResponse>>('/auth/pin-login', { organizationId, pin })
+    return response.data.data
+  },
+
+  getMyOrganizations: async (): Promise<OrganizationMembership[]> => {
+    const response = await apiClient.get<ApiResponse<OrganizationMembership[]>>('/auth/my-organizations')
+    return response.data.data
+  },
+
+  switchOrganization: async (organizationId: string): Promise<AuthResponse> => {
+    const response = await apiClient.post<ApiResponse<AuthResponse>>('/auth/switch-org', { organizationId })
     return response.data.data
   },
 
