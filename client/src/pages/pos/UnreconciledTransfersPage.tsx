@@ -4,16 +4,17 @@ import { toast } from 'sonner'
 import { Landmark } from 'lucide-react'
 import { BankIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
-import { Button, Card, CardContent, EmptyState, SearchableSelect, Select, Textarea } from '@/components/ui'
+import { Badge, Button, Card, CardContent, EmptyState, SearchableSelect, Select, Textarea } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { ordersApi, customersApi } from '@/api'
 import { moniepointApi } from '@/api/moniepoint'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
 import type { MoniepointUnreconciledTransfer } from '@/api/moniepoint'
 
-// Bank transfers straight into the merchant's Moniepoint account that attemptTransferReconciliation
-// couldn't confidently auto-match to exactly one open order (see moniepoint.service.ts). Previously
-// these were only ever visible in server logs — this is the first place a human can act on one.
+// Card swipes and bank transfers into the merchant's Moniepoint account that
+// attemptAmountReconciliation couldn't confidently auto-match to exactly one open order (see
+// moniepoint.service.ts). Previously these were only ever visible in server logs — this is the
+// first place a human can act on one.
 export function UnreconciledTransfersPage() {
   const queryClient = useQueryClient()
   const [assignTarget, setAssignTarget] = useState<MoniepointUnreconciledTransfer | null>(null)
@@ -100,8 +101,8 @@ export function UnreconciledTransfersPage() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <Header
-        title="Unreconciled Transfers"
-        description="Bank transfers into your Moniepoint account that couldn't be auto-matched to an order"
+        title="Unreconciled Moniepoint Payments"
+        description="Card swipes and bank transfers that couldn't be auto-matched to an order"
         icon={Landmark}
         badgeText={transfers?.length}
       />
@@ -120,7 +121,12 @@ export function UnreconciledTransfersPage() {
                 <CardContent className="p-0">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <div className="text-lg font-bold text-foreground">{formatCurrency(Number(t.amount))}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-lg font-bold text-foreground">{formatCurrency(Number(t.amount))}</div>
+                        <Badge variant={t.source === 'CARD' ? 'default' : 'secondary'}>
+                          {t.source === 'CARD' ? 'Card' : 'Transfer'}
+                        </Badge>
+                      </div>
                       <div className="mt-1 text-sm text-muted-foreground">{t.matchReason}</div>
                       {t.senderMetadata && (
                         <div className="mt-2 text-xs text-muted-foreground">

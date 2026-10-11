@@ -4,10 +4,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { ArrowLeft, Download, Plus, X, UserPlus, Pencil, Search } from 'lucide-react'
 import { Header } from '@/components/layout'
-import { Button, Card, CardContent, Badge, Input, Label, Select, SearchableSelect, Textarea } from '@/components/ui'
+import { Button, Card, CardContent, Badge, Input, Label, SearchableSelect, Textarea } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, usersApi, tablesApi, orderTypesApi, paymentTypesApi, organizationsApi } from '@/api'
-import { moniepointApi } from '@/api/moniepoint'
 import { getQueuedActionsForLocalOrder, discardFailedAction, LOCAL_ORDER_PREFIX } from '@/lib/offlineOrderQueue'
 import { formatCurrency, formatPaymentMethod, normalizePhoneForWhatsApp, cn } from '@/lib/utils'
 import { printBill } from '@/lib/printBill'
@@ -460,27 +459,11 @@ function SyncedOrderView({ id }: { id: string }) {
     queryFn: () => paymentTypesApi.list(),
     enabled: closeModalOpen,
   })
-  const { data: moniepointStatus } = useQuery({
-    queryKey: ['moniepoint-status'],
-    queryFn: () => moniepointApi.getStatus(),
-    enabled: closeModalOpen,
-  })
-  const activeTerminals = useMemo(() => (moniepointStatus?.terminals ?? []).filter((t) => t.isActive), [moniepointStatus])
-  const moniepointReady =
-    !!moniepointStatus?.isSetup && moniepointStatus.isWebhookSubscribed && moniepointStatus.hasWebhookSecret && activeTerminals.length > 0
-
-  // Most orgs only have one terminal — don't make staff pick from a dropdown of one. The picker
-  // only appears once there's a real choice to make (see the modal's MONIEPOINT branch below).
-  const [selectedTerminalId, setSelectedTerminalId] = useState('')
-  useEffect(() => {
-    if (activeTerminals.length === 1) {
-      setSelectedTerminalId(activeTerminals[0].id)
-    }
-  }, [activeTerminals])
-  // Org-managed methods first, Paystack/Wallet/Moniepoint always tacked on last — those are
+  // Org-managed methods first, Paystack/Wallet always tacked on last — those are
   // hardcoded/protected, never part of the editable PaymentType list (Wallet only offered when a
-  // customer is attached; Moniepoint only offered once the org has fully onboarded it, same checks
-  // the Settings page gates on).
+  // customer is attached). Moniepoint card/transfer payments aren't closed from this modal at all —
+  // they reconcile automatically via webhook once the customer pays on the terminal or transfers,
+  // same as any other auto-matched payment.
   const paymentMethodOptions = useMemo(() => {
     const managed = (paymentTypes ?? [])
       .slice()
@@ -488,32 +471,10 @@ function SyncedOrderView({ id }: { id: string }) {
       .map((t) => ({ value: t.name, label: formatPaymentMethod(t.name) }))
     const fixed = [
       { value: 'PAYSTACK', label: 'Paystack (checkout link)' },
-      ...(moniepointReady ? [{ value: 'MONIEPOINT', label: 'Moniepoint POS' }] : []),
       ...(order?.customer ? [{ value: 'WALLET', label: 'Customer Wallet' }] : []),
     ]
     return [...managed, ...fixed]
-  }, [paymentTypes, order?.customer, moniepointReady])
-
-  // Moniepoint push is asynchronous like Paystack (we trigger it, then wait for the webhook to
-  // actually confirm payment) — unlike Cash/Card/etc, which close the order in one request. Once
-  // the webhook lands server-side, the order's own 10s poll above picks up CLOSED_PAID
-  // automatically; this local poll is just for showing live pending/failed feedback in the modal.
-  const [moniepointReference, setMoniepointReference] = useState<string | null>(null)
-  const { data: moniepointTransaction } = useQuery({
-    queryKey: ['moniepoint-transaction', moniepointReference],
-    queryFn: () => moniepointApi.getTransaction(moniepointReference!),
-    enabled: !!moniepointReference,
-    refetchInterval: (query) => (query.state.data?.status === 'PENDING' ? 3_000 : false),
-  })
-  useEffect(() => {
-    if (moniepointTransaction?.status === 'SUCCESS') {
-      toast.success('Moniepoint payment confirmed')
-      setMoniepointReference(null)
-      setCloseModalOpen(false)
-      queryClient.invalidateQueries({ queryKey: ['order', id] })
-      queryClient.invalidateQueries({ queryKey: ['orders'] })
-    }
-  }, [moniepointTransaction?.status, id, queryClient])
+  }, [paymentTypes, order?.customer])
 
   const [customerSearch, setCustomerSearch] = useState('')
   const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState('')
@@ -853,9 +814,6 @@ function SyncedOrderView({ id }: { id: string }) {
       if (paymentMethod === 'PAYSTACK') {
         return ordersApi.paystackCheckout(id, { paymentMethod, customerEmail })
       }
-      if (paymentMethod === 'MONIEPOINT') {
-        return moniepointApi.pushPayment(id, selectedTerminalId, paymentAmount)
-      }
       return ordersApi.close(id, {
         paymentMethod,
         amount: paymentAmount,
@@ -867,13 +825,6 @@ function SyncedOrderView({ id }: { id: string }) {
         window.open(result.paymentUrl, '_blank')
         toast.success('Checkout link opened — order closes once payment confirms')
         setCloseModalOpen(false)
-        return
-      }
-      if ('merchantReference' in result) {
-        // Keep the modal open — the pending/failed panel below takes over, polling the
-        // transaction until the webhook confirms it (or it's retried after a failure).
-        setMoniepointReference(result.merchantReference)
-        toast.success('Push sent — waiting for payment on the terminal')
         return
       }
       if ('__offlinePending' in result) {
@@ -1341,13 +1292,7 @@ function SyncedOrderView({ id }: { id: string }) {
               </Button>
             )}
             {canAcceptPayment && (
-              <Button
-                className="flex-1"
-                onClick={() => {
-                  setMoniepointReference(null)
-                  setCloseModalOpen(true)
-                }}
-              >
+              <Button className="flex-1" onClick={() => setCloseModalOpen(true)}>
                 Accept Payment
               </Button>
             )}
@@ -1440,33 +1385,6 @@ function SyncedOrderView({ id }: { id: string }) {
               />
             </div>
           )}
-          {paymentMethod === 'MONIEPOINT' && moniepointTransaction && (
-            <div className="rounded-xl border border-border p-3 text-sm">
-              {moniepointTransaction.status === 'PENDING' && (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                  <span>
-                    Waiting for payment on terminal {moniepointTransaction.terminalSerial}…
-                  </span>
-                </div>
-              )}
-              {moniepointTransaction.status === 'FAILED' && (
-                <div>
-                  <p className="font-medium text-destructive">Push failed</p>
-                  {moniepointTransaction.failureReason && (
-                    <p className="mt-1 text-xs text-muted-foreground">{moniepointTransaction.failureReason}</p>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setMoniepointReference(null)}
-                    className="mt-2 text-xs font-medium text-primary hover:underline"
-                  >
-                    Try again
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
           {paymentMethod === 'WALLET' && (() => {
             const balanceAfter = walletBalance ? walletBalance.balance - paymentAmount : undefined
             const exceedsCredit = balanceAfter !== undefined && balanceAfter < -(walletBalance?.creditLimit ?? 0)
@@ -1495,7 +1413,7 @@ function SyncedOrderView({ id }: { id: string }) {
             )
           })()}
 
-          {paymentMethod !== 'PAYSTACK' && paymentMethod !== 'MONIEPOINT' && (
+          {paymentMethod !== 'PAYSTACK' && (
             <div>
               <Label>Bill Split</Label>
               <div className="mt-1 flex flex-wrap gap-2">
@@ -1554,24 +1472,6 @@ function SyncedOrderView({ id }: { id: string }) {
             </div>
           )}
 
-          {paymentMethod === 'MONIEPOINT' && activeTerminals.length > 1 && (
-            <div className="space-y-2">
-              <Label htmlFor="terminalId" required>
-                Terminal
-              </Label>
-              <Select id="terminalId" value={selectedTerminalId} onChange={(e) => setSelectedTerminalId(e.target.value)}>
-                <option value="" disabled>
-                  Choose a terminal…
-                </option>
-                {activeTerminals.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          )}
-
           <div className="rounded-xl bg-muted p-4 text-center">
             {amountPaidSoFar > 0 && (
               <div className="mb-2 flex justify-between border-b border-border pb-2 text-sm text-muted-foreground">
@@ -1589,30 +1489,25 @@ function SyncedOrderView({ id }: { id: string }) {
               </div>
             )}
           </div>
-          {!(paymentMethod === 'MONIEPOINT' && moniepointTransaction?.status === 'PENDING') && (
-            <Button
-              className="w-full"
-              isLoading={closeOrder.isPending}
-              disabled={
-                (paymentMethod === 'PAYSTACK' && !customerEmail) ||
-                (paymentMethod === 'MONIEPOINT' && !selectedTerminalId) ||
-                (paymentMethod === 'OTHER' && !otherPaymentNote.trim()) ||
-                (paymentMethod === 'WALLET' &&
-                  !!walletBalance &&
-                  walletBalance.balance - paymentAmount < -walletBalance.creditLimit) ||
-                (paymentMethod !== 'PAYSTACK' && (paymentAmount <= 0 || paymentAmount > remainingBalance + 0.01))
-              }
-              onClick={() => closeOrder.mutate()}
-            >
-              {paymentMethod === 'PAYSTACK'
-                ? 'Generate Checkout Link'
-                : paymentMethod === 'MONIEPOINT'
-                  ? 'Push to Terminal'
-                  : paymentAmount >= remainingBalance - 0.01
-                    ? 'Confirm Payment & Close'
-                    : 'Record Payment'}
-            </Button>
-          )}
+          <Button
+            className="w-full"
+            isLoading={closeOrder.isPending}
+            disabled={
+              (paymentMethod === 'PAYSTACK' && !customerEmail) ||
+              (paymentMethod === 'OTHER' && !otherPaymentNote.trim()) ||
+              (paymentMethod === 'WALLET' &&
+                !!walletBalance &&
+                walletBalance.balance - paymentAmount < -walletBalance.creditLimit) ||
+              (paymentMethod !== 'PAYSTACK' && (paymentAmount <= 0 || paymentAmount > remainingBalance + 0.01))
+            }
+            onClick={() => closeOrder.mutate()}
+          >
+            {paymentMethod === 'PAYSTACK'
+              ? 'Generate Checkout Link'
+              : paymentAmount >= remainingBalance - 0.01
+                ? 'Confirm Payment & Close'
+                : 'Record Payment'}
+          </Button>
         </div>
       </Modal>
 

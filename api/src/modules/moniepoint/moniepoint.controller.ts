@@ -2,7 +2,6 @@ import {
   Controller,
   Get,
   Post,
-  Patch,
   Delete,
   Body,
   Param,
@@ -18,13 +17,10 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { MoniepointService } from './moniepoint.service';
 import {
   SetupMoniepointDto,
-  PushPaymentDto,
   SetWebhookSecretDto,
   AssignUnreconciledTransferDto,
   IgnoreUnreconciledTransferDto,
   ResolveToWalletUnreconciledTransferDto,
-  CreateMoniepointTerminalDto,
-  UpdateMoniepointTerminalDto,
 } from './dto';
 import { CurrentUser, CurrentUserData, Public, Roles, Role } from '../../common';
 
@@ -47,48 +43,6 @@ export class MoniepointController {
     return this.moniepointService.setupCredentials(organizationId, dto);
   }
 
-  @Get('organizations/moniepoint-terminals')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: "List this organization's Moniepoint terminals" })
-  async listTerminals(@CurrentUser('organizationId') organizationId: string) {
-    return this.moniepointService.listTerminals(organizationId);
-  }
-
-  @Post('organizations/moniepoint-terminals')
-  @ApiBearerAuth()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: 'Register a new physical terminal under this organization\'s Moniepoint business account' })
-  @ApiResponse({ status: 201, description: 'Terminal added' })
-  async createTerminal(
-    @Body() dto: CreateMoniepointTerminalDto,
-    @CurrentUser('organizationId') organizationId: string,
-  ) {
-    return this.moniepointService.createTerminal(organizationId, dto.serial, dto.label);
-  }
-
-  @Patch('organizations/moniepoint-terminals/:id')
-  @ApiBearerAuth()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: 'Rename/update or deactivate a terminal' })
-  async updateTerminal(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateMoniepointTerminalDto,
-    @CurrentUser('organizationId') organizationId: string,
-  ) {
-    return this.moniepointService.updateTerminal(organizationId, id, dto);
-  }
-
-  @Delete('organizations/moniepoint-terminals/:id')
-  @ApiBearerAuth()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: 'Remove a terminal (transaction history is kept, it just can no longer be pushed to)' })
-  async removeTerminal(
-    @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser('organizationId') organizationId: string,
-  ) {
-    return this.moniepointService.removeTerminal(organizationId, id);
-  }
-
   @Get('organizations/moniepoint-status')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get Moniepoint POS setup status' })
@@ -104,19 +58,6 @@ export class MoniepointController {
   @ApiResponse({ status: 200, description: 'Credentials removed' })
   async disconnect(@CurrentUser('organizationId') organizationId: string) {
     return this.moniepointService.disconnect(organizationId);
-  }
-
-  @Post('orders/:id/moniepoint-push')
-  @ApiBearerAuth()
-  @Roles(Role.STAFF, Role.ACCOUNTANT, Role.CASHIER, Role.ADMIN, Role.SUPER_ADMIN)
-  @ApiOperation({ summary: "Push the order's amount to the restaurant's Moniepoint POS terminal" })
-  @ApiResponse({ status: 201, description: 'Push queued to terminal' })
-  async pushPayment(
-    @Param('id', ParseUUIDPipe) orderId: string,
-    @Body() dto: PushPaymentDto,
-    @CurrentUser('organizationId') organizationId: string,
-  ) {
-    return this.moniepointService.pushOrderPayment(organizationId, orderId, dto.terminalId, dto.amount);
   }
 
   @Get('moniepoint-unreconciled-transfers')
@@ -187,23 +128,12 @@ export class MoniepointController {
     return this.moniepointService.setWebhookSecret(organizationId, dto.webhookSecret);
   }
 
-  @Get('moniepoint-transactions/:reference')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Poll the status of a pushed Moniepoint POS transaction' })
-  @ApiResponse({ status: 200, description: 'Transaction status' })
-  async getTransactionStatus(
-    @Param('reference') reference: string,
-    @CurrentUser('organizationId') organizationId: string,
-  ) {
-    return this.moniepointService.getTransactionStatus(organizationId, reference);
-  }
-
   // TODO(security): the signature check runs and logs computed-vs-received (see
   // MoniepointService.processIncomingWebhook), but does NOT reject on mismatch — the exact
   // signed-string format is an educated guess pending confirmation against a real delivery.
   // Once confirmed/corrected, this must start rejecting mismatches with 400. Right now this
   // endpoint does not actually enforce anything — see the SECURITY GAP note on
-  // MoniepointService.handleWebhookEvent.
+  // MoniepointService.verifyWebhookSignature.
   @Post('webhooks/moniepoint')
   @Public()
   @ApiOperation({ summary: 'Moniepoint POS transaction webhook (signature logged, not yet enforced — see TODO)' })
