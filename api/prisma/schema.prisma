@@ -62,15 +62,6 @@ enum WalletTransactionType {
   ADJUSTMENT
 }
 
-// Lifecycle of a payment pushed to a restaurant's own physical Moniepoint terminal — separate
-// from Payment, which is only created once a push actually lands (SUCCESS). Lets the cashier UI
-// poll "is the customer done tapping their card yet" without a Payment row existing prematurely.
-enum MoniepointTransactionStatus {
-  PENDING
-  SUCCESS
-  FAILED
-}
-
 enum WhatsappMessageStatus {
   PENDING
   SENT
@@ -226,13 +217,12 @@ model Organization {
   settlementBank         String? @map("settlement_bank")
   isPaystackVerified     Boolean @default(false) @map("is_paystack_verified")
 
-  // Moniepoint POS terminal push-to-pay — the restaurant's own Moniepoint business account (ERP
-  // integration), not a Tarione-owned credential. One business account (clientId/clientSecret/
-  // businessId) can have several physical terminals under it — see MoniepointTerminal — so the
-  // terminal serial itself is NOT stored here (moved off this model when multi-terminal support
-  // was added; see that model's header comment). clientSecret is encrypted at rest (see
+  // Moniepoint POS integration — the restaurant's own Moniepoint business account (ERP
+  // integration), not a Tarione-owned credential. Transactions (card swipes on the restaurant's
+  // terminal, and bank transfers into the account) are reconciled against open orders purely by
+  // amount via webhook — see MoniepointService. clientSecret is encrypted at rest (see
   // EncryptionService). accessToken/accessTokenExpiresAt cache the OAuth token from POST
-  // /v1/auth so we don't re-authenticate on every push.
+  // /v1/auth (currently unused — kept for a legacy flow, see MoniepointService.getAccessToken).
   moniepointClientId               String?   @map("moniepoint_client_id")
   moniepointClientSecretEncrypted  String?   @map("moniepoint_client_secret_encrypted")
   moniepointAccessToken            String?   @map("moniepoint_access_token")
@@ -352,8 +342,6 @@ model Organization {
   walletTransactions              WalletTransaction[]
   sheetSyncQueue                  SheetSyncQueueEntry[]
   printers                        Printer[]
-  moniepointTransactions          MoniepointTransaction[]
-  moniepointTerminals             MoniepointTerminal[]
   moniepointUnreconciledTransfers MoniepointUnreconciledTransfer[]
   userMemberships                 UserOrganization[]
 
@@ -411,7 +399,7 @@ model User {
   walletTransactions            WalletTransaction[]
   resolvedUnreconciledTransfers MoniepointUnreconciledTransfer[] @relation("ResolvedUnreconciledTransfer")
 
-  organizationMemberships       UserOrganization[]
+  organizationMemberships UserOrganization[]
 
   @@index([organizationId])
   @@map("users")
@@ -728,7 +716,8 @@ model Payment {
   paystackFees        Decimal? @map("paystack_fees") @db.Decimal(12, 2)
   platformFees        Decimal? @map("platform_fees") @db.Decimal(12, 2)
   netAmount           Decimal? @map("net_amount") @db.Decimal(12, 2)
-  // Links back to the MoniepointTransaction that produced this payment (set on confirmation).
+  // Moniepoint's transactionReference for an auto-reconciled card/transfer payment (set on
+  // confirmation) — see MoniepointService.closeOrderForAutoMatch.
   moniepointReference String?  @map("moniepoint_reference")
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -746,54 +735,9 @@ model Payment {
   @@map("payments")
 }
 
-// A payment pushed to a restaurant's physical Moniepoint POS terminal for card-present
-// collection. Created PENDING at push time (before the customer has tapped/inserted their
-// card); the webhook flips it to SUCCESS/FAILED and — only on SUCCESS — a Payment row is
-// created and the order is closed. See MoniepointService.
-model MoniepointTransaction {
-  id             String @id @default(uuid())
-  organizationId String @map("organization_id")
-  orderId        String @map("order_id")
-
-  merchantReference String                      @unique @map("merchant_reference")
-  terminalSerial    String                      @map("terminal_serial")
-  amount            Decimal                     @db.Decimal(12, 2)
-  status            MoniepointTransactionStatus @default(PENDING)
-  failureReason     String?                     @map("failure_reason")
-  completedAt       DateTime?                   @map("completed_at")
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  // Relations
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  order        Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
-
-  @@index([organizationId])
-  @@index([orderId])
-  @@map("moniepoint_transactions")
-}
-
-// A physical card terminal under the org's single Moniepoint business account (credentials stay
-// on Organization — see its header comment). A business can have several of these (front counter,
-// bar, etc); pushOrderPayment takes a terminalId and looks up its serial here instead of reading
-// a single serial off the org row.
-model MoniepointTerminal {
-  id             String  @id @default(uuid())
-  organizationId String  @map("organization_id")
-  serial         String
-  label          String
-  isActive       Boolean @default(true) @map("is_active")
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  // Relations
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@unique([organizationId, serial])
-  @@index([organizationId])
-  @@map("moniepoint_terminals")
+enum MoniepointUnreconciledTransferSource {
+  TRANSFER
+  CARD
 }
 
 enum MoniepointUnreconciledTransferStatus {
@@ -812,20 +756,25 @@ enum UnreconciledTransferResolutionType {
   OTHER
 }
 
-// A bank transfer straight into the merchant's Moniepoint account that attemptTransferReconciliation
-// couldn't confidently auto-match to exactly one open order (zero matches, or 2+ orders within
-// TRANSFER_AMOUNT_TOLERANCE_KOBO of the amount) — previously only logged, with no durable record a
-// human could act on. Staff resolve these manually (see /pos/unreconciled-transfers) by picking the
-// right order, or mark as IGNORED when the transfer genuinely isn't for any order.
+// A Moniepoint transaction (a card swipe on the restaurant's terminal, or a bank transfer straight
+// into the merchant's account) that attemptAmountReconciliation couldn't confidently auto-match to
+// exactly one open order (zero matches, or 2+ orders within AMOUNT_MATCH_TOLERANCE_KOBO of the
+// amount) — previously only logged, with no durable record a human could act on. Staff resolve
+// these manually (see /pos/unreconciled-transfers) by picking the right order, or mark as IGNORED
+// when the transaction genuinely isn't for any order.
 model MoniepointUnreconciledTransfer {
   id             String @id @default(uuid())
   organizationId String @map("organization_id")
 
+  // Defaults to TRANSFER for rows created before this field existed — all of those predate card
+  // reconciliation, which only ever produces CARD rows going forward.
+  source               MoniepointUnreconciledTransferSource @default(TRANSFER)
   amount               Decimal                              @db.Decimal(12, 2)
   transactionReference String?                              @map("transaction_reference")
   // Raw metaData from the webhook — customerName/customerAccountNumber/customerBank/narration when
-  // present (see moniepoint.service.ts attemptTransferReconciliation). Kept as-is (Json) since the
-  // exact shape of a transfer webhook was never formally confirmed against docs, only real deliveries.
+  // present on a transfer (see moniepoint.service.ts attemptAmountReconciliation). Kept as-is (Json)
+  // since the exact shape of a transfer webhook was never formally confirmed against docs, only real
+  // deliveries. Card events don't carry this.
   senderMetadata       Json?                                @map("sender_metadata")
   status               MoniepointUnreconciledTransferStatus @default(PENDING_REVIEW)
   // Why it didn't auto-match — "No matching order" or "Ambiguous — multiple matching orders", plus
@@ -1471,7 +1420,6 @@ model Order {
   stockMovements                  StockMovement[]
   walletTransactions              WalletTransaction[]
   printJobs                       PrintJob[]
-  moniepointTransactions          MoniepointTransaction[]
   moniepointUnreconciledTransfers MoniepointUnreconciledTransfer[]
 
   @@index([organizationId])
