@@ -18,22 +18,22 @@ import { SetupMoniepointDto } from './dto';
 // Push Payment Request API Reference for the PURCHASE transactionType this mirrors.
 const WEBHOOK_EVENT_TYPE = 'V1_POS_PURCHASE_TRANSACTION';
 
-// We were previously only subscribing to WEBHOOK_EVENT_TYPE above, so attemptTransferReconciliation
-// below could never fire: Moniepoint was never asked to send transfer events in the first place,
-// not a delivery failure on their end.
+// We were previously only subscribing to WEBHOOK_EVENT_TYPE above, so attemptAmountReconciliation
+// below could never fire for a transfer: Moniepoint was never asked to send transfer events in the
+// first place, not a delivery failure on their end.
 //
 // CONFIRMED against real deliveries (2026-10-06): a customer transferring directly into a
 // merchant's Moniepoint account comes through as eventType V1_POS_TRANSFER_TRANSACTION (NOT the
 // unprefixed V1_TRANSFER_TRANSACTION, despite that name looking like the obvious match) — payload
 // has transactionType: "POS_TRANSFER", transactionStatus: "APPROVED", and a `metaData` JSON string
-// with customerName/customerAccountNumber/customerBank/narration (richer than attemptTransferReconciliation
+// with customerName/customerAccountNumber/customerBank/narration (richer than attemptAmountReconciliation
 // currently uses — worth matching on narration before falling back to amount, see its own comment).
 // V1_TRANSFER_TRANSACTION is kept subscribed too since it's harmless (processIncomingWebhook
 // no-ops gracefully on a shape it doesn't recognize) and its actual real-world trigger is still
 // unconfirmed.
 const TRANSFER_WEBHOOK_EVENT_TYPES = ['V1_TRANSFER_TRANSACTION', 'V1_POS_TRANSFER_TRANSACTION'];
 
-// Mirrors OrdersService's PAYABLE_STATUSES — an order can still take a payment push while
+// Mirrors OrdersService's PAYABLE_STATUSES — an order can still be auto-reconciled while
 // OPEN/IN_KITCHEN/READY, or once a waiter has handed it to a cashier via markAwaitingPayment
 // (CLOSED_UNPAID).
 const PAYABLE_STATUSES: OrderStatus[] = [
@@ -43,16 +43,17 @@ const PAYABLE_STATUSES: OrderStatus[] = [
   OrderStatus.CLOSED_UNPAID,
 ];
 
-// Transfer reconciliation matches by amount (a transfer carries no merchantReference we control).
-// A small tolerance absorbs bank-fee-sized discrepancies (e.g. the sender's bank shaving a few
-// naira off); it deliberately does NOT widen to "closest match" — that would auto-confirm against
-// a completely unrelated transfer just because it's the nearest in value, which risks marking the
-// wrong order paid. Uniqueness within this band is still required; 2+ orders within tolerance
-// falls back to manual reconciliation same as before.
-const TRANSFER_AMOUNT_TOLERANCE_KOBO = 5000; // ₦50
+// Both transfers and card swipes reconcile purely by amount — neither carries a merchantReference
+// we control, since there's no push step anymore. A small tolerance absorbs bank-fee-sized
+// discrepancies (e.g. the sender's bank shaving a few naira off a transfer); it deliberately does
+// NOT widen to "closest match" — that would auto-confirm against a completely unrelated
+// transaction just because it's the nearest in value, which risks marking the wrong order paid.
+// Uniqueness within this band is still required; 2+ orders within tolerance falls back to manual
+// reconciliation.
+const AMOUNT_MATCH_TOLERANCE_KOBO = 5000; // ₦50
 
 // How long before its real expiry we treat a cached OAuth token as stale, so we never fire a
-// push with a token that expires mid-flight.
+// request with a token that expires mid-flight.
 const TOKEN_REFRESH_BUFFER_MS = 60_000;
 
 interface MoniepointAuthResponse {
@@ -76,10 +77,6 @@ export class MoniepointService {
     this.baseUrl = this.configService.get<string>('moniepoint.baseUrl') || 'https://channel.moniepoint.com';
     this.posApiBaseUrl = this.configService.get<string>('moniepoint.posApiBaseUrl') || 'https://api.pos.moniepoint.com';
     this.encryptionKey = this.configService.get<string>('moniepoint.encryptionKey') || '';
-  }
-
-  private get isMockMode(): boolean {
-    return this.configService.get<boolean>('moniepoint.mockMode') === true;
   }
 
   private async makeRequest<T>(endpoint: string, body: unknown, accessToken?: string, method: 'GET' | 'POST' = 'POST', baseUrlOverride?: string): Promise<T> {
@@ -114,11 +111,8 @@ export class MoniepointService {
   /**
    * Restaurant self-onboarding: they enable ERP integration on their own Moniepoint business
    * console and generate a clientId/clientSecret scoped to their business — none of this comes
-   * from Tarione. One business account can have several physical terminals under it (see
-   * MoniepointTerminal), so no terminal serial is set here; add at least one via
-   * createTerminal/updateTerminal before a payment can actually be pushed. Overwrites any
-   * previous credentials and drops the cached token, since it was minted for the old
-   * clientId/clientSecret pair.
+   * from Tarione. Overwrites any previous credentials and drops the cached token, since it was
+   * minted for the old clientId/clientSecret pair.
    */
   async setupCredentials(organizationId: string, dto: SetupMoniepointDto) {
     const organization = await this.prisma.organization.findUnique({ where: { id: organizationId } });
@@ -154,92 +148,29 @@ export class MoniepointService {
       throw new NotFoundException('Organization not found');
     }
 
-    const terminals = await this.listTerminals(organizationId);
-
     return {
       // businessId deliberately excluded — it's usually only known after subscribeToWebhook
       // auto-detects it from the access token, which happens after this is already "set up".
-      // Credentials and terminals are independent: isSetup reflects the business account only —
-      // a connected account with zero terminals still can't actually push a payment, which the
-      // frontend derives from `terminals` itself rather than a second combined flag here.
       isSetup: !!organization.moniepointClientId,
-      terminals,
       isWebhookSubscribed: !!organization.moniepointWebhookSubscriptionId,
       hasWebhookSecret: !!organization.moniepointWebhookSecretEncrypted,
     };
   }
 
   async disconnect(organizationId: string) {
-    await this.prisma.$transaction([
-      this.prisma.moniepointTerminal.deleteMany({ where: { organizationId } }),
-      this.prisma.organization.update({
-        where: { id: organizationId },
-        data: {
-          moniepointClientId: null,
-          moniepointClientSecretEncrypted: null,
-          moniepointAccessToken: null,
-          moniepointAccessTokenExpiresAt: null,
-          moniepointBusinessId: null,
-          moniepointWebhookSecretEncrypted: null,
-          moniepointWebhookSubscriptionId: null,
-        },
-      }),
-    ]);
-
-    return { success: true };
-  }
-
-  async listTerminals(organizationId: string) {
-    return this.prisma.moniepointTerminal.findMany({
-      where: { organizationId },
-      orderBy: { createdAt: 'asc' },
+    await this.prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        moniepointClientId: null,
+        moniepointClientSecretEncrypted: null,
+        moniepointAccessToken: null,
+        moniepointAccessTokenExpiresAt: null,
+        moniepointBusinessId: null,
+        moniepointWebhookSecretEncrypted: null,
+        moniepointWebhookSubscriptionId: null,
+      },
     });
-  }
 
-  async createTerminal(organizationId: string, serial: string, label: string) {
-    const organization = await this.prisma.organization.findUnique({ where: { id: organizationId } });
-    if (!organization) {
-      throw new NotFoundException('Organization not found');
-    }
-    if (!organization.moniepointClientId) {
-      throw new BadRequestException('Connect your Moniepoint business account before adding a terminal');
-    }
-
-    try {
-      return await this.prisma.moniepointTerminal.create({
-        data: { organizationId, serial, label },
-      });
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new BadRequestException('A terminal with this serial is already registered for your organization');
-      }
-      throw error;
-    }
-  }
-
-  async updateTerminal(organizationId: string, id: string, data: { serial?: string; label?: string; isActive?: boolean }) {
-    const terminal = await this.prisma.moniepointTerminal.findFirst({ where: { id, organizationId } });
-    if (!terminal) {
-      throw new NotFoundException('Terminal not found');
-    }
-
-    try {
-      return await this.prisma.moniepointTerminal.update({ where: { id }, data });
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new BadRequestException('A terminal with this serial is already registered for your organization');
-      }
-      throw error;
-    }
-  }
-
-  async removeTerminal(organizationId: string, id: string) {
-    const terminal = await this.prisma.moniepointTerminal.findFirst({ where: { id, organizationId } });
-    if (!terminal) {
-      throw new NotFoundException('Terminal not found');
-    }
-
-    await this.prisma.moniepointTerminal.delete({ where: { id } });
     return { success: true };
   }
 
@@ -388,13 +319,13 @@ export class MoniepointService {
   }
 
   /**
-   * Parses a real Moniepoint webhook delivery and routes it into handleWebhookEvent. Payload
-   * shape per their docs: a "data" object containing merchantReference, transactionStatus
-   * (PENDING/APPROVED/...), responseMessage, etc. — different from the flat shape
-   * handleWebhookEvent itself takes, which mock mode calls directly.
+   * Parses a real Moniepoint webhook delivery and routes it into attemptAmountReconciliation.
+   * Neither a card swipe nor a bank transfer carries a merchantReference we control (there's no
+   * push step anymore) — every delivery is classified by eventType/transactionType and
+   * reconciled against open orders purely by amount.
    *
    * Logs a computed-vs-received signature comparison but does NOT reject on mismatch — see the
-   * SECURITY GAP note on handleWebhookEvent for why, and what has to change before this is safe.
+   * SECURITY GAP note on verifyWebhookSignature for why, and what has to change before this is safe.
    */
   async processIncomingWebhook(rawBody: string, webhookId: string, timestamp: string, signature: string) {
     let parsed: any;
@@ -405,107 +336,75 @@ export class MoniepointService {
     }
 
     const data = parsed?.data ?? parsed;
-    const merchantReference: string | undefined = data?.merchantReference;
     const transactionStatus: string | undefined = data?.transactionStatus;
-    const responseMessage: string | undefined = data?.responseMessage;
     const responseCode: string | undefined = data?.responseCode;
 
-    if (!merchantReference) {
-      // Not something we pushed — either an organic in-person sale on the terminal (nothing to
-      // do, we don't track those), or a bank transfer to the restaurant's known account, which we
-      // CAN try to reconcile against an open order by amount. See attemptTransferReconciliation.
-      const eventType: string | undefined = parsed?.eventType ?? parsed?.type ?? parsed?.event;
-      this.logger.log(`Moniepoint webhook payload missing data.merchantReference — eventType="${eventType ?? 'unknown'}" topLevelKeys=[${Object.keys(parsed ?? {}).join(', ')}]`);
-      // Temporary: full payload, to nail down what a Transfer event actually looks like (every
-      // real event observed so far has been V1_POS_PURCHASE_TRANSACTION — never confirmed a
-      // transfer's shape). Remove once that's confirmed.
-      this.logger.log(`Moniepoint webhook full payload: ${JSON.stringify(parsed)}`);
-
-      // Confirmed real payload shape (from V1_POS_PURCHASE_TRANSACTION events) nests a second,
-      // more specific transactionType inside `data` (e.g. "PURCHASE") alongside the top-level
-      // eventType — check both, since we don't yet know for certain which one actually varies
-      // for a transfer (never observed one).
-      const dataTransactionType: string | undefined = data?.transactionType;
-      const looksLikeTransfer =
-        (typeof eventType === 'string' && eventType.toUpperCase().includes('TRANSFER')) ||
-        (typeof dataTransactionType === 'string' && dataTransactionType.toUpperCase().includes('TRANSFER'));
-
-      if (looksLikeTransfer) {
-        return this.attemptTransferReconciliation(data);
-      }
-
-      return { received: true };
-    }
-
-    const transaction = await this.prisma.moniepointTransaction.findUnique({ where: { merchantReference } });
-    if (!transaction) {
-      this.logger.warn(`Moniepoint webhook for unknown reference ${merchantReference}`);
-      return { received: true, reason: 'Unknown reference' };
-    }
+    const eventType: string | undefined = parsed?.eventType ?? parsed?.type ?? parsed?.event;
+    const dataTransactionType: string | undefined = data?.transactionType;
+    this.logger.log(`Moniepoint webhook received — eventType="${eventType ?? 'unknown'}" transactionType="${dataTransactionType ?? 'unknown'}" status="${transactionStatus ?? 'unknown'}"`);
 
     if (webhookId && timestamp && signature) {
-      const organization = await this.prisma.organization.findUnique({
-        where: { id: transaction.organizationId },
-        select: { moniepointWebhookSecretEncrypted: true },
-      });
+      const businessId: string | undefined = data?.businessId !== undefined ? String(data.businessId) : undefined;
+      const organization = businessId ? await this.prisma.organization.findFirst({ where: { moniepointBusinessId: businessId } }) : null;
       if (organization?.moniepointWebhookSecretEncrypted) {
         const secret = decryptSecret(organization.moniepointWebhookSecretEncrypted, this.encryptionKey);
         const { valid, computedSignature } = this.verifyWebhookSignature(rawBody, webhookId, timestamp, signature, secret);
         if (!valid) {
           this.logger.warn(
-            `Moniepoint webhook signature MISMATCH for ${merchantReference} — received="${signature}" computed="${computedSignature}". ` +
+            `Moniepoint webhook signature MISMATCH for org ${organization.id} — received="${signature}" computed="${computedSignature}". ` +
               `Not rejecting yet (algorithm unconfirmed — see SECURITY GAP), but this needs correcting before going live.`,
           );
         } else {
-          this.logger.log(`Moniepoint webhook signature verified OK for ${merchantReference}`);
+          this.logger.log(`Moniepoint webhook signature verified OK for org ${organization.id}`);
         }
       } else {
-        this.logger.warn(`No webhook secret stored for org ${transaction.organizationId} — cannot verify signature for ${merchantReference}. Run setWebhookSecret first.`);
+        this.logger.warn(`Could not verify webhook signature — no org/webhook secret resolved from businessId=${businessId ?? 'unknown'}`);
       }
     }
 
     if (transactionStatus === 'PENDING') {
       return { received: true, stillPending: true };
     }
+    // Real deliveries have been observed using both 'APPROVED' and 'SUCCESSFUL' for success,
+    // alongside a responseCode of '00' — accept any of the three rather than assuming one.
+    const isSuccess = transactionStatus === 'APPROVED' || transactionStatus === 'SUCCESSFUL' || responseCode === '00';
+    if (!isSuccess) {
+      this.logger.log(`Moniepoint webhook not a success (status=${transactionStatus ?? 'unknown'}, responseCode=${responseCode ?? 'unknown'}) — nothing to reconcile.`);
+      return { received: true };
+    }
 
-    const isSuccessful =
-      transactionStatus === 'APPROVED' ||
-      transactionStatus === 'SUCCESSFUL' ||
-      responseCode === '00';
-    const status = isSuccessful ? 'SUCCESS' : 'FAILED';
-    return this.handleWebhookEvent({
-      merchantReference,
-      status,
-      failureReason: status === 'FAILED' ? responseMessage || `transactionStatus=${transactionStatus}` : undefined,
-    });
+    const looksLikeTransfer =
+      (typeof eventType === 'string' && eventType.toUpperCase().includes('TRANSFER')) ||
+      (typeof dataTransactionType === 'string' && dataTransactionType.toUpperCase().includes('TRANSFER'));
+
+    return this.attemptAmountReconciliation(data, looksLikeTransfer ? 'TRANSFER' : 'CARD');
   }
 
   /**
-   * Reconciles a bank transfer (paid to the restaurant's own known account, not a dynamic
-   * per-order virtual account) against an open order — by amount, since a transfer carries no
-   * merchantReference we control. Auto-confirms only when exactly one open order's outstanding
-   * balance falls within TRANSFER_AMOUNT_TOLERANCE_KOBO of the transferred amount; any ambiguity
-   * (zero or multiple matches within tolerance) is logged and left for manual reconciliation
-   * rather than guessed at, since a wrong auto-match would mark the wrong order paid. NOTE: the
-   * exact webhook payload shape for a transfer event is unconfirmed (we've only observed real
-   * Purchase events so far) — this assumes the same data.amount / data.businessId /
-   * data.transactionReference fields documented for purchases.
+   * Reconciles a Moniepoint transaction (a card swipe on the restaurant's terminal, or a bank
+   * transfer straight into the restaurant's known account) against an open order — purely by
+   * amount, since neither carries a merchantReference we control. Auto-confirms only when exactly
+   * one open order's outstanding balance falls within AMOUNT_MATCH_TOLERANCE_KOBO of the
+   * transaction amount; any ambiguity (zero or multiple matches within tolerance) is logged and
+   * left for manual reconciliation rather than guessed at, since a wrong auto-match would mark the
+   * wrong order paid.
    */
-  private async attemptTransferReconciliation(data: any): Promise<{ received: boolean; reconciled?: boolean; reason?: string }> {
+  private async attemptAmountReconciliation(data: any, source: 'TRANSFER' | 'CARD'): Promise<{ received: boolean; reconciled?: boolean; reason?: string }> {
     // data.amount is in kobo — confirmed from real webhook payloads (e.g. amount:1081000 for a
     // ₦10,810 purchase). Orders store totals in plain Naira, so convert before comparing.
     const amount = Number(data?.amount) / 100;
     const businessId: string | undefined = data?.businessId !== undefined ? String(data.businessId) : undefined;
     const transactionReference: string | undefined = data?.transactionReference;
+    const label = source === 'TRANSFER' ? 'Transfer' : 'Card payment';
 
     if (!amount || !businessId) {
-      this.logger.warn(`Transfer event missing amount or businessId — cannot reconcile. amount=${data?.amount} businessId=${data?.businessId}`);
+      this.logger.warn(`${label} event missing amount or businessId — cannot reconcile. amount=${data?.amount} businessId=${data?.businessId}`);
       return { received: true, reason: 'Missing amount or businessId' };
     }
 
     const organization = await this.prisma.organization.findFirst({ where: { moniepointBusinessId: businessId } });
     if (!organization) {
-      this.logger.warn(`Transfer event for businessId ${businessId} — no matching organization found`);
+      this.logger.warn(`${label} event for businessId ${businessId} — no matching organization found`);
       return { received: true, reason: 'No matching organization' };
     }
 
@@ -515,7 +414,7 @@ export class MoniepointService {
     });
     const amountKobo = Math.round(amount * 100);
     const matches = candidates.filter(
-      (o) => Math.abs(Math.round((Number(o.total) - Number(o.amountPaid)) * 100) - amountKobo) <= TRANSFER_AMOUNT_TOLERANCE_KOBO,
+      (o) => Math.abs(Math.round((Number(o.total) - Number(o.amountPaid)) * 100) - amountKobo) <= AMOUNT_MATCH_TOLERANCE_KOBO,
     );
     // Table name (falling back to the order source, e.g. "Hotel Room Service") plus the
     // outstanding balance — an order has no human-facing short code, only a UUID `id`, so this is
@@ -524,8 +423,8 @@ export class MoniepointService {
       `${o.table?.name ?? o.source} (₦${(Number(o.total) - Number(o.amountPaid)).toLocaleString()} due)`;
 
     this.logger.log(
-      `Transfer reconciliation for org ${organization.id}: amount=${amount} ref=${transactionReference ?? 'none'} — ` +
-        `${candidates.length} open order(s), ${matches.length} within ±₦${TRANSFER_AMOUNT_TOLERANCE_KOBO / 100} of this amount` +
+      `${label} reconciliation for org ${organization.id}: amount=${amount} ref=${transactionReference ?? 'none'} — ` +
+        `${candidates.length} open order(s), ${matches.length} within ±₦${AMOUNT_MATCH_TOLERANCE_KOBO / 100} of this amount` +
         (matches.length > 0 ? `: [${matches.map((o) => `${o.id} (₦${Number(o.total) - Number(o.amountPaid)})`).join(', ')}]` : ''),
     );
 
@@ -536,12 +435,12 @@ export class MoniepointService {
           : `Ambiguous — multiple matching orders: ${matches.map(describeOrderForReview).join(', ')}`;
       this.logger.warn(
         matches.length === 0
-          ? `Transfer of ₦${amount} for org ${organization.id} matched no open order — needs manual reconciliation.`
-          : `Transfer of ₦${amount} for org ${organization.id} matched ${matches.length} open orders — ambiguous, needs manual reconciliation. Candidates: ${matches.map((o) => o.id).join(', ')}`,
+          ? `${label} of ₦${amount} for org ${organization.id} matched no open order — needs manual reconciliation.`
+          : `${label} of ₦${amount} for org ${organization.id} matched ${matches.length} open orders — ambiguous, needs manual reconciliation. Candidates: ${matches.map((o) => o.id).join(', ')}`,
       );
       // Parse the nested metaData string (customerName/customerAccountNumber/customerBank/narration
       // on real transfer deliveries — see TRANSFER_WEBHOOK_EVENT_TYPES comment) so a human reviewing
-      // this later has sender identity to go on, not just an amount.
+      // this later has sender identity to go on, not just an amount. Card events don't carry this.
       let senderMetadata: Prisma.InputJsonValue | undefined;
       if (typeof data?.metaData === 'string') {
         try {
@@ -557,27 +456,30 @@ export class MoniepointService {
           transactionReference,
           senderMetadata,
           matchReason,
+          source,
         },
       });
       return { received: true, reconciled: false, reason: matches.length === 0 ? 'No matching order' : 'Ambiguous — multiple matching orders' };
     }
 
     const order = matches[0];
-    await this.closeOrderForTransfer(organization.id, order, amount, transactionReference);
+    const paymentMethod = source === 'TRANSFER' ? 'MONIEPOINT_TRANSFER' : 'MONIEPOINT_POS';
+    await this.closeOrderForAutoMatch(organization.id, order, amount, transactionReference, paymentMethod);
 
-    this.logger.log(`Transfer of ₦${amount} auto-reconciled to order ${order.id} for org ${organization.id} (ref ${transactionReference ?? 'none'})`);
+    this.logger.log(`${label} of ₦${amount} auto-reconciled to order ${order.id} for org ${organization.id} (ref ${transactionReference ?? 'none'})`);
     return { received: true, reconciled: true };
   }
 
   // Shared by the auto-match path above and the manual "assign" endpoint below — closes the order,
-  // records the Payment, deducts inventory, and flips the table, same as a normal transfer
-  // reconciliation. `recordedById` is only set on a manual assignment (a human picked this order);
-  // auto-matches have no user to attribute it to.
-  private async closeOrderForTransfer(
+  // records the Payment, deducts inventory, and flips the table, same as a normal reconciliation.
+  // `recordedById` is only set on a manual assignment (a human picked this order); auto-matches
+  // have no user to attribute it to.
+  private async closeOrderForAutoMatch(
     organizationId: string,
     order: { id: string; total: Prisma.Decimal | number | string; amountPaid: Prisma.Decimal | number | string; tableId: string | null },
     amount: number,
     transactionReference: string | undefined,
+    paymentMethod: string,
     recordedById?: string,
   ) {
     // Mirrors OrdersService.closeWithPayment's semantics exactly — amountPaid ACCUMULATES on top of
@@ -611,7 +513,7 @@ export class MoniepointService {
           orderId: order.id,
           recordedById,
           amount,
-          paymentMethod: 'MONIEPOINT_TRANSFER',
+          paymentMethod,
           paymentDate: new Date(),
           moniepointReference: transactionReference,
           isAutoRecorded: !recordedById,
@@ -663,7 +565,8 @@ export class MoniepointService {
       throw new NotFoundException('Order not found');
     }
 
-    await this.closeOrderForTransfer(organizationId, order, Number(transfer.amount), transfer.transactionReference ?? undefined, userId);
+    const paymentMethod = transfer.source === 'CARD' ? 'MONIEPOINT_POS' : 'MONIEPOINT_TRANSFER';
+    await this.closeOrderForAutoMatch(organizationId, order, Number(transfer.amount), transfer.transactionReference ?? undefined, paymentMethod, userId);
 
     return this.prisma.moniepointUnreconciledTransfer.update({
       where: { id },
@@ -750,203 +653,4 @@ export class MoniepointService {
     return auth.accessToken;
   }
 
-  /**
-   * Pushes the order's amount to the restaurant's own physical terminal — the customer then
-   * taps/inserts their card on that device. Returns immediately once Moniepoint has queued the
-   * transaction (202 Accepted); actual success/failure only arrives later via webhook (see
-   * handleWebhookEvent), or — in mock mode — a simulated timer standing in for that webhook.
-   */
-  async pushOrderPayment(organizationId: string, orderId: string, terminalId: string, amount?: number) {
-    const organization = await this.prisma.organization.findUnique({ where: { id: organizationId } });
-    if (!organization) {
-      throw new NotFoundException('Organization not found');
-    }
-    if (!this.isMockMode && (!organization.moniepointClientId || !organization.moniepointClientSecretEncrypted)) {
-      throw new BadRequestException('Moniepoint POS is not set up for this organization');
-    }
-
-    // A business account can have several terminals (front counter, bar, …) — the caller picks
-    // which physical device this push goes to. Still required in mock mode so the mock flow
-    // exercises the same terminal-ownership check real pushes get; mock orgs just need at least
-    // one terminal row created via createTerminal like any other org.
-    const terminal = await this.prisma.moniepointTerminal.findFirst({ where: { id: terminalId, organizationId, isActive: true } });
-    if (!terminal) {
-      throw new NotFoundException('Terminal not found');
-    }
-
-    const order = await this.prisma.order.findFirst({ where: { id: orderId, organizationId } });
-    if (!order) {
-      throw new NotFoundException('Order not found');
-    }
-    if (!PAYABLE_STATUSES.includes(order.status)) {
-      throw new BadRequestException(`Cannot push payment for a ${order.status.toLowerCase()} order`);
-    }
-
-    const existingPending = await this.prisma.moniepointTransaction.findFirst({
-      where: { orderId, status: 'PENDING' },
-    });
-    if (existingPending) {
-      throw new BadRequestException('A payment push is already pending for this order — wait for it to complete or fail before retrying');
-    }
-
-    const pushAmount = amount ?? Number(order.total) - Number(order.amountPaid);
-    const terminalSerial = terminal.serial;
-    const merchantReference = `MNP-${order.id.slice(0, 8)}-${Date.now()}`;
-
-    const transaction = await this.prisma.moniepointTransaction.create({
-      data: {
-        organizationId,
-        orderId,
-        merchantReference,
-        terminalSerial,
-        amount: pushAmount,
-        status: 'PENDING',
-      },
-    });
-
-    if (this.isMockMode) {
-      this.logger.log(`[MOCK] Simulating Moniepoint POS push for order ${orderId} (ref ${merchantReference})`);
-      setTimeout(() => {
-        this.handleWebhookEvent({ merchantReference, status: 'SUCCESS' }).catch((err) =>
-          this.logger.error(`Mock Moniepoint completion failed for ${merchantReference}: ${err.message}`),
-        );
-      }, 5000);
-      return { merchantReference, status: transaction.status, amount: pushAmount };
-    }
-
-    try {
-      // On posApiBaseUrl, authenticated with the raw clientSecret/"API Key" directly as the
-      // Bearer value — not an OAuth token from channel.moniepoint.com/v1/auth. See
-      // subscribeToWebhook for why (Moniepoint's own app literally labels this value "Your API
-      // Key", and that host's own error for an OAuth token was "Invalid key provided.").
-      const apiKey = decryptSecret(organization.moniepointClientSecretEncrypted!, this.encryptionKey);
-      await this.makeRequest(
-        '/v1/transactions',
-        {
-          terminalSerial,
-          // Kobo, not Naira — confirmed from real webhook payloads (e.g. amount:1081000 for a
-          // ₦10,810 purchase). We were previously sending pushAmount as-is (e.g. 1410 meaning
-          // ₦1,410), which Moniepoint would have read as ₦14.10 — very plausibly why nothing
-          // ever visibly happened on the terminal despite clean success responses.
-          amount: Math.round(pushAmount * 100),
-          merchantReference,
-          transactionType: 'PURCHASE',
-          // Required per Moniepoint's real interactive docs (docs.pos.moniepoint.com) — we were
-          // never sending this. The API accepted requests and returned success without it, but
-          // very plausibly never actually knew how to route the transaction (card entry vs.
-          // transfer vs. generic) without it — likely explains why nothing ever reached the
-          // terminal despite clean success responses on every prior attempt.
-          paymentMethod: 'CARD_PURCHASE',
-        },
-        apiKey,
-        'POST',
-        this.posApiBaseUrl,
-      );
-    } catch (error) {
-      const failureReason = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Moniepoint push failed for order ${orderId} (ref ${merchantReference}): ${failureReason}`);
-      await this.prisma.moniepointTransaction.update({
-        where: { id: transaction.id },
-        data: { status: 'FAILED', failureReason, completedAt: new Date() },
-      });
-      throw error;
-    }
-
-    return { merchantReference, status: transaction.status, amount: pushAmount };
-  }
-
-  async getTransactionStatus(organizationId: string, merchantReference: string) {
-    const transaction = await this.prisma.moniepointTransaction.findFirst({
-      where: { merchantReference, organizationId },
-    });
-    if (!transaction) {
-      throw new NotFoundException('Transaction not found');
-    }
-    return transaction;
-  }
-
-  /**
-   * Handles a completion notification for a pushed transaction — from a real Moniepoint webhook,
-   * or the mock-mode simulator above.
-   *
-   * SECURITY GAP: the controller logs a computed-vs-received signature comparison (see
-   * verifyWebhookSignature) but does NOT reject on mismatch yet, because the exact signed-string
-   * format is still an educated guess, not confirmed against a real delivery. Once a real webhook
-   * has been observed and the guess confirmed/corrected, the controller must start rejecting
-   * mismatches with 400 before this method ever runs — right now it doesn't, and this endpoint
-   * MUST NOT be trusted in production as-is.
-   */
-  async handleWebhookEvent(payload: { merchantReference: string; status: 'SUCCESS' | 'FAILED'; failureReason?: string }) {
-    const { merchantReference, status, failureReason } = payload;
-
-    const transaction = await this.prisma.moniepointTransaction.findUnique({ where: { merchantReference } });
-    if (!transaction) {
-      this.logger.warn(`Moniepoint webhook for unknown reference ${merchantReference}`);
-      return { received: true, reason: 'Unknown reference' };
-    }
-    if (transaction.status !== 'PENDING') {
-      this.logger.log(`Moniepoint transaction ${merchantReference} already resolved (${transaction.status}), skipping.`);
-      return { received: true, alreadyProcessed: true };
-    }
-
-    if (status === 'FAILED') {
-      await this.prisma.moniepointTransaction.update({
-        where: { id: transaction.id },
-        data: { status: 'FAILED', failureReason: failureReason || 'Declined at terminal', completedAt: new Date() },
-      });
-      return { received: true, success: false };
-    }
-
-    const order = await this.prisma.order.findUnique({ where: { id: transaction.orderId } });
-    if (!order) {
-      this.logger.error(`Moniepoint reconciliation failed: order ${transaction.orderId} not found for ${merchantReference}`);
-      return { received: true, success: false, reason: 'Order not found' };
-    }
-
-    const amount = Number(transaction.amount);
-
-    await this.prisma.$transaction(async (tx) => {
-      const doubleCheck = await tx.moniepointTransaction.findUnique({ where: { id: transaction.id } });
-      if (doubleCheck?.status !== 'PENDING') return;
-
-      await tx.moniepointTransaction.update({
-        where: { id: transaction.id },
-        data: { status: 'SUCCESS', completedAt: new Date() },
-      });
-
-      // Conditional update guards against a concurrent close (e.g. a cashier closing with cash
-      // while this push was still in flight) racing past the PAYABLE_STATUSES check above.
-      const result = await tx.order.updateMany({
-        where: { id: order.id, status: { in: PAYABLE_STATUSES } },
-        data: { amountPaid: amount, status: 'CLOSED_PAID', closedAt: new Date() },
-      });
-
-      await tx.payment.create({
-        data: {
-          organizationId: order.organizationId,
-          orderId: order.id,
-          amount,
-          paymentMethod: 'MONIEPOINT_POS',
-          paymentDate: new Date(),
-          moniepointReference: merchantReference,
-          isAutoRecorded: true,
-          notes: result.count === 0 ? 'Received after order was already closed/cancelled — needs manual review' : undefined,
-        },
-      });
-
-      if (result.count === 0) {
-        this.logger.warn(`Order ${order.id} was already closed/cancelled by the time Moniepoint ref ${merchantReference} confirmed — payment recorded but order left unchanged.`);
-        return;
-      }
-
-      await this.inventoryService.deductForOrder(tx, order.id, order.organizationId);
-
-      if (order.tableId) {
-        await tx.restaurantTable.update({ where: { id: order.tableId }, data: { status: 'NEEDS_CLEANING' } });
-      }
-    });
-
-    this.logger.log(`Moniepoint POS payment recorded for order ${order.id} (ref ${merchantReference})`);
-    return { received: true, success: true };
-  }
 }

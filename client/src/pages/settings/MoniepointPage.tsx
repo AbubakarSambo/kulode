@@ -4,11 +4,11 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { CheckCircle, CreditCard, Radio, KeyRound, Plus, Trash2 } from 'lucide-react'
+import { CheckCircle, Radio, KeyRound } from 'lucide-react'
 import { AxiosError } from 'axios'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle, CardDescription, ConfirmDialog } from '@/components/ui'
-import { moniepointApi, type MoniepointTerminal } from '@/api/moniepoint'
+import { moniepointApi } from '@/api/moniepoint'
 
 const setupSchema = z.object({
   clientId: z.string().min(1, 'clientId is required'),
@@ -29,21 +29,10 @@ const secretSchema = z.object({
 
 type SecretFormData = z.infer<typeof secretSchema>
 
-// One business account can have several physical terminals under it — managed separately from
-// the account credentials above: credentials are "is this business connected at all", terminals
-// are "which physical devices can staff push a payment to".
-const terminalSchema = z.object({
-  serial: z.string().min(1, 'Terminal serial is required'),
-  label: z.string().min(1, 'A name for this terminal is required'),
-})
-
-type TerminalFormData = z.infer<typeof terminalSchema>
-
 export function MoniepointPage() {
   const queryClient = useQueryClient()
   const [isEditing, setIsEditing] = useState(false)
   const [disconnectOpen, setDisconnectOpen] = useState(false)
-  const [removeTarget, setRemoveTarget] = useState<MoniepointTerminal | null>(null)
 
   const { data: status, isLoading: statusLoading } = useQuery({
     queryKey: ['moniepoint-status'],
@@ -67,16 +56,6 @@ export function MoniepointPage() {
   } = useForm<SecretFormData>({
     resolver: zodResolver(secretSchema),
     defaultValues: { webhookSecret: '' },
-  })
-
-  const {
-    register: registerTerminal,
-    handleSubmit: handleTerminalSubmit,
-    reset: resetTerminalForm,
-    formState: { errors: terminalErrors },
-  } = useForm<TerminalFormData>({
-    resolver: zodResolver(terminalSchema),
-    defaultValues: { serial: '', label: '' },
   })
 
   const setupMutation = useMutation({
@@ -121,41 +100,6 @@ export function MoniepointPage() {
     },
   })
 
-  const createTerminalMutation = useMutation({
-    mutationFn: (data: TerminalFormData) => moniepointApi.createTerminal(data.serial, data.label),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['moniepoint-status'] })
-      resetTerminalForm()
-      toast.success('Terminal added')
-    },
-    onError: (err) => {
-      const error = err as AxiosError<{ message?: string }>
-      toast.error('Could not add terminal', { description: error.response?.data?.message || 'Please try again' })
-    },
-  })
-
-  const toggleTerminalMutation = useMutation({
-    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => moniepointApi.updateTerminal(id, { isActive }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['moniepoint-status'] }),
-    onError: (err) => {
-      const error = err as AxiosError<{ message?: string }>
-      toast.error('Could not update terminal', { description: error.response?.data?.message || 'Please try again' })
-    },
-  })
-
-  const removeTerminalMutation = useMutation({
-    mutationFn: (id: string) => moniepointApi.removeTerminal(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['moniepoint-status'] })
-      setRemoveTarget(null)
-      toast.success('Terminal removed')
-    },
-    onError: (err) => {
-      const error = err as AxiosError<{ message?: string }>
-      toast.error('Could not remove terminal', { description: error.response?.data?.message || 'Please try again' })
-    },
-  })
-
   const disconnectMutation = useMutation({
     mutationFn: () => moniepointApi.disconnect(),
     onSuccess: () => {
@@ -184,7 +128,7 @@ export function MoniepointPage() {
     <div className="flex flex-1 flex-col overflow-hidden bg-background">
       <Header
         title="Moniepoint POS"
-        description="Push order payments straight to your restaurant's physical Moniepoint terminal"
+        description="Automatically reconcile card swipes and bank transfers into your Moniepoint account against open orders"
       />
 
       <div className="flex-1 overflow-auto p-6 sm:p-8">
@@ -207,75 +151,6 @@ export function MoniepointPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
-                  <div className="space-y-3">
-                    <p className="text-sm font-semibold text-foreground">Terminals</p>
-                    <p className="-mt-2 text-xs text-muted-foreground">
-                      One business account can have several physical terminals — staff pick which one to push a payment to.
-                    </p>
-                    {status.terminals.length === 0 && (
-                      <p className="rounded-xl border border-dashed border-[#c4c5d7]/40 p-4 text-sm text-muted-foreground">
-                        No terminals yet — add one below before staff can push a card payment.
-                      </p>
-                    )}
-                    {status.terminals.map((terminal) => (
-                      <div key={terminal.id} className="flex items-center justify-between gap-3 rounded-xl border border-[#c4c5d7]/30 p-4">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eef4ff] text-[#0037b0]">
-                            <CreditCard className="h-5 w-5" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-foreground">{terminal.label}</p>
-                            <p className="truncate text-xs text-muted-foreground">{terminal.serial}</p>
-                          </div>
-                          {!terminal.isActive && (
-                            <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                              Inactive
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            isLoading={toggleTerminalMutation.isPending}
-                            onClick={() => toggleTerminalMutation.mutate({ id: terminal.id, isActive: !terminal.isActive })}
-                          >
-                            {terminal.isActive ? 'Deactivate' : 'Activate'}
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-                            onClick={() => setRemoveTarget(terminal)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                    <form
-                      onSubmit={handleTerminalSubmit((data) => createTerminalMutation.mutate(data))}
-                      className="flex flex-col gap-2 rounded-xl border border-dashed border-[#c4c5d7]/40 p-4 sm:flex-row sm:items-start"
-                    >
-                      <Input
-                        placeholder="Terminal name, e.g. Front Counter"
-                        {...registerTerminal('label')}
-                        error={terminalErrors.label?.message}
-                      />
-                      <Input
-                        placeholder="Terminal serial number"
-                        {...registerTerminal('serial')}
-                        error={terminalErrors.serial?.message}
-                      />
-                      <Button type="submit" size="sm" isLoading={createTerminalMutation.isPending} className="shrink-0 min-h-[44px]">
-                        <Plus className="h-4 w-4" />
-                        Add
-                      </Button>
-                    </form>
-                  </div>
-
                   <div className="space-y-3">
                     <div className="flex items-center justify-between rounded-xl border border-[#c4c5d7]/30 p-4">
                       <div className="flex items-center gap-3">
@@ -425,21 +300,10 @@ export function MoniepointPage() {
         onClose={() => setDisconnectOpen(false)}
         onConfirm={() => disconnectMutation.mutate()}
         title="Disconnect Moniepoint POS?"
-        description="This removes the stored credentials, webhook secret, and all registered terminals. Cashiers will no longer be able to push payments until it's reconnected."
+        description="This removes the stored credentials and webhook secret. Card payments and transfers will no longer be auto-reconciled until it's reconnected."
         confirmText="Disconnect"
         isDangerous
         isLoading={disconnectMutation.isPending}
-      />
-
-      <ConfirmDialog
-        isOpen={!!removeTarget}
-        onClose={() => setRemoveTarget(null)}
-        onConfirm={() => removeTarget && removeTerminalMutation.mutate(removeTarget.id)}
-        title={`Remove "${removeTarget?.label}"?`}
-        description="Staff will no longer be able to push payments to this terminal. Its past transaction history is kept."
-        confirmText="Remove"
-        isDangerous
-        isLoading={removeTerminalMutation.isPending}
       />
     </div>
   )
