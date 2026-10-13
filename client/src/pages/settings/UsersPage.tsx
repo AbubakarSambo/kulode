@@ -12,7 +12,7 @@ import { usersApi } from '@/api/users'
 import type { UserData, CreateUserData } from '@/api/users'
 import { posthog } from '@/lib/posthog'
 import { cn } from '@/lib/utils'
-import { useOrgModules } from '@/hooks/useOrgModules'
+import { useOrgModules, usePosMode } from '@/hooks/useOrgModules'
 import { useAuthStore } from '@/stores/auth'
 import type { UserRole } from '@/types'
 import { PIN_ELIGIBLE_ROLES } from '@/lib/pin'
@@ -70,6 +70,9 @@ const DEFAULT_CREATABLE_ROLES: { value: UserRole; label: string }[] = [
   { value: 'STAFF', label: 'Staff' },
 ]
 
+// Dine-in/kitchen-prep roles that don't apply to a retail (scan-and-sell) org.
+const RESTAURANT_ONLY_ROLES: UserRole[] = ['WAITER', 'PASS', 'RUNNER', 'KITCHEN']
+
 const pinSchema = z.object({
   pin: z.string().regex(/^\d{4}$/, 'PIN must be exactly 4 digits'),
 })
@@ -83,11 +86,12 @@ export function UsersPage() {
   // Any org running POS (POS-only or BOTH) uses the waiter/cashier ladder — only a pure
   // invoicing-only org keeps STAFF/ACCOUNTANT. Matches usesPosRoles() on the backend.
   const { hasPos } = useOrgModules()
+  const { isRetail } = usePosMode()
   const currentUser = useAuthStore((s) => s.user)
   const usesPosRoles = hasPos
   const roleOptions = (usesPosRoles ? POS_CREATABLE_ROLES : DEFAULT_CREATABLE_ROLES).filter(
     (opt) => opt.value !== 'ADMIN' || !!currentUser?.roles.includes('SUPER_ADMIN'),
-  )
+  ).filter((opt) => !isRetail || !RESTAURANT_ONLY_ROLES.includes(opt.value))
 
   const [page, setPage] = useState(1)
   const limit = 20
@@ -110,7 +114,7 @@ export function UsersPage() {
       email: '',
       firstName: '',
       lastName: '',
-      roles: [usesPosRoles ? 'WAITER' : 'STAFF'],
+      roles: [usesPosRoles ? (isRetail ? 'CASHIER' : 'WAITER') : 'STAFF'],
     },
   })
   const selectedRoles = (watch('roles') ?? []) as UserRole[]

@@ -10,7 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { CreateUserDto, UpdateUserDto, SetPinDto } from './dto';
 import { PaginationDto, paginate, PLAN_LIMITS, Role, PIN_ELIGIBLE_ROLES } from '../../common';
-import { TokenType, OrgModule } from '@prisma/client';
+import { TokenType, OrgModule, PosMode } from '@prisma/client';
 
 const ADMIN_ROLES = [Role.ADMIN, Role.SUPER_ADMIN];
 
@@ -32,15 +32,29 @@ const POS_ROLES = [
 ];
 const NON_POS_ROLES = [Role.STAFF, Role.ACCOUNTANT, Role.ADMIN, Role.SUPER_ADMIN];
 
+// Dine-in/kitchen-prep roles that don't apply to a retail (scan-and-sell) org.
+const RESTAURANT_ONLY_ROLES = [Role.WAITER, Role.PASS, Role.RUNNER, Role.KITCHEN];
+
 function usesPosRoles(enabledModules: OrgModule): boolean {
   return enabledModules === 'POS' || enabledModules === 'BOTH';
 }
 
-// Every assigned role must individually be valid for the org's module — a user can't mix a
-// POS-only role with a non-POS one, since that combination can never make sense for one org.
-function assertRoleMatchesModule(roles: string[] | undefined, enabledModules: OrgModule) {
+// The default floor role for a new POS-org user depends on what the org actually sells:
+// retail front-of-house staff are cashiers, restaurant front-of-house staff are waiters.
+function defaultPosRole(posMode: PosMode): Role {
+  return posMode === 'RETAIL' ? Role.CASHIER : Role.WAITER;
+}
+
+// Every assigned role must individually be valid for the org's module (and, for POS orgs,
+// its posMode) — a user can't mix a POS-only role with a non-POS one, since that combination
+// can never make sense for one org, and a retail org can't be assigned dine-in/kitchen roles.
+function assertRoleMatchesModule(roles: string[] | undefined, enabledModules: OrgModule, posMode: PosMode) {
   if (!roles || roles.length === 0) return;
-  const allowed = usesPosRoles(enabledModules) ? POS_ROLES : NON_POS_ROLES;
+  const allowed = usesPosRoles(enabledModules)
+    ? posMode === 'RETAIL'
+      ? POS_ROLES.filter((role) => !RESTAURANT_ONLY_ROLES.includes(role))
+      : POS_ROLES
+    : NON_POS_ROLES;
   const invalid = roles.find((role) => !allowed.includes(role as Role));
   if (invalid) {
     throw new ForbiddenException(
@@ -189,16 +203,17 @@ export class UsersService {
         trialEndDate: true,
         isGrandfathered: true,
         enabledModules: true,
+        posMode: true,
       },
     });
     if (organization) {
-      assertRoleMatchesModule(dto.roles, organization.enabledModules);
+      assertRoleMatchesModule(dto.roles, organization.enabledModules, organization.posMode);
     }
 
     const resolvedRoles =
       dto.roles && dto.roles.length > 0
         ? dto.roles
-        : [organization && usesPosRoles(organization.enabledModules) ? Role.WAITER : Role.STAFF];
+        : [organization && usesPosRoles(organization.enabledModules) ? defaultPosRole(organization.posMode) : Role.STAFF];
     // Only a PIN-only (no-email) account if EVERY assigned role is PIN-eligible — a single
     // admin-tier role mixed in means this account must use full email+password login.
     const isPinEligibleRole = resolvedRoles.every((r) => PIN_ELIGIBLE_ROLES.includes(r as Role));
@@ -394,9 +409,9 @@ export class UsersService {
     if (dto.roles) {
       const organization = await this.prisma.organization.findUnique({
         where: { id: organizationId },
-        select: { enabledModules: true },
+        select: { enabledModules: true, posMode: true },
       });
-      if (organization) assertRoleMatchesModule(dto.roles, organization.enabledModules);
+      if (organization) assertRoleMatchesModule(dto.roles, organization.enabledModules, organization.posMode);
     }
 
     // If email is being updated, check for conflicts
