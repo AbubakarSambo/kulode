@@ -8,6 +8,7 @@ import type {
   PlatformOrganization,
   PendingVendorPayout,
   OrgModule,
+  PosMode,
   PlatformUserLookup,
   GrantedOrgAccess,
   UserRole,
@@ -57,6 +58,7 @@ export const platformApi = {
       enabledModules?: OrgModule
       isTestAccount?: boolean
       isAccountingFeedEnabled?: boolean
+      posMode?: PosMode
     }
   ): Promise<PlatformOrganization> => {
     const response = await apiClient.patch<ApiResponse<PlatformOrganization>>(`/platform/organizations/${id}`, data)

@@ -27,7 +27,7 @@ import { platformApi } from '@/api/platform'
 import { useAuthStore } from '@/stores/auth'
 import { formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
-import type { PlatformOrganizationDetails, PlatformOrganization, OrgModule, UserRole } from '@/types'
+import type { PlatformOrganizationDetails, PlatformOrganization, OrgModule, PosMode, UserRole } from '@/types'
 import {
   ResponsiveContainer,
   AreaChart,
@@ -1909,6 +1909,7 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
   const [isAccountingFeedEnabled, setIsAccountingFeedEnabled] = useState<boolean>(org.isAccountingFeedEnabled)
   const [platformFeePercent] = useState<number>(org.platformFeePercent)
   const [enabledModules, setEnabledModules] = useState<string>(org.enabledModules)
+  const [posMode, setPosMode] = useState<string>(org.posMode)
 
   const updateMutation = useMutation({
     mutationFn: (data: {
@@ -1919,6 +1920,7 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
       enabledModules?: OrgModule
       isTestAccount?: boolean
       isAccountingFeedEnabled?: boolean
+      posMode?: PosMode
     }) => platformApi.updateOrganization(org.id, data),
     onSuccess: () => {
       toast.success('Organization config updated successfully')
@@ -1943,6 +1945,7 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
       enabledModules: enabledModules as OrgModule,
       isTestAccount,
       isAccountingFeedEnabled,
+      posMode: posMode as PosMode,
     })
   }
 
@@ -2027,6 +2030,19 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
                     { value: 'POS', label: 'POS' },
                     { value: 'INVOICING', label: 'Invoicing' },
                     { value: 'BOTH', label: 'Both' },
+                  ]}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="posMode" className="text-[11px] font-bold text-[#434655] uppercase tracking-wider">POS Mode</Label>
+                <FilterSelect
+                  id="posMode"
+                  value={posMode}
+                  onChange={(val) => setPosMode(val)}
+                  options={[
+                    { value: 'RESTAURANT', label: 'Restaurant / Bar' },
+                    { value: 'RETAIL', label: 'Retail / Supermarket' },
                   ]}
                 />
               </div>
