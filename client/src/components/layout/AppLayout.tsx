@@ -43,7 +43,7 @@ import { OfflineQueueBanner } from '../pos/OfflineQueueBanner'
 import { useAuthStore } from '@/stores/auth'
 import { useLogout, useSwitchUser, useIdleLogout } from '@/hooks'
 import { useSubscription } from '@/hooks/useSubscription'
-import { useOrgModules } from '@/hooks/useOrgModules'
+import { useOrgModules, usePosMode } from '@/hooks/useOrgModules'
 import { cn } from '@/lib/utils'
 import { isPinEligible } from '@/lib/pin'
 import { getRestrictedHrefsUnion, type AllowedHref } from '@/lib/posRoleNav'
@@ -59,6 +59,7 @@ export function AppLayout() {
   const userIsPinEligible = !!user && isPinEligible(user.roles)
   const { hasRequiredPlan } = useSubscription()
   const { hasPos, hasInvoicing } = useOrgModules()
+  const { isRetail } = usePosMode()
 
   useIdleLogout(userIsPinEligible, switchUser)
 
@@ -162,18 +163,20 @@ export function AppLayout() {
         { name: 'Dashboard', href: '/pos/dashboard', icon: DashboardIcon, visible: hasPos },
         { name: 'Sell', href: '/pos/order/new', icon: ShoppingCart, visible: hasPos },
         { name: 'Orders', href: '/pos/orders', icon: Receipt, visible: hasPos },
-        { name: 'Tables', href: '/pos/tables', icon: LayoutGrid, visible: hasPos },
+        // No tables/kitchen-ticket concepts in a retail (scan-and-sell) org — mirrors
+        // RESTAURANT_ONLY_HREFS in Sidebar.tsx.
+        { name: 'Tables', href: '/pos/tables', icon: LayoutGrid, visible: hasPos && !isRetail },
         { name: 'Shift', href: '/pos/shift', icon: Clock, visible: hasPos },
-        { name: 'Kitchen', href: '/pos/kitchen', icon: Timer, visible: hasPos },
-        { name: 'Drinks', href: '/pos/drinks', icon: Martini, visible: hasPos },
+        { name: 'Kitchen', href: '/pos/kitchen', icon: Timer, visible: hasPos && !isRetail },
+        { name: 'Drinks', href: '/pos/drinks', icon: Martini, visible: hasPos && !isRetail },
       ] as MoreItem[],
     },
     {
       label: 'Catalog & Setup',
       items: [
-        { name: 'Menu', href: '/pos/menu', icon: ChefHat, visible: hasPos },
-        { name: 'Categories', href: '/pos/categories', icon: Tag, visible: hasPos },
-        { name: 'Order Types', href: '/pos/order-types', icon: ListOrdered, visible: hasPos },
+        { name: 'Menu', href: '/pos/menu', icon: ChefHat, visible: hasPos && !isRetail },
+        { name: 'Categories', href: '/pos/categories', icon: Tag, visible: hasPos && !isRetail },
+        { name: 'Order Types', href: '/pos/order-types', icon: ListOrdered, visible: hasPos && !isRetail },
         { name: 'Payment Types', href: '/pos/payment-types', icon: CreditCard, visible: hasPos },
       ] as MoreItem[],
     },

@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { AppLayout } from '@/components/layout'
-import { ProtectedRoute, GuestRoute, PlanGatedRoute, ReadOnlyGatedRoute, ModuleGatedRoute, ErrorBoundary } from '@/components/shared'
+import { ProtectedRoute, GuestRoute, PlanGatedRoute, ReadOnlyGatedRoute, ModuleGatedRoute, PosModeGatedRoute, ErrorBoundary } from '@/components/shared'
 
 
 import { useAuthStore } from '@/stores/auth'
@@ -255,28 +255,32 @@ function App() {
               {/* Restaurant POS (POS-only) */}
               <Route element={<ModuleGatedRoute requiredModule="POS" redirectTo="/invoices" />}>
                 <Route path="/pos/dashboard" element={<PosDashboardPage />} />
-                <Route path="/pos/menu" element={<MenuManagementPage />} />
-                <Route path="/pos/menu/:id" element={<MenuItemDetailPage />} />
-                <Route path="/pos/categories" element={<MenuCategoriesPage />} />
-                <Route path="/pos/order-types" element={<OrderTypesPage />} />
                 <Route path="/pos/payment-types" element={<PaymentTypesPage />} />
                 <Route path="/pos/waiters/:id" element={<WaiterDetailPage />} />
-                <Route path="/pos/tables" element={<TablesFloorPage />} />
                 <Route path="/pos/order/new" element={<PosCheckoutRoute />} />
                 <Route path="/pos/orders" element={<OrdersListPage />} />
                 <Route path="/pos/orders/:id" element={<OrderDetailPage />} />
                 <Route path="/pos/shift" element={<ShiftPage />} />
                 <Route path="/pos/customers" element={<CustomersListPage />} />
                 <Route path="/pos/customers/:id" element={<CustomerDetailPage />} />
-                <Route
-                  element={
-                    <ProtectedRoute
-                      allowedRoles={['PASS', 'RUNNER', 'KITCHEN', 'MANAGER', 'SUPERVISOR', 'ADMIN', 'SUPER_ADMIN']}
-                    />
-                  }
-                >
-                  <Route path="/pos/kitchen" element={<KitchenTicketsPage />} />
-                  <Route path="/pos/drinks" element={<DrinksTicketsPage />} />
+                {/* Dine-in-only concepts — no tables/menu/kitchen-ticket workflow in a retail
+                    (scan-and-sell) org. Mirrors RESTAURANT_ONLY_HREFS in Sidebar.tsx. */}
+                <Route element={<PosModeGatedRoute requiredPosMode="RESTAURANT" redirectTo="/pos/order/new" />}>
+                  <Route path="/pos/menu" element={<MenuManagementPage />} />
+                  <Route path="/pos/menu/:id" element={<MenuItemDetailPage />} />
+                  <Route path="/pos/categories" element={<MenuCategoriesPage />} />
+                  <Route path="/pos/order-types" element={<OrderTypesPage />} />
+                  <Route path="/pos/tables" element={<TablesFloorPage />} />
+                  <Route
+                    element={
+                      <ProtectedRoute
+                        allowedRoles={['PASS', 'RUNNER', 'KITCHEN', 'MANAGER', 'SUPERVISOR', 'ADMIN', 'SUPER_ADMIN']}
+                      />
+                    }
+                  >
+                    <Route path="/pos/kitchen" element={<KitchenTicketsPage />} />
+                    <Route path="/pos/drinks" element={<DrinksTicketsPage />} />
+                  </Route>
                 </Route>
                 <Route path="/pos/reports" element={<PosReportsPage />} />
                 <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'SUPER_ADMIN', 'CASHIER']} />}>
