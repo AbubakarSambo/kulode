@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { PlanTier, SubscriptionStatus, OrgModule } from '@prisma/client';
+import { PlanTier, SubscriptionStatus, OrgModule, PosMode } from '@prisma/client';
 import {
   IsOptional,
   IsEnum,
@@ -56,4 +56,13 @@ export class UpdatePlatformOrgDto {
   @IsOptional()
   @IsBoolean()
   isAccountingFeedEnabled?: boolean;
+
+  @ApiPropertyOptional({
+    enum: PosMode,
+    example: PosMode.RETAIL,
+    description: 'Business type this org is registered as (restaurant/bar vs retail/supermarket)',
+  })
+  @IsOptional()
+  @IsEnum(PosMode)
+  posMode?: PosMode;
 }

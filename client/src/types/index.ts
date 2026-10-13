@@ -944,6 +944,7 @@ export interface PlatformOrganization {
   isAccountingFeedEnabled: boolean
   platformFeePercent: number
   enabledModules: OrgModule
+  posMode: PosMode
   createdAt: string
   userCount: number
   invoiceCount: number
