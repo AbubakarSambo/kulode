@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Printer,
   Receipt,
+  FileText,
   ShoppingBag,
   CalendarClock,
   CreditCard,
@@ -32,6 +33,7 @@ import { customersApi, walletApi, organizationsApi } from '@/api'
 import type { CustomerStats } from '@/api'
 import { formatCurrency, formatCompactCurrency, formatDate, cn } from '@/lib/utils'
 import { printWalletReceipt } from '@/lib/printWalletReceipt'
+import { printCustomerStatement } from '@/lib/printCustomerStatement'
 import { useAuthStore } from '@/stores/auth'
 import type { Customer, OrderStatus, OrderSource, WalletTransactionType } from '@/types'
 
@@ -251,11 +253,13 @@ function errorMessage(err: unknown, fallback: string) {
 function WalletSection({
   customerId,
   customerName,
+  customerPhone,
   balance,
   creditLimit,
 }: {
   customerId: string
   customerName: string
+  customerPhone?: string
   balance: number
   creditLimit: number
 }) {
@@ -377,9 +381,31 @@ function WalletSection({
         </div>
 
         <div className="mb-4 rounded-xl border border-border p-3">
-          <div className="text-xs text-muted-foreground">Current Balance</div>
-          <div className={cn('text-2xl font-bold', balance < 0 ? 'text-destructive' : 'text-foreground')}>
-            {formatCurrency(balance)}
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-xs text-muted-foreground">Current Balance</div>
+              <div className={cn('text-2xl font-bold', balance < 0 ? 'text-destructive' : 'text-foreground')}>
+                {formatCurrency(balance)}
+              </div>
+            </div>
+            {balance < 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  printCustomerStatement(
+                    customerName,
+                    customerPhone,
+                    balance,
+                    transactions?.data ?? [],
+                    organization!,
+                  )
+                }
+                disabled={!organization}
+              >
+                <FileText className="mr-1.5 h-4 w-4" /> Statement
+              </Button>
+            )}
           </div>
           {balance < 0 && (
             <p className="mt-1 text-xs text-destructive">Customer is on account (owes this amount)</p>
@@ -728,6 +754,7 @@ export function CustomerDetailPage() {
         <WalletSection
           customerId={customer.id}
           customerName={customer.name}
+          customerPhone={customer.phone}
           balance={customer.walletBalance}
           creditLimit={customer.creditLimit}
         />
