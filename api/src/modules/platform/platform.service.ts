@@ -1184,6 +1184,38 @@ export class PlatformService {
   }
 
   /**
+   * Extends (or shortens, for negative `days`) an org's trial by the given number of days.
+   * Extends from the existing trialEndDate if the trial hasn't lapsed yet, otherwise from now,
+   * so a customer who's already past their trial end gets a fresh N-day window instead of
+   * having the days added to a date already in the past.
+   */
+  async extendTrial(id: string, days: number) {
+    const org = await this.prisma.organization.findUnique({ where: { id } });
+    if (!org) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    const base = org.trialEndDate && org.trialEndDate.getTime() > Date.now()
+      ? org.trialEndDate
+      : new Date();
+    const newTrialEndDate = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
+
+    const updated = await this.prisma.organization.update({
+      where: { id },
+      data: {
+        trialEndDate: newTrialEndDate,
+        trialStartDate: org.trialStartDate ?? new Date(),
+        subscriptionStatus: newTrialEndDate.getTime() > Date.now() ? 'TRIALING' : org.subscriptionStatus,
+      },
+    });
+
+    return {
+      ...updated,
+      platformFeePercent: Number(updated.platformFeePercent),
+    };
+  }
+
+  /**
    * Vendor subaccounts stuck in PENDING/FAILED across all organizations — Paystack has no
    * webhook or API field for when a new subaccount clears its first-payout review, so this
    * is the queue platform staff work through manually after checking the Paystack dashboard.

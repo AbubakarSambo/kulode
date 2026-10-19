@@ -4,6 +4,7 @@ import { PlatformService } from './platform.service';
 import { PlatformAdminGuard } from '../../common/guards/platform-admin.guard';
 import { UpdatePlatformOrgDto } from './dto/update-platform-org.dto';
 import { GrantOrgAccessDto } from './dto/grant-org-access.dto';
+import { ExtendTrialDto } from './dto/extend-trial.dto';
 import { PlanTier, SubscriptionStatus } from '@prisma/client';
 
 @ApiTags('Platform')
@@ -76,6 +77,17 @@ export class PlatformController {
     @Body() dto: UpdatePlatformOrgDto,
   ) {
     return this.platformService.updateOrganization(id, dto);
+  }
+
+  @Patch('organizations/:id/trial')
+  @ApiOperation({ summary: 'Extend (or shorten) an organization\'s Pro trial by a custom number of days' })
+  @ApiResponse({ status: 200, description: 'Trial end date updated' })
+  @ApiResponse({ status: 404, description: 'Organization not found' })
+  async extendTrial(
+    @Param('id') id: string,
+    @Body() dto: ExtendTrialDto,
+  ) {
+    return this.platformService.extendTrial(id, dto.days);
   }
 
   @Get('vendor-payouts/pending')

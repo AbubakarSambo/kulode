@@ -1910,6 +1910,30 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
   const [platformFeePercent] = useState<number>(org.platformFeePercent)
   const [enabledModules, setEnabledModules] = useState<string>(org.enabledModules)
   const [posMode, setPosMode] = useState<string>(org.posMode)
+  const [trialExtensionDays, setTrialExtensionDays] = useState<string>('14')
+
+  const extendTrialMutation = useMutation({
+    mutationFn: (days: number) => platformApi.extendTrial(org.id, days),
+    onSuccess: () => {
+      toast.success('Trial end date updated successfully')
+      queryClient.invalidateQueries({ queryKey: ['platform', 'organization', org.id] })
+      queryClient.invalidateQueries({ queryKey: ['platform', 'organizations'] })
+      queryClient.invalidateQueries({ queryKey: ['platform', 'dashboard'] })
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Failed to extend trial')
+    },
+  })
+
+  const handleExtendTrial = () => {
+    const days = parseInt(trialExtensionDays, 10)
+    if (!days || Number.isNaN(days)) {
+      toast.error('Enter a valid number of days')
+      return
+    }
+    extendTrialMutation.mutate(days)
+  }
 
   const updateMutation = useMutation({
     mutationFn: (data: {
@@ -2046,6 +2070,32 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
                   ]}
                 />
               </div>
+            </div>
+
+            <div className="rounded-2xl bg-[#f8f9ff] p-4 space-y-2">
+              <Label htmlFor="trialExtensionDays" className="text-[11px] font-bold text-[#434655] uppercase tracking-wider">Pro Trial</Label>
+              <p className="text-[10px] text-[#434655]">
+                Current trial end date: {org.trialEndDate ? new Date(org.trialEndDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'Not set'}
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  id="trialExtensionDays"
+                  type="number"
+                  value={trialExtensionDays}
+                  onChange={(e) => setTrialExtensionDays(e.target.value)}
+                  className="w-24 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0037b0]/20"
+                />
+                <span className="text-[11px] text-[#434655]">days</span>
+                <Button
+                  type="button"
+                  onClick={handleExtendTrial}
+                  disabled={extendTrialMutation.isPending}
+                  className="ml-auto px-4 py-2 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white text-xs font-bold shadow-md shadow-[#0037b0]/20 min-h-[40px]"
+                >
+                  {extendTrialMutation.isPending ? 'Extending...' : 'Extend Trial'}
+                </Button>
+              </div>
+              <p className="text-[10px] text-[#434655]">Extends from the current trial end date, or from today if the trial has already lapsed. Use a negative number to shorten it.</p>
             </div>
 
               <div className="flex items-center justify-between py-2">
