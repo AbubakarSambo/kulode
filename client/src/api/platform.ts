@@ -65,6 +65,11 @@ export const platformApi = {
     return response.data.data
   },
 
+  extendTrial: async (id: string, days: number): Promise<PlatformOrganization> => {
+    const response = await apiClient.patch<ApiResponse<PlatformOrganization>>(`/platform/organizations/${id}/trial`, { days })
+    return response.data.data
+  },
+
   getPendingVendorPayouts: async (): Promise<PendingVendorPayout[]> => {
     const response = await apiClient.get<ApiResponse<PendingVendorPayout[]>>('/platform/vendor-payouts/pending')
     return response.data.data
