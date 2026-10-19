@@ -1199,13 +1199,20 @@ export class PlatformService {
       ? org.trialEndDate
       : new Date();
     const newTrialEndDate = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
+    const reactivating = newTrialEndDate.getTime() > Date.now();
+
+    const PLAN_HIERARCHY: Record<PlanTier, number> = { FREE: 0, STARTER: 1, PRO: 2, BUSINESS: 3 };
 
     const updated = await this.prisma.organization.update({
       where: { id },
       data: {
         trialEndDate: newTrialEndDate,
         trialStartDate: org.trialStartDate ?? new Date(),
-        subscriptionStatus: newTrialEndDate.getTime() > Date.now() ? 'TRIALING' : org.subscriptionStatus,
+        subscriptionStatus: reactivating ? 'TRIALING' : org.subscriptionStatus,
+        // A trial org is meant to carry PRO access for its duration (see auth.service.ts
+        // signup flow). If planTier had been dropped to FREE/STARTER by an earlier expiry,
+        // restore PRO so the trial actually unlocks Pro-gated features again.
+        planTier: reactivating && PLAN_HIERARCHY[org.planTier] < PLAN_HIERARCHY.PRO ? 'PRO' : org.planTier,
       },
     });
 
