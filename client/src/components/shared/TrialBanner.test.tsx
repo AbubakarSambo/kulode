@@ -38,6 +38,39 @@ describe('TrialBanner', () => {
     expect(screen.getByText('Upgrade now')).toBeInTheDocument()
   })
 
+  it('shows red trial banner when 5 or fewer days remaining', () => {
+    mockUseSubscription.mockReturnValue({
+      isTrial: true,
+      isExpired: false,
+      isActive: false,
+      isGrandfathered: false,
+      trialDaysRemaining: 5,
+      isLoading: false,
+    })
+
+    renderBanner()
+
+    const banner = screen.getByText(/5 days left in your Pro trial/).closest('div')
+    expect(banner).toHaveClass('bg-destructive/10')
+    expect(banner).not.toHaveClass('bg-amber-500/10')
+  })
+
+  it('keeps amber trial banner when more than 5 days remaining', () => {
+    mockUseSubscription.mockReturnValue({
+      isTrial: true,
+      isExpired: false,
+      isActive: false,
+      isGrandfathered: false,
+      trialDaysRemaining: 6,
+      isLoading: false,
+    })
+
+    renderBanner()
+
+    const banner = screen.getByText(/6 days left in your Pro trial/).closest('div')
+    expect(banner).toHaveClass('bg-amber-500/10')
+  })
+
   it('shows singular "day" when 1 day remaining', () => {
     mockUseSubscription.mockReturnValue({
       isTrial: true,
