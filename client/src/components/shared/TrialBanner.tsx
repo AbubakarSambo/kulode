@@ -12,8 +12,15 @@ export function TrialBanner() {
   const isOverUserLimit = activeUsers > maxUsers
 
   if (isTrial && trialDaysRemaining !== null && trialDaysRemaining > 0) {
+    const isUrgent = trialDaysRemaining <= 5
     return (
-      <div className="flex items-center justify-center gap-2 bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-sm text-amber-700 dark:text-amber-400">
+      <div
+        className={`flex items-center justify-center gap-2 border-b px-4 py-2 text-sm ${
+          isUrgent
+            ? 'bg-destructive/10 border-destructive/20 text-destructive'
+            : 'bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400'
+        }`}
+      >
         <AlertTriangle className="h-4 w-4 shrink-0" />
         <span>
           {trialDaysRemaining} day{trialDaysRemaining !== 1 ? 's' : ''} left in your Pro trial.{' '}
