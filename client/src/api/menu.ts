@@ -75,9 +75,18 @@ export interface MenuItemOrderHistoryEntry {
   }
 }
 
+export interface MenuItemPricePeriod {
+  price: number
+  firstSoldAt: string
+  lastSoldAt: string
+  quantitySold: number
+}
+
 export interface MenuItemHistory {
   itemId: string
   recentOrders: MenuItemOrderHistoryEntry[]
+  // Oldest first — one entry per stretch of time the item sold at a given price.
+  priceHistory: MenuItemPricePeriod[]
   stats: {
     timesOrdered: number
     totalQuantitySold: number

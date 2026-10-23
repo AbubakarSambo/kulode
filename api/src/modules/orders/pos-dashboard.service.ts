@@ -4,6 +4,27 @@ import { PrismaService } from '../prisma/prisma.service';
 import { applyShiftHours, businessDateFor, DEFAULT_SHIFT_HOURS, ShiftHours } from '../../common';
 import { ReportFilterDto, ReportPeriod } from '../reports/dto';
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The window a period's figures are compared against: the same window one period earlier, cut off
+ * at the same point in the period that `now` has reached.
+ *
+ * Shifting back by whole days (not by the window's raw length) keeps business-day windows
+ * aligned — an 08:00→02:00 "today" spans 18h, and stepping back 18h from 08:00 would compare
+ * against yesterday from 14:00, missing lunch entirely. Cutting off at `now` keeps an
+ * in-progress period honest: today-so-far is compared with yesterday up to the same time of
+ * day, not with all of yesterday, which made every restaurant look ~70% down every afternoon.
+ */
+export function previousComparableRange(startDate: Date, endDate: Date, now: Date): { startDate: Date; endDate: Date } {
+  const back = Math.ceil((endDate.getTime() - startDate.getTime() + 1) / DAY_MS) * DAY_MS;
+  const effectiveEnd = Math.max(Math.min(endDate.getTime(), now.getTime()), startDate.getTime());
+  return {
+    startDate: new Date(startDate.getTime() - back),
+    endDate: new Date(effectiveEnd - back),
+  };
+}
+
 @Injectable()
 export class PosDashboardService {
   constructor(private prisma: PrismaService) {}
@@ -86,13 +107,6 @@ export class PosDashboardService {
     return applyShiftHours(startDate, endDate, shift);
   }
 
-  private getPreviousDateRange(startDate: Date, endDate: Date): { startDate: Date; endDate: Date } {
-    const diffTime = endDate.getTime() - startDate.getTime();
-    return {
-      startDate: new Date(startDate.getTime() - diffTime),
-      endDate: new Date(startDate.getTime() - 1),
-    };
-  }
 
   private calculatePercentageChange(current: number, previous: number): number {
     if (previous === 0) return current > 0 ? 100 : 0;
@@ -101,7 +115,7 @@ export class PosDashboardService {
 
   async getSummary(organizationId: string, filter: ReportFilterDto) {
     const { startDate, endDate } = await this.getDateRange(organizationId, filter);
-    const prevRange = this.getPreviousDateRange(startDate, endDate);
+    const prevRange = previousComparableRange(startDate, endDate, new Date());
 
     // Sales/byPaymentMethod are keyed off the *order's* closedAt (not the payment's own
     // paymentDate) and restricted to actually-closed orders — the same universe orderCount,
