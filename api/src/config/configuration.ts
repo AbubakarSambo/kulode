@@ -94,3 +94,9 @@ export const whatsappConfig = registerAs("whatsapp", () => ({
   templateLanguage: process.env.WHATSAPP_TEMPLATE_LANGUAGE || "en",
   webhookVerifyToken: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "",
 }));
+
+export const demoConfig = registerAs("demo", () => ({
+  // Comma-separated org ids the 15-minute demo job keeps "live" (see DemoModule). Leave unset
+  // everywhere except the environment hosting the sales-demo restaurant.
+  orgIds: process.env.DEMO_ORG_IDS || "",
+}));
