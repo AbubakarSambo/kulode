@@ -29,6 +29,8 @@ vi.mock('sonner', () => ({
 const mockUseOrgModules = vi.fn()
 vi.mock('@/hooks/useOrgModules', () => ({
   useOrgModules: () => mockUseOrgModules(),
+  // Restaurant mode throughout — these tests cover the restaurant role set (e.g. WAITER default).
+  usePosMode: () => ({ posMode: 'RESTAURANT', isRetail: false, isRestaurant: true }),
 }))
 
 const mockUseAuthStore = vi.fn()

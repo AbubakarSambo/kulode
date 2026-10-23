@@ -20,6 +20,9 @@ const mockSwitchUser = vi.fn()
 vi.mock('@/hooks', () => ({
   useLogout: () => mockLogout,
   useSwitchUser: () => mockSwitchUser,
+  // OrgSwitcher (rendered in the sidebar) — a single-org user, so it stays out of the way.
+  useMyOrganizations: () => ({ data: [] }),
+  useSwitchOrganization: () => ({ mutate: vi.fn(), isPending: false }),
 }))
 
 vi.mock('@tanstack/react-query', () => ({
