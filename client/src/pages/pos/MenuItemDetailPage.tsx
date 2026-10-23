@@ -5,7 +5,7 @@ import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { ArrowLeft, Pencil, Trash2, Plus, CookingPot } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, Plus, CookingPot, History } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, Badge, ConfirmDialog, SearchableSelect } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
@@ -232,6 +232,49 @@ export function MenuItemDetailPage() {
                 </CardContent>
               </Card>
             </div>
+
+            {history && history.priceHistory.length > 1 && (
+              <Card className="p-4">
+                <CardContent className="p-0">
+                  <h3 className="mb-3 flex items-center gap-1.5 font-semibold text-foreground">
+                    <History className="h-4 w-4 text-muted-foreground" /> Price History
+                  </h3>
+                  <div className="space-y-2">
+                    {history.priceHistory
+                      .map((period, i, all) => ({ period, previous: all[i - 1], isLatest: i === all.length - 1 }))
+                      .reverse()
+                      .map(({ period, previous, isLatest }) => {
+                        const change = previous ? ((period.price - previous.price) / previous.price) * 100 : null
+                        return (
+                          <div
+                            key={period.firstSoldAt}
+                            className="flex items-center justify-between rounded-xl border border-border p-3"
+                          >
+                            <div>
+                              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                                {formatCurrency(period.price)}
+                                {change !== null && (
+                                  <span className={cn('text-xs font-medium', change > 0 ? 'text-emerald-600' : 'text-destructive')}>
+                                    {change > 0 ? '+' : ''}
+                                    {change.toFixed(1)}%
+                                  </span>
+                                )}
+                                {isLatest && <Badge variant="success">Latest</Badge>}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {isLatest
+                                  ? `Since ${formatDate(period.firstSoldAt)}`
+                                  : `${formatDate(period.firstSoldAt)} – ${formatDate(period.lastSoldAt)}`}
+                              </div>
+                            </div>
+                            <span className="text-sm font-semibold text-foreground">{period.quantitySold} sold</span>
+                          </div>
+                        )
+                      })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             <Card className="p-4">
               <CardContent className="p-0">
