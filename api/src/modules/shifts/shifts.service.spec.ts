@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ShiftsService } from './shifts.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { WhatsappService } from '../whatsapp/whatsapp.service';
 
 // ─── Mock helpers ────────────────────────────────────────────────────────────
 
@@ -14,6 +15,9 @@ function createMockPrisma() {
       update: jest.fn(),
     },
     payment: { groupBy: jest.fn() },
+    // close() looks the org up to decide whether to send the WhatsApp shift summary; no org
+    // means no summary, which keeps these tests focused on the shift itself.
+    organization: { findUnique: jest.fn().mockResolvedValue(null) },
     shiftPaymentBreakdown: {
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       createMany: jest.fn().mockResolvedValue({ count: 0 }),
@@ -48,7 +52,11 @@ describe('ShiftsService', () => {
     prisma = createMockPrisma();
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ShiftsService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        ShiftsService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: WhatsappService, useValue: { sendShiftReportTemplate: jest.fn() } },
+      ],
     }).compile();
 
     service = module.get<ShiftsService>(ShiftsService);

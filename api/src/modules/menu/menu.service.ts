@@ -1,4 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateMenuCategoryDto,
@@ -13,6 +14,36 @@ const ingredientsInclude = {
     include: { inventoryItem: { select: { id: true, name: true, sku: true, unitOfMeasure: true } } },
   },
 } as const;
+
+export interface PricePeriod {
+  price: number;
+  firstSoldAt: Date;
+  lastSoldAt: Date;
+  quantitySold: number;
+}
+
+/**
+ * Collapses an item's sales (oldest first) into the stretches of time it sold at each price.
+ * OrderItem.unitPrice is snapshotted from the menu price when the line is added and can't be
+ * edited afterwards, so a change in unit price between consecutive sales is a menu price change.
+ * A price that comes back later starts a new period rather than merging with the old one.
+ */
+export function buildPriceHistory(
+  sales: { unitPrice: Prisma.Decimal | number; quantity: Prisma.Decimal | number; createdAt: Date }[],
+): PricePeriod[] {
+  const periods: PricePeriod[] = [];
+  for (const sale of sales) {
+    const price = Number(sale.unitPrice);
+    const current = periods[periods.length - 1];
+    if (current && current.price === price) {
+      current.lastSoldAt = sale.createdAt;
+      current.quantitySold += Number(sale.quantity);
+    } else {
+      periods.push({ price, firstSoldAt: sale.createdAt, lastSoldAt: sale.createdAt, quantitySold: Number(sale.quantity) });
+    }
+  }
+  return periods;
+}
 
 @Injectable()
 export class MenuService {
@@ -107,7 +138,7 @@ export class MenuService {
     const item = await this.prisma.menuItem.findFirst({ where: { id, organizationId } });
     if (!item) throw new NotFoundException('Menu item not found');
 
-    const [recentOrders, stats] = await Promise.all([
+    const [recentOrders, stats, pricedSales] = await Promise.all([
       this.prisma.orderItem.findMany({
         where: { menuItemId: id, order: { organizationId } },
         orderBy: { createdAt: 'desc' },
@@ -134,11 +165,17 @@ export class MenuService {
         _count: true,
         _sum: { quantity: true, amount: true },
       }),
+      this.prisma.orderItem.findMany({
+        where: { menuItemId: id, order: { organizationId, status: 'CLOSED_PAID' } },
+        orderBy: { createdAt: 'asc' },
+        select: { unitPrice: true, quantity: true, createdAt: true },
+      }),
     ]);
 
     return {
       itemId: id,
       recentOrders,
+      priceHistory: buildPriceHistory(pricedSales),
       stats: {
         timesOrdered: stats._count,
         totalQuantitySold: stats._sum.quantity ?? 0,
