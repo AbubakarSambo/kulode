@@ -3,7 +3,7 @@ import { Prisma, WalletTransactionType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { paginate, runIdempotent } from '../../common';
 import { SheetSyncService } from '../sheet-sync';
-import { TopUpWalletDto, AdjustWalletDto, WalletTransactionFilterDto } from './dto';
+import { TopUpWalletDto, AdjustWalletDto, WalletTransactionFilterDto, TOPUP_PAYMENT_METHOD_LABELS } from './dto';
 
 function toNumber(val: Prisma.Decimal | number): number {
   return typeof val === 'number' ? val : Number(val);
@@ -191,7 +191,7 @@ export class WalletService {
           amount: dto.amount,
           type: 'TOPUP',
           reference: dto.reference,
-          notes: dto.notes ?? `Top-up via ${dto.paymentMethod}`,
+          notes: dto.notes ?? `Top-up via ${TOPUP_PAYMENT_METHOD_LABELS[dto.paymentMethod] ?? dto.paymentMethod}`,
         }),
     );
   }
