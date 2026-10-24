@@ -3,6 +3,14 @@ import { IsIn, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validat
 
 const TOPUP_PAYMENT_METHODS = ['CASH', 'BANK_TRANSFER', 'CARD', 'OTHER'] as const;
 
+// How each method reads in the wallet history / printed statements ("Top-up via Bank Transfer").
+export const TOPUP_PAYMENT_METHOD_LABELS: Record<(typeof TOPUP_PAYMENT_METHODS)[number], string> = {
+  CASH: 'Cash',
+  BANK_TRANSFER: 'Bank Transfer',
+  CARD: 'Card',
+  OTHER: 'Other',
+};
+
 export class TopUpWalletDto {
   @ApiProperty({ minimum: 0.01 })
   @IsNumber()
