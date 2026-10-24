@@ -5,13 +5,14 @@ import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { ArrowLeft, Pencil, Trash2, Plus, CookingPot, History } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, Plus, CookingPot, History, TrendingUp } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, Badge, ConfirmDialog, SearchableSelect } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { menuCategoriesApi, menuItemsApi, inventoryApi } from '@/api'
 import { formatCurrency, formatDate, cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
+import { plateMargin, FOOD_COST_TARGET, FOOD_COST_TEXT } from '@/lib/plateCost'
 import type { UnitOfMeasure } from '@/types'
 
 // Matches InventoryPage's UNIT_SUFFIX — kept in sync manually since it's a tiny, stable lookup.
@@ -93,6 +94,11 @@ export function MenuItemDetailPage() {
     name: 'ingredients',
   })
   const watchedIngredients = recipeForm.watch('ingredients')
+  // Live estimate while editing, priced from the inventory list rather than the saved recipe
+  const draftPlateCost = watchedIngredients?.reduce((sum, line) => {
+    const cost = inventoryItems?.find((inv) => inv.id === line.inventoryItemId)?.unitPrice ?? 0
+    return sum + (Number.isFinite(line.quantityPerUnit) ? line.quantityPerUnit : 0) * cost
+  }, 0) ?? 0
 
   const updateItem = useMutation({
     mutationFn: (data: ItemFormData) => menuItemsApi.update(id!, data),
@@ -133,6 +139,10 @@ export function MenuItemDetailPage() {
       </div>
     )
   }
+
+  const margin = plateMargin(item.price, item.plateCost)
+  const uncostedCount = item.ingredients.filter((line) => line.unitCost === 0).length
+  const draftMargin = plateMargin(item.price, draftPlateCost)
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -276,6 +286,59 @@ export function MenuItemDetailPage() {
               </Card>
             )}
 
+            {canManage && (
+              <Card className="p-4">
+                <CardContent className="p-0">
+                  <h3 className="mb-3 flex items-center gap-1.5 font-semibold text-foreground">
+                    <TrendingUp className="h-4 w-4 text-muted-foreground" /> Cost & Margin
+                  </h3>
+                  {!margin ? (
+                    <p className="py-4 text-center text-sm text-muted-foreground">
+                      Add a recipe to see what this dish costs to make and how much you keep per plate.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                        <div>
+                          <div className="text-xs text-muted-foreground">Plate Cost</div>
+                          <div className="text-xl font-bold text-foreground">{formatCurrency(margin.plateCost)}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-muted-foreground">Gross Profit</div>
+                          <div className={cn('text-xl font-bold', margin.grossProfit < 0 ? 'text-destructive' : 'text-foreground')}>
+                            {formatCurrency(margin.grossProfit)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-muted-foreground">Food Cost</div>
+                          <div className={cn('text-xl font-bold', FOOD_COST_TEXT[margin.level])}>
+                            {margin.foodCostPct == null ? '—' : `${margin.foodCostPct.toFixed(1)}%`}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-muted-foreground">Margin</div>
+                          <div className="text-xl font-bold text-foreground">
+                            {margin.marginPct == null ? '—' : `${margin.marginPct.toFixed(1)}%`}
+                          </div>
+                        </div>
+                      </div>
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        Based on current inventory costs. Most restaurants aim for food cost at or under{' '}
+                        {FOOD_COST_TARGET}% of the selling price.
+                        {uncostedCount > 0 && (
+                          <span className="text-amber-600">
+                            {' '}
+                            {uncostedCount} ingredient{uncostedCount === 1 ? ' has' : 's have'} no cost set in inventory, so
+                            the real plate cost is higher.
+                          </span>
+                        )}
+                      </p>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             <Card className="p-4">
               <CardContent className="p-0">
                 <div className="mb-3 flex items-center justify-between">
@@ -315,9 +378,16 @@ export function MenuItemDetailPage() {
                           <div className="text-sm font-semibold text-foreground">{line.name}</div>
                           {line.sku && <div className="text-xs text-muted-foreground">SKU {line.sku}</div>}
                         </div>
-                        <span className="text-sm font-semibold text-foreground">
-                          {line.quantityPerUnit} {UNIT_SUFFIX[line.unitOfMeasure]} / order
-                        </span>
+                        <div className="text-right">
+                          <div className="text-sm font-semibold text-foreground">
+                            {line.quantityPerUnit} {UNIT_SUFFIX[line.unitOfMeasure]} / order
+                          </div>
+                          {canManage && (
+                            <div className={cn('text-xs', line.unitCost === 0 ? 'text-amber-600' : 'text-muted-foreground')}>
+                              {line.unitCost === 0 ? 'No cost set' : formatCurrency(line.lineCost)}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -494,6 +564,19 @@ export function MenuItemDetailPage() {
           >
             <Plus className="mr-1.5 h-4 w-4" /> Add Ingredient
           </Button>
+
+          {recipeFields.length > 0 && draftMargin && (
+            <div className="flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2 text-sm">
+              <span className="text-muted-foreground">
+                Plate cost <span className="font-semibold text-foreground">{formatCurrency(draftMargin.plateCost)}</span>
+              </span>
+              {draftMargin.foodCostPct != null && (
+                <span className={cn('font-semibold', FOOD_COST_TEXT[draftMargin.level])}>
+                  {draftMargin.foodCostPct.toFixed(1)}% of price
+                </span>
+              )}
+            </div>
+          )}
 
           <Button type="submit" className="w-full" isLoading={saveRecipe.isPending}>
             Save Recipe

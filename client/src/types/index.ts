@@ -484,6 +484,9 @@ export interface MenuItemIngredient {
   sku?: string
   unitOfMeasure: UnitOfMeasure
   quantityPerUnit: number
+  // Ingredient's current cost per unit of measure, and quantityPerUnit × that
+  unitCost: number
+  lineCost: number
 }
 
 export interface MenuItem {
@@ -497,6 +500,8 @@ export interface MenuItem {
   isAvailable: boolean
   durationMinutes?: number
   ingredients: MenuItemIngredient[]
+  // Ingredient cost of one serving at today's inventory costs; null when there's no recipe
+  plateCost: number | null
 }
 
 export interface RestaurantTable {

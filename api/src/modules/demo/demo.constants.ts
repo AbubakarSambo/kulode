@@ -363,31 +363,106 @@ export const INVENTORY: DemoInventoryItem[] = [
   { name: 'Linguine Pasta', unitOfMeasure: 'KG', unitPrice: 3500, onHand: 25, reorderLevel: 10 },
   { name: 'Snails', unitOfMeasure: 'UNIT', unitPrice: 1500, onHand: 120, reorderLevel: 60 },
   { name: 'Burger Buns', unitOfMeasure: 'UNIT', unitPrice: 400, onHand: 96, reorderLevel: 40 },
+  { name: 'Chicken Gizzards', unitOfMeasure: 'KG', unitPrice: 5500, onHand: 14, reorderLevel: 6 },
+  { name: 'Smoked Fish', unitOfMeasure: 'KG', unitPrice: 14000, onHand: 10, reorderLevel: 4 },
+  { name: 'Potatoes', unitOfMeasure: 'KG', unitPrice: 1800, onHand: 60, reorderLevel: 20 },
+  { name: 'Cheese Slices', unitOfMeasure: 'UNIT', unitPrice: 300, onHand: 150, reorderLevel: 50 },
+  // Pantry staples that go into most dishes — stocked deep since the live demo draws on them all day.
+  { name: 'Vegetable Oil', unitOfMeasure: 'L', unitPrice: 3200, onHand: 90, reorderLevel: 25 },
+  { name: 'Palm Oil', unitOfMeasure: 'L', unitPrice: 3800, onHand: 35, reorderLevel: 10 },
+  { name: 'Tomato & Pepper Base', unitOfMeasure: 'KG', unitPrice: 2800, onHand: 80, reorderLevel: 25 },
+  { name: 'Onions', unitOfMeasure: 'KG', unitPrice: 1500, onHand: 60, reorderLevel: 20 },
+  { name: 'Seasoning & Spices', unitOfMeasure: 'KG', unitPrice: 9000, onHand: 20, reorderLevel: 6 },
+  { name: 'Suya Spice (Yaji)', unitOfMeasure: 'KG', unitPrice: 7000, onHand: 10, reorderLevel: 3 },
+  { name: 'Mixed Vegetables', unitOfMeasure: 'KG', unitPrice: 3500, onHand: 40, reorderLevel: 12 },
+  { name: 'Coconut Milk', unitOfMeasure: 'L', unitPrice: 4500, onHand: 15, reorderLevel: 6 },
+  { name: 'Cooking Cream', unitOfMeasure: 'L', unitPrice: 7500, onHand: 10, reorderLevel: 4 },
+  { name: 'Egusi (Ground Melon)', unitOfMeasure: 'KG', unitPrice: 7000, onHand: 12, reorderLevel: 5 },
+  { name: 'Ugu & Spinach', unitOfMeasure: 'KG', unitPrice: 2500, onHand: 20, reorderLevel: 8 },
+  { name: 'Stockfish & Crayfish', unitOfMeasure: 'KG', unitPrice: 18000, onHand: 8, reorderLevel: 3 },
 ];
 
-// Recipe lines: menu item → [inventory item, quantity per order].
+// Recipe lines: menu item → [inventory item, quantity per order]. Full recipes rather than just the
+// main protein so the menu's plate cost / food cost % reads realistically: most dishes land in the
+// 20–35% band, a few cheap grills sit just above target, and the whole-fish dishes and peppered
+// snail come out over 40% — the "these are underpriced" talking point in a sales demo.
 export const RECIPES: Record<string, [string, number][]> = {
-  'Grilled Chicken (Half)': [['Chicken (Whole)', 0.5]],
-  'Jollof Rice with Grilled Chicken': [['Parboiled Rice', 0.25], ['Chicken (Whole)', 0.25]],
-  'Fried Rice with Beef': [['Parboiled Rice', 0.25], ['Beef', 0.15]],
-  'Coconut Rice with Prawns': [['Parboiled Rice', 0.25], ['Prawns', 0.12]],
-  'Native Jollof with Smoked Fish': [['Parboiled Rice', 0.25]],
-  'Basmati Rice with Chicken Curry': [['Chicken (Whole)', 0.25]],
-  'Peppered Goat Meat': [['Goat Meat', 0.3]],
-  'Asun': [['Goat Meat', 0.3]],
-  'Goat Meat Pepper Soup': [['Goat Meat', 0.3]],
-  'Catfish Pepper Soup': [['Catfish', 1]],
-  'Grilled Croaker Fish': [['Croaker Fish', 1]],
-  'Suya Platter': [['Beef', 0.3]],
-  'Beef Suya Skewers': [['Beef', 0.2]],
-  'Chicken Wings (8 pcs)': [['Chicken (Whole)', 0.4]],
-  'Seafood Linguine': [['Linguine Pasta', 0.15], ['Prawns', 0.1]],
-  'Egusi Soup with Pounded Yam': [['Yam Flour (Pounded Yam)', 0.2], ['Beef', 0.1]],
-  'Peppered Snail': [['Snails', 4]],
-  'Gizdodo': [['Plantain', 1]],
-  'Fried Plantain (Dodo)': [['Plantain', 1]],
-  'Courtyard Beef Burger': [['Burger Buns', 1], ['Beef', 0.2]],
-  'Crispy Chicken Burger': [['Burger Buns', 1], ['Chicken (Whole)', 0.2]],
+  'Grilled Chicken (Half)': [
+    ['Chicken (Whole)', 0.5], ['Tomato & Pepper Base', 0.08], ['Vegetable Oil', 0.03], ['Seasoning & Spices', 0.02],
+  ],
+  'Jollof Rice with Grilled Chicken': [
+    ['Parboiled Rice', 0.25], ['Chicken (Whole)', 0.25], ['Tomato & Pepper Base', 0.2], ['Vegetable Oil', 0.06],
+    ['Onions', 0.05], ['Seasoning & Spices', 0.015],
+  ],
+  'Fried Rice with Beef': [
+    ['Parboiled Rice', 0.25], ['Beef', 0.25], ['Mixed Vegetables', 0.12], ['Vegetable Oil', 0.05], ['Onions', 0.04],
+    ['Seasoning & Spices', 0.015],
+  ],
+  'Coconut Rice with Prawns': [
+    ['Parboiled Rice', 0.25], ['Prawns', 0.18], ['Coconut Milk', 0.2], ['Tomato & Pepper Base', 0.1],
+    ['Vegetable Oil', 0.04], ['Onions', 0.04], ['Seasoning & Spices', 0.015],
+  ],
+  'Native Jollof with Smoked Fish': [
+    ['Parboiled Rice', 0.25], ['Smoked Fish', 0.2], ['Palm Oil', 0.08], ['Tomato & Pepper Base', 0.15],
+    ['Stockfish & Crayfish', 0.03], ['Onions', 0.05], ['Seasoning & Spices', 0.015],
+  ],
+  'Basmati Rice with Chicken Curry': [
+    ['Parboiled Rice', 0.25], ['Chicken (Whole)', 0.3], ['Coconut Milk', 0.15], ['Mixed Vegetables', 0.08],
+    ['Onions', 0.06], ['Vegetable Oil', 0.04], ['Seasoning & Spices', 0.03],
+  ],
+  'Peppered Goat Meat': [
+    ['Goat Meat', 0.32], ['Tomato & Pepper Base', 0.1], ['Vegetable Oil', 0.04], ['Onions', 0.05],
+    ['Seasoning & Spices', 0.015],
+  ],
+  'Asun': [
+    ['Goat Meat', 0.3], ['Tomato & Pepper Base', 0.08], ['Vegetable Oil', 0.04], ['Onions', 0.06],
+    ['Seasoning & Spices', 0.02],
+  ],
+  'Goat Meat Pepper Soup': [
+    ['Goat Meat', 0.3], ['Tomato & Pepper Base', 0.04], ['Ugu & Spinach', 0.03], ['Onions', 0.03],
+    ['Seasoning & Spices', 0.03],
+  ],
+  'Catfish Pepper Soup': [
+    ['Catfish', 1], ['Tomato & Pepper Base', 0.04], ['Ugu & Spinach', 0.03], ['Onions', 0.03],
+    ['Seasoning & Spices', 0.03],
+  ],
+  'Grilled Croaker Fish': [
+    ['Croaker Fish', 1], ['Tomato & Pepper Base', 0.1], ['Vegetable Oil', 0.05], ['Onions', 0.05],
+    ['Seasoning & Spices', 0.03],
+  ],
+  'Suya Platter': [
+    ['Beef', 0.35], ['Suya Spice (Yaji)', 0.04], ['Onions', 0.1], ['Mixed Vegetables', 0.08], ['Vegetable Oil', 0.02],
+  ],
+  'Beef Suya Skewers': [['Beef', 0.25], ['Suya Spice (Yaji)', 0.03], ['Onions', 0.06], ['Vegetable Oil', 0.02]],
+  'Chicken Wings (8 pcs)': [
+    ['Chicken (Whole)', 0.4], ['Tomato & Pepper Base', 0.05], ['Vegetable Oil', 0.1], ['Seasoning & Spices', 0.03],
+  ],
+  'Seafood Linguine': [
+    ['Linguine Pasta', 0.15], ['Prawns', 0.25], ['Cooking Cream', 0.1], ['Tomato & Pepper Base', 0.1],
+    ['Onions', 0.04], ['Vegetable Oil', 0.03], ['Seasoning & Spices', 0.02],
+  ],
+  'Egusi Soup with Pounded Yam': [
+    ['Yam Flour (Pounded Yam)', 0.25], ['Egusi (Ground Melon)', 0.15], ['Beef', 0.2], ['Palm Oil', 0.08],
+    ['Ugu & Spinach', 0.1], ['Stockfish & Crayfish', 0.04], ['Tomato & Pepper Base', 0.08], ['Onions', 0.04],
+    ['Seasoning & Spices', 0.015],
+  ],
+  'Peppered Snail': [
+    ['Snails', 4], ['Tomato & Pepper Base', 0.1], ['Vegetable Oil', 0.04], ['Onions', 0.06],
+    ['Seasoning & Spices', 0.02],
+  ],
+  'Gizdodo': [
+    ['Plantain', 1.5], ['Chicken Gizzards', 0.25], ['Tomato & Pepper Base', 0.12], ['Vegetable Oil', 0.08],
+    ['Onions', 0.05], ['Seasoning & Spices', 0.015],
+  ],
+  'Fried Plantain (Dodo)': [['Plantain', 1], ['Vegetable Oil', 0.06]],
+  'Courtyard Beef Burger': [
+    ['Burger Buns', 1], ['Beef', 0.25], ['Cheese Slices', 1], ['Potatoes', 0.25], ['Mixed Vegetables', 0.06],
+    ['Onions', 0.03], ['Vegetable Oil', 0.05], ['Seasoning & Spices', 0.01],
+  ],
+  'Crispy Chicken Burger': [
+    ['Burger Buns', 1], ['Chicken (Whole)', 0.25], ['Cheese Slices', 1], ['Potatoes', 0.25],
+    ['Mixed Vegetables', 0.06], ['Vegetable Oil', 0.1], ['Seasoning & Spices', 0.02],
+  ],
 };
 
 export interface DemoTable {

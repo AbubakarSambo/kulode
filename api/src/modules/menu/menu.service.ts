@@ -11,7 +11,9 @@ import {
 
 const ingredientsInclude = {
   ingredients: {
-    include: { inventoryItem: { select: { id: true, name: true, sku: true, unitOfMeasure: true } } },
+    include: {
+      inventoryItem: { select: { id: true, name: true, sku: true, unitOfMeasure: true, unitPrice: true } },
+    },
   },
 } as const;
 
@@ -43,6 +45,21 @@ export function buildPriceHistory(
     }
   }
   return periods;
+}
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Plate cost of one unit of a menu item: each recipe line's quantity × its ingredient's current
+ * InventoryItem.unitPrice (cost per unit of measure). Uses today's ingredient cost, not what stock
+ * cost when it was bought, so it's an estimate of what the dish costs to make right now. Null for an
+ * item with no recipe — "unknown", not "free".
+ */
+export function computeRecipeCost(
+  lines: { quantityPerUnit: Prisma.Decimal | number; unitPrice: Prisma.Decimal | number }[],
+): number | null {
+  if (lines.length === 0) return null;
+  return round2(lines.reduce((sum, line) => sum + Number(line.quantityPerUnit) * Number(line.unitPrice), 0));
 }
 
 @Injectable()
@@ -195,8 +212,14 @@ export class MenuService {
   private flattenIngredients<
     T extends {
       ingredients: {
-        quantityPerUnit: unknown;
-        inventoryItem: { id: string; name: string; sku: string | null; unitOfMeasure: string };
+        quantityPerUnit: Prisma.Decimal;
+        inventoryItem: {
+          id: string;
+          name: string;
+          sku: string | null;
+          unitOfMeasure: string;
+          unitPrice: Prisma.Decimal;
+        };
       }[];
     },
   >(item: T) {
@@ -209,7 +232,12 @@ export class MenuService {
         sku: line.inventoryItem.sku,
         unitOfMeasure: line.inventoryItem.unitOfMeasure,
         quantityPerUnit: Number(line.quantityPerUnit),
+        unitCost: Number(line.inventoryItem.unitPrice),
+        lineCost: round2(Number(line.quantityPerUnit) * Number(line.inventoryItem.unitPrice)),
       })),
+      plateCost: computeRecipeCost(
+        ingredients.map((line) => ({ quantityPerUnit: line.quantityPerUnit, unitPrice: line.inventoryItem.unitPrice })),
+      ),
     };
   }
 
