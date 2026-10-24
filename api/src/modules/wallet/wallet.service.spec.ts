@@ -71,6 +71,20 @@ describe('WalletService', () => {
       });
     });
 
+    it('labels the default note with a readable payment method', async () => {
+      prisma.customer.findFirst.mockResolvedValue(mockCustomer('0'));
+
+      await service.topUp(ORG_ID, CUSTOMER_ID, USER_ID, {
+        amount: 20000,
+        paymentMethod: 'BANK_TRANSFER',
+        clientRequestId: 'req-label',
+      });
+
+      expect(prisma.walletTransaction.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ notes: 'Top-up via Bank Transfer' }) }),
+      );
+    });
+
     it('is idempotent for a repeated clientRequestId', async () => {
       prisma.customer.findFirst.mockResolvedValue(mockCustomer('100'));
       const snapshot = { type: 'TOPUP', amount: 50, balanceBefore: 100, balanceAfter: 150 };

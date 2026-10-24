@@ -56,6 +56,12 @@ export function formatPaymentMethod(method: string): string {
     .join(' ')
 }
 
+// Wallet top-ups recorded before the API used readable labels have notes like
+// "Top-up via BANK_TRANSFER"; show those as "Top-up via Bank Transfer".
+export function formatWalletNote(notes: string): string {
+  return notes.replace(/^Top-up via ([A-Z0-9_]+)$/, (_, method: string) => `Top-up via ${formatPaymentMethod(method)}`)
+}
+
 export function isActualMobileDevice(): boolean {
   if (typeof window === 'undefined') return false
   const ua = navigator.userAgent || navigator.vendor || (window as any).opera

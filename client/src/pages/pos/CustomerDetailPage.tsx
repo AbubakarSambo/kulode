@@ -31,7 +31,7 @@ import { Button, Input, Label, Select, Card, CardHeader, CardTitle, CardContent,
 import { Modal } from '@/components/shared/Modal'
 import { customersApi, walletApi, organizationsApi } from '@/api'
 import type { CustomerStats } from '@/api'
-import { formatCurrency, formatCompactCurrency, formatDate, cn } from '@/lib/utils'
+import { formatCurrency, formatCompactCurrency, formatDate, formatWalletNote, cn } from '@/lib/utils'
 import { printWalletReceipt } from '@/lib/printWalletReceipt'
 import { printCustomerStatement } from '@/lib/printCustomerStatement'
 import { useAuthStore } from '@/stores/auth'
@@ -436,7 +436,7 @@ function WalletSection({
                   <div className="text-xs text-muted-foreground">
                     {formatDate(tx.createdAt)}
                     {tx.createdBy && ` · ${tx.createdBy.firstName} ${tx.createdBy.lastName}`}
-                    {tx.notes && ` · ${tx.notes}`}
+                    {tx.notes && ` · ${formatWalletNote(tx.notes)}`}
                   </div>
                 </div>
                 <div className="flex items-center gap-3">

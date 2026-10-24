@@ -366,9 +366,9 @@ export class DemoSeedService {
         const at = sampleOrderTime(rng, key);
         if (at > now) continue;
         if (customer.balance < -0.5 * customer.creditLimit && rng() < 0.4) {
-          moveWallet(customer, Math.ceil(-customer.balance / 5000) * 5000, at, { notes: 'Top-up via BANK_TRANSFER' });
+          moveWallet(customer, Math.ceil(-customer.balance / 5000) * 5000, at, { notes: 'Top-up via Bank Transfer' });
         } else if (customer.balance >= 0 && customer.balance < 50_000 && rng() < 0.03) {
-          moveWallet(customer, randInt(rng, 2, 8) * 25_000, at, { notes: 'Top-up via CARD' });
+          moveWallet(customer, randInt(rng, 2, 8) * 25_000, at, { notes: 'Top-up via Card' });
         }
       }
 

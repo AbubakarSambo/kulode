@@ -1,5 +1,5 @@
 import type { Organization, WalletTransaction } from '@/types'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, formatWalletNote } from '@/lib/utils'
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
@@ -39,7 +39,7 @@ export function printCustomerStatement(
       (tx) => `
         <tr>
           <td>${formatDate(tx.createdAt)}</td>
-          <td>${escapeHtml(WALLET_TRANSACTION_LABELS[tx.type])}${tx.notes ? ` — ${escapeHtml(tx.notes)}` : ''}</td>
+          <td>${escapeHtml(WALLET_TRANSACTION_LABELS[tx.type])}${tx.notes ? ` — ${escapeHtml(formatWalletNote(tx.notes))}` : ''}</td>
           <td class="right">${tx.amount > 0 ? '+' : ''}${formatCurrency(tx.amount)}</td>
         </tr>`,
     )

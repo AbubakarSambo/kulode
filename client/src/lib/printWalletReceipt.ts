@@ -1,5 +1,5 @@
 import type { Organization, WalletTransaction } from '@/types'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, formatWalletNote } from '@/lib/utils'
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
@@ -59,7 +59,7 @@ export function printWalletReceipt(tx: WalletTransaction, customerName: string, 
           <tr class="bold"><td>Amount paid</td><td class="right">${formatCurrency(tx.amount)}</td></tr>
           <tr class="bold"><td>Balance after</td><td class="right">${formatCurrency(tx.balanceAfter)}</td></tr>
         </table>
-        ${tx.notes ? `<div class="divider"></div><p class="meta">${escapeHtml(tx.notes)}</p>` : ''}
+        ${tx.notes ? `<div class="divider"></div><p class="meta">${escapeHtml(formatWalletNote(tx.notes))}</p>` : ''}
         <div class="divider"></div>
         <div class="center">Thank you!</div>
         <div class="footer-cols">
