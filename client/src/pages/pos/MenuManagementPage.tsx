@@ -16,6 +16,7 @@ import { formatCurrency, cn } from '@/lib/utils'
 import type { MenuItem } from '@/types'
 import { InventoryIcon } from '@/components/ui/CustomIcons'
 import { useAuthStore } from '@/stores/auth'
+import { plateMargin, FOOD_COST_BADGE } from '@/lib/plateCost'
 
 const itemSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -299,6 +300,7 @@ export function MenuManagementPage() {
                       ? `${item.ingredients.length} ingredient${item.ingredients.length === 1 ? '' : 's'}`
                       : 'No recipe'}
                   </Badge>
+                  {canManage && <FoodCostBadge item={item} className="shrink-0" />}
                   {canManage ? (
                     <button
                       onClick={(e) => {
@@ -404,6 +406,7 @@ export function MenuManagementPage() {
                         ? `${item.ingredients.length} ingredient${item.ingredients.length === 1 ? '' : 's'}`
                         : 'No recipe'}
                     </Badge>
+                    {canManage && <FoodCostBadge item={item} />}
                   </div>
                   <div className="mt-auto flex items-center justify-between pt-3">
                     <span className="text-lg font-bold text-foreground">{formatCurrency(item.price)}</span>
@@ -560,5 +563,15 @@ export function MenuManagementPage() {
         }}
       />
     </div>
+  )
+}
+
+function FoodCostBadge({ item, className }: { item: MenuItem; className?: string }) {
+  const margin = plateMargin(item.price, item.plateCost)
+  if (!margin || margin.foodCostPct == null) return null
+  return (
+    <Badge variant={FOOD_COST_BADGE[margin.level]} className={className} title={`Plate cost ${formatCurrency(margin.plateCost)}`}>
+      {margin.foodCostPct.toFixed(0)}% food cost
+    </Badge>
   )
 }
