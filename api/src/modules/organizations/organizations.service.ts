@@ -180,68 +180,6 @@ export class OrganizationsService {
     return { success: true };
   }
 
-  async getOnboardingStatus(organizationId: string) {
-    const [organization, inventoryItemCount, serviceItemCount, clientCount, invoiceCount] =
-      await Promise.all([
-        this.prisma.organization.findUnique({
-          where: { id: organizationId },
-          select: {
-            email: true,
-            address: true,
-            isPaystackVerified: true,
-            onboardingDismissedAt: true,
-            businessType: true,
-            organizationSize: true,
-            logo: true,
-          },
-        }),
-        this.prisma.inventoryItem.count({
-          where: { organizationId, isActive: true },
-        }),
-        this.prisma.serviceItem.count({
-          where: { organizationId, isActive: true },
-        }),
-        this.prisma.client.count({
-          where: { organizationId, isActive: true },
-        }),
-        this.prisma.invoice.count({
-          where: { organizationId, deletedAt: null },
-        }),
-      ]);
-
-    if (!organization) {
-      throw new NotFoundException('Organization not found');
-    }
-
-    const steps = {
-      businessProfile: !!(organization.address || organization.logo),
-      inventoryItems: inventoryItemCount > 0 || serviceItemCount > 0,
-      firstClient: clientCount > 0,
-      firstInvoice: invoiceCount > 0,
-      onlinePayments: organization.isPaystackVerified,
-    };
-
-    const completedCount = Object.values(steps).filter(Boolean).length;
-    const totalSteps = Object.keys(steps).length;
-
-    return {
-      steps,
-      completedCount,
-      totalSteps,
-      allComplete: completedCount === totalSteps,
-      dismissed: !!organization.onboardingDismissedAt,
-    };
-  }
-
-  async dismissOnboarding(organizationId: string) {
-    await this.prisma.organization.update({
-      where: { id: organizationId },
-      data: { onboardingDismissedAt: new Date() },
-    });
-
-    return { success: true };
-  }
-
   async getPaystackStatus(id: string) {
     const organization = await this.prisma.organization.findUnique({
       where: { id },

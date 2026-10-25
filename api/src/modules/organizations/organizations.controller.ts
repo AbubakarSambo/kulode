@@ -75,20 +75,6 @@ export class OrganizationsController {
     return this.organizationsService.update(organizationId, { logo: null });
   }
 
-  @Get('onboarding-status')
-  @ApiOperation({ summary: 'Get onboarding checklist status' })
-  @ApiResponse({ status: 200, description: 'Onboarding status' })
-  async getOnboardingStatus(@CurrentUser('organizationId') organizationId: string) {
-    return this.organizationsService.getOnboardingStatus(organizationId);
-  }
-
-  @Patch('onboarding-dismiss')
-  @ApiOperation({ summary: 'Dismiss onboarding checklist' })
-  @ApiResponse({ status: 200, description: 'Onboarding dismissed' })
-  async dismissOnboarding(@CurrentUser('organizationId') organizationId: string) {
-    return this.organizationsService.dismissOnboarding(organizationId);
-  }
-
   @Get('paystack-status')
   @ApiOperation({ summary: 'Get Paystack setup status' })
   @ApiResponse({ status: 200, description: 'Paystack status' })

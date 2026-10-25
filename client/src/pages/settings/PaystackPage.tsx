@@ -103,7 +103,6 @@ export function PaystackPage() {
     mutationFn: (data: SetupFormData) => paystackApi.setup(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['paystack-status'] })
-      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       setIsEditing(false)
       setVerifiedName(null)
       posthog.capture('paystack_integration_completed')
@@ -127,7 +126,6 @@ export function PaystackPage() {
     onSuccess: () => {
       posthog.capture('paystack_disconnected')
       queryClient.invalidateQueries({ queryKey: ['paystack-status'] })
-      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       setIsEditing(false)
       toast.success('Paystack integration disconnected')
     },

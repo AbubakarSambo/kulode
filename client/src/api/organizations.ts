@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { Organization, OnboardingStatus, ApiResponse, OrgModule } from '@/types'
+import type { Organization, ApiResponse, OrgModule } from '@/types'
 
 export interface UpdateOrganizationData {
   name?: string
@@ -39,15 +39,6 @@ export const organizationsApi = {
   updateCurrent: async (data: UpdateOrganizationData): Promise<Organization> => {
     const response = await apiClient.patch<ApiResponse<Organization>>('/organizations/current', data)
     return response.data.data
-  },
-
-  getOnboardingStatus: async (): Promise<OnboardingStatus> => {
-    const response = await apiClient.get<ApiResponse<OnboardingStatus>>('/organizations/onboarding-status')
-    return response.data.data
-  },
-
-  dismissOnboarding: async (): Promise<void> => {
-    await apiClient.patch('/organizations/onboarding-dismiss')
   },
 
   uploadLogo: async (file: File): Promise<Organization> => {
