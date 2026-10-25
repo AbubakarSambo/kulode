@@ -395,6 +395,9 @@ model User {
   waiterOrders                  Order[]                          @relation("OrderWaiter")
   assignedOrderItems            OrderItem[]                      @relation("OrderItemAssignedTo")
   discountsApplied              Order[]                          @relation("OrderDiscountAppliedBy")
+  discountsApproved             Order[]                          @relation("OrderDiscountApprovedBy")
+  ordersCancelled               Order[]                          @relation("OrderCancelledBy")
+  cancellationsApproved         Order[]                          @relation("OrderCancelApprovedBy")
   openedShifts                  Shift[]                          @relation("ShiftOpenedByUser")
   closedShifts                  Shift[]                          @relation("ShiftClosedByUser")
   walletTransactions            WalletTransaction[]
@@ -1417,12 +1420,21 @@ model Order {
   // the Invoice discount pattern (pre-tax: subtotal - discountAmount, then tax/service charge
   // computed on the remainder). Restricted to oversight roles; reason + who is required for audit,
   // since an unrestricted till-side discount is a fraud vector.
-  discountType        String  @default("PERCENTAGE") @map("discount_type")
-  discountPercent     Decimal @default(0) @map("discount_percent") @db.Decimal(5, 2)
-  discountAmount      Decimal @default(0) @map("discount_amount") @db.Decimal(12, 2)
-  discountReason      String? @map("discount_reason")
-  discountAppliedById String? @map("discount_applied_by")
-  discountAppliedBy   User?   @relation("OrderDiscountAppliedBy", fields: [discountAppliedById], references: [id], onDelete: SetNull)
+  discountType         String  @default("PERCENTAGE") @map("discount_type")
+  discountPercent      Decimal @default(0) @map("discount_percent") @db.Decimal(5, 2)
+  discountAmount       Decimal @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  discountReason       String? @map("discount_reason")
+  discountAppliedById  String? @map("discount_applied_by")
+  discountAppliedBy    User?   @relation("OrderDiscountAppliedBy", fields: [discountAppliedById], references: [id], onDelete: SetNull)
+  // Set when a cashier's discount needed a supervisor/manager PIN — the approver, not the cashier.
+  discountApprovedById String? @map("discount_approved_by")
+  discountApprovedBy   User?   @relation("OrderDiscountApprovedBy", fields: [discountApprovedById], references: [id], onDelete: SetNull)
+  // Who voided the order, and whose authority it was voided under (the same user unless a
+  // cashier needed a supervisor/manager PIN).
+  cancelledById        String? @map("cancelled_by")
+  cancelledBy          User?   @relation("OrderCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  cancelApprovedById   String? @map("cancel_approved_by")
+  cancelApprovedBy     User?   @relation("OrderCancelApprovedBy", fields: [cancelApprovedById], references: [id], onDelete: SetNull)
 
   closedAt        DateTime? @map("closed_at")
   // Set only when a waiter adds/edits/removes an item on an order already sent to the kitchen —

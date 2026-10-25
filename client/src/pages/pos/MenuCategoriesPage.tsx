@@ -20,6 +20,7 @@ const KIND_LABELS: Record<MenuCategoryKind, string> = {
   OTHER: 'Other',
 }
 import { useAuthStore } from '@/stores/auth'
+import { can } from '@/lib/permissions'
 
 const CSV_COLUMNS: CsvColumn[] = [
   { key: 'name', label: 'Name', required: true },
@@ -45,7 +46,7 @@ export function MenuCategoriesPage() {
   const user = useAuthStore((s) => s.user)
   // Cashiers can add categories but not edit/delete existing ones — admin-only on the backend
   // too, so hide those controls here rather than let the request 403.
-  const canManage = !!user?.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')
+  const canManage = can(user, 'MENU_MANAGE')
 
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)

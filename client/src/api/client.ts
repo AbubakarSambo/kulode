@@ -70,7 +70,10 @@ apiClient.interceptors.response.use(
 
     if (error.response?.status === 403) {
       const errorData = error.response.data as { code?: string; message?: string }
-      if (errorData?.code === 'IMPERSONATION_READ_ONLY') {
+      if (errorData?.code?.startsWith('APPROVAL_')) {
+        // Supervisor-PIN prompts (void/discount) show the server's own message in their modal's
+        // onError — "Access denied" on top of that would read as a permissions bug.
+      } else if (errorData?.code === 'IMPERSONATION_READ_ONLY') {
         toast.error('Read-only session', {
           description: "You're viewing this organization as Super Admin — changes aren't allowed.",
         })

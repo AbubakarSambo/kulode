@@ -193,22 +193,6 @@ export interface Organization {
   googleSheetId?: string
 }
 
-// Onboarding
-export interface OnboardingStatus {
-  steps: {
-    businessProfile: boolean
-    inventoryItems: boolean
-    firstClient: boolean
-    firstInvoice: boolean
-    onlinePayments: boolean
-    expenseCategories: boolean
-  }
-  completedCount: number
-  totalSteps: number
-  allComplete: boolean
-  dismissed: boolean
-}
-
 // Client types
 export interface Client {
   id: string

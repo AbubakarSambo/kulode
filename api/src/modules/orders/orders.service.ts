@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { Prisma, OrderStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
@@ -23,7 +24,7 @@ import {
   ApplyDiscountDto,
   ReassignOrderPaymentDto,
 } from './dto';
-import { paginate, runIdempotent, resolvePayment } from '../../common';
+import { paginate, runIdempotent, resolvePayment, hasPermission, APPROVER_PIN_ROLES } from '../../common';
 
 const OPEN_STATUSES: OrderStatus[] = [OrderStatus.OPEN, OrderStatus.IN_KITCHEN, OrderStatus.READY];
 // CLOSED_UNPAID means "a waiter marked this ready for payment, a cashier hasn't taken it yet" —
@@ -681,7 +682,13 @@ export class OrdersService {
    * not a quiet quantity edit. Same no-payment-yet guard as merge/move; removing the last item
    * cancels the order rather than leaving it with zero, matching moveItems' behavior.
    */
-  async updateItem(organizationId: string, orderId: string, itemId: string, dto: UpdateOrderItemDto) {
+  async updateItem(
+    organizationId: string,
+    orderId: string,
+    itemId: string,
+    dto: UpdateOrderItemDto,
+    actor: { id: string; roles: string[] },
+  ) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, organizationId },
       include: { items: true },
@@ -701,6 +708,17 @@ export class OrdersService {
     if (!item) throw new NotFoundException('Order item not found');
     if (item.status !== 'PENDING') {
       throw new BadRequestException('Cannot edit an item once the kitchen has started on it');
+    }
+    // The item is already on a kitchen docket, so taking any of it back off is a partial void —
+    // emptying an order line by line must need the same approval as voiding it outright.
+    // Increases and note edits don't.
+    if (dto.quantity < toNumber(item.quantity)) {
+      const approvedById = await this.resolveApprover(organizationId, actor, dto.approverPin);
+      if (approvedById !== actor.id) {
+        this.logger.log(
+          `Item reduction on order ${orderId}: ${item.itemName} ${toNumber(item.quantity)} → ${dto.quantity} by ${actor.id}, approved by ${approvedById}`,
+        );
+      }
     }
 
     // 0 removes the line entirely — its amount just doesn't get added back in below.
@@ -1153,19 +1171,88 @@ export class OrdersService {
     });
   }
 
-  async cancel(organizationId: string, id: string) {
+  // Per-cashier lockout for wrong approver PINs — same in-memory MVP trade-off as AuthService's
+  // pinLogin lockout (resets on deploy). Without it a cashier could brute-force the 10,000
+  // possible PINs from the till to approve their own voids.
+  private readonly approvalFailures = new Map<string, { count: number; lockedUntil?: number }>();
+  private static readonly APPROVAL_MAX_ATTEMPTS = 5;
+  private static readonly APPROVAL_LOCKOUT_MS = 5 * 60 * 1000;
+
+  /**
+   * Returns whose authority a void/discount happens under. Supervisor and above approve their
+   * own; anyone below (a cashier) must supply the PIN of an active supervisor/manager/admin in
+   * the same org. PINs are unique per org (UsersService.setPin), so a match identifies exactly
+   * one approver.
+   */
+  async resolveApprover(
+    organizationId: string,
+    actor: { id: string; roles: string[] },
+    approverPin?: string,
+  ): Promise<string> {
+    if (hasPermission(actor.roles, 'ORDER_APPROVE')) return actor.id;
+
+    if (!approverPin) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: 'APPROVAL_REQUIRED',
+        message: 'A supervisor or manager needs to approve this with their PIN',
+      });
+    }
+
+    const state = this.approvalFailures.get(actor.id);
+    if (state?.lockedUntil && state.lockedUntil > Date.now()) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: 'APPROVAL_LOCKED',
+        message: 'Too many wrong PINs — try again in a few minutes',
+      });
+    }
+
+    const approvers = await this.prisma.user.findMany({
+      where: {
+        organizationId,
+        isActive: true,
+        pinHash: { not: null },
+        roles: { hasSome: APPROVER_PIN_ROLES },
+        id: { not: actor.id },
+      },
+      select: { id: true, pinHash: true },
+    });
+    for (const approver of approvers) {
+      if (approver.pinHash && (await bcrypt.compare(approverPin, approver.pinHash))) {
+        this.approvalFailures.delete(actor.id);
+        return approver.id;
+      }
+    }
+
+    const count = (state?.count ?? 0) + 1;
+    this.approvalFailures.set(
+      actor.id,
+      count >= OrdersService.APPROVAL_MAX_ATTEMPTS
+        ? { count: 0, lockedUntil: Date.now() + OrdersService.APPROVAL_LOCKOUT_MS }
+        : { count },
+    );
+    throw new ForbiddenException({
+      statusCode: 403,
+      code: 'APPROVAL_PIN_INVALID',
+      message: "That PIN doesn't belong to a supervisor or manager",
+    });
+  }
+
+  async cancel(organizationId: string, id: string, actor: { id: string; roles: string[] }, approverPin?: string) {
     const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
     if (!order) throw new NotFoundException('Order not found');
     if (!VOIDABLE_STATUSES.includes(order.status)) {
       throw new BadRequestException(`Cannot cancel a ${order.status.toLowerCase()} order`);
     }
+    const approvedById = await this.resolveApprover(organizationId, actor, approverPin);
 
     const cancelled = await this.prisma.$transaction(async (tx) => {
       // Conditional update guards against a concurrent close/cancel racing past the check above —
       // only an order still in a voidable status actually transitions.
       const result = await tx.order.updateMany({
         where: { id, organizationId, status: { in: VOIDABLE_STATUSES } },
-        data: { status: 'CANCELLED' },
+        data: { status: 'CANCELLED', cancelledById: actor.id, cancelApprovedById: approvedById },
       });
       if (result.count === 0) {
         throw new BadRequestException('Order was already closed or cancelled');
@@ -1214,7 +1301,7 @@ export class OrdersService {
    * remainder. Role-restricted at the controller; reason and applier are required here regardless,
    * since a till-side discount with no record of who or why is a fraud vector.
    */
-  async applyDiscount(organizationId: string, id: string, userId: string, dto: ApplyDiscountDto) {
+  async applyDiscount(organizationId: string, id: string, actor: { id: string; roles: string[] }, dto: ApplyDiscountDto) {
     const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
     if (!order) throw new NotFoundException('Order not found');
     if (!PAYABLE_STATUSES.includes(order.status)) {
@@ -1231,6 +1318,8 @@ export class OrdersService {
     if (dto.discountType === 'FIXED' && dto.value > subtotal) {
       throw new BadRequestException('Discount cannot exceed the order subtotal');
     }
+    // After validation, so a typo'd amount doesn't burn one of the cashier's PIN attempts.
+    const approvedById = await this.resolveApprover(organizationId, actor, dto.approverPin);
 
     const discountPercent = dto.discountType === 'PERCENTAGE' ? dto.value : 0;
     const discountAmount =
@@ -1253,7 +1342,9 @@ export class OrdersService {
         discountPercent,
         discountAmount,
         discountReason: dto.reason,
-        discountAppliedById: userId,
+        discountAppliedById: actor.id,
+        // Only recorded when someone else's PIN authorised it — null when they approved their own.
+        discountApprovedById: approvedById === actor.id ? null : approvedById,
         taxAmount,
         vatAmount,
         entertainmentTaxAmount,

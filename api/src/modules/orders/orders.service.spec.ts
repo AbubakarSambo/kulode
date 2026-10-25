@@ -1,3 +1,4 @@
+import * as bcrypt from 'bcrypt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { OrdersService } from './orders.service';
@@ -23,6 +24,8 @@ function createTxMock() {
       // don't need to stub it explicitly.
       aggregate: jest.fn().mockResolvedValue({ _sum: { amount: null } }),
       count: jest.fn().mockResolvedValue(0),
+      update: jest.fn(),
+      delete: jest.fn(),
     },
     restaurantTable: { update: jest.fn() },
     payment: { create: jest.fn() },
@@ -42,10 +45,12 @@ function createMockPrisma() {
     order: {
       findFirst: jest.fn(),
       updateMany: jest.fn(),
+      update: jest.fn(),
       findUniqueOrThrow: jest.fn(),
     },
     menuItem: { findMany: jest.fn() },
     organization: { findUniqueOrThrow: jest.fn() },
+    user: { findMany: jest.fn() },
     // Both `cancel` (direct $transaction) and `runIdempotent` (via closeWithPayment) drive
     // everything through this same tx mock, so assertions can check either surface.
     $transaction: jest.fn((callback: (tx: TxMock) => Promise<unknown>) => callback(tx)),
@@ -56,6 +61,8 @@ function createMockPrisma() {
 const ORG_ID = 'org-abc-123';
 const ORDER_ID = 'order-xyz-789';
 const USER_ID = 'user-cashier-1';
+// Supervisor-and-up approve their own voids/discounts, so existing void tests act as one.
+const SUPERVISOR = { id: 'user-supervisor-1', roles: ['SUPERVISOR'] };
 
 function orderWith(overrides: object) {
   return {
@@ -164,12 +171,12 @@ describe('OrdersService — status transitions across the waiter/cashier split',
   describe('cancel', () => {
     it('throws NotFoundException when the order does not exist', async () => {
       prisma.order.findFirst.mockResolvedValue(null);
-      await expect(service.cancel(ORG_ID, ORDER_ID)).rejects.toThrow(NotFoundException);
+      await expect(service.cancel(ORG_ID, ORDER_ID, SUPERVISOR)).rejects.toThrow(NotFoundException);
     });
 
     it('rejects cancelling an already-CLOSED_PAID order (no refund/void-a-paid-order path exists)', async () => {
       prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'CLOSED_PAID' }));
-      await expect(service.cancel(ORG_ID, ORDER_ID)).rejects.toThrow(BadRequestException);
+      await expect(service.cancel(ORG_ID, ORDER_ID, SUPERVISOR)).rejects.toThrow(BadRequestException);
     });
 
     it('allows cancelling a CLOSED_UNPAID order (voiding before payment was taken)', async () => {
@@ -177,12 +184,12 @@ describe('OrdersService — status transitions across the waiter/cashier split',
       prisma.__tx.order.updateMany.mockResolvedValue({ count: 1 });
       prisma.__tx.order.findUniqueOrThrow.mockResolvedValue(orderWith({ status: 'CANCELLED', items: [] }));
 
-      const result = await service.cancel(ORG_ID, ORDER_ID);
+      const result = await service.cancel(ORG_ID, ORDER_ID, SUPERVISOR);
 
       expect(prisma.__tx.order.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ status: { in: expect.arrayContaining(['OPEN', 'CLOSED_UNPAID']) } }),
-          data: { status: 'CANCELLED' },
+          data: { status: 'CANCELLED', cancelledById: SUPERVISOR.id, cancelApprovedById: SUPERVISOR.id },
         }),
       );
       expect(prisma.__tx.restaurantTable.update).toHaveBeenCalledWith(
@@ -196,7 +203,7 @@ describe('OrdersService — status transitions across the waiter/cashier split',
       prisma.__tx.order.updateMany.mockResolvedValue({ count: 1 });
       prisma.__tx.order.findUniqueOrThrow.mockResolvedValue(orderWith({ status: 'CANCELLED', items: [] }));
 
-      await expect(service.cancel(ORG_ID, ORDER_ID)).resolves.toMatchObject({
+      await expect(service.cancel(ORG_ID, ORDER_ID, SUPERVISOR)).resolves.toMatchObject({
         message: 'Order cancelled successfully',
       });
     });
@@ -207,7 +214,7 @@ describe('OrdersService — status transitions across the waiter/cashier split',
       prisma.__tx.order.updateMany.mockResolvedValue({ count: 1 });
       prisma.__tx.order.findUniqueOrThrow.mockResolvedValue(orderWith({ status: 'CANCELLED', items }));
 
-      await service.cancel(ORG_ID, ORDER_ID);
+      await service.cancel(ORG_ID, ORDER_ID, SUPERVISOR);
 
       expect(printingService.dispatchDocketsForCancellation).toHaveBeenCalledWith(
         ORG_ID,
@@ -217,7 +224,138 @@ describe('OrdersService — status transitions across the waiter/cashier split',
     });
   });
 
+  // ─── supervisor approval for a cashier's void/discount ──────────────────────
+
+  describe('void/discount approval', () => {
+    const CASHIER = { id: USER_ID, roles: ['CASHIER'] };
+    let pinHash: string;
+
+    beforeAll(async () => {
+      pinHash = await bcrypt.hash('4321', 4);
+    });
+
+    beforeEach(() => {
+      prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'OPEN' }));
+      prisma.__tx.order.updateMany.mockResolvedValue({ count: 1 });
+      prisma.__tx.order.findUniqueOrThrow.mockResolvedValue(orderWith({ status: 'CANCELLED', items: [] }));
+    });
+
+    it('lets a supervisor void on their own authority without a PIN lookup', async () => {
+      await service.cancel(ORG_ID, ORDER_ID, SUPERVISOR);
+      expect(prisma.user.findMany).not.toHaveBeenCalled();
+    });
+
+    it('requires an approver PIN when a cashier voids', async () => {
+      await expect(service.cancel(ORG_ID, ORDER_ID, CASHIER)).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'APPROVAL_REQUIRED' }),
+      });
+      expect(prisma.__tx.order.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("voids under the approver's authority when the PIN matches a supervisor/manager", async () => {
+      prisma.user.findMany.mockResolvedValue([{ id: 'user-manager-1', pinHash }]);
+
+      await service.cancel(ORG_ID, ORDER_ID, CASHIER, '4321');
+
+      expect(prisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            organizationId: ORG_ID,
+            isActive: true,
+            roles: { hasSome: expect.arrayContaining(['SUPERVISOR', 'MANAGER', 'ADMIN', 'SUPER_ADMIN']) },
+            id: { not: USER_ID },
+          }),
+        }),
+      );
+      expect(prisma.__tx.order.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { status: 'CANCELLED', cancelledById: USER_ID, cancelApprovedById: 'user-manager-1' },
+        }),
+      );
+    });
+
+    it('rejects a PIN that matches no approver', async () => {
+      prisma.user.findMany.mockResolvedValue([{ id: 'user-manager-1', pinHash }]);
+      await expect(service.cancel(ORG_ID, ORDER_ID, CASHIER, '0000')).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'APPROVAL_PIN_INVALID' }),
+      });
+      expect(prisma.__tx.order.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('locks the cashier out after 5 wrong PINs, even if the 6th is right', async () => {
+      prisma.user.findMany.mockResolvedValue([{ id: 'user-manager-1', pinHash }]);
+      for (let i = 0; i < 5; i++) {
+        await expect(service.cancel(ORG_ID, ORDER_ID, CASHIER, '0000')).rejects.toMatchObject({
+          response: expect.objectContaining({ code: 'APPROVAL_PIN_INVALID' }),
+        });
+      }
+      await expect(service.cancel(ORG_ID, ORDER_ID, CASHIER, '4321')).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'APPROVAL_LOCKED' }),
+      });
+    });
+
+    it("records the approver on a cashier's discount, and no approver on a supervisor's own", async () => {
+      prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'OPEN', subtotal: 1000, amountPaid: 0 }));
+      prisma.organization.findUniqueOrThrow.mockResolvedValue({});
+      prisma.order.update.mockResolvedValue({});
+      prisma.user.findMany.mockResolvedValue([{ id: 'user-manager-1', pinHash }]);
+      const dto = { discountType: 'PERCENTAGE' as const, value: 10, reason: 'Regular' };
+
+      await service.applyDiscount(ORG_ID, ORDER_ID, CASHIER, { ...dto, approverPin: '4321' });
+      expect(prisma.order.update).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ discountAppliedById: USER_ID, discountApprovedById: 'user-manager-1' }),
+        }),
+      );
+
+      await service.applyDiscount(ORG_ID, ORDER_ID, SUPERVISOR, dto);
+      expect(prisma.order.update).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ discountAppliedById: SUPERVISOR.id, discountApprovedById: null }),
+        }),
+      );
+    });
+  });
+
   // ─── addItems ───────────────────────────────────────────────────────────────
+
+  // ─── item reductions are partial voids ──────────────────────────────────────
+
+  describe('updateItem approval', () => {
+    const WAITER = { id: 'user-waiter-1', roles: ['WAITER'] };
+    const item = { id: 'item-1', menuItemId: 'menu-1', itemName: 'Burger', quantity: 3, unitPrice: 2000, status: 'PENDING', notes: null };
+
+    beforeEach(() => {
+      prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'OPEN', amountPaid: 0, discountAmount: 0, items: [item] }));
+      prisma.organization.findUniqueOrThrow.mockResolvedValue({ taxRate: 0, entertainmentTaxRate: 0, serviceChargeRate: 0 });
+      prisma.__tx.orderItem.count.mockResolvedValue(1);
+      prisma.__tx.order.findUniqueOrThrow.mockResolvedValue(orderWith({ status: 'OPEN', items: [] }));
+    });
+
+    it.each([
+      ['reduces', 1],
+      ['removes', 0],
+    ])("refuses a waiter who %s an item without a supervisor's PIN", async (_label, quantity) => {
+      await expect(service.updateItem(ORG_ID, ORDER_ID, 'item-1', { quantity }, WAITER)).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'APPROVAL_REQUIRED' }),
+      });
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('lets a waiter add more, or edit a note, without approval', async () => {
+      const resolve = jest.spyOn(service, 'resolveApprover');
+      await service.updateItem(ORG_ID, ORDER_ID, 'item-1', { quantity: 4 }, WAITER);
+      await service.updateItem(ORG_ID, ORDER_ID, 'item-1', { quantity: 3, notes: 'No onions' }, WAITER);
+      expect(resolve).not.toHaveBeenCalled();
+      expect(prisma.__tx.orderItem.update).toHaveBeenCalledTimes(2);
+    });
+
+    it('lets a supervisor reduce an item on their own authority', async () => {
+      await service.updateItem(ORG_ID, ORDER_ID, 'item-1', { quantity: 1 }, SUPERVISOR);
+      expect(prisma.user.findMany).not.toHaveBeenCalled();
+      expect(prisma.__tx.orderItem.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ quantity: 1 }) }));
+    });
+  });
 
   describe('addItems', () => {
     const dto = {

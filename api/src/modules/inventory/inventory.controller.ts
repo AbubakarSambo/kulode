@@ -16,7 +16,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { InventoryService } from './inventory.service';
 import { CreateInventoryItemDto, UpdateInventoryItemDto, AdjustStockDto } from './dto';
-import { CurrentUser, Roles, Role } from '../../common';
+import { CurrentUser, Roles, Role, Can } from '../../common';
 
 @ApiTags('Inventory')
 @ApiBearerAuth()
@@ -68,7 +68,7 @@ export class InventoryController {
   }
 
   @Post(':id/adjust')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Can('INVENTORY_ADJUST')
   adjustStock(
     @CurrentUser('organizationId') organizationId: string,
     @CurrentUser('id') userId: string,

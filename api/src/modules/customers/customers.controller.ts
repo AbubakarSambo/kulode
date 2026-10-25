@@ -12,7 +12,7 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto, UpdateCustomerDto, UpdateCustomerCreditDto, CustomerFilterDto } from './dto';
-import { CurrentUser, Roles, Role } from '../../common';
+import { CurrentUser, Can } from '../../common';
 
 @ApiTags('Customers')
 @ApiBearerAuth()
@@ -75,10 +75,10 @@ export class CustomersController {
   }
 
   @Patch(':id/credit')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.MANAGER, Role.CASHIER)
   @ApiOperation({ summary: 'Set a customer credit limit (how far their wallet may go negative)' })
   @ApiResponse({ status: 200, description: 'Credit limit updated' })
   @ApiResponse({ status: 404, description: 'Customer not found' })
+  @Can('CUSTOMER_CREDIT')
   async updateCredit(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateCustomerCreditDto,

@@ -16,6 +16,7 @@ import {
   CreditCard,
   Martini,
   Landmark,
+  LayoutDashboard,
 } from 'lucide-react'
 import {
   DashboardIcon,
@@ -36,7 +37,6 @@ import {
 } from '@/components/ui/CustomIcons'
 import { Sidebar } from './Sidebar'
 import { OrgSwitcher } from './OrgSwitcher'
-import { WelcomeStepper } from '@/components/WelcomeStepper'
 import { TrialBanner } from '../shared/TrialBanner'
 import { ImpersonationBanner } from '../shared/ImpersonationBanner'
 import { SubscriptionExpiredBanner } from '../shared/SubscriptionExpiredBanner'
@@ -47,6 +47,7 @@ import { useSubscription } from '@/hooks/useSubscription'
 import { useOrgModules, usePosMode } from '@/hooks/useOrgModules'
 import { cn } from '@/lib/utils'
 import { isPinEligible } from '@/lib/pin'
+import { can } from '@/lib/permissions'
 import { getRestrictedHrefsUnion, type AllowedHref } from '@/lib/posRoleNav'
 import type { PlanTier } from '@/types'
 
@@ -116,6 +117,7 @@ export function AppLayout() {
     '/pos/unreconciled-transfers': { name: 'Transfers', icon: Landmark },
     '/pos/menu': { name: 'Menu', icon: ChefHat },
     '/pos/categories': { name: 'Categories', icon: Tag },
+    '/pos/dashboard': { name: 'Dashboard', icon: LayoutDashboard },
   }
 
   const navItems = restrictedHrefsUnion
@@ -196,19 +198,19 @@ export function AppLayout() {
         { name: 'POS Reports', href: '/pos/reports', icon: ReportsIcon, visible: hasPos },
         { name: 'AI Chat', href: '/ai-chat', icon: AiChatIcon, requiresPlan: 'PRO' as PlanTier, visible: canViewReports && hasInvoicing },
         { name: 'AI Chat', href: '/pos/ai-chat', icon: AiChatIcon, requiresPlan: 'PRO' as PlanTier, visible: hasPos && isAdmin },
-        { name: 'Payments', href: '/pos/payments', icon: CreditCard, visible: hasPos && (isAdmin || userRoles.includes('CASHIER')) },
+        { name: 'Payments', href: '/pos/payments', icon: CreditCard, visible: hasPos && can(user, 'POS_PAYMENTS_VIEW') },
         {
           name: 'Unreconciled Transfers',
           href: '/pos/unreconciled-transfers',
           icon: Landmark,
-          visible: hasPos && (isAdmin || userRoles.includes('CASHIER') || userRoles.includes('SUPERVISOR')),
+          visible: hasPos && can(user, 'UNRECONCILED_TRANSFERS'),
         },
       ] as MoreItem[],
     },
     {
       label: 'Account',
       items: [
-        { name: 'Users', href: '/settings/users', icon: UserCog, visible: isAdmin },
+        { name: 'Users', href: '/settings/users', icon: UserCog, visible: can(user, 'STAFF_MANAGE') },
         { name: 'Settings', href: '/settings', icon: SettingsIcon, visible: isAdmin },
         { name: 'Billing & Plans', href: '/settings/billing', icon: PaymentsIcon, visible: isAdmin },
       ] as MoreItem[],
@@ -233,7 +235,6 @@ export function AppLayout() {
   return (
     <div className="flex h-dvh overflow-hidden bg-background">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <WelcomeStepper />
 
       <main className="flex flex-1 flex-col overflow-hidden relative">
         <ImpersonationBanner />

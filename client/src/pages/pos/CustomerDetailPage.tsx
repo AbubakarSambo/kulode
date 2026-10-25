@@ -36,6 +36,7 @@ import { printWalletReceipt } from '@/lib/printWalletReceipt'
 import { printCustomerStatement } from '@/lib/printCustomerStatement'
 import { useAuthStore } from '@/stores/auth'
 import type { Customer, OrderStatus, OrderSource, WalletTransactionType } from '@/types'
+import { can } from '@/lib/permissions'
 
 const CHART_COLORS = ['#0037b0', '#1d4ed8', '#2563eb', '#3b82f6', '#60a5fa']
 
@@ -265,9 +266,9 @@ function WalletSection({
 }) {
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
-  const canTopUp = !!user?.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN' || r === 'ACCOUNTANT' || r === 'CASHIER')
-  const canAdjust = !!user?.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN' || r === 'CASHIER')
-  const canGrantCredit = !!user?.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN' || r === 'CASHIER')
+  const canTopUp = can(user, 'WALLET_TOPUP')
+  const canAdjust = can(user, 'WALLET_ADJUST')
+  const canGrantCredit = can(user, 'CUSTOMER_CREDIT')
 
   const { data: organization } = useQuery({
     queryKey: ['organization'],

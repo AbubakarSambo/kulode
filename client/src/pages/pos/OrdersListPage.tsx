@@ -10,6 +10,7 @@ import { ordersApi, tablesApi } from '@/api'
 import { formatCurrency, formatDateTime, formatPaymentMethod, cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import type { OrderStatus } from '@/types'
+import { can } from '@/lib/permissions'
 
 function statusBadgeVariant(status: OrderStatus) {
   return status === 'CLOSED_PAID' ? 'success' : status === 'CANCELLED' ? 'destructive' : 'default'
@@ -132,7 +133,8 @@ export function OrdersListPage() {
   }
 
   const currentUser = useAuthStore((s) => s.user)
-  const isCashier = !!currentUser?.roles.includes('CASHIER')
+  // Anyone who takes payment gets the "an order is ready for payment" nudge.
+  const canTakePayment = can(currentUser, 'PAYMENT_TAKE')
 
   const { data: tables } = useQuery({ queryKey: ['restaurant-tables'], queryFn: () => tablesApi.list() })
 
@@ -143,18 +145,18 @@ export function OrdersListPage() {
     // Only `meta.total` is ever read below — the full order graph would be fetched and
     // discarded every 15s otherwise.
     queryFn: () => ordersApi.listSummary({ status: 'CLOSED_UNPAID', page: 1, limit: 1 }),
-    enabled: isCashier,
-    refetchInterval: isCashier ? 15_000 : undefined,
+    enabled: canTakePayment,
+    refetchInterval: canTakePayment ? 15_000 : undefined,
   })
   const prevAwaitingCountRef = useRef<number | null>(null)
   useEffect(() => {
-    if (!isCashier || !awaitingPayment) return
+    if (!canTakePayment || !awaitingPayment) return
     const count = awaitingPayment.meta.total
     if (prevAwaitingCountRef.current !== null && count > prevAwaitingCountRef.current) {
       toast.success('An order is ready for payment')
     }
     prevAwaitingCountRef.current = count
-  }, [awaitingPayment, isCashier])
+  }, [awaitingPayment, canTakePayment])
 
   // "Open" is meant to mean "still active" to staff, not literally the OPEN status — an order
   // that's already IN_KITCHEN is just as much still-open/unresolved, so the Open filter queries
@@ -193,7 +195,7 @@ export function OrdersListPage() {
         </div>
 
         <div className="mb-4 flex flex-wrap items-center gap-3">
-          {isCashier && !!awaitingPayment?.meta.total && (
+          {canTakePayment && !!awaitingPayment?.meta.total && (
             <Button
               size="sm"
               variant={status === 'CLOSED_UNPAID' ? 'default' : 'outline'}

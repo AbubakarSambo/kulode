@@ -100,4 +100,16 @@ describe('PosReportsService — item sales report aggregation', () => {
     expect(report.salesByCategory).toEqual([]);
     expect(report.products).toEqual([]);
   });
+
+  it("narrows to one waiter's orders when a waiterId is given, and leaves the org-wide query untouched otherwise", async () => {
+    prisma.order.findMany.mockResolvedValue([]);
+
+    await service.getItemSalesReport(ORG_ID, '2026-08-12', undefined, undefined, undefined, 'waiter-1');
+    expect(prisma.order.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ organizationId: ORG_ID, waiterId: 'waiter-1' }) }),
+    );
+
+    await service.getItemSalesReport(ORG_ID, '2026-08-12');
+    expect(prisma.order.findMany.mock.lastCall[0].where).not.toHaveProperty('waiterId');
+  });
 });

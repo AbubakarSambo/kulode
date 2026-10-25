@@ -15,7 +15,8 @@ import { cn } from '@/lib/utils'
 import { useOrgModules, usePosMode } from '@/hooks/useOrgModules'
 import { useAuthStore } from '@/stores/auth'
 import type { UserRole } from '@/types'
-import { PIN_ELIGIBLE_ROLES } from '@/lib/pin'
+import { PIN_ELIGIBLE_ROLES, isPinEligible } from '@/lib/pin'
+import { FLOOR_STAFF_ROLES, canHoldPin } from '@/lib/permissions'
 
 const userSchema = z
   .object({
@@ -89,9 +90,18 @@ export function UsersPage() {
   const { isRetail } = usePosMode()
   const currentUser = useAuthStore((s) => s.user)
   const usesPosRoles = hasPos
-  const roleOptions = (usesPosRoles ? POS_CREATABLE_ROLES : DEFAULT_CREATABLE_ROLES).filter(
-    (opt) => opt.value !== 'ADMIN' || !!currentUser?.roles.includes('SUPER_ADMIN'),
-  ).filter((opt) => !isRetail || !RESTAURANT_ONLY_ROLES.includes(opt.value))
+  // Mirrors the backend's assertCanManageAccount: a Super Admin manages anyone, an Admin anyone but
+  // admins, and a Manager floor staff only (waiters, cashiers, supervisors, kitchen).
+  const canManageAccount = (roles: readonly string[]) => {
+    const acting = currentUser?.roles ?? []
+    if (acting.includes('SUPER_ADMIN')) return true
+    if (roles.some((r) => r === 'ADMIN' || r === 'SUPER_ADMIN')) return false
+    if (acting.includes('ADMIN')) return true
+    return roles.every((r) => (FLOOR_STAFF_ROLES as readonly string[]).includes(r))
+  }
+  const roleOptions = (usesPosRoles ? POS_CREATABLE_ROLES : DEFAULT_CREATABLE_ROLES)
+    .filter((opt) => canManageAccount([opt.value]))
+    .filter((opt) => !isRetail || !RESTAURANT_ONLY_ROLES.includes(opt.value))
 
   const [page, setPage] = useState(1)
   const limit = 20
@@ -167,21 +177,16 @@ export function UsersPage() {
     )
   }
 
-  // Mirrors the backend's assertAdminActionAllowed: only a Super Admin may touch an Admin or
-  // Super Admin account's fields at all (email included) — everyone else can edit only
-  // non-admin-tier targets, themselves included.
-  const canEditProfile = (target: UserData) =>
-    target.isActive &&
-    (!!currentUser?.roles.includes('SUPER_ADMIN') || !target.roles.some((r) => r === 'ADMIN' || r === 'SUPER_ADMIN'))
+  // Only a Super Admin may touch an Admin or Super Admin account's fields at all (email included),
+  // and a Manager only floor staff — see canManageAccount above.
+  const canEditProfile = (target: UserData) => target.isActive && canManageAccount(target.roles)
 
   // Backend forbids modifying your own roles, and only a Super Admin can touch an Admin account's
   // (or promote someone into one) roles specifically — mirrored here so the Roles section just
   // isn't offered rather than opening a control that will fail on submit. Profile fields like
   // email aren't restricted this way — see canEditProfile above.
   const canEditRoles = (target: UserData) =>
-    target.id !== currentUser?.id &&
-    !target.roles.includes('SUPER_ADMIN') &&
-    (!!currentUser?.roles.includes('SUPER_ADMIN') || !target.roles.includes('ADMIN'))
+    target.id !== currentUser?.id && !target.roles.includes('SUPER_ADMIN') && canManageAccount(target.roles)
 
   const updateUserMutation = useMutation({
     mutationFn: ({ id, email, roles }: { id: string; email?: string; roles: UserRole[] }) =>
@@ -352,7 +357,7 @@ export function UsersPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 text-right space-x-1">
-                        {user.isActive && !user.isEmailVerified && !user.hasPlaceholderEmail && (
+                        {user.isActive && !user.isEmailVerified && !user.hasPlaceholderEmail && canManageAccount(user.roles) && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -375,13 +380,15 @@ export function UsersPage() {
                             <Pencil className="h-4 w-4" />
                           </Button>
                         )}
-                        {user.isActive && user.roles.every((r) => PIN_ELIGIBLE_ROLES.includes(r)) && (
+                        {user.isActive && canHoldPin(user.roles) && canManageAccount(user.roles) && (
                           <>
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => setPinModalUser(user)}
-                              title={user.pinSetAt ? 'Reset PIN' : 'Set quick-login PIN'}
+                              title={
+                                user.pinSetAt ? 'Reset PIN' : isPinEligible(user.roles) ? 'Set quick-login PIN' : 'Set approval PIN'
+                              }
                               className="h-8 w-8 p-0 rounded-lg"
                             >
                               <KeyRound className="h-4 w-4" />
@@ -399,7 +406,7 @@ export function UsersPage() {
                             )}
                           </>
                         )}
-                        {user.isActive && !user.roles.includes('SUPER_ADMIN') && (
+                        {user.isActive && !user.roles.includes('SUPER_ADMIN') && canManageAccount(user.roles) && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -613,8 +620,20 @@ export function UsersPage() {
           setPinModalUser(null)
           pinForm.reset()
         }}
-        title={pinModalUser?.pinSetAt ? 'Reset Quick-Login PIN' : 'Set Quick-Login PIN'}
-        description={pinModalUser ? `New 4-digit PIN ${pinModalUser.firstName} will use to log into a shared POS terminal` : undefined}
+        title={
+          pinModalUser && !isPinEligible(pinModalUser.roles)
+            ? pinModalUser.pinSetAt ? 'Reset Approval PIN' : 'Set Approval PIN'
+            : pinModalUser?.pinSetAt ? 'Reset Quick-Login PIN' : 'Set Quick-Login PIN'
+        }
+        description={
+          !pinModalUser
+            ? undefined
+            : isPinEligible(pinModalUser.roles)
+              ? `New 4-digit PIN ${pinModalUser.firstName} will use to log into a shared POS terminal${
+                  pinModalUser.roles.includes('SUPERVISOR') ? ' and to approve voids and discounts' : ''
+                }`
+              : `New 4-digit PIN ${pinModalUser.firstName} will type in to approve a cashier's void or discount. It can't be used to sign in.`
+        }
       >
         <form
           onSubmit={pinForm.handleSubmit((data) =>

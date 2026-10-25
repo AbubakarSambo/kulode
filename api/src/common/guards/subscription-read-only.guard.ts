@@ -7,7 +7,6 @@ interface OrgSubscriptionFields {
   subscriptionStatus: string;
   trialEndDate: Date | null;
   isGrandfathered: boolean;
-  businessType: string | null;
 }
 
 @Injectable()
@@ -38,7 +37,6 @@ export class SubscriptionReadOnlyGuard implements CanActivate {
         subscriptionStatus: true,
         trialEndDate: true,
         isGrandfathered: true,
-        businessType: true,
       },
     });
     if (org) {
@@ -90,13 +88,6 @@ export class SubscriptionReadOnlyGuard implements CanActivate {
 
     // Grandfathered organizations bypass all expiration checks
     if (org.isGrandfathered) {
-      return true;
-    }
-
-    // Orgs that haven't finished the initial personalization step yet must be able to
-    // complete onboarding even if the trial expired before they got to it, otherwise
-    // they're permanently stuck unable to set up their account or reach billing.
-    if (!org.businessType) {
       return true;
     }
 

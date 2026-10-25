@@ -2,7 +2,7 @@ import { Controller, Get, Post, Patch, Delete, Body, Param, ParseUUIDPipe } from
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { PaymentTypesService } from './payment-types.service';
 import { CreatePaymentTypeDto, UpdatePaymentTypeDto } from './dto';
-import { CurrentUser, Roles, Role } from '../../common';
+import { CurrentUser, Can } from '../../common';
 
 @ApiTags('Payment Types')
 @ApiBearerAuth()
@@ -16,7 +16,7 @@ export class PaymentTypesController {
   }
 
   @Post()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Can('POS_CONFIG_MANAGE')
   create(
     @CurrentUser('organizationId') organizationId: string,
     @Body() dto: CreatePaymentTypeDto,
@@ -25,7 +25,7 @@ export class PaymentTypesController {
   }
 
   @Patch(':id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Can('POS_CONFIG_MANAGE')
   update(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -35,7 +35,7 @@ export class PaymentTypesController {
   }
 
   @Delete(':id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Can('POS_CONFIG_MANAGE')
   remove(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,

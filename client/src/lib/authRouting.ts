@@ -21,6 +21,10 @@ export function getPostAuthRoute(user: User | null | undefined): string {
     (r) => r !== 'PASS' && r !== 'RUNNER' && r !== 'KITCHEN' && r !== 'WAITER' && r !== 'CASHIER' && r !== 'SUPERVISOR',
   )
   if (hasUnrestrictedRole) {
+    // A Manager runs the business from the numbers, not the till — unless they're also an admin
+    // (whose landing stays module-based) or the org has no POS at all.
+    const isManagerOnly = roles.includes('MANAGER') && !roles.includes('ADMIN') && !roles.includes('SUPER_ADMIN')
+    if (isManagerOnly && user.organization?.enabledModules !== 'INVOICING') return '/pos/dashboard'
     return user.organization?.enabledModules === 'POS' ? '/pos/order/new' : '/dashboard'
   }
   if (roles.includes('WAITER')) return '/pos/order/new'

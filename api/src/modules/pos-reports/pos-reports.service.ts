@@ -28,7 +28,7 @@ export class PosReportsService {
    * order/cashier counts, for an inclusive day (or day range). Only fully paid orders count
    * as "sales" — CLOSED_UNPAID orders never get a closedAt, so they fall outside any range.
    */
-  async getItemSalesReport(organizationId: string, from: string, to?: string, fromTime?: string, toTime?: string) {
+  async getItemSalesReport(organizationId: string, from: string, to?: string, fromTime?: string, toTime?: string, waiterId?: string) {
     const rangeEnd = to ?? from;
     const shift = await this.getOrgShiftHours(organizationId);
     // fromTime/toTime let a user drill into a specific window within the range (e.g. "6am-2pm on
@@ -43,6 +43,7 @@ export class PosReportsService {
         organizationId,
         status: OrderStatus.CLOSED_PAID,
         closedAt: { gte: startDate, lte: endDate },
+        ...(waiterId && { waiterId }),
       },
       select: {
         id: true,

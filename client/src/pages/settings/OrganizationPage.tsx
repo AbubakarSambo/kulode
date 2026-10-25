@@ -62,7 +62,6 @@ export function OrganizationPage() {
     onSuccess: () => {
       posthog.capture('org_logo_uploaded')
       queryClient.invalidateQueries({ queryKey: ['organization'] })
-      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Logo uploaded')
     },
     onError: () => toast.error('Failed to upload logo'),
@@ -73,7 +72,6 @@ export function OrganizationPage() {
     onSuccess: () => {
       posthog.capture('org_logo_removed')
       queryClient.invalidateQueries({ queryKey: ['organization'] })
-      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Logo removed')
     },
     onError: () => toast.error('Failed to remove logo'),
@@ -164,7 +162,6 @@ export function OrganizationPage() {
     onSuccess: () => {
       posthog.capture('org_profile_updated')
       queryClient.invalidateQueries({ queryKey: ['organization'] })
-      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Organization settings saved')
     },
     onError: (error: any) => {

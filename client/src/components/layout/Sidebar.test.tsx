@@ -393,7 +393,7 @@ describe('Sidebar', () => {
     expect(screen.queryByText('Shift')).not.toBeInTheDocument()
   })
 
-  it('a pure Supervisor is restricted to Orders/Customers/Shift/Kitchen (no menu editing, no Waiters roster)', () => {
+  it('a pure Supervisor gets the cashier floor plus kitchen and dashboard, but no set-up or roster', () => {
     mockUseAuthStore.mockReturnValue({
       ...adminUser,
       roles: ['SUPERVISOR'],
@@ -403,15 +403,12 @@ describe('Sidebar', () => {
 
     renderSidebar()
 
-    expect(screen.getAllByText('Orders').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Customers').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Shift').length).toBeGreaterThan(0)
-    // Waiter is just a User now — managing the roster needs the same admin-only access as the
-    // rest of user management, so Supervisors no longer get a nav entry for it.
+    for (const label of ['Sell', 'Orders', 'Customers', 'Shift', 'Kitchen', 'Menu', 'Categories']) {
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0)
+    }
+    // Floor set-up and the staff roster are Manager+.
     expect(screen.queryByText('Waiters')).not.toBeInTheDocument()
-    expect(screen.getAllByText('Kitchen').length).toBeGreaterThan(0)
-    expect(screen.queryByText('Sell')).not.toBeInTheDocument()
-    expect(screen.queryByText('Menu')).not.toBeInTheDocument()
-    expect(screen.queryByText('Categories')).not.toBeInTheDocument()
+    expect(screen.queryByText('Users')).not.toBeInTheDocument()
+    expect(screen.queryByText('Order Types')).not.toBeInTheDocument()
   })
 })

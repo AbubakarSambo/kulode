@@ -2,7 +2,7 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PosDashboardService } from './pos-dashboard.service';
 import { ReportFilterDto } from '../reports/dto';
-import { CurrentUser } from '../../common';
+import { CurrentUser, Can } from '../../common';
 
 @ApiTags('POS Dashboard')
 @ApiBearerAuth()
@@ -12,6 +12,7 @@ export class PosDashboardController {
 
   @Get('summary')
   @ApiOperation({ summary: 'Get POS sales summary (income, orders, top items)' })
+  @Can('POS_DASHBOARD_VIEW')
   async getSummary(
     @CurrentUser('organizationId') organizationId: string,
     @Query() filter: ReportFilterDto,
@@ -21,6 +22,7 @@ export class PosDashboardController {
 
   @Get('trend')
   @ApiOperation({ summary: 'Get daily POS sales trend' })
+  @Can('POS_DASHBOARD_VIEW')
   async getTrend(
     @CurrentUser('organizationId') organizationId: string,
     @Query() filter: ReportFilterDto,

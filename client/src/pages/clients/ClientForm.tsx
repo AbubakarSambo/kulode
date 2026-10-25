@@ -71,7 +71,6 @@ export function ClientFormPage({ mode = 'create', initialData }: ClientFormPageP
     }),
     onSuccess: (client) => {
       queryClient.invalidateQueries({ queryKey: ['clients'] })
-      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       posthog.capture('client_created', { client_id: client.id })
       toast.success('Client created', { description: `${client.name} has been added` })
       navigate(`/clients/${client.id}`)
@@ -91,7 +90,6 @@ export function ClientFormPage({ mode = 'create', initialData }: ClientFormPageP
     onSuccess: (client) => {
       queryClient.invalidateQueries({ queryKey: ['clients'] })
       queryClient.invalidateQueries({ queryKey: ['clients', initialData!.id] })
-      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       posthog.capture('client_updated', { client_id: client.id })
       toast.success('Client updated', { description: 'Changes have been saved' })
       navigate(`/clients/${client.id}`)

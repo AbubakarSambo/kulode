@@ -27,7 +27,6 @@ import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, CardHeader, CardTitle, DatePicker } from '@/components/ui'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { clientsApi, invoicesApi, organizationsApi, inventoryApi } from '@/api'
-import { useOnboardingStore } from '@/stores/onboarding'
 import type { CreateInventoryItemData } from '@/api/inventory'
 import { cn, formatCurrency } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
@@ -55,7 +54,6 @@ function CreateClientModal({
       clientsApi.create({ name: name.trim(), email: email.trim() || undefined, phone: phone.trim() || undefined }),
     onSuccess: (client) => {
       queryClient.invalidateQueries({ queryKey: ['clients'] })
-      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       posthog.capture('client_created', { client_id: client.id, source: 'invoice_form_modal' })
       toast.success('Client created', { description: `${client.name} has been added` })
       onSuccess(client.id)
@@ -204,7 +202,6 @@ function CreateItemModal({
       invoicesApi.createServiceItem({ name: name.trim(), unitPrice: parseFloat(price) }),
     onSuccess: (item) => {
       queryClient.invalidateQueries({ queryKey: ['service-items'] })
-      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Service created', { description: item.name })
       onSuccess({ kind: 'service', id: item.id, item })
       onClose()
@@ -223,7 +220,6 @@ function CreateItemModal({
     },
     onSuccess: (item) => {
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] })
-      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Product created', { description: item.name })
       onSuccess({ kind: 'inventory', id: item.id, item })
       onClose()
@@ -1028,7 +1024,6 @@ type InvoiceFormData = z.infer<typeof invoiceSchema>
 
 export function NewInvoicePage() {
   const navigate = useNavigate()
-  const openOnboarding = useOnboardingStore((state) => state.openOnboarding)
   const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const preselectedClientId = searchParams.get('clientId') || ''
@@ -1225,7 +1220,6 @@ export function NewInvoicePage() {
     },
     onSuccess: (invoice) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
-      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       posthog.capture('invoice_created', {
         invoice_id: invoice.id,
         invoice_number: invoice.invoiceNumber,
@@ -1406,7 +1400,7 @@ export function NewInvoicePage() {
             </div>
             <Button
               type="button"
-              onClick={() => openOnboarding(4)}
+              onClick={() => navigate('/settings/paystack')}
               className="h-9 px-4 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white text-xs font-bold shrink-0 shadow-md cursor-pointer hover:opacity-95 active:scale-98 transition-all border-0"
             >
               Link Bank Account
