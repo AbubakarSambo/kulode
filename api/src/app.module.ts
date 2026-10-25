@@ -21,7 +21,6 @@ import { EmailModule } from './modules/email';
 import { SubscriptionModule } from './modules/subscription';
 import { InventoryModule } from './modules/inventory';
 import { TaxModule } from './modules/tax';
-import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { DebugController } from './common/debug/debug.controller';
 import { AiModule } from './modules/ai/ai.module';
@@ -77,7 +76,6 @@ import {
     InventoryModule,
     SubscriptionModule,
     TaxModule,
-    OnboardingModule,
     MaintenanceModule,
     AiModule,
     MenuModule,

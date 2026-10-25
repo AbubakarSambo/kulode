@@ -26,6 +26,7 @@ function createMockPrisma() {
     user: {
       count: jest.fn(),
       findFirst: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
     },
     subscriptionPayment: {
       findUnique: jest.fn(),
@@ -588,6 +589,48 @@ describe('SubscriptionService', () => {
 
       const call = prisma.organization.findMany.mock.calls[0][0];
       expect(call.where.isGrandfathered).toBe(false);
+    });
+  });
+
+  // ─── billing email recipient ──────────────────────────────────────
+
+  describe('billing email recipient', () => {
+    const owner = { email: 'owner@shop.ng', firstName: 'Ada', roles: ['SUPER_ADMIN'], organization: { posMode: 'RETAIL' } };
+    const admin = { email: 'admin@shop.ng', firstName: 'Bayo', roles: ['ADMIN'], organization: { posMode: 'RETAIL' } };
+
+    beforeEach(() => {
+      prisma.organization.findMany.mockResolvedValue([{ id: 'org-1' }]);
+      prisma.organization.updateMany.mockResolvedValue({ count: 1 });
+    });
+
+    it("emails the owner (SUPER_ADMIN) — signup's only role — with the org's posMode", async () => {
+      prisma.user.findMany.mockResolvedValue([admin, owner]);
+
+      await service.checkAndExpireTrials();
+
+      expect(prisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            organizationId: 'org-1',
+            isActive: true,
+            hasPlaceholderEmail: false,
+            roles: { hasSome: ['SUPER_ADMIN', 'ADMIN'] },
+          }),
+        }),
+      );
+      expect(emailService.sendTrialExpiredEmail).toHaveBeenCalledWith('owner@shop.ng', 'Ada', 'RETAIL');
+    });
+
+    it('falls back to an ADMIN when the org has no active owner', async () => {
+      prisma.user.findMany.mockResolvedValue([admin]);
+      await service.checkAndExpireTrials();
+      expect(emailService.sendTrialExpiredEmail).toHaveBeenCalledWith('admin@shop.ng', 'Bayo', 'RETAIL');
+    });
+
+    it('sends nothing when the org has no admin-tier user at all', async () => {
+      prisma.user.findMany.mockResolvedValue([]);
+      await service.checkAndExpireTrials();
+      expect(emailService.sendTrialExpiredEmail).not.toHaveBeenCalled();
     });
   });
 

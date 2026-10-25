@@ -135,7 +135,6 @@ describe('InvoicesService — invoice limit enforcement', () => {
             sendPasswordSetupEmail: jest.fn(),
             sendMagicLinkEmail: jest.fn(),
             sendAddPasswordEmail: jest.fn(),
-            sendClientReminderEmail: jest.fn(),
             sendInvoiceReminderEmail: jest.fn(),
             sendRenewalFailedEmail: jest.fn(),
             sendPasswordResetEmail: jest.fn(),
