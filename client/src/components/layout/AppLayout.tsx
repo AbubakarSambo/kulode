@@ -37,7 +37,6 @@ import {
 } from '@/components/ui/CustomIcons'
 import { Sidebar } from './Sidebar'
 import { OrgSwitcher } from './OrgSwitcher'
-import { WelcomeStepper } from '@/components/WelcomeStepper'
 import { TrialBanner } from '../shared/TrialBanner'
 import { ImpersonationBanner } from '../shared/ImpersonationBanner'
 import { SubscriptionExpiredBanner } from '../shared/SubscriptionExpiredBanner'
@@ -236,10 +235,6 @@ export function AppLayout() {
   return (
     <div className="flex h-dvh overflow-hidden bg-background">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      {/* Onboarding is a full-screen overlay whose every step is a write — a read-only "View as"
-          session could never get past it (and it would bury the banner's Exit). The banner
-          flags an unfinished set-up instead. */}
-      {!user?.impersonation && <WelcomeStepper />}
 
       <main className="flex flex-1 flex-col overflow-hidden relative">
         <ImpersonationBanner />

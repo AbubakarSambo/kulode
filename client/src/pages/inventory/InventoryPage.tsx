@@ -189,7 +189,6 @@ export function InventoryPage() {
     onSuccess: () => {
       posthog.capture('inventory_item_created')
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] })
-      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Inventory item created successfully')
       setCreateOpen(false)
       createForm.reset()
@@ -221,7 +220,6 @@ export function InventoryPage() {
     onSuccess: () => {
       posthog.capture('inventory_item_updated')
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] })
-      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Inventory item updated successfully')
       setEditingItem(null)
     },
@@ -253,7 +251,6 @@ export function InventoryPage() {
     onSuccess: () => {
       posthog.capture('inventory_item_deleted')
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] })
-      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Inventory item deleted successfully')
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -309,7 +306,6 @@ export function InventoryPage() {
     onSuccess: (_, variables) => {
       posthog.capture('inventory_stock_adjusted', { type: variables.type })
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] })
-      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
       toast.success('Stock adjusted successfully')
       setAdjustingItem(null)
       adjustForm.reset({ type: 'RESTOCK', quantity: 1, notes: '' })
