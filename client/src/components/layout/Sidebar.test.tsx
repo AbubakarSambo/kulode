@@ -49,6 +49,8 @@ const adminUser = {
   organizationId: 'org1',
   organizationName: 'Test Org',
   isPlatformAdmin: false,
+  // Explicit: these cases exercise the invoicing nav, and a missing value now defaults to POS.
+  organization: { enabledModules: 'INVOICING' },
 }
 
 function renderSidebar() {

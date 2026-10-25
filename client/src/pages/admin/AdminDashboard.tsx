@@ -2071,8 +2071,10 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
                   onChange={(val) => setEnabledModules(val)}
                   options={[
                     { value: 'POS', label: 'POS' },
-                    { value: 'INVOICING', label: 'Invoicing' },
-                    { value: 'BOTH', label: 'Both' },
+                    { value: 'BOTH', label: 'POS + Invoicing' },
+                    // Invoicing-only is no longer offered (the API rejects switching to it); a legacy
+                    // invoicing-only org still shows its own value so saving other fields keeps it.
+                    ...(org.enabledModules === 'INVOICING' ? [{ value: 'INVOICING', label: 'Invoicing only (legacy)' }] : []),
                   ]}
                 />
               </div>

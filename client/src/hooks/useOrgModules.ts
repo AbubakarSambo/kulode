@@ -1,10 +1,12 @@
 import { useAuthStore } from '@/stores/auth'
 import type { OrgModule, PosMode } from '@/types'
 
-// Orgs with no value set (missing from the payload, not yet hydrated)
-// default to INVOICING, matching the Organization.enabledModules DB default.
+// Orgs with no value set (missing from the payload, or a session saved before it was included)
+// default to POS, matching the Organization.enabledModules DB default — new orgs are always POS
+// or POS + Invoicing (BOTH). The legacy invoicing-only orgs carry an explicit INVOICING value, and
+// useOrgSettingsSync refreshes a stale session from the server.
 export function useOrgModules() {
-  const enabledModules = useAuthStore((state) => state.user?.organization?.enabledModules) ?? 'INVOICING'
+  const enabledModules = useAuthStore((state) => state.user?.organization?.enabledModules) ?? 'POS'
 
   return {
     enabledModules,
@@ -14,7 +16,7 @@ export function useOrgModules() {
 }
 
 export function hasModule(enabledModules: OrgModule | undefined, required: 'POS' | 'INVOICING'): boolean {
-  const modules = enabledModules ?? 'INVOICING'
+  const modules = enabledModules ?? 'POS'
   return modules === 'BOTH' || modules === required
 }
 

@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { assertNotBecomingInvoicingOnly } from '../../common/org-modules';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateOrganizationDto, CreateDirectorDto, UpdateDirectorDto } from './dto';
 
@@ -64,6 +65,7 @@ export class OrganizationsService {
     if (!organization) {
       throw new NotFoundException('Organization not found');
     }
+    assertNotBecomingInvoicingOnly(organization.enabledModules, dto.enabledModules);
 
     const updated = await this.prisma.organization.update({
       where: { id },
