@@ -11,17 +11,10 @@ import { getQueuedActionsForLocalOrder, discardFailedAction, LOCAL_ORDER_PREFIX 
 import { formatCurrency, formatPaymentMethod, normalizePhoneForWhatsApp, cn } from '@/lib/utils'
 import { printBill } from '@/lib/printBill'
 import { useAuthStore } from '@/stores/auth'
+import { can } from '@/lib/permissions'
 import type { OrderItemStatus, MenuItem, OrderSource } from '@/types'
 import type { CreateOrderItemData } from '@/api/orders'
 
-// Matches the backend's @Roles list on POST /orders/:id/close — only these roles can accept payment.
-const PAYMENT_CAPABLE_ROLES = ['STAFF', 'ACCOUNTANT', 'CASHIER', 'ADMIN', 'SUPER_ADMIN']
-// Matches the backend's @Roles list on POST /orders/:id/cancel.
-const VOID_CAPABLE_ROLES = ['STAFF', 'ACCOUNTANT', 'SUPERVISOR', 'MANAGER', 'CASHIER', 'ADMIN', 'SUPER_ADMIN']
-// Matches the backend's @Roles list on PATCH /orders/:id/discount.
-const DISCOUNT_CAPABLE_ROLES = ['STAFF', 'ACCOUNTANT', 'SUPERVISOR', 'MANAGER', 'CASHIER', 'ADMIN', 'SUPER_ADMIN']
-// Matches the backend's @Roles list on POST /orders/:id/reassign-payment.
-const REASSIGN_PAYMENT_CAPABLE_ROLES = ['CASHIER', 'ACCOUNTANT', 'ADMIN', 'SUPER_ADMIN']
 const ITEM_STATUS_FLOW: OrderItemStatus[] = ['PENDING', 'ON_IT', 'PASS', 'SERVED']
 const ITEM_STATUS_LABELS: Record<OrderItemStatus, string> = {
   PENDING: 'Pending',
@@ -382,9 +375,11 @@ function SyncedOrderView({ id }: { id: string }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const currentUser = useAuthStore((s) => s.user)
-  const canAcceptPayment = !!currentUser && currentUser.roles.some((r) => PAYMENT_CAPABLE_ROLES.includes(r))
-  const canVoid = !!currentUser && currentUser.roles.some((r) => VOID_CAPABLE_ROLES.includes(r))
-  const canApplyDiscount = !!currentUser && currentUser.roles.some((r) => DISCOUNT_CAPABLE_ROLES.includes(r))
+  const canAcceptPayment = can(currentUser, 'PAYMENT_TAKE')
+  const canVoid = can(currentUser, 'ORDER_VOID_DISCOUNT')
+  const canApplyDiscount = canVoid
+  // A cashier can void/discount, but only with a supervisor's or manager's PIN typed in at the till.
+  const needsApproval = !can(currentUser, 'ORDER_APPROVE')
   const [addItemsOpen, setAddItemsOpen] = useState(false)
   const [closeModalOpen, setCloseModalOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<string>('CASH')
@@ -419,6 +414,12 @@ function SyncedOrderView({ id }: { id: string }) {
   const [discountType, setDiscountType] = useState<'PERCENTAGE' | 'FIXED'>('PERCENTAGE')
   const [discountValue, setDiscountValue] = useState('')
   const [discountReason, setDiscountReason] = useState('')
+  const [discountApproverPin, setDiscountApproverPin] = useState('')
+  const [voidModalOpen, setVoidModalOpen] = useState(false)
+  const [voidApproverPin, setVoidApproverPin] = useState('')
+  // An item reduction waiting on a supervisor's PIN (only for roles that need approval).
+  const [pendingReduction, setPendingReduction] = useState<{ itemId: string; itemName: string; quantity: number } | null>(null)
+  const [reductionApproverPin, setReductionApproverPin] = useState('')
   const [reassignModalOpen, setReassignModalOpen] = useState(false)
   const [reassignCustomerId, setReassignCustomerId] = useState('')
   const [reassignReason, setReassignReason] = useState('')
@@ -646,13 +647,14 @@ function SyncedOrderView({ id }: { id: string }) {
   })
 
   const applyDiscount = useMutation({
-    mutationFn: (data: { discountType: 'PERCENTAGE' | 'FIXED'; value: number; reason: string }) =>
+    mutationFn: (data: { discountType: 'PERCENTAGE' | 'FIXED'; value: number; reason: string; approverPin?: string }) =>
       ordersApi.applyDiscount(id, data),
     onSuccess: () => {
       toast.success('Discount updated')
       setDiscountModalOpen(false)
       setDiscountValue('')
       setDiscountReason('')
+      setDiscountApproverPin('')
       queryClient.invalidateQueries({ queryKey: ['order', id] })
       queryClient.invalidateQueries({ queryKey: ['orders'] })
     },
@@ -673,9 +675,11 @@ function SyncedOrderView({ id }: { id: string }) {
   })
 
   const updateItemQuantity = useMutation({
-    mutationFn: ({ itemId, quantity }: { itemId: string; quantity: number }) =>
-      ordersApi.updateItem(id, itemId, { quantity }),
+    mutationFn: ({ itemId, quantity, approverPin }: { itemId: string; quantity: number; approverPin?: string }) =>
+      ordersApi.updateItem(id, itemId, { quantity, ...(approverPin && { approverPin }) }),
     onSuccess: () => {
+      setPendingReduction(null)
+      setReductionApproverPin('')
       queryClient.invalidateQueries({ queryKey: ['order', id] })
       queryClient.invalidateQueries({ queryKey: ['orders'] })
     },
@@ -722,9 +726,11 @@ function SyncedOrderView({ id }: { id: string }) {
   })
 
   const cancelOrder = useMutation({
-    mutationFn: () => ordersApi.cancel(id),
+    mutationFn: (approverPin?: string) => ordersApi.cancel(id, approverPin),
     onSuccess: () => {
       toast.success('Order cancelled')
+      setVoidModalOpen(false)
+      setVoidApproverPin('')
       queryClient.invalidateQueries({ queryKey: ['orders'] })
       navigate('/pos/tables')
     },
@@ -890,8 +896,7 @@ function SyncedOrderView({ id }: { id: string }) {
   // re-attribute the order without touching either wallet — the wrong customer stays charged
   // and the right one never gets billed. Route through reassign-payment instead in that case.
   const hasWalletPayment = order.payments.some((p) => p.paymentMethod === 'WALLET')
-  const canReassignPayment =
-    !!currentUser && currentUser.roles.some((r) => REASSIGN_PAYMENT_CAPABLE_ROLES.includes(r))
+  const canReassignPayment = can(currentUser, 'PAYMENT_REASSIGN')
   const reassignCustomerOptions = customerOptions.filter((c) => c.id !== order.customerId)
 
   return (
@@ -1106,12 +1111,12 @@ function SyncedOrderView({ id }: { id: string }) {
                             type="button"
                             disabled={updateItemQuantity.isPending}
                             onClick={() => {
-                              if (Number(item.quantity) <= 1) {
-                                if (window.confirm('Remove this item from the order?')) {
-                                  updateItemQuantity.mutate({ itemId: item.id, quantity: 0 })
-                                }
-                              } else {
-                                updateItemQuantity.mutate({ itemId: item.id, quantity: Number(item.quantity) - 1 })
+                              const quantity = Number(item.quantity) <= 1 ? 0 : Number(item.quantity) - 1
+                              if (needsApproval) {
+                                // Already on a kitchen docket — a reduction is a partial void.
+                                setPendingReduction({ itemId: item.id, itemName: item.itemName, quantity })
+                              } else if (quantity > 0 || window.confirm('Remove this item from the order?')) {
+                                updateItemQuantity.mutate({ itemId: item.id, quantity })
                               }
                             }}
                             className="flex h-7 w-7 items-center justify-center rounded-full bg-muted font-bold text-foreground disabled:opacity-50"
@@ -1235,7 +1240,7 @@ function SyncedOrderView({ id }: { id: string }) {
         {isOpenStatus && (
           <div className="mt-4 flex gap-3">
             {canVoid && (
-              <Button variant="outline" className="flex-1" onClick={() => cancelOrder.mutate()} isLoading={cancelOrder.isPending}>
+              <Button variant="outline" className="flex-1" onClick={() => setVoidModalOpen(true)}>
                 <X className="mr-1.5 h-4 w-4" /> Void Order
               </Button>
             )}
@@ -1287,7 +1292,7 @@ function SyncedOrderView({ id }: { id: string }) {
         {order.status === 'CLOSED_UNPAID' && (
           <div className="mt-4 flex gap-3">
             {canVoid && (
-              <Button variant="outline" className="flex-1" onClick={() => cancelOrder.mutate()} isLoading={cancelOrder.isPending}>
+              <Button variant="outline" className="flex-1" onClick={() => setVoidModalOpen(true)}>
                 <X className="mr-1.5 h-4 w-4" /> Void Order
               </Button>
             )}
@@ -1739,13 +1744,74 @@ function SyncedOrderView({ id }: { id: string }) {
               placeholder="e.g. Loyalty customer, manager comp"
             />
           </div>
+          {needsApproval && (
+            <ApproverPinField value={discountApproverPin} onChange={setDiscountApproverPin} />
+          )}
           <Button
             className="w-full"
             isLoading={applyDiscount.isPending}
-            disabled={!discountValue || Number(discountValue) < 0 || !discountReason.trim()}
-            onClick={() => applyDiscount.mutate({ discountType, value: Number(discountValue), reason: discountReason.trim() })}
+            disabled={
+              !discountValue ||
+              Number(discountValue) < 0 ||
+              !discountReason.trim() ||
+              (needsApproval && !PIN_PATTERN.test(discountApproverPin))
+            }
+            onClick={() =>
+              applyDiscount.mutate({
+                discountType,
+                value: Number(discountValue),
+                reason: discountReason.trim(),
+                ...(needsApproval && { approverPin: discountApproverPin }),
+              })
+            }
           >
             Apply Discount
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={!!pendingReduction}
+        onClose={() => setPendingReduction(null)}
+        title={pendingReduction?.quantity === 0 ? 'Remove Item' : 'Reduce Item'}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            {pendingReduction?.quantity === 0
+              ? `Remove ${pendingReduction?.itemName} from the order?`
+              : `Reduce ${pendingReduction?.itemName} to ${pendingReduction?.quantity}?`}{' '}
+            The kitchen has already been sent this item.
+          </p>
+          <ApproverPinField value={reductionApproverPin} onChange={setReductionApproverPin} />
+          <Button
+            variant="destructive"
+            className="w-full"
+            isLoading={updateItemQuantity.isPending}
+            disabled={!PIN_PATTERN.test(reductionApproverPin)}
+            onClick={() =>
+              pendingReduction &&
+              updateItemQuantity.mutate({ ...pendingReduction, approverPin: reductionApproverPin })
+            }
+          >
+            {pendingReduction?.quantity === 0 ? 'Remove Item' : 'Reduce Item'}
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={voidModalOpen} onClose={() => setVoidModalOpen(false)} title="Void Order">
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Voiding cancels the whole order and frees its table. This can't be undone.
+          </p>
+          {needsApproval && <ApproverPinField value={voidApproverPin} onChange={setVoidApproverPin} />}
+          <Button
+            variant="destructive"
+            className="w-full"
+            isLoading={cancelOrder.isPending}
+            disabled={needsApproval && !PIN_PATTERN.test(voidApproverPin)}
+            onClick={() => cancelOrder.mutate(needsApproval ? voidApproverPin : undefined)}
+          >
+            Void Order
           </Button>
         </div>
       </Modal>
@@ -1910,4 +1976,25 @@ export function OrderDetailPage() {
     return <PendingOrderView localOrderId={id} />
   }
   return <SyncedOrderView id={id} />
+}
+
+const PIN_PATTERN = /^\d{4}$/
+
+// The supervisor/manager types their own PIN on the cashier's screen to authorise a void/discount.
+function ApproverPinField({ value, onChange }: { value: string; onChange: (pin: string) => void }) {
+  return (
+    <div>
+      <Label>Supervisor or manager PIN</Label>
+      <Input
+        type="password"
+        inputMode="numeric"
+        autoComplete="off"
+        maxLength={4}
+        value={value}
+        onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, 4))}
+        placeholder="••••"
+      />
+      <p className="mt-1 text-xs text-muted-foreground">A supervisor or manager needs to approve this.</p>
+    </div>
+  )
 }

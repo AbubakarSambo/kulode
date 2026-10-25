@@ -2,7 +2,7 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { PosReportsService } from './pos-reports.service';
 import { ItemSalesReportQueryDto } from './dto';
-import { CurrentUser } from '../../common';
+import { CurrentUser, CurrentUserData, Can, hasPermission } from '../../common';
 
 @ApiTags('POS Reports')
 @ApiBearerAuth()
@@ -12,10 +12,13 @@ export class PosReportsController {
 
   @Get('item-sales')
   @ApiOperation({ summary: 'Item sales report: sales/quantity by category and product for a date range' })
+  @Can('POS_REPORTS_VIEW')
   getItemSalesReport(
-    @CurrentUser('organizationId') organizationId: string,
+    @CurrentUser() user: CurrentUserData,
     @Query() query: ItemSalesReportQueryDto,
   ) {
-    return this.posReportsService.getItemSalesReport(organizationId, query.from, query.to, query.fromTime, query.toTime);
+    // A waiter sees only the orders they served — the org's full takings aren't floor-staff business.
+    const waiterId = hasPermission(user.roles, 'POS_REPORTS_ALL') ? undefined : user.id;
+    return this.posReportsService.getItemSalesReport(user.organizationId, query.from, query.to, query.fromTime, query.toTime, waiterId);
   }
 }

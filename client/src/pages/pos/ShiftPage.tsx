@@ -10,6 +10,7 @@ import { Button, Input, Label, Textarea, Card, CardContent, Badge, Select } from
 import { shiftsApi, usersApi } from '@/api'
 import { formatCurrency } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
+import { can } from '@/lib/permissions'
 
 const openSchema = z.object({ openingFloat: z.number().min(0).optional() })
 const closeSchema = z.object({ countedCash: z.number().min(0), notes: z.string().optional() })
@@ -26,7 +27,7 @@ export function ShiftPage() {
   const [showBackdateForm, setShowBackdateForm] = useState(false)
   const [countedAmounts, setCountedAmounts] = useState<Record<string, number>>({})
   const user = useAuthStore((s) => s.user)
-  const isAdmin = !!user?.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')
+  const canBackdate = can(user, 'SHIFT_BACKDATE')
 
   const { data: currentShift, isLoading } = useQuery({
     queryKey: ['current-shift'],
@@ -49,7 +50,7 @@ export function ShiftPage() {
   const { data: staffList } = useQuery({
     queryKey: ['users', 'list-for-backdate-shift'],
     queryFn: () => usersApi.list(),
-    enabled: isAdmin && showBackdateForm,
+    enabled: canBackdate && showBackdateForm,
   })
 
   const openForm = useForm<z.infer<typeof openSchema>>({ resolver: zodResolver(openSchema) })
@@ -151,7 +152,7 @@ export function ShiftPage() {
                       Open Shift
                     </Button>
                   </form>
-                  {isAdmin && (
+                  {canBackdate && (
                     <button
                       type="button"
                       onClick={() => setShowBackdateForm(true)}

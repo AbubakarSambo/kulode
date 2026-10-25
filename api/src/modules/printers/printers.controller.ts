@@ -3,7 +3,7 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { PrintersService } from './printers.service';
 import { PrintingService } from './printing.service';
 import { CreatePrinterDto, UpdatePrinterDto, SetPrinterCategoriesDto } from './dto';
-import { CurrentUser, Roles, Role } from '../../common';
+import { CurrentUser, Roles, Role, Can } from '../../common';
 
 @ApiTags('Printers')
 @ApiBearerAuth()
@@ -33,7 +33,7 @@ export class PrintersController {
   }
 
   @Post('print-jobs/:jobId/retry')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.MANAGER, Role.SUPERVISOR, Role.CASHIER)
+  @Can('PRINT_RETRY')
   async retryJob(
     @CurrentUser('organizationId') organizationId: string,
     @Param('jobId', ParseUUIDPipe) jobId: string,

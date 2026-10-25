@@ -1,4 +1,5 @@
 import { SetMetadata } from '@nestjs/common';
+import { PERMISSIONS, Permission } from '../permissions';
 
 export enum Role {
   SUPER_ADMIN = 'SUPER_ADMIN',
@@ -17,3 +18,7 @@ export enum Role {
 
 export const ROLES_KEY = 'roles';
 export const Roles = (...roles: Role[]) => SetMetadata(ROLES_KEY, roles);
+
+// Role check sourced from the shared permission matrix (common/permissions.ts) rather than an
+// inline role list — keeps the API and client from drifting apart.
+export const Can = (permission: Permission) => Roles(...(PERMISSIONS[permission] as readonly string[] as Role[]));

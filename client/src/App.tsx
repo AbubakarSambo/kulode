@@ -9,6 +9,7 @@ import { ProtectedRoute, GuestRoute, PlanGatedRoute, ReadOnlyGatedRoute, ModuleG
 import { useAuthStore } from '@/stores/auth'
 import { usePosMode } from '@/hooks/useOrgModules'
 import { getPostAuthRoute } from '@/lib/authRouting'
+import { PERMISSIONS } from '@/lib/permissions'
 import { useVersionCheck } from '@/hooks/useVersionCheck'
 import { WhatsNewModal } from '@/components/changelog/WhatsNewModal'
 import { ReloadBanner } from '@/components/changelog/ReloadBanner'
@@ -254,7 +255,9 @@ function App() {
 
               {/* Restaurant POS (POS-only) */}
               <Route element={<ModuleGatedRoute requiredModule="POS" redirectTo="/invoices" />}>
-                <Route path="/pos/dashboard" element={<PosDashboardPage />} />
+                <Route element={<ProtectedRoute allowedRoles={PERMISSIONS.POS_DASHBOARD_VIEW} />}>
+                  <Route path="/pos/dashboard" element={<PosDashboardPage />} />
+                </Route>
                 <Route path="/pos/payment-types" element={<PaymentTypesPage />} />
                 <Route path="/pos/waiters/:id" element={<WaiterDetailPage />} />
                 <Route path="/pos/order/new" element={<PosCheckoutRoute />} />
@@ -282,11 +285,13 @@ function App() {
                     <Route path="/pos/drinks" element={<DrinksTicketsPage />} />
                   </Route>
                 </Route>
-                <Route path="/pos/reports" element={<PosReportsPage />} />
-                <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'SUPER_ADMIN', 'CASHIER']} />}>
+                <Route element={<ProtectedRoute allowedRoles={PERMISSIONS.POS_REPORTS_VIEW} />}>
+                  <Route path="/pos/reports" element={<PosReportsPage />} />
+                </Route>
+                <Route element={<ProtectedRoute allowedRoles={PERMISSIONS.POS_PAYMENTS_VIEW} />}>
                   <Route path="/pos/payments" element={<PosPaymentsPage />} />
                 </Route>
-                <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'SUPER_ADMIN', 'SUPERVISOR', 'CASHIER']} />}>
+                <Route element={<ProtectedRoute allowedRoles={PERMISSIONS.UNRECONCILED_TRANSFERS} />}>
                   <Route path="/pos/unreconciled-transfers" element={<UnreconciledTransfersPage />} />
                 </Route>
                 <Route element={<PlanGatedRoute requiredPlan="PRO" />}>
@@ -304,7 +309,7 @@ function App() {
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/settings/organization" element={<OrganizationPage />} />
               <Route path="/settings/directors" element={<DirectorsPage />} />
-              <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']} />}>
+              <Route element={<ProtectedRoute allowedRoles={PERMISSIONS.STAFF_MANAGE} />}>
                 <Route path="/settings/users" element={<UsersPage />} />
               </Route>
               <Route path="/settings/billing" element={<BillingPage />} />

@@ -2,7 +2,7 @@ import { Controller, Get, Post, Patch, Delete, Body, Param, ParseUUIDPipe } from
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { OrderTypesService } from './order-types.service';
 import { CreateOrderTypeDto, UpdateOrderTypeDto } from './dto';
-import { CurrentUser, Roles, Role } from '../../common';
+import { CurrentUser, Can } from '../../common';
 
 @ApiTags('Order Types')
 @ApiBearerAuth()
@@ -16,7 +16,7 @@ export class OrderTypesController {
   }
 
   @Post()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Can('POS_CONFIG_MANAGE')
   create(
     @CurrentUser('organizationId') organizationId: string,
     @Body() dto: CreateOrderTypeDto,
@@ -25,7 +25,7 @@ export class OrderTypesController {
   }
 
   @Patch(':id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Can('POS_CONFIG_MANAGE')
   update(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -35,7 +35,7 @@ export class OrderTypesController {
   }
 
   @Delete(':id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Can('POS_CONFIG_MANAGE')
   remove(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,

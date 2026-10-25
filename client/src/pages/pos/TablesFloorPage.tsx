@@ -14,12 +14,10 @@ import { tablesApi, ordersApi, orderTypesApi } from '@/api'
 import { cn, formatCurrency } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import type { RestaurantTable, TableStatus } from '@/types'
+import { can } from '@/lib/permissions'
 
 // Statuses where a table still has a running, unpaid tab worth showing on its card.
 const ACTIVE_ORDER_STATUSES = ['OPEN', 'IN_KITCHEN', 'READY', 'CLOSED_UNPAID'] as const
-// Matches the backend's @Roles list on POST/PATCH /restaurant-tables.
-const TABLE_MANAGE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'CASHIER']
-
 const tableSchema = z.object({
   name: z.string().min(1, 'Table name is required'),
   section: z.string().optional(),
@@ -52,7 +50,7 @@ export function TablesFloorPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const currentUser = useAuthStore((s) => s.user)
-  const canManageTables = !!currentUser && currentUser.roles.some((r) => TABLE_MANAGE_ROLES.includes(r))
+  const canManageTables = can(currentUser, 'TABLE_MANAGE')
   const [createOpen, setCreateOpen] = useState(false)
   const [navigatingTableId, setNavigatingTableId] = useState<string | null>(null)
   const [stuckTable, setStuckTable] = useState<RestaurantTable | null>(null)

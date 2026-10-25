@@ -271,13 +271,13 @@ describe('UsersPage', () => {
 
     it('lets a user edit their own email but not their own roles', async () => {
       const user = userEvent.setup()
-      // Self is non-admin-tier here, so canEditProfile allows it even though canEditRoles never
+      // A Super Admin may edit any account's profile (their own included), but canEditRoles never
       // allows touching your own roles.
       vi.mocked(usersApi.list).mockResolvedValue(
-        paginated([userWith({ id: 'self', firstName: 'Me', lastName: 'Self', roles: ['STAFF'], email: 'me@acme.com' })]),
+        paginated([userWith({ id: 'self', firstName: 'Me', lastName: 'Self', roles: ['SUPER_ADMIN'], email: 'me@acme.com' })]),
       )
       mockUseAuthStore.mockImplementation((selector: (state: unknown) => unknown) =>
-        selector({ user: { id: 'self', roles: ['STAFF'] } }),
+        selector({ user: { id: 'self', roles: ['SUPER_ADMIN'] } }),
       )
 
       renderPage()
@@ -314,6 +314,46 @@ describe('UsersPage', () => {
           roles: expect.arrayContaining(['WAITER', 'CASHIER']),
         }),
       )
+    })
+  })
+
+  describe('manager scope', () => {
+    it('lets a Manager manage floor staff only, and only offer floor roles', async () => {
+      const user = userEvent.setup()
+      vi.mocked(usersApi.list).mockResolvedValue(
+        paginated([
+          userWith({ id: 'w1', firstName: 'Wale', lastName: 'Waiter', roles: ['WAITER'] }),
+          userWith({ id: 'm2', firstName: 'Other', lastName: 'Manager', roles: ['MANAGER'] }),
+          userWith({ id: 'a1', firstName: 'Ada', lastName: 'Admin', roles: ['ADMIN'] }),
+        ]),
+      )
+      setCurrentUser(['MANAGER'])
+      mockUseOrgModules.mockReturnValue({ hasPos: true, hasInvoicing: false, enabledModules: 'POS' })
+
+      renderPage()
+      await screen.findByText('Wale Waiter')
+
+      expect(within(screen.getByText('Wale Waiter').closest('tr')!).queryByTitle('Edit user')).toBeInTheDocument()
+      expect(within(screen.getByText('Other Manager').closest('tr')!).queryByTitle('Edit user')).not.toBeInTheDocument()
+      expect(within(screen.getByText('Ada Admin').closest('tr')!).queryByTitle('Edit user')).not.toBeInTheDocument()
+
+      await user.click(screen.getAllByText('Invite User')[0])
+      expect(screen.getByRole('button', { name: 'Cashier' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Supervisor' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Manager' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Admin' })).not.toBeInTheDocument()
+    })
+
+    it('offers an approval PIN for a Manager account', async () => {
+      vi.mocked(usersApi.list).mockResolvedValue(
+        paginated([userWith({ id: 'm1', firstName: 'Mo', lastName: 'Manager', roles: ['MANAGER'] })]),
+      )
+      setCurrentUser(['SUPER_ADMIN'])
+
+      renderPage()
+      await screen.findByText('Mo Manager')
+
+      expect(within(screen.getByText('Mo Manager').closest('tr')!).getByTitle('Set approval PIN')).toBeInTheDocument()
     })
   })
 

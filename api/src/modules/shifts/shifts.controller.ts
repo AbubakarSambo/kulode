@@ -4,7 +4,7 @@ import { ApiTags, ApiBearerAuth, ApiProduces } from '@nestjs/swagger';
 import { ShiftsService } from './shifts.service';
 import { ShiftReportPdfService } from './shift-report-pdf.service';
 import { OpenShiftDto, CloseShiftDto, BackdateShiftDto } from './dto';
-import { CurrentUser, CurrentUserData, Roles, Role } from '../../common';
+import { CurrentUser, CurrentUserData, Can } from '../../common';
 
 @ApiTags('Shifts')
 @ApiBearerAuth()
@@ -59,6 +59,7 @@ export class ShiftsController {
   }
 
   @Post('open')
+  @Can('SHIFT_OPEN_CLOSE')
   open(
     @Body() dto: OpenShiftDto,
     @CurrentUser() user: CurrentUserData,
@@ -67,7 +68,7 @@ export class ShiftsController {
   }
 
   @Post('open-backdated')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Can('SHIFT_BACKDATE')
   openBackdated(
     @Body() dto: BackdateShiftDto,
     @CurrentUser() user: CurrentUserData,
@@ -76,6 +77,7 @@ export class ShiftsController {
   }
 
   @Post(':id/close')
+  @Can('SHIFT_OPEN_CLOSE')
   close(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CloseShiftDto,

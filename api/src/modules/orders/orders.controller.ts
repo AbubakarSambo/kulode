@@ -31,8 +31,9 @@ import {
   MoveOrderItemsDto,
   ApplyDiscountDto,
   ReassignOrderPaymentDto,
+  CancelOrderDto,
 } from './dto';
-import { CurrentUser, CurrentUserData, Roles, Role } from '../../common';
+import { CurrentUser, CurrentUserData, Can } from '../../common';
 
 @ApiTags('Orders')
 @ApiBearerAuth()
@@ -61,6 +62,7 @@ export class OrdersController {
   }
 
   @Post()
+  @Can('ORDER_SELL')
   create(
     @Body() dto: CreateOrderDto,
     @CurrentUser() user: CurrentUserData,
@@ -69,6 +71,7 @@ export class OrdersController {
   }
 
   @Post(':id/items')
+  @Can('ORDER_SELL')
   addItems(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -98,16 +101,18 @@ export class OrdersController {
   }
 
   @Patch(':id/items/:itemId')
+  @Can('ORDER_SELL')
   updateItem(
-    @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('itemId', ParseUUIDPipe) itemId: string,
     @Body() dto: UpdateOrderItemDto,
+    @CurrentUser() user: CurrentUserData,
   ) {
-    return this.ordersService.updateItem(organizationId, id, itemId, dto);
+    return this.ordersService.updateItem(user.organizationId, id, itemId, dto, user);
   }
 
   @Patch(':id/customer')
+  @Can('ORDER_SELL')
   setCustomer(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -117,6 +122,7 @@ export class OrdersController {
   }
 
   @Patch(':id/waiter')
+  @Can('ORDER_SELL')
   setWaiter(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -126,6 +132,7 @@ export class OrdersController {
   }
 
   @Patch(':id/notes')
+  @Can('ORDER_SELL')
   setNotes(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -135,6 +142,7 @@ export class OrdersController {
   }
 
   @Patch(':id/source')
+  @Can('ORDER_SELL')
   setSource(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -144,7 +152,7 @@ export class OrdersController {
   }
 
   @Post(':id/merge')
-  @Roles(Role.WAITER, Role.SUPERVISOR, Role.MANAGER, Role.CASHIER, Role.ADMIN, Role.SUPER_ADMIN)
+  @Can('ORDER_MERGE_MOVE')
   merge(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -154,7 +162,7 @@ export class OrdersController {
   }
 
   @Post(':id/move-items')
-  @Roles(Role.WAITER, Role.SUPERVISOR, Role.MANAGER, Role.CASHIER, Role.ADMIN, Role.SUPER_ADMIN)
+  @Can('ORDER_MERGE_MOVE')
   moveItems(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -164,7 +172,7 @@ export class OrdersController {
   }
 
   @Post(':id/mark-awaiting-payment')
-  @Roles(Role.WAITER, Role.SUPERVISOR, Role.MANAGER, Role.ADMIN, Role.SUPER_ADMIN, Role.CASHIER)
+  @Can('ORDER_MERGE_MOVE')
   markAwaitingPayment(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -173,26 +181,27 @@ export class OrdersController {
   }
 
   @Post(':id/cancel')
-  @Roles(Role.STAFF, Role.ACCOUNTANT, Role.SUPERVISOR, Role.MANAGER, Role.CASHIER, Role.ADMIN, Role.SUPER_ADMIN)
+  @Can('ORDER_VOID_DISCOUNT')
   cancel(
-    @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CancelOrderDto,
+    @CurrentUser() user: CurrentUserData,
   ) {
-    return this.ordersService.cancel(organizationId, id);
+    return this.ordersService.cancel(user.organizationId, id, user, dto.approverPin);
   }
 
   @Patch(':id/discount')
-  @Roles(Role.STAFF, Role.ACCOUNTANT, Role.SUPERVISOR, Role.MANAGER, Role.CASHIER, Role.ADMIN, Role.SUPER_ADMIN)
+  @Can('ORDER_VOID_DISCOUNT')
   applyDiscount(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ApplyDiscountDto,
     @CurrentUser() user: CurrentUserData,
   ) {
-    return this.ordersService.applyDiscount(user.organizationId, id, user.id, dto);
+    return this.ordersService.applyDiscount(user.organizationId, id, user, dto);
   }
 
   @Post(':id/close')
-  @Roles(Role.STAFF, Role.ACCOUNTANT, Role.CASHIER, Role.ADMIN, Role.SUPER_ADMIN)
+  @Can('PAYMENT_TAKE')
   close(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CloseOrderDto,
@@ -202,7 +211,7 @@ export class OrdersController {
   }
 
   @Post(':id/reassign-payment')
-  @Roles(Role.CASHIER, Role.ACCOUNTANT, Role.ADMIN, Role.SUPER_ADMIN)
+  @Can('PAYMENT_REASSIGN')
   reassignPayment(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ReassignOrderPaymentDto,
@@ -212,7 +221,7 @@ export class OrdersController {
   }
 
   @Post(':id/paystack-checkout')
-  @Roles(Role.STAFF, Role.ACCOUNTANT, Role.CASHIER, Role.ADMIN, Role.SUPER_ADMIN)
+  @Can('PAYMENT_TAKE')
   async paystackCheckout(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CloseOrderDto,

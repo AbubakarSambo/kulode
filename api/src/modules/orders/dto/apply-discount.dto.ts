@@ -1,5 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsNotEmpty, IsNumber, IsString, MaxLength, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
+import { PIN_REGEX } from '../../../common/pin';
 
 const DISCOUNT_TYPES = ['PERCENTAGE', 'FIXED'] as const;
 
@@ -18,6 +19,11 @@ export class ApplyDiscountDto {
   @IsString()
   @MaxLength(500)
   reason: string;
+
+  @ApiPropertyOptional({ description: "A supervisor/manager's PIN — required when a cashier applies a discount" })
+  @IsOptional()
+  @Matches(PIN_REGEX, { message: 'PIN must be 4 digits' })
+  approverPin?: string;
 }
 
 export { DISCOUNT_TYPES };

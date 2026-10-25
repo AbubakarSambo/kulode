@@ -14,6 +14,7 @@ import { formatCurrency, formatDate, cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { plateMargin, FOOD_COST_TARGET, FOOD_COST_TEXT } from '@/lib/plateCost'
 import type { UnitOfMeasure } from '@/types'
+import { can } from '@/lib/permissions'
 
 // Matches InventoryPage's UNIT_SUFFIX — kept in sync manually since it's a tiny, stable lookup.
 const UNIT_SUFFIX: Record<UnitOfMeasure, string> = { KG: 'kg', G: 'g', L: 'L', ML: 'ml', UNIT: 'unit(s)' }
@@ -51,7 +52,7 @@ export function MenuItemDetailPage() {
   const user = useAuthStore((s) => s.user)
   // Cashiers can add menu items but not edit/delete existing ones — admin-only on the backend
   // too, so hide those controls here rather than let the request 403.
-  const canManage = !!user?.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')
+  const canManage = can(user, 'MENU_MANAGE')
 
   const { data: item, isLoading } = useQuery({
     queryKey: ['menu-items', id],

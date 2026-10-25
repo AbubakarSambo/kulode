@@ -17,6 +17,7 @@ import type { MenuItem } from '@/types'
 import { InventoryIcon } from '@/components/ui/CustomIcons'
 import { useAuthStore } from '@/stores/auth'
 import { plateMargin, FOOD_COST_BADGE } from '@/lib/plateCost'
+import { can } from '@/lib/permissions'
 
 const itemSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -47,7 +48,7 @@ export function MenuManagementPage() {
   const user = useAuthStore((s) => s.user)
   // Cashiers can add menu items but not edit/delete existing ones — those actions are
   // admin-only on the backend too, so hide them here rather than let the request 403.
-  const canManage = !!user?.roles.some((r) => r === 'SUPER_ADMIN' || r === 'ADMIN')
+  const canManage = can(user, 'MENU_MANAGE')
 
   const [itemModalOpen, setItemModalOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)

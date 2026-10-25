@@ -42,8 +42,15 @@ describe('getPostAuthRoute', () => {
       expect(getPostAuthRoute(user)).toBe('/dashboard')
     })
 
-    it('MANAGER (unrestricted) follows the module-based default, not the floor roles', () => {
-      const user = makeUser({ roles: ['MANAGER'], organization: { id: 'o1', name: 'Org', slug: 'org', isPaystackVerified: false, enabledModules: 'POS' } })
+    it('MANAGER lands on the POS dashboard in a POS or BOTH org', () => {
+      for (const enabledModules of ['POS', 'BOTH'] as const) {
+        const user = makeUser({ roles: ['MANAGER'], organization: { id: 'o1', name: 'Org', slug: 'org', isPaystackVerified: false, enabledModules } })
+        expect(getPostAuthRoute(user)).toBe('/pos/dashboard')
+      }
+    })
+
+    it('MANAGER + ADMIN keeps the admin module-based landing', () => {
+      const user = makeUser({ roles: ['MANAGER', 'ADMIN'], organization: { id: 'o1', name: 'Org', slug: 'org', isPaystackVerified: false, enabledModules: 'POS' } })
       expect(getPostAuthRoute(user)).toBe('/pos/order/new')
     })
   })
