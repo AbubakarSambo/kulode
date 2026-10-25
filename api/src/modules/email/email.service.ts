@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
+import { PosMode } from '@prisma/client';
+import { PLAN_PRICES } from '../../common/plan-limits';
 
 interface EmailOptions {
   accentColor?: string;       // Default: '#0037b0' (primary blue)
@@ -46,6 +48,28 @@ export class EmailService {
       brand = `https://${brand}`;
     }
     this.brandWebsiteUrl = brand;
+  }
+
+  // POS wording matched to how the org sells — a retail (scan-and-sell) store has no menu,
+  // tables or kitchen, so restaurant copy reads as if the email were meant for someone else.
+  private floorCopy(posMode: PosMode = 'RESTAURANT') {
+    return posMode === 'RETAIL'
+      ? {
+          welcome: 'run your store — ringing up sales at the till, managing your products and stock, and tracking shifts',
+          features: 'checkout, your product catalog, shift reports, and inventory',
+          data: 'sales, products, customers, and stock data',
+          resume: 'selling and running your store',
+          posAccess: 'ringing up sales, managing stock, and running shifts',
+          lockedAction: 'Checkout',
+        }
+      : {
+          welcome: 'run your floor — taking orders, managing your menu and tables, tracking shifts, and keeping stock under control',
+          features: 'order taking, your menu and tables, shift reports, and inventory',
+          data: 'orders, menu, customers, and stock data',
+          resume: 'taking orders and running your floor',
+          posAccess: 'taking orders, managing tables, and running shifts',
+          lockedAction: 'Order-taking',
+        };
   }
 
   private buildEmailHtml(options: EmailOptions): string {
@@ -210,7 +234,7 @@ export class EmailService {
     this.logger.log(`Email sent to ${options.to} (id: ${data?.id})`);
   }
 
-  async sendVerificationEmail(email: string, firstName: string, token: string): Promise<void> {
+  async sendVerificationEmail(email: string, firstName: string, token: string, posMode?: PosMode): Promise<void> {
     const verifyUrl = `${this.frontendUrl}/verify-email?token=${token}`;
 
     const html = this.buildEmailHtml({
@@ -218,7 +242,7 @@ export class EmailService {
       headline: 'Verify your email address',
       bodyHtml: `
         <p>Hi ${firstName},</p>
-        <p>Welcome to Tari1! We're excited to help you run your floor — taking orders, managing your menu and tables, tracking shifts, and keeping stock under control.</p>
+        <p>Welcome to Tari1! We're excited to help you ${this.floorCopy(posMode).welcome}.</p>
         <p>Please click the button below to verify your email address and activate your account:</p>
       `,
       ctaText: 'Verify Email',
@@ -300,29 +324,6 @@ export class EmailService {
     });
   }
 
-  async sendClientReminderEmail(email: string, firstName: string): Promise<void> {
-    const clientsUrl = `${this.frontendUrl}/clients`;
-
-    const html = this.buildEmailHtml({
-      contextLabel: 'Getting Started',
-      headline: 'Add your first client to start invoicing',
-      bodyHtml: `
-        <p>Hi ${firstName},</p>
-        <p>You have successfully set up your Tari1 account — a great first step! The only thing left before you can send your first invoice is adding a client record.</p>
-        <p>It takes less than a minute. Click the button below to add your first client:</p>
-      `,
-      ctaText: 'Add First Client',
-      ctaUrl: clientsUrl,
-      footerNote: 'Once added, you can generate and send professional payment requests instantly.',
-    });
-
-    await this.sendEmail({
-      to: email,
-      subject: "You're one step away from sending your first invoice",
-      html,
-    });
-  }
-
   async sendInvoiceReminderEmail(
     email: string,
     clientName: string,
@@ -374,7 +375,8 @@ export class EmailService {
     });
   }
 
-  async sendRenewalFailedEmail(email: string, firstName: string, planTier: string): Promise<void> {
+  async sendRenewalFailedEmail(email: string, firstName: string, planTier: string, posMode?: PosMode): Promise<void> {
+    const copy = this.floorCopy(posMode);
     const loginUrl = `${this.frontendUrl}/settings/billing`;
 
     const html = this.buildEmailHtml({
@@ -384,11 +386,11 @@ export class EmailService {
       bodyHtml: `
         <p>Hi ${firstName},</p>
         <p>We were unable to automatically renew your <strong>Tari1 ${planTier}</strong> subscription. This may be due to an expired card, insufficient funds, or a change in your billing details.</p>
-        <p>To avoid losing access to your POS — taking orders, managing tables, and running shifts — please update your payment method and renew your subscription:</p>
+        <p>To avoid losing access to your POS — ${copy.posAccess} — please update your payment method and renew your subscription:</p>
       `,
       ctaText: 'Update Payment & Renew',
       ctaUrl: loginUrl,
-      footerNote: 'Your data is completely safe, but order-taking and other account features will be temporarily locked until the renewal is successful.',
+      footerNote: `Your data is completely safe, but ${copy.lockedAction.toLowerCase()} and other account features will be temporarily locked until the renewal is successful.`,
     });
 
     await this.sendEmail({
@@ -420,7 +422,7 @@ export class EmailService {
     });
   }
 
-  async sendTrialEndingWarningEmail(email: string, firstName: string, daysRemaining: number): Promise<void> {
+  async sendTrialEndingWarningEmail(email: string, firstName: string, daysRemaining: number, posMode?: PosMode): Promise<void> {
     const billingUrl = `${this.frontendUrl}/settings/billing`;
 
     const html = this.buildEmailHtml({
@@ -430,7 +432,7 @@ export class EmailService {
       bodyHtml: `
         <p>Hi ${firstName},</p>
         <p>This is a quick friendly reminder that your 30-day free trial of <strong>Tari1</strong> is ending in <strong>${daysRemaining} days</strong>.</p>
-        <p>To keep uninterrupted access to order taking, your menu and tables, shift reports, and inventory, please select a plan and add a payment method before your trial expires.</p>
+        <p>To keep uninterrupted access to ${this.floorCopy(posMode).features}, please select a plan and add a payment method before your trial expires.</p>
       `,
       ctaText: 'Select a Pricing Plan',
       ctaUrl: billingUrl,
@@ -444,7 +446,11 @@ export class EmailService {
     });
   }
 
-  async sendTrialExpiredEmail(email: string, firstName: string): Promise<void> {
+  async sendTrialExpiredEmail(email: string, firstName: string, posMode?: PosMode): Promise<void> {
+    const copy = this.floorCopy(posMode);
+    const starterPrice = new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 0 }).format(
+      PLAN_PRICES.STARTER.monthly,
+    );
     const billingUrl = `${this.frontendUrl}/settings/billing`;
 
     const html = this.buildEmailHtml({
@@ -454,11 +460,11 @@ export class EmailService {
       bodyHtml: `
         <p>Hi ${firstName},</p>
         <p>Your 30-day trial of <strong>Tari1</strong> has officially expired, and your account has been temporarily locked.</p>
-        <p>Your orders, menu, customers, and stock data are completely safe, but you will need to subscribe to a paid plan to resume taking orders and running your floor.</p>
+        <p>Your ${copy.data} are completely safe, but you will need to subscribe to a paid plan to resume ${copy.resume}.</p>
       `,
       ctaText: 'Choose Plan & Upgrade',
       ctaUrl: billingUrl,
-      footerNote: 'Select the Starter plan at just ₦20,000/month to get started instantly.',
+      footerNote: `Select the Starter plan at just ${starterPrice}/month to get started instantly.`,
     });
 
     await this.sendEmail({
