@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
@@ -30,6 +30,10 @@ function createMockPrisma() {
       findFirst: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
+    },
+    impersonationSession: {
+      create: jest.fn(),
       updateMany: jest.fn(),
     },
     expenseCategory: {
@@ -420,5 +424,86 @@ describe('AuthService — switchOrganization', () => {
       { organizationId: 'org-1', organizationName: 'Acme Ltd', organizationSlug: 'acme-ltd', roles: ['SUPER_ADMIN'], isDefault: true },
       { organizationId: 'org-2', organizationName: 'Second Branch', organizationSlug: 'second-branch', roles: ['MANAGER'], isDefault: false },
     ]);
+  });
+});
+
+// ─── impersonation ("View as") ──────────────────────────────────────────────────
+
+describe('AuthService — impersonation', () => {
+  let service: AuthService;
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let jwt: ReturnType<typeof createMockJwt>;
+
+  const platformAdmin = { ...mockUser, id: 'admin-1', email: 'ops@tari1.com', isPlatformAdmin: true };
+  const targetOrg = { ...mockOrg, id: 'org-target', name: 'The Courtyard' };
+
+  beforeEach(async () => {
+    prisma = createMockPrisma();
+    jwt = createMockJwt();
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: JwtService, useValue: jwt },
+        { provide: ConfigService, useValue: createMockConfig() },
+        { provide: EmailService, useValue: createMockEmail() },
+      ],
+    }).compile();
+
+    service = module.get<AuthService>(AuthService);
+    jest.clearAllMocks();
+  });
+
+  it('refuses a non-platform-admin', async () => {
+    prisma.user.findUnique.mockResolvedValue({ ...platformAdmin, isPlatformAdmin: false });
+    await expect(service.startImpersonation('admin-1', 'org-target', {})).rejects.toThrow(UnauthorizedException);
+    expect(prisma.impersonationSession.create).not.toHaveBeenCalled();
+  });
+
+  it('404s an unknown organization', async () => {
+    prisma.user.findUnique.mockResolvedValue(platformAdmin);
+    prisma.organization.findUnique.mockResolvedValue(null);
+    await expect(service.startImpersonation('admin-1', 'missing', {})).rejects.toThrow(NotFoundException);
+  });
+
+  it('records a session and returns a SUPER_ADMIN, non-platform-admin view of the target org', async () => {
+    prisma.user.findUnique.mockResolvedValue(platformAdmin);
+    prisma.organization.findUnique.mockResolvedValue(targetOrg);
+    prisma.impersonationSession.create.mockResolvedValue({ id: 'sess-1' });
+
+    const result = await service.startImpersonation('admin-1', 'org-target', {
+      reason: 'Support ticket #12',
+      ipAddress: '1.2.3.4',
+    });
+
+    expect(prisma.impersonationSession.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        platformAdminId: 'admin-1',
+        organizationId: 'org-target',
+        reason: 'Support ticket #12',
+        ipAddress: '1.2.3.4',
+      }),
+    });
+    expect(jwt.sign).toHaveBeenCalledWith(
+      expect.objectContaining({ sub: 'admin-1', organizationId: 'org-target', roles: ['SUPER_ADMIN'], imp: 'sess-1' }),
+      { expiresIn: 3600 },
+    );
+    expect(result.user).toMatchObject({
+      organizationId: 'org-target',
+      organizationName: 'The Courtyard',
+      roles: ['SUPER_ADMIN'],
+      isPlatformAdmin: false,
+      impersonation: { sessionId: 'sess-1', readOnly: true },
+    });
+  });
+
+  it('ends only a still-open session', async () => {
+    prisma.impersonationSession.updateMany.mockResolvedValue({ count: 1 });
+    await service.endImpersonation('sess-1');
+    expect(prisma.impersonationSession.updateMany).toHaveBeenCalledWith({
+      where: { id: 'sess-1', endedAt: null },
+      data: { endedAt: expect.any(Date) },
+    });
   });
 });

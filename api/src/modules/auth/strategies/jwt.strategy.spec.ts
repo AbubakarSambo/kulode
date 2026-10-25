@@ -73,3 +73,59 @@ describe('JwtStrategy — multi-org validate()', () => {
     ).rejects.toThrow(UnauthorizedException);
   });
 });
+
+function makeStrategy(prisma: any) {
+  const config = { get: jest.fn().mockReturnValue('test-secret') } as any;
+  return new JwtStrategy(config, prisma);
+}
+
+describe('JwtStrategy — "View as" tokens', () => {
+  const future = new Date(Date.now() + 60 * 60 * 1000);
+  const admin = {
+    id: 'admin-1',
+    email: 'ops@tari1.com',
+    firstName: 'Ops',
+    lastName: 'Admin',
+    isPlatformAdmin: true,
+    isActive: true,
+  };
+  const session = { id: 'sess-1', organizationId: 'org-target', expiresAt: future, endedAt: null, platformAdmin: admin };
+  const payload = { sub: 'admin-1', email: admin.email, organizationId: 'org-target', roles: ['SUPER_ADMIN'], imp: 'sess-1' };
+
+  function prismaWith(row: any) {
+    return {
+      impersonationSession: { findUnique: jest.fn().mockResolvedValue(row) },
+      user: { findUnique: jest.fn() },
+      userOrganization: { findUnique: jest.fn() },
+    };
+  }
+
+  it('resolves to the target org as SUPER_ADMIN with platform-admin bypasses switched off', async () => {
+    const prisma = prismaWith(session);
+    const user = await makeStrategy(prisma).validate(payload);
+    expect(user).toEqual({
+      id: 'admin-1',
+      email: admin.email,
+      organizationId: 'org-target',
+      roles: ['SUPER_ADMIN'],
+      firstName: 'Ops',
+      lastName: 'Admin',
+      isPlatformAdmin: false,
+      impersonationSessionId: 'sess-1',
+    });
+    // Never falls through to the membership lookup — no UserOrganization row is needed.
+    expect(prisma.userOrganization.findUnique).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['the session has ended', { ...session, endedAt: new Date() }],
+    ['the session has expired', { ...session, expiresAt: new Date(Date.now() - 1000) }],
+    ['the session is for another org', { ...session, organizationId: 'org-other' }],
+    ['the admin lost platform-admin status', { ...session, platformAdmin: { ...admin, isPlatformAdmin: false } }],
+    ['the admin was deactivated', { ...session, platformAdmin: { ...admin, isActive: false } }],
+    ['the token was issued to someone else', { ...session, platformAdmin: { ...admin, id: 'admin-2' } }],
+    ['the session does not exist', null],
+  ])('rejects the token when %s', async (_label, row) => {
+    await expect(makeStrategy(prismaWith(row)).validate(payload)).rejects.toThrow(UnauthorizedException);
+  });
+});

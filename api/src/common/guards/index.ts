@@ -5,3 +5,4 @@ export * from './plan.guard';
 export * from './module.guard';
 export * from './subscription-read-only.guard';
 
+export * from './impersonation-read-only.guard';

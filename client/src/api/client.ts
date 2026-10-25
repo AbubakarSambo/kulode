@@ -53,6 +53,14 @@ apiClient.interceptors.response.use(
       // wherever that navigation was actually headed (e.g. /pin). Only a *surprise* mid-session
       // expiry — token still present but rejected — should force the hard redirect.
       const hasToken = !!localStorage.getItem('token')
+      // A "View as" token expiring (1h) or being ended elsewhere shouldn't log the platform admin
+      // out of their own account — hand their parked session back instead.
+      if (hasToken && useAuthStore.getState().impersonationOrigin) {
+        useAuthStore.getState().endImpersonation()
+        toast.info('"View as" session ended', { description: 'You\'re back in your own account.' })
+        window.location.href = '/admin'
+        return Promise.reject(error)
+      }
       if (hasToken && !isAuthEndpoint) {
         useAuthStore.getState().logout()
         window.location.href = '/login'
@@ -62,7 +70,11 @@ apiClient.interceptors.response.use(
 
     if (error.response?.status === 403) {
       const errorData = error.response.data as { code?: string; message?: string }
-      if (errorData?.code === 'SUBSCRIPTION_EXPIRED_READ_ONLY' || errorData?.message?.includes('subscription has expired')) {
+      if (errorData?.code === 'IMPERSONATION_READ_ONLY') {
+        toast.error('Read-only session', {
+          description: "You're viewing this organization as Super Admin — changes aren't allowed.",
+        })
+      } else if (errorData?.code === 'SUBSCRIPTION_EXPIRED_READ_ONLY' || errorData?.message?.includes('subscription has expired')) {
         toast.error('Subscription Expired', {
           description: 'Your account is in read-only mode. Please renew your subscription to perform this action.',
         })

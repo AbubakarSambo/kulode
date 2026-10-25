@@ -20,11 +20,14 @@ import {
   ArrowDown01Icon,
   AlertDiamondIcon,
   CheckmarkCircle02Icon,
+  ViewIcon,
 } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Card, CardContent, Badge, Input, FilterSelect, Button, Label, SearchableSelect } from '@/components/ui'
 import { platformApi } from '@/api/platform'
 import { useAuthStore } from '@/stores/auth'
+import { useStartImpersonation } from '@/hooks/useImpersonation'
+import { getPostAuthRoute } from '@/lib/authRouting'
 import { formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { PlatformOrganizationDetails, PlatformOrganization, OrgModule, PosMode, UserRole } from '@/types'
@@ -198,6 +201,7 @@ function MoMBadge({ value }: { value: number | undefined | null }) {
 export function AdminDashboardPage() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
+  const startImpersonation = useStartImpersonation()
 
   const [activeTab, setActiveTab] = useState<'overview' | 'pos' | 'organizations' | 'revenue' | 'vendorPayouts' | 'userAccess'>('overview')
   const [periodFilter, setPeriodFilter] = useState<'current_month' | 'last_30_days' | 'last_90_days' | 'ytd'>('current_month')
@@ -265,9 +269,12 @@ export function AdminDashboardPage() {
   // Manage Organization state
   const [editingOrgId, setEditingOrgId] = useState<string | null>(null)
 
+  // getPostAuthRoute, not a fixed '/dashboard': starting a "View as" session flips isPlatformAdmin
+  // off while this page is still mounted, so this fires alongside useStartImpersonation's own
+  // navigate — both must agree on the destination (a POS-only org has no /dashboard).
   useEffect(() => {
     if (user && !user.isPlatformAdmin) {
-      navigate('/dashboard', { replace: true })
+      navigate(getPostAuthRoute(user), { replace: true })
     }
   }, [user, navigate])
 
@@ -1256,14 +1263,26 @@ export function AdminDashboardPage() {
                               </span>
                             </td>
                             <td className="px-6 py-4 text-right">
-                              <Button
-                                variant="outline"
-                                onClick={() => setEditingOrgId(org.id)}
-                                className="px-4 py-2.5 rounded-xl border border-[rgba(196,197,215,0.4)] hover:bg-[#eef4ff] hover:border-[#0037b0]/20 text-xs font-semibold flex items-center gap-1.5 ml-auto min-h-[44px] text-[#434655] hover:text-[#0037b0] transition-colors"
-                              >
-                                <HugeiconsIcon icon={Settings02Icon} size={14} strokeWidth={1.5} />
-                                Configure
-                              </Button>
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  variant="outline"
+                                  onClick={() => startImpersonation.mutate({ organizationId: org.id })}
+                                  disabled={startImpersonation.isPending}
+                                  title="Open this organization as its Super Admin, read-only"
+                                  className="px-4 py-2.5 rounded-xl border border-[rgba(196,197,215,0.4)] hover:bg-violet-50 hover:border-violet-300 text-xs font-semibold flex items-center gap-1.5 min-h-[44px] text-[#434655] hover:text-violet-700 transition-colors"
+                                >
+                                  <HugeiconsIcon icon={ViewIcon} size={14} strokeWidth={1.5} />
+                                  View as
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  onClick={() => setEditingOrgId(org.id)}
+                                  className="px-4 py-2.5 rounded-xl border border-[rgba(196,197,215,0.4)] hover:bg-[#eef4ff] hover:border-[#0037b0]/20 text-xs font-semibold flex items-center gap-1.5 min-h-[44px] text-[#434655] hover:text-[#0037b0] transition-colors"
+                                >
+                                  <HugeiconsIcon icon={Settings02Icon} size={14} strokeWidth={1.5} />
+                                  Configure
+                                </Button>
+                              </div>
                             </td>
                           </tr>
                         ))}

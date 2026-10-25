@@ -840,6 +840,67 @@ export class AuthService {
     };
   }
 
+  private static readonly IMPERSONATION_TTL_SECONDS = 60 * 60;
+
+  // Mints a read-only "View as Super Admin" token for a platform admin. No UserOrganization row
+  // is created — the admin never shows up in the org's Users list or staff pickers — and the
+  // token is tied to an ImpersonationSession row that JwtStrategy re-checks, so it can be ended
+  // early and every session leaves an audit record.
+  async startImpersonation(
+    platformAdminId: string,
+    organizationId: string,
+    meta: { reason?: string; ipAddress?: string; userAgent?: string },
+  ): Promise<any> {
+    const admin = await this.prisma.user.findUnique({ where: { id: platformAdminId } });
+    if (!admin || !admin.isActive || !admin.isPlatformAdmin) {
+      throw new UnauthorizedException('Platform admin access required');
+    }
+
+    const target = await this.prisma.organization.findUnique({ where: { id: organizationId } });
+    if (!target) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    const expiresAt = new Date(Date.now() + AuthService.IMPERSONATION_TTL_SECONDS * 1000);
+    const session = await this.prisma.impersonationSession.create({
+      data: {
+        platformAdminId,
+        organizationId,
+        reason: meta.reason,
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent?.slice(0, 500),
+        expiresAt,
+      },
+    });
+
+    this.logger.log(`Platform admin ${admin.email} started read-only "View as" session ${session.id} for org ${target.id} (${target.name})`);
+
+    const roles = ['SUPER_ADMIN'];
+    const accessToken = this.jwtService.sign(
+      { sub: admin.id, email: admin.email, organizationId: target.id, roles, imp: session.id },
+      { expiresIn: AuthService.IMPERSONATION_TTL_SECONDS },
+    );
+    const response = this.buildAuthResponse(
+      { ...admin, organizationId: target.id, roles, businessRole: null, isPlatformAdmin: false, organization: target },
+      accessToken,
+    );
+    return {
+      ...response,
+      user: {
+        ...response.user,
+        impersonation: { sessionId: session.id, expiresAt: expiresAt.toISOString(), readOnly: true },
+      },
+    };
+  }
+
+  async endImpersonation(sessionId: string) {
+    await this.prisma.impersonationSession.updateMany({
+      where: { id: sessionId, endedAt: null },
+      data: { endedAt: new Date() },
+    });
+    return { ended: true };
+  }
+
   private generateToken(
     user: { id: string; email: string; organizationId: string; roles: string[] },
     expiresInSeconds?: number,

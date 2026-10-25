@@ -56,6 +56,12 @@ export interface SubscriptionPaymentRecord {
 }
 
 // Auth types
+export interface ImpersonationInfo {
+  sessionId: string
+  expiresAt: string
+  readOnly: boolean
+}
+
 export interface User {
   id: string
   email: string
@@ -66,6 +72,8 @@ export interface User {
   organizationName: string
   isEmailVerified?: boolean
   isPlatformAdmin?: boolean
+  // Present only on a platform admin's read-only "View as Super Admin" session.
+  impersonation?: ImpersonationInfo
   plan?: PlanInfo
   businessRole?: string
   organization?: {

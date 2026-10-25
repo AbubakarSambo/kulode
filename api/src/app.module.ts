@@ -46,6 +46,7 @@ import {
   TransformInterceptor,
   LoggingInterceptor,
   SubscriptionReadOnlyGuard,
+  ImpersonationReadOnlyGuard,
 } from './common';
 
 
@@ -103,6 +104,11 @@ import {
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    // "View as" sessions are read-only — runs right after auth so it wins over role/plan errors
+    {
+      provide: APP_GUARD,
+      useClass: ImpersonationReadOnlyGuard,
     },
     // Global Roles Guard
     {
