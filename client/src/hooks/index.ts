@@ -4,3 +4,4 @@ export * from './useOverscrollBounce'
 export * from './useOrgModules'
 export * from './useIdleLogout'
 
+export * from './useImpersonation'

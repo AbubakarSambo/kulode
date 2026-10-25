@@ -9,6 +9,8 @@ export interface JwtPayload {
   email: string;
   organizationId: string;
   roles: string[];
+  // Set only on a platform admin's "View as" token — the ImpersonationSession row id.
+  imp?: string;
 }
 
 interface ValidatedUser {
@@ -19,6 +21,7 @@ interface ValidatedUser {
   firstName: string;
   lastName: string;
   isPlatformAdmin: boolean;
+  impersonationSessionId?: string;
 }
 
 @Injectable()
@@ -114,7 +117,67 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return user;
   }
 
+  // A "View as" token is only as good as its ImpersonationSession row: ending the session (or
+  // letting it expire) revokes the token within one cache TTL, and so does losing platform-admin
+  // status. The resulting user is the target org's SUPER_ADMIN with isPlatformAdmin forced off —
+  // otherwise PlanGuard/ModuleGuard/SubscriptionReadOnlyGuard would all wave the admin through,
+  // and they'd see an unlocked app rather than what the org's real owner sees.
+  private async getImpersonatedUser(payload: JwtPayload): Promise<ValidatedUser | null> {
+    const cacheKey = `imp:${payload.imp}`;
+    const cached = this.cache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.user;
+    }
+
+    const session = await this.prisma.impersonationSession.findUnique({
+      where: { id: payload.imp },
+      select: {
+        id: true,
+        organizationId: true,
+        expiresAt: true,
+        endedAt: true,
+        platformAdmin: {
+          select: { id: true, email: true, firstName: true, lastName: true, isPlatformAdmin: true, isActive: true },
+        },
+      },
+    });
+
+    const admin = session?.platformAdmin;
+    const valid =
+      !!session &&
+      !session.endedAt &&
+      session.expiresAt > new Date() &&
+      session.organizationId === payload.organizationId &&
+      admin?.id === payload.sub &&
+      admin.isActive &&
+      admin.isPlatformAdmin;
+
+    const user: ValidatedUser | null = valid
+      ? {
+          id: admin.id,
+          email: admin.email,
+          organizationId: session.organizationId,
+          roles: ['SUPER_ADMIN'],
+          firstName: admin.firstName,
+          lastName: admin.lastName,
+          isPlatformAdmin: false,
+          impersonationSessionId: session.id,
+        }
+      : null;
+
+    this.cache.set(cacheKey, { user, expiresAt: Date.now() + JwtStrategy.CACHE_TTL_MS });
+    return user;
+  }
+
   async validate(payload: JwtPayload) {
+    if (payload.imp) {
+      const impersonated = await this.getImpersonatedUser(payload);
+      if (!impersonated) {
+        throw new UnauthorizedException('This "View as" session has ended or expired');
+      }
+      return impersonated;
+    }
+
     const user = await this.getValidatedUser(payload.sub, payload.organizationId);
     if (!user) {
       throw new UnauthorizedException('User not found, inactive, or no longer a member of this organization');

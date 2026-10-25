@@ -21,6 +21,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
     let errors: any = null;
+    // Machine-readable reason some guards attach (IMPERSONATION_READ_ONLY,
+    // SUBSCRIPTION_EXPIRED_READ_ONLY, PLAN_UPGRADE_REQUIRED, ...) so the client can tell one 403
+    // apart from another without matching on message text.
+    let code: string | undefined;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -32,6 +36,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         const responseObj = exceptionResponse as Record<string, any>;
         message = responseObj.message || message;
         errors = responseObj.errors || null;
+        code = typeof responseObj.code === 'string' ? responseObj.code : undefined;
       }
     } else if (exception instanceof Error) {
       message = exception.message;
@@ -52,6 +57,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       success: false,
       statusCode: status,
       message,
+      ...(code && { code }),
       errors,
       timestamp: new Date().toISOString(),
       path: request.url,
