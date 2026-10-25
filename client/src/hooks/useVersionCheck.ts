@@ -12,12 +12,23 @@ export function useVersionCheck() {
   const localVersion = __APP_VERSION__;
   const [serverVersion, setServerVersion] = useState<string>(localVersion);
   const [isUpdateAvailable, setIsUpdateAvailable] = useState<boolean>(false);
+  // The last release whose "What's new" this browser has dismissed. A fresh key on purpose: the
+  // old 'last_seen_version' was overwritten by outdated bundles (with the *server's* version) and
+  // wiped on every reload, so a reloaded bundle could never tell it had notes to show.
   const [lastSeenVersion, setLastSeenVersionState] = useState<string>(() => {
-    return localStorage.getItem('last_seen_version') || localVersion;
+    try {
+      return localStorage.getItem('whats_new_seen_version') || '0.0.0';
+    } catch {
+      return localVersion;
+    }
   });
 
   const setLastSeenVersion = (version: string) => {
-    localStorage.setItem('last_seen_version', version);
+    try {
+      localStorage.setItem('whats_new_seen_version', version);
+    } catch {
+      // storage unavailable (private mode) — the notes just reappear next load
+    }
     setLastSeenVersionState(version);
   };
 
