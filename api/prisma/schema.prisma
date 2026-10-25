@@ -344,6 +344,7 @@ model Organization {
   printers                        Printer[]
   moniepointUnreconciledTransfers MoniepointUnreconciledTransfer[]
   userMemberships                 UserOrganization[]
+  impersonationSessions           ImpersonationSession[]
 
   @@map("organizations")
 }
@@ -400,9 +401,33 @@ model User {
   resolvedUnreconciledTransfers MoniepointUnreconciledTransfer[] @relation("ResolvedUnreconciledTransfer")
 
   organizationMemberships UserOrganization[]
+  impersonationSessions   ImpersonationSession[]
 
   @@index([organizationId])
   @@map("users")
+}
+
+// Audit trail for a platform admin viewing a customer org as its Super Admin ("View as"). The
+// impersonation JWT carries this row's id, and JwtStrategy re-checks the row (not ended, not
+// expired) on every cache miss — so ending the session here is what actually revokes the token.
+// Sessions are read-only: ImpersonationReadOnlyGuard rejects every write made under one.
+model ImpersonationSession {
+  id              String    @id @default(uuid())
+  platformAdminId String    @map("platform_admin_id")
+  organizationId  String    @map("organization_id")
+  reason          String?
+  ipAddress       String?   @map("ip_address")
+  userAgent       String?   @map("user_agent")
+  startedAt       DateTime  @default(now()) @map("started_at")
+  expiresAt       DateTime  @map("expires_at")
+  endedAt         DateTime? @map("ended_at")
+
+  platformAdmin User         @relation(fields: [platformAdminId], references: [id], onDelete: Cascade)
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([platformAdminId])
+  @@index([organizationId])
+  @@map("impersonation_sessions")
 }
 
 // Membership of a user in an organization, beyond their primary `User.organizationId`.

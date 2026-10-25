@@ -12,9 +12,20 @@ import type {
   PlatformUserLookup,
   GrantedOrgAccess,
   UserRole,
+  AuthResponse,
 } from '@/types'
 
 export const platformApi = {
+  // Read-only "View as Super Admin" — see api/src/modules/auth/impersonation.controller.ts
+  startImpersonation: async (organizationId: string, reason?: string): Promise<AuthResponse> => {
+    const response = await apiClient.post<ApiResponse<AuthResponse>>('/impersonation/start', { organizationId, reason })
+    return response.data.data
+  },
+
+  exitImpersonation: async (): Promise<void> => {
+    await apiClient.post('/impersonation/exit')
+  },
+
   getDashboard: async (startDate?: string, endDate?: string): Promise<PlatformDashboard> => {
     const response = await apiClient.get<ApiResponse<PlatformDashboard>>('/platform/dashboard', {
       params: { startDate, endDate }

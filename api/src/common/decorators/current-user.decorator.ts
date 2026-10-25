@@ -8,6 +8,8 @@ export interface CurrentUserData {
   firstName: string;
   lastName: string;
   isPlatformAdmin: boolean;
+  // Set when a platform admin is viewing this org via "View as" (see ImpersonationReadOnlyGuard).
+  impersonationSessionId?: string;
 }
 
 export const CurrentUser = createParamDecorator(

@@ -10,19 +10,25 @@ interface AuthState {
   token: string | null
   isAuthenticated: boolean
   _hasHydrated: boolean
+  // The platform admin's own session, parked while they're in a "View as" session so Exit (or
+  // the 1-hour token expiring) can hand it straight back without a fresh login.
+  impersonationOrigin: { user: User; token: string } | null
   setHasHydrated: (hydrated: boolean) => void
   setAuth: (user: User, token: string) => void
+  startImpersonation: (user: User, token: string) => void
+  endImpersonation: () => User | null
   logout: () => void
   updateUser: (user: Partial<User>) => void
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       token: null,
       isAuthenticated: false,
       _hasHydrated: false,
+      impersonationOrigin: null,
 
       setHasHydrated: (hydrated) => set({ _hasHydrated: hydrated }),
 
@@ -39,11 +45,36 @@ export const useAuthStore = create<AuthState>()(
         set({ user, token, isAuthenticated: true })
       },
 
+      // Deliberately skips setAuth's rememberOrgContext/posthog.identify: the device stays tied to
+      // the admin's own org (the PIN pad must not start offering the customer's staff), and
+      // analytics stay attributed to the admin rather than polluting the customer's org.
+      startImpersonation: (user, token) => {
+        const { user: originUser, token: originToken, impersonationOrigin } = get()
+        // Starting from inside another session keeps the original origin, never the nested one.
+        const origin = impersonationOrigin ?? (originUser && originToken ? { user: originUser, token: originToken } : null)
+        localStorage.setItem('token', token)
+        queryClient.clear()
+        set({ user, token, isAuthenticated: true, impersonationOrigin: origin })
+      },
+
+      endImpersonation: () => {
+        const origin = get().impersonationOrigin
+        queryClient.clear()
+        if (!origin) {
+          localStorage.removeItem('token')
+          set({ user: null, token: null, isAuthenticated: false, impersonationOrigin: null })
+          return null
+        }
+        localStorage.setItem('token', origin.token)
+        set({ user: origin.user, token: origin.token, isAuthenticated: true, impersonationOrigin: null })
+        return origin.user
+      },
+
       logout: () => {
         localStorage.removeItem('token')
         posthog.reset()
         queryClient.clear()
-        set({ user: null, token: null, isAuthenticated: false })
+        set({ user: null, token: null, isAuthenticated: false, impersonationOrigin: null })
       },
 
       updateUser: (userData) => {
@@ -54,7 +85,12 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage-v2',
-      partialize: (state) => ({ user: state.user, token: state.token, isAuthenticated: state.isAuthenticated }),
+      partialize: (state) => ({
+        user: state.user,
+        token: state.token,
+        isAuthenticated: state.isAuthenticated,
+        impersonationOrigin: state.impersonationOrigin,
+      }),
       // User.role (single string) became User.roles (array) when multi-role support shipped.
       // zustand's version/migrate mechanism only fires when the persisted blob already HAS a
       // numeric version — every session cached before today has none at all, so migrate would

@@ -53,7 +53,9 @@ export function OrgSwitcher() {
     }
   }, [isOpen])
 
-  if (!organizations || organizations.length <= 1) {
+  // A "View as" session is pinned to one org (and read-only), and my-organizations would list the
+  // platform admin's own memberships, not this org's — exiting is done from the banner instead.
+  if (!organizations || organizations.length <= 1 || user?.impersonation) {
     return (
       <p className="truncate text-[10px] font-semibold text-slate-400 mt-0.5">
         {user?.organizationName}

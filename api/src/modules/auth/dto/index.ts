@@ -9,3 +9,4 @@ export * from './forgot-password.dto';
 export * from './reset-password.dto';
 export * from './pin-login.dto';
 export * from './switch-organization.dto';
+export * from './start-impersonation.dto';
