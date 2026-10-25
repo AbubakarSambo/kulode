@@ -13,7 +13,9 @@ export function ImpersonationBanner() {
   const expiresAt = new Date(user.impersonation.expiresAt)
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-violet-500/30 bg-violet-600 px-4 py-2 text-sm text-white print:hidden">
+    // Stacked above every full-screen overlay (onboarding, what's-new, modals) so Exit can never be
+    // covered up and leave the admin stranded in someone else's org.
+    <div className="relative z-[10000] flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-violet-500/30 bg-violet-600 px-4 py-2 text-sm text-white print:hidden">
       <Eye className="h-4 w-4 shrink-0" />
       <span>
         Viewing <span className="font-semibold">{user.organizationName}</span> as Super Admin
@@ -24,6 +26,11 @@ export function ImpersonationBanner() {
           until {expiresAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
         </span>
       </span>
+      {!user.organization?.businessType && (
+        <span className="rounded bg-amber-300 px-1.5 py-0.5 text-[11px] font-semibold text-amber-950">
+          Hasn't finished set-up — they'd see the onboarding screen
+        </span>
+      )}
       <button
         type="button"
         onClick={() => exit.mutate()}
