@@ -13,6 +13,8 @@ import { PERMISSIONS } from '@/lib/permissions'
 import { useVersionCheck } from '@/hooks/useVersionCheck'
 import { WhatsNewModal } from '@/components/changelog/WhatsNewModal'
 import { ReloadBanner } from '@/components/changelog/ReloadBanner'
+import { changelogData } from '@/lib/changelog'
+import { isNewerVersion } from '@/lib/semver'
 import { queryClient } from '@/lib/queryClient'
 import { lazyPage } from '@/lib/lazyPage'
 // Each page is its own dynamic import (not re-exported from the '@/pages' barrel) so Vite can
@@ -125,18 +127,21 @@ function HomeRedirect() {
 }
 
 function AppVersionManager() {
-  const { serverVersion, isUpdateAvailable, lastSeenVersion, setLastSeenVersion } = useVersionCheck()
+  const { localVersion, serverVersion, isUpdateAvailable, lastSeenVersion, setLastSeenVersion } = useVersionCheck()
 
-  const isModalOpen = isUpdateAvailable && lastSeenVersion !== serverVersion
+  // An outdated bundle only gets the reload banner — it can't describe a release it doesn't
+  // contain. Once reloaded, the new bundle shows its own release notes, once per browser.
+  const isModalOpen =
+    !isUpdateAvailable && isNewerVersion(lastSeenVersion, localVersion) && !!changelogData[localVersion]
 
   const handleCloseModal = () => {
-    setLastSeenVersion(serverVersion)
+    setLastSeenVersion(localVersion)
   }
 
   return (
     <>
       <ReloadBanner isVisible={isUpdateAvailable} latestVersion={serverVersion} />
-      <WhatsNewModal isOpen={isModalOpen} onClose={handleCloseModal} version={serverVersion} />
+      <WhatsNewModal isOpen={isModalOpen} onClose={handleCloseModal} version={localVersion} />
     </>
   )
 }

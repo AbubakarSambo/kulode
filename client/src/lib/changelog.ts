@@ -13,6 +13,34 @@ export interface ChangelogEntry {
 }
 
 export const changelogData: Record<string, ChangelogEntry> = {
+  '1.4.0': {
+    version: '1.4.0',
+    date: '2026-10-25',
+    title: 'Supervisor Approvals and Clearer Staff Roles',
+    type: 'minor',
+    features: [
+      {
+        title: 'Set Supervisor and Manager PINs Now',
+        description: 'Cashiers now need a supervisor or manager to approve voids, discounts and removing items from an order. Owners: go to Settings → Users and tap the key icon to set a PIN for yourself and your supervisors. The approver types their PIN on the cashier\'s screen — it works the moment it\'s saved.',
+        tag: 'Action Needed',
+      },
+      {
+        title: 'Supervisors Run the Floor',
+        description: 'Supervisors can now sell, take payment, correct payments on the wrong customer, and top up wallets, and they sign in with a PIN like the rest of the floor team.',
+        tag: 'Improvement',
+      },
+      {
+        title: 'Managers Run the Business',
+        description: 'Managers can now set up tables, menu, order types and payment types, adjust stock, fix wallet balances, grant customer credit, and add or manage floor staff. They land on the dashboard when they sign in.',
+        tag: 'Improvement',
+      },
+      {
+        title: 'Straight Into the App',
+        description: 'The setup screens are gone — new and existing accounts go straight to their dashboard.',
+        tag: 'Improvement',
+      },
+    ],
+  },
   '1.3.1': {
     version: '1.3.1',
     date: '2026-07-26',

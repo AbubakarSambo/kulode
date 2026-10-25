@@ -14,9 +14,6 @@ export function ReloadBanner({ isVisible, latestVersion }: ReloadBannerProps) {
       `Tari is updating to version ${latestVersion}.\n\nAny unsaved changes on this page will be lost. Would you like to reload now to access the updated platform?`
     )
     if (confirmRefresh) {
-      // Clear version history memory to prevent ghost loops
-      localStorage.removeItem('last_seen_version')
-      
       // Cache-busting reload (Future-proof for PWA and aggressive CDNs)
       const currentUrl = new URL(window.location.href)
       currentUrl.searchParams.set('v', Date.now().toString())
