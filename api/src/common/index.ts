@@ -10,3 +10,4 @@ export * from './shift-hours';
 export * from './encryption';
 export * from './payment-tolerance';
 export * from './permissions';
+export * from './org-modules';

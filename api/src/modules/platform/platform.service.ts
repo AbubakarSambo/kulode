@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertNotBecomingInvoicingOnly } from '../../common/org-modules';
 import { PlanTier, SubscriptionStatus, OrgModule, UserRole, PosMode } from '@prisma/client';
 
 @Injectable()
@@ -1157,6 +1158,8 @@ export class PlatformService {
     }
 
     if (data.enabledModules !== undefined) {
+      const current = await this.prisma.organization.findUnique({ where: { id }, select: { enabledModules: true } });
+      assertNotBecomingInvoicingOnly(current?.enabledModules, data.enabledModules);
       updateData.enabledModules = data.enabledModules;
     }
 

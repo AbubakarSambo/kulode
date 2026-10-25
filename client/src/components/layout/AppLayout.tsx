@@ -39,6 +39,7 @@ import { Sidebar } from './Sidebar'
 import { OrgSwitcher } from './OrgSwitcher'
 import { TrialBanner } from '../shared/TrialBanner'
 import { ImpersonationBanner } from '../shared/ImpersonationBanner'
+import { useOrgSettingsSync } from '@/hooks/useOrgSettingsSync'
 import { SubscriptionExpiredBanner } from '../shared/SubscriptionExpiredBanner'
 import { OfflineQueueBanner } from '../pos/OfflineQueueBanner'
 import { useAuthStore } from '@/stores/auth'
@@ -56,6 +57,7 @@ export function AppLayout() {
   const [moreOpen, setMoreOpen] = useState(false)
   const location = useLocation()
   const user = useAuthStore((state) => state.user)
+  useOrgSettingsSync()
   const logout = useLogout()
   const switchUser = useSwitchUser()
   const userIsPinEligible = !!user && isPinEligible(user.roles)

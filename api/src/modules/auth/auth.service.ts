@@ -126,6 +126,7 @@ export class AuthService {
       dto.email.toLowerCase(),
       dto.firstName,
       result.token,
+      dto.posMode,
     );
 
     return {
@@ -501,6 +502,7 @@ export class AuthService {
   async resendVerification(dto: ResendVerificationDto): Promise<{ message: string }> {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email.toLowerCase() },
+      include: { organization: { select: { posMode: true } } },
     });
 
     // Always return same message to prevent email enumeration
@@ -545,12 +547,11 @@ export class AuthService {
       },
     });
 
-    // Send email (fire-and-forget)
-    this.emailService.sendVerificationEmail(
-      user.email,
-      user.firstName,
-      token,
-    );
+    // Send email (fire-and-forget). The .catch matters: an unhandled rejection here (e.g. Resend
+    // down) would crash the whole API process, not just fail this one request.
+    this.emailService
+      .sendVerificationEmail(user.email, user.firstName, token, user.organization.posMode)
+      .catch((err) => this.logger.error(`Failed to resend verification email to ${user.email}: ${err.message}`));
 
     return { message };
   }

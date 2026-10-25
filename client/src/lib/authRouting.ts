@@ -25,10 +25,10 @@ export function getPostAuthRoute(user: User | null | undefined): string {
     // (whose landing stays module-based) or the org has no POS at all.
     const isManagerOnly = roles.includes('MANAGER') && !roles.includes('ADMIN') && !roles.includes('SUPER_ADMIN')
     if (isManagerOnly && user.organization?.enabledModules !== 'INVOICING') return '/pos/dashboard'
-    return user.organization?.enabledModules === 'POS' ? '/pos/order/new' : '/dashboard'
+    return (user.organization?.enabledModules ?? 'POS') === 'POS' ? '/pos/order/new' : '/dashboard'
   }
   if (roles.includes('WAITER')) return '/pos/order/new'
   if (roles.includes('CASHIER') || roles.includes('SUPERVISOR')) return '/pos/orders'
   if (roles.includes('PASS') || roles.includes('RUNNER') || roles.includes('KITCHEN')) return '/pos/kitchen'
-  return user.organization?.enabledModules === 'POS' ? '/pos/order/new' : '/dashboard'
+  return (user.organization?.enabledModules ?? 'POS') === 'POS' ? '/pos/order/new' : '/dashboard'
 }

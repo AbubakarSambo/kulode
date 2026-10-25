@@ -256,7 +256,8 @@ export class SubscriptionService {
             planTier,
             billingPeriod,
             amount,
-            periodEnd.toLocaleDateString(),
+            // Explicit locale: the server's default would print US-style 10/25/2026 to Nigerian owners.
+            periodEnd.toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' }),
           )
           .catch((err) => this.logger.error(`Failed to send subscription success email: ${err.message}`));
       }
@@ -270,11 +271,18 @@ export class SubscriptionService {
     }
   }
 
+  // The org's billing contact: its owner (signup makes them SUPER_ADMIN), falling back to the
+  // earliest ADMIN. This used to match ADMIN only — and almost no org has one, since signup
+  // creates a SUPER_ADMIN — so trial, renewal and subscription emails silently went to nobody.
+  // Placeholder-email (PIN-only) accounts have no real inbox and are never picked.
   private async getOrgAdmin(organizationId: string) {
-    return this.prisma.user.findFirst({
-      where: { organizationId, roles: { has: 'ADMIN' }, isActive: true },
-      select: { email: true, firstName: true },
+    const admins = await this.prisma.user.findMany({
+      where: { organizationId, isActive: true, hasPlaceholderEmail: false, roles: { hasSome: ['SUPER_ADMIN', 'ADMIN'] } },
+      select: { email: true, firstName: true, roles: true, organization: { select: { posMode: true } } },
+      orderBy: { createdAt: 'asc' },
     });
+    const admin = admins.find((u) => u.roles.includes('SUPER_ADMIN')) ?? admins[0];
+    return admin ? { email: admin.email, firstName: admin.firstName, posMode: admin.organization.posMode } : null;
   }
 
   async renewSubscription(organizationId: string): Promise<boolean> {
@@ -301,7 +309,7 @@ export class SubscriptionService {
         const admin = await this.getOrgAdmin(organizationId);
         if (admin) {
           this.emailService
-            .sendRenewalFailedEmail(admin.email, admin.firstName, org.planTier)
+            .sendRenewalFailedEmail(admin.email, admin.firstName, org.planTier, admin.posMode)
             .catch((err) => this.logger.error(`Failed to send renewal failed email: ${err.message}`));
         }
         this.logger.warn(`Auto-renewal skipped for org ${organizationId}: no payment method on file`);
@@ -333,7 +341,7 @@ export class SubscriptionService {
       const admin = await this.getOrgAdmin(organizationId);
       if (admin) {
         this.emailService
-          .sendRenewalFailedEmail(admin.email, admin.firstName, org.planTier)
+          .sendRenewalFailedEmail(admin.email, admin.firstName, org.planTier, admin.posMode)
           .catch((err) => this.logger.error(`Failed to send renewal failed email: ${err.message}`));
       }
       return false;
@@ -441,7 +449,7 @@ export class SubscriptionService {
       try {
         const admin = await this.getOrgAdmin(orgId);
         if (admin) {
-          await this.emailService.sendTrialExpiredEmail(admin.email, admin.firstName);
+          await this.emailService.sendTrialExpiredEmail(admin.email, admin.firstName, admin.posMode);
         }
       } catch (error) {
         this.logger.error(`Failed to send trial expired email for org ${orgId}: ${error.message}`);
@@ -472,7 +480,7 @@ export class SubscriptionService {
       try {
         const admin = await this.getOrgAdmin(org.id);
         if (admin) {
-          await this.emailService.sendTrialEndingWarningEmail(admin.email, admin.firstName, 5);
+          await this.emailService.sendTrialEndingWarningEmail(admin.email, admin.firstName, 5, admin.posMode);
         }
       } catch (error) {
         this.logger.error(`Failed to send trial warning email for org ${org.id}: ${error.message}`);

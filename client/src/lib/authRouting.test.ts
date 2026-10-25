@@ -27,7 +27,7 @@ describe('getPostAuthRoute', () => {
       expect(getPostAuthRoute(user)).toBe('/pos/order/new')
     })
 
-    it('lands on /dashboard when the org is INVOICING-only', () => {
+    it('lands on /dashboard when the org is a legacy INVOICING-only one', () => {
       const user = makeUser({ roles: ['ADMIN'], organization: { id: 'o1', name: 'Org', slug: 'org', isPaystackVerified: false, enabledModules: 'INVOICING' } })
       expect(getPostAuthRoute(user)).toBe('/dashboard')
     })
@@ -37,9 +37,9 @@ describe('getPostAuthRoute', () => {
       expect(getPostAuthRoute(user)).toBe('/dashboard')
     })
 
-    it('lands on /dashboard when the organization/enabledModules is missing entirely', () => {
+    it('treats a missing organization/enabledModules as POS (new orgs are never invoicing-only)', () => {
       const user = makeUser({ roles: ['STAFF'] })
-      expect(getPostAuthRoute(user)).toBe('/dashboard')
+      expect(getPostAuthRoute(user)).toBe('/pos/order/new')
     })
 
     it('MANAGER lands on the POS dashboard in a POS or BOTH org', () => {
@@ -127,13 +127,13 @@ describe('getPostAuthRoute', () => {
       const posUser = makeUser({ roles: [], organization: { id: 'o1', name: 'Org', slug: 'org', isPaystackVerified: false, enabledModules: 'POS' } })
       expect(getPostAuthRoute(posUser)).toBe('/pos/order/new')
 
-      const invoicingUser = makeUser({ roles: [] })
-      expect(getPostAuthRoute(invoicingUser)).toBe('/dashboard')
+      const bothUser = makeUser({ roles: [], organization: { id: 'o1', name: 'Org', slug: 'org', isPaystackVerified: false, enabledModules: 'BOTH' } })
+      expect(getPostAuthRoute(bothUser)).toBe('/dashboard')
     })
 
     it('treats a missing roles array the same as an empty one', () => {
       const user = makeUser({ roles: undefined as unknown as User['roles'] })
-      expect(getPostAuthRoute(user)).toBe('/dashboard')
+      expect(getPostAuthRoute(user)).toBe('/pos/order/new')
     })
   })
 })

@@ -5,3 +5,4 @@ export * from './useOrgModules'
 export * from './useIdleLogout'
 
 export * from './useImpersonation'
+export * from './useOrgSettingsSync'
