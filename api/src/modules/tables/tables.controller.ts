@@ -11,7 +11,7 @@ import {
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { TablesService } from './tables.service';
 import { CreateTableDto, UpdateTableDto, UpdateTableStatusDto, BulkAssignOrderTypeDto } from './dto';
-import { CurrentUser, Roles, Role } from '../../common';
+import { CurrentUser, Can } from '../../common';
 
 @ApiTags('Restaurant Tables')
 @ApiBearerAuth()
@@ -33,7 +33,7 @@ export class TablesController {
   }
 
   @Post()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.CASHIER)
+  @Can('TABLE_MANAGE')
   create(
     @CurrentUser('organizationId') organizationId: string,
     @Body() dto: CreateTableDto,
@@ -42,7 +42,7 @@ export class TablesController {
   }
 
   @Patch('bulk-assign-order-type')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.CASHIER)
+  @Can('TABLE_MANAGE')
   bulkAssignOrderType(
     @CurrentUser('organizationId') organizationId: string,
     @Body() dto: BulkAssignOrderTypeDto,
@@ -51,7 +51,7 @@ export class TablesController {
   }
 
   @Patch(':id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.CASHIER)
+  @Can('TABLE_MANAGE')
   update(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -70,7 +70,7 @@ export class TablesController {
   }
 
   @Delete(':id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.CASHIER)
+  @Can('TABLE_MANAGE')
   remove(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,

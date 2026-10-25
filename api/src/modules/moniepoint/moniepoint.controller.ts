@@ -22,7 +22,7 @@ import {
   IgnoreUnreconciledTransferDto,
   ResolveToWalletUnreconciledTransferDto,
 } from './dto';
-import { CurrentUser, CurrentUserData, Public, Roles, Role } from '../../common';
+import { CurrentUser, CurrentUserData, Public, Roles, Role, Can } from '../../common';
 
 @ApiTags('Moniepoint POS')
 @Controller()
@@ -62,8 +62,8 @@ export class MoniepointController {
 
   @Get('moniepoint-unreconciled-transfers')
   @ApiBearerAuth()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.SUPERVISOR, Role.CASHIER)
   @ApiOperation({ summary: "List bank transfers into the merchant's account that couldn't be auto-matched to an order" })
+  @Can('UNRECONCILED_TRANSFERS')
   async listUnreconciledTransfers(
     @CurrentUser('organizationId') organizationId: string,
     @Query('status') status?: 'PENDING_REVIEW' | 'RESOLVED' | 'IGNORED',
@@ -73,8 +73,8 @@ export class MoniepointController {
 
   @Post('moniepoint-unreconciled-transfers/:id/assign')
   @ApiBearerAuth()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.SUPERVISOR, Role.CASHIER)
   @ApiOperation({ summary: 'Manually apply an unreconciled transfer to a specific order' })
+  @Can('UNRECONCILED_TRANSFERS')
   async assignUnreconciledTransfer(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AssignUnreconciledTransferDto,
@@ -85,8 +85,8 @@ export class MoniepointController {
 
   @Post('moniepoint-unreconciled-transfers/:id/resolve-wallet')
   @ApiBearerAuth()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.SUPERVISOR, Role.CASHIER)
   @ApiOperation({ summary: "Mark an unreconciled transfer as a wallet top-up and credit the chosen customer's wallet" })
+  @Can('UNRECONCILED_TRANSFERS')
   async resolveUnreconciledTransferToWallet(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ResolveToWalletUnreconciledTransferDto,
@@ -97,8 +97,8 @@ export class MoniepointController {
 
   @Post('moniepoint-unreconciled-transfers/:id/ignore')
   @ApiBearerAuth()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.SUPERVISOR, Role.CASHIER)
   @ApiOperation({ summary: "Mark an unreconciled transfer as not belonging to any order" })
+  @Can('UNRECONCILED_TRANSFERS')
   async ignoreUnreconciledTransfer(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: IgnoreUnreconciledTransferDto,

@@ -4,7 +4,7 @@ import { getPostAuthRoute } from '@/lib/authRouting'
 import type { UserRole } from '@/types'
 
 interface ProtectedRouteProps {
-  allowedRoles?: UserRole[]
+  allowedRoles?: readonly UserRole[]
 }
 
 function AuthLoadingFallback() {

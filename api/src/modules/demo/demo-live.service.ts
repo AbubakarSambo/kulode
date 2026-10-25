@@ -205,7 +205,8 @@ export class DemoLiveService {
 
       try {
         if (rng() < 0.04) {
-          await this.ordersService.cancel(organizationId, order.id);
+          // Voided under the demo admin's own authority — a seeded cashier would need an approver PIN.
+          await this.ordersService.cancel(organizationId, order.id, { id: staff.adminId, roles: ['ADMIN'] });
           continue;
         }
         const total = toNumber(order.total);

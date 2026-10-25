@@ -18,7 +18,7 @@ import {
   UpdateMenuItemDto,
   SetMenuItemIngredientsDto,
 } from './dto';
-import { CurrentUser, Roles, Role } from '../../common';
+import { CurrentUser, Can } from '../../common';
 
 @ApiTags('Menu Categories')
 @ApiBearerAuth()
@@ -32,7 +32,7 @@ export class MenuCategoriesController {
   }
 
   @Post()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.CASHIER)
+  @Can('MENU_MANAGE')
   create(
     @CurrentUser('organizationId') organizationId: string,
     @Body() dto: CreateMenuCategoryDto,
@@ -41,7 +41,7 @@ export class MenuCategoriesController {
   }
 
   @Patch(':id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Can('MENU_MANAGE')
   update(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -51,7 +51,7 @@ export class MenuCategoriesController {
   }
 
   @Delete(':id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Can('MENU_MANAGE')
   remove(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -91,7 +91,7 @@ export class MenuItemsController {
   }
 
   @Post()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.CASHIER)
+  @Can('MENU_MANAGE')
   create(
     @CurrentUser('organizationId') organizationId: string,
     @Body() dto: CreateMenuItemDto,
@@ -100,7 +100,7 @@ export class MenuItemsController {
   }
 
   @Patch(':id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Can('MENU_MANAGE')
   update(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -110,7 +110,7 @@ export class MenuItemsController {
   }
 
   @Delete(':id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Can('MENU_MANAGE')
   remove(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -121,7 +121,7 @@ export class MenuItemsController {
   // Full-replace, matching how categoryIds works on the item itself — the client always sends
   // the complete recipe rather than diffing individual lines.
   @Patch(':id/ingredients')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Can('MENU_MANAGE')
   setIngredients(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,

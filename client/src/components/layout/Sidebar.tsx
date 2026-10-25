@@ -10,6 +10,7 @@ import { OrgSwitcher } from './OrgSwitcher'
 import { useSubscription } from '@/hooks/useSubscription'
 import { useOrgModules, usePosMode } from '@/hooks/useOrgModules'
 import { getRestrictedHrefsUnion } from '@/lib/posRoleNav'
+import { can } from '@/lib/permissions'
 import type { PlanTier } from '@/types'
 import {
   DashboardIcon,
@@ -191,14 +192,8 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         if (INVOICING_ONLY_HREFS.includes(item.href) && !hasInvoicing) return false
         if ((item.href === '/reports' || item.href === '/ai-chat') && !canViewReports) return false
         if (item.href === '/pos/ai-chat' && !isAdmin) return false
-        if (item.href === '/pos/payments' && !isAdmin && !userRoles.includes('CASHIER')) return false
-        if (
-          item.href === '/pos/unreconciled-transfers' &&
-          !isAdmin &&
-          !userRoles.includes('CASHIER') &&
-          !userRoles.includes('SUPERVISOR')
-        )
-          return false
+        if (item.href === '/pos/payments' && !can(user, 'POS_PAYMENTS_VIEW')) return false
+        if (item.href === '/pos/unreconciled-transfers' && !can(user, 'UNRECONCILED_TRANSFERS')) return false
         if (
           (item.href === '/payments' ||
             item.href === '/expenses' ||
@@ -211,6 +206,11 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       }),
     }))
     .filter((group) => group.items.length > 0)
+
+  // Managers get the Users page (floor staff only) without the rest of the admin configuration.
+  const visibleAdminNavigation = adminNavigation.filter((item) =>
+    item.href === '/settings/users' ? can(user, 'STAFF_MANAGE') : isAdmin,
+  )
 
   const handleNavClick = () => {
     if (onClose) onClose()
@@ -322,7 +322,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           ))}
 
           {/* Admin Group */}
-          {isAdmin && (
+          {visibleAdminNavigation.length > 0 && (
             <div className="space-y-1">
               <div className={cn(
                 "grid transition-all duration-200 ease-in-out",
@@ -335,7 +335,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                 </div>
               </div>
               <div className="space-y-0.5">
-                {adminNavigation.map((item) => (
+                {visibleAdminNavigation.map((item) => (
                   <NavLink
                     key={item.name}
                     to={item.href}

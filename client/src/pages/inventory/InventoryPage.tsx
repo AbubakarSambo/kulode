@@ -30,6 +30,8 @@ import type { InventoryItem, StockMovement, StockMovementType, UnitOfMeasure } f
 import { InventoryIcon } from '@/components/ui/CustomIcons'
 import { useOverscrollBounce } from '@/hooks'
 import { posthog } from '@/lib/posthog'
+import { useAuthStore } from '@/stores/auth'
+import { can } from '@/lib/permissions'
 
 // ─── Schemas ────────────────────────────────────────────────────────────────
 
@@ -126,6 +128,10 @@ export function InventoryPage() {
   const [limitOpen, setLimitOpen] = useState(false)
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
   const { isReadOnlyMode: isExpired } = useSubscription()
+  const user = useAuthStore((state) => state.user)
+  // Managers count and restock; creating, editing, deleting and importing items stays admin-only.
+  const canManageInventory = can(user, 'INVENTORY_MANAGE')
+  const canAdjustStock = can(user, 'INVENTORY_ADJUST')
   const { isRetail } = usePosMode()
   const importInputRef = useRef<HTMLInputElement>(null)
 
@@ -354,7 +360,7 @@ export function InventoryPage() {
             </Button>
           ) : (
             <div className="flex items-center gap-2">
-              {isRetail && (
+              {isRetail && canManageInventory && (
                 <>
                   <input
                     ref={importInputRef}
@@ -372,10 +378,12 @@ export function InventoryPage() {
                   </Button>
                 </>
               )}
-              <Button onClick={() => setCreateOpen(true)}>
-                <HugeiconsIcon icon={PlusSignIcon} className="mr-2 h-4 w-4" strokeWidth={1.5} />
-                Add Item
-              </Button>
+              {canManageInventory && (
+                <Button onClick={() => setCreateOpen(true)}>
+                  <HugeiconsIcon icon={PlusSignIcon} className="mr-2 h-4 w-4" strokeWidth={1.5} />
+                  Add Item
+                </Button>
+              )}
             </div>
           )
         }
@@ -583,36 +591,42 @@ export function InventoryPage() {
                                 >
                                   {!isExpired && (
                                     <>
-                                      <button
-                                        onClick={() => {
-                                          openAdjust(item);
-                                          setActiveDropdown(null);
-                                        }}
-                                        className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors rounded-lg border-0 cursor-pointer"
-                                      >
-                                        <HugeiconsIcon icon={PackageIcon} size={14} className="text-slate-400" strokeWidth={1.5} />
-                                        Adjust Stock
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          openEdit(item);
-                                          setActiveDropdown(null);
-                                        }}
-                                        className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors rounded-lg border-0 cursor-pointer"
-                                      >
-                                        <HugeiconsIcon icon={PencilEdit02Icon} size={14} className="text-slate-400" strokeWidth={1.5} />
-                                        Edit Item
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          handleDeleteTrigger(item);
-                                          setActiveDropdown(null);
-                                        }}
-                                        className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer rounded-lg border-0"
-                                      >
-                                        <HugeiconsIcon icon={Delete02Icon} size={14} className="text-rose-500" strokeWidth={1.5} />
-                                        Delete Item
-                                      </button>
+                                      {canAdjustStock && (
+                                        <button
+                                          onClick={() => {
+                                            openAdjust(item);
+                                            setActiveDropdown(null);
+                                          }}
+                                          className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors rounded-lg border-0 cursor-pointer"
+                                        >
+                                          <HugeiconsIcon icon={PackageIcon} size={14} className="text-slate-400" strokeWidth={1.5} />
+                                          Adjust Stock
+                                        </button>
+                                      )}
+                                      {canManageInventory && (
+                                        <>
+                                          <button
+                                            onClick={() => {
+                                              openEdit(item);
+                                              setActiveDropdown(null);
+                                            }}
+                                            className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors rounded-lg border-0 cursor-pointer"
+                                          >
+                                            <HugeiconsIcon icon={PencilEdit02Icon} size={14} className="text-slate-400" strokeWidth={1.5} />
+                                            Edit Item
+                                          </button>
+                                          <button
+                                            onClick={() => {
+                                              handleDeleteTrigger(item);
+                                              setActiveDropdown(null);
+                                            }}
+                                            className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer rounded-lg border-0"
+                                          >
+                                            <HugeiconsIcon icon={Delete02Icon} size={14} className="text-rose-500" strokeWidth={1.5} />
+                                            Delete Item
+                                          </button>
+                                        </>
+                                      )}
                                     </>
                                   )}
                                 </DropdownPanel>
@@ -652,7 +666,7 @@ export function InventoryPage() {
                         </div>
                       </div>
 
-                      {!isExpired && (
+                      {!isExpired && canManageInventory && (
                         <div className="flex items-center gap-2 shrink-0">
                           <button
                             onClick={(e) => {
@@ -725,7 +739,7 @@ export function InventoryPage() {
                       </div>
                       
                       <div className="flex gap-2">
-                        {!isExpired && (
+                        {!isExpired && canAdjustStock && (
                           <Button
                             variant="outline"
                             size="sm"
@@ -835,14 +849,14 @@ export function InventoryPage() {
             icon={PackageIcon}
             title={search ? "No inventory items found" : "No inventory items"}
             description={search ? "Try adjusting your search terms." : "Add ingredients and physical goods to track stock levels, get low-stock alerts, and power recipe deductions."}
-            actionLabel={isExpired ? undefined : "Add your first item"}
-            onAction={isExpired ? undefined : () => setCreateOpen(true)}
+            actionLabel={isExpired || !canManageInventory ? undefined : "Add your first item"}
+            onAction={isExpired || !canManageInventory ? undefined : () => setCreateOpen(true)}
           />
         )}
       </div>
 
       {/* Mobile Floating Action Button */}
-      {!isExpired && (
+      {!isExpired && canManageInventory && (
         <Button 
           onClick={() => setCreateOpen(true)}
           className="absolute bottom-6 right-6 z-40 sm:hidden w-14 h-14 rounded-full bg-gradient-to-br from-[#0037b0] to-[#1d4ed8] text-white flex items-center justify-center shadow-[0px_8px_24px_rgba(0,55,176,0.25)] hover:scale-105 active:scale-95 transition-all p-0"

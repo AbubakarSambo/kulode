@@ -344,6 +344,74 @@ describe('UsersService — user limit enforcement', () => {
     });
   });
 
+  // ─── Manager may manage floor staff only ────────────────────────────────────
+
+  describe('manager scope', () => {
+    it.each([[Role.MANAGER], [Role.ADMIN], [Role.SUPER_ADMIN], [Role.STAFF]])(
+      'refuses a MANAGER creating a %s account',
+      async (role) => {
+        await expect(service.create(ORG_ID, { ...createDto, roles: [role] }, [Role.MANAGER])).rejects.toThrow(
+          ForbiddenException,
+        );
+      },
+    );
+
+    it('refuses a MANAGER editing another manager, even a non-role field', async () => {
+      prisma.user.findFirst.mockResolvedValue({ id: 'm2', roles: [Role.MANAGER], email: 'm@b.com' });
+      await expect(
+        service.update('m2', ORG_ID, { firstName: 'New' }, CURRENT_USER_ID, [Role.MANAGER]),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('refuses a MANAGER promoting a waiter to manager', async () => {
+      prisma.user.findFirst.mockResolvedValue({ id: 'w1', roles: [Role.WAITER], email: 'w@b.com' });
+      await expect(
+        service.update('w1', ORG_ID, { roles: [Role.MANAGER] }, CURRENT_USER_ID, [Role.MANAGER]),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('lets a MANAGER deactivate a waiter but not an admin', async () => {
+      prisma.user.findFirst.mockResolvedValueOnce({ id: 'w1', roles: [Role.WAITER] });
+      prisma.user.update.mockResolvedValue({});
+      await expect(service.remove('w1', ORG_ID, CURRENT_USER_ID, [Role.MANAGER])).resolves.toBeDefined();
+
+      prisma.user.findFirst.mockResolvedValueOnce({ id: 'a1', roles: [Role.ADMIN] });
+      await expect(service.remove('a1', ORG_ID, CURRENT_USER_ID, [Role.MANAGER])).rejects.toThrow(ForbiddenException);
+    });
+
+    it("refuses a MANAGER setting a PIN on an admin's account", async () => {
+      prisma.user.findFirst.mockResolvedValue({ id: 'a1', roles: [Role.ADMIN] });
+      await expect(service.setPin('a1', ORG_ID, { pin: '1234' }, [Role.MANAGER])).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  // ─── PINs: sign-in PINs for floor roles, approval-only PINs for approvers ───
+
+  describe('setPin', () => {
+    beforeEach(() => {
+      prisma.user.findMany.mockResolvedValue([]);
+      prisma.user.update.mockResolvedValue({});
+    });
+
+    it.each([[[Role.SUPERVISOR]], [[Role.MANAGER]], [[Role.ADMIN]]])('allows a PIN for %j', async (roles) => {
+      prisma.user.findFirst.mockResolvedValue({ id: 'u1', roles });
+      await expect(service.setPin('u1', ORG_ID, { pin: '1234' }, [Role.SUPER_ADMIN])).resolves.toEqual({ message: 'PIN set' });
+    });
+
+    it('still refuses a PIN for an invoicing STAFF account', async () => {
+      prisma.user.findFirst.mockResolvedValue({ id: 'u1', roles: [Role.STAFF] });
+      await expect(service.setPin('u1', ORG_ID, { pin: '1234' }, [Role.SUPER_ADMIN])).rejects.toThrow(ForbiddenException);
+    });
+
+    it('keeps an approval PIN when a manager is re-roled to another approver role', async () => {
+      prisma.organization.findUnique.mockResolvedValue({ enabledModules: 'POS', posMode: 'RESTAURANT' });
+      prisma.user.findFirst.mockResolvedValue({ id: 'u1', roles: [Role.MANAGER], email: 'm@b.com' });
+
+      await service.update('u1', ORG_ID, { roles: [Role.SUPERVISOR] }, CURRENT_USER_ID, [Role.SUPER_ADMIN]);
+      expect(prisma.user.update.mock.lastCall[0].data).not.toHaveProperty('pinHash');
+    });
+  });
+
   // ─── Role must match the org's enabled module ───────────────────────────────
 
   describe('role-matches-org-module validation', () => {

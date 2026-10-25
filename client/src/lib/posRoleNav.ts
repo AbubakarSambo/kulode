@@ -14,12 +14,12 @@ import type { UserRole } from '@/types'
 // Waiters handle selling, order tracking, customer lookup, and the table list
 export const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/customers', '/pos/tables', '/pos/reports'] as const
 
-// Pass/Runner/Kitchen are kitchen-only roles — the ticket board is the only page they can see
-export const KITCHEN_ALLOWED_HREFS = ['/pos/kitchen', '/pos/drinks', '/pos/reports'] as const
+// Pass/Runner/Kitchen are kitchen-only roles — the ticket boards are the only pages they can see
+// (no sales reports: the org's takings aren't kitchen business)
+export const KITCHEN_ALLOWED_HREFS = ['/pos/kitchen', '/pos/drinks'] as const
 
-// Cashiers can also sell, close out orders and take payment, manage the table list, and view/add
-// menu items and categories (not edit/delete — that stays admin-only) — no waiter management or
-// analytics beyond reports
+// Cashiers can also sell, close out orders and take payment, and view tables, menu items and
+// categories (setting them up is Manager+) — no staff management or analytics beyond reports
 export const CASHIER_ALLOWED_HREFS = [
   '/pos/order/new',
   '/pos/orders',
@@ -33,9 +33,14 @@ export const CASHIER_ALLOWED_HREFS = [
   '/pos/payments',
 ] as const
 
-// Supervisors get floor oversight (orders, customers, shift, kitchen) but not menu/category
-// editing or user management (staff roster lives entirely on the admin-only Users page).
-export const SUPERVISOR_ALLOWED_HREFS = ['/pos/orders', '/pos/customers', '/pos/shift', '/pos/kitchen', '/pos/drinks', '/pos/reports', '/pos/unreconciled-transfers'] as const
+// Supervisors run the floor: everything a cashier can reach, plus the kitchen boards and the POS
+// dashboard — but not floor set-up or the staff roster (both Manager+).
+export const SUPERVISOR_ALLOWED_HREFS = [
+  ...CASHIER_ALLOWED_HREFS,
+  '/pos/kitchen',
+  '/pos/drinks',
+  '/pos/dashboard',
+] as const
 
 // Every href any of the arrays above can produce — AppLayout's icon lookup is typed as
 // `Record<AllowedHref, ...>`, so adding a new href to any array above without also adding an icon

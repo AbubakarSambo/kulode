@@ -173,9 +173,14 @@ export const ordersApi = {
 
   /**
    * Edits a PENDING item's quantity and/or notes. Quantity 0 removes it (cancelling the order if
-   * it was the last item). Omit notes to leave it unchanged.
+   * it was the last item). Omit notes to leave it unchanged. Reducing or removing needs a
+   * supervisor's/manager's `approverPin` for roles below supervisor — it's already on a docket.
    */
-  updateItem: async (orderId: string, itemId: string, data: { quantity: number; notes?: string }): Promise<Order> => {
+  updateItem: async (
+    orderId: string,
+    itemId: string,
+    data: { quantity: number; notes?: string; approverPin?: string },
+  ): Promise<Order> => {
     const response = await apiClient.patch<ApiResponse<Order>>(`/orders/${orderId}/items/${itemId}`, data)
     return response.data.data
   },
@@ -226,8 +231,9 @@ export const ordersApi = {
     return response.data.data
   },
 
-  cancel: async (id: string): Promise<{ message: string }> => {
-    const response = await apiClient.post<ApiResponse<{ message: string }>>(`/orders/${id}/cancel`)
+  /** Voids the order. A cashier must pass a supervisor's/manager's PIN as `approverPin`. */
+  cancel: async (id: string, approverPin?: string): Promise<{ message: string }> => {
+    const response = await apiClient.post<ApiResponse<{ message: string }>>(`/orders/${id}/cancel`, approverPin ? { approverPin } : {})
     return response.data.data
   },
 
@@ -237,10 +243,13 @@ export const ordersApi = {
     return response.data.data
   },
 
-  /** Applies (value > 0) or clears (value 0) a pre-tax discount. Requires a reason for audit. */
+  /**
+   * Applies (value > 0) or clears (value 0) a pre-tax discount. Requires a reason for audit, and a
+   * supervisor's/manager's `approverPin` when a cashier applies it.
+   */
   applyDiscount: async (
     id: string,
-    data: { discountType: 'PERCENTAGE' | 'FIXED'; value: number; reason: string },
+    data: { discountType: 'PERCENTAGE' | 'FIXED'; value: number; reason: string; approverPin?: string },
   ): Promise<Order> => {
     const response = await apiClient.patch<ApiResponse<Order>>(`/orders/${id}/discount`, data)
     return response.data.data
