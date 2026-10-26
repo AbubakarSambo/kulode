@@ -18,8 +18,8 @@ export const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/cust
 // (no sales reports: the org's takings aren't kitchen business)
 export const KITCHEN_ALLOWED_HREFS = ['/pos/kitchen', '/pos/drinks'] as const
 
-// Cashiers can also sell, close out orders and take payment, and view tables, menu items and
-// categories (setting them up is Manager+) — no staff management or analytics beyond reports
+// Cashiers can also sell, close out orders and take payment, view tables, and add (but not edit
+// or delete) menu items and categories — no staff management or analytics beyond reports
 export const CASHIER_ALLOWED_HREFS = [
   '/pos/order/new',
   '/pos/orders',

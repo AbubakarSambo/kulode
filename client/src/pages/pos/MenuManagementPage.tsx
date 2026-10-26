@@ -47,8 +47,9 @@ export function MenuManagementPage() {
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
   // Cashiers can add menu items but not edit/delete existing ones — those actions are
-  // admin-only on the backend too, so hide them here rather than let the request 403.
+  // Manager+ on the backend too, so hide them here rather than let the request 403.
   const canManage = can(user, 'MENU_MANAGE')
+  const canCreate = can(user, 'MENU_CREATE')
 
   const [itemModalOpen, setItemModalOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
@@ -98,7 +99,11 @@ export function MenuManagementPage() {
       setEditingItem(null)
       itemForm.reset()
     },
-    onError: () => toast.error('Failed to save item'),
+    onError: (err: unknown) => {
+      // Show the server's reason (e.g. "Price must not be less than 0") rather than a bare failure
+      const message = (err as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message
+      toast.error('Failed to save item', { description: Array.isArray(message) ? message[0] : message })
+    },
   })
 
   const toggleAvailability = useMutation({
@@ -210,12 +215,16 @@ export function MenuManagementPage() {
                 <List className="h-4 w-4" />
               </button>
             </div>
-            <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-              <Upload className="mr-1.5 h-4 w-4" /> Import CSV
-            </Button>
-            <Button size="sm" onClick={openNewItem}>
-              <Plus className="mr-1.5 h-4 w-4" /> Menu Item
-            </Button>
+            {canCreate && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+                  <Upload className="mr-1.5 h-4 w-4" /> Import CSV
+                </Button>
+                <Button size="sm" onClick={openNewItem}>
+                  <Plus className="mr-1.5 h-4 w-4" /> Menu Item
+                </Button>
+              </>
+            )}
           </div>
         }
       />
@@ -259,9 +268,9 @@ export function MenuManagementPage() {
           <EmptyState
             icon={ChefHatIcon}
             title="No menu items yet"
-            description="Add your first menu item to start taking orders"
-            actionLabel="Add Menu Item"
-            onAction={openNewItem}
+            description={canCreate ? 'Add your first menu item to start taking orders' : 'Ask a manager to add menu items'}
+            actionLabel={canCreate ? 'Add Menu Item' : undefined}
+            onAction={canCreate ? openNewItem : undefined}
           />
         ) : filteredItems?.length === 0 ? (
           <p className="py-12 text-center text-sm text-muted-foreground">No menu items match your search.</p>

@@ -13,6 +13,19 @@ export interface ChangelogEntry {
 }
 
 export const changelogData: Record<string, ChangelogEntry> = {
+  '1.4.1': {
+    version: '1.4.1',
+    date: '2026-10-26',
+    title: 'Cashiers Can Add Menu Items Again',
+    type: 'patch',
+    features: [
+      {
+        title: 'Cashiers Can Add Menu Items',
+        description: 'Cashiers and supervisors can add new menu items and categories (including CSV import). Changing prices and deleting items stays with managers, and the Menu page only shows the buttons each person can use.',
+        tag: 'Improvement',
+      },
+    ],
+  },
   '1.4.0': {
     version: '1.4.0',
     date: '2026-10-25',
