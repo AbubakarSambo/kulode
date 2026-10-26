@@ -44,9 +44,10 @@ type CategoryFormData = z.infer<typeof categorySchema>
 export function MenuCategoriesPage() {
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
-  // Cashiers can add categories but not edit/delete existing ones — admin-only on the backend
+  // Cashiers can add categories but not edit/delete existing ones — Manager+ on the backend
   // too, so hide those controls here rather than let the request 403.
   const canManage = can(user, 'MENU_MANAGE')
+  const canCreate = can(user, 'MENU_CREATE')
 
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
@@ -73,7 +74,11 @@ export function MenuCategoriesPage() {
       setEditingCategory(null)
       categoryForm.reset()
     },
-    onError: () => toast.error('Failed to save category'),
+    onError: (err: unknown) => {
+      // Show the server's reason (e.g. "Price must not be less than 0") rather than a bare failure
+      const message = (err as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message
+      toast.error('Failed to save category', { description: Array.isArray(message) ? message[0] : message })
+    },
   })
 
   const toggleActive = useMutation({
@@ -164,12 +169,16 @@ export function MenuCategoriesPage() {
                 <List className="h-4 w-4" />
               </button>
             </div>
-            <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-              <Upload className="mr-1.5 h-4 w-4" /> Import CSV
-            </Button>
-            <Button size="sm" onClick={openNewCategory}>
-              <Plus className="mr-1.5 h-4 w-4" /> Category
-            </Button>
+            {canCreate && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+                  <Upload className="mr-1.5 h-4 w-4" /> Import CSV
+                </Button>
+                <Button size="sm" onClick={openNewCategory}>
+                  <Plus className="mr-1.5 h-4 w-4" /> Category
+                </Button>
+              </>
+            )}
           </div>
         }
       />
@@ -202,9 +211,9 @@ export function MenuCategoriesPage() {
           <EmptyState
             icon={Tag01Icon}
             title="No categories yet"
-            description="Add your first category to start organizing your menu"
-            actionLabel="Add Category"
-            onAction={openNewCategory}
+            description={canCreate ? 'Add your first category to start organizing your menu' : 'Ask a manager to add categories'}
+            actionLabel={canCreate ? 'Add Category' : undefined}
+            onAction={canCreate ? openNewCategory : undefined}
           />
         ) : viewMode === 'list' ? (
           <Card className="overflow-hidden p-0">

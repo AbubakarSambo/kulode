@@ -57,6 +57,9 @@ export const PERMISSIONS = {
   // Floor set-up: tables, menu items/categories/recipes, order types, payment types
   TABLE_MANAGE: MANAGER_UP,
   MENU_MANAGE: MANAGER_UP,
+  // Add a new menu item or category (incl. CSV import, which only creates). At a small counter the
+  // cashier is often the one adding stock; editing prices and deleting stay with MENU_MANAGE.
+  MENU_CREATE: CASHIER_UP,
   POS_CONFIG_MANAGE: MANAGER_UP,
   // Re-queue a failed print job — the kitchen is standing next to the jammed printer
   PRINT_RETRY: [...KITCHEN_TRACK, ...CASHIER_UP],
