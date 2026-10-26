@@ -32,7 +32,7 @@ export class MenuCategoriesController {
   }
 
   @Post()
-  @Can('MENU_MANAGE')
+  @Can('MENU_CREATE')
   create(
     @CurrentUser('organizationId') organizationId: string,
     @Body() dto: CreateMenuCategoryDto,
@@ -91,7 +91,7 @@ export class MenuItemsController {
   }
 
   @Post()
-  @Can('MENU_MANAGE')
+  @Can('MENU_CREATE')
   create(
     @CurrentUser('organizationId') organizationId: string,
     @Body() dto: CreateMenuItemDto,
