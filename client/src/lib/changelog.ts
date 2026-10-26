@@ -35,6 +35,11 @@ export const changelogData: Record<string, ChangelogEntry> = {
         tag: 'Improvement',
       },
       {
+        title: 'Cashiers Can Add Menu Items',
+        description: 'Cashiers and supervisors can add new menu items and categories (including CSV import). Changing prices and deleting items stays with managers, and the Menu page only shows the buttons each person can use.',
+        tag: 'Improvement',
+      },
+      {
         title: 'Straight Into the App',
         description: 'The setup screens are gone — new and existing accounts go straight to their dashboard.',
         tag: 'Improvement',
