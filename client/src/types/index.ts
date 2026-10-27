@@ -570,6 +570,8 @@ export interface Order {
   discountPercent: number
   discountAmount: number
   discountReason?: string
+  cancelReason?: string | null
+  cancelledBy?: { id: string; firstName: string; lastName: string } | null
   total: number
   amountPaid: number
   notes?: string

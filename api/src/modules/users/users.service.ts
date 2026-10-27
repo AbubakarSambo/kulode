@@ -8,7 +8,7 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
-import { CreateUserDto, UpdateUserDto, SetPinDto } from './dto';
+import { CreateUserDto, UpdateUserDto, SetPinDto, SetOwnPinDto } from './dto';
 import { PaginationDto, paginate, PLAN_LIMITS, Role, PIN_ELIGIBLE_ROLES, FLOOR_STAFF_ROLES, canHoldPin } from '../../common';
 import { TokenType, OrgModule, PosMode } from '@prisma/client';
 
@@ -489,6 +489,34 @@ export class UsersService {
       throw new ForbiddenException(`A PIN can't be set for role(s) "${user.roles.join(', ')}"`);
     }
 
+    return this.savePin(id, organizationId, dto.pin);
+  }
+
+  /**
+   * Lets a signed-in user set their own PIN. Account management keeps one Admin from touching
+   * another Admin's account (see assertCanManageAccount), which also left Admins with no way to
+   * get an approval PIN without a Super Admin. Re-confirming the password stops an unattended
+   * signed-in tab being used to plant a PIN that could later approve voids and discounts.
+   */
+  async setOwnPin(userId: string, organizationId: string, dto: SetOwnPinDto) {
+    const user = await this.prisma.user.findFirst({ where: { id: userId, organizationId, isActive: true } });
+    if (!user) throw new NotFoundException('User not found');
+    if (!canHoldPin(user.roles)) {
+      throw new ForbiddenException(`A PIN can't be set for role(s) "${user.roles.join(', ')}"`);
+    }
+    // PIN-only floor staff have no password to re-confirm — their PIN stays with a manager.
+    if (!user.passwordHash) {
+      throw new ForbiddenException('Ask a manager to set your PIN from the Users page');
+    }
+    // 403 rather than 401 — the client treats 401 as an expired session and signs the user out.
+    if (!(await bcrypt.compare(dto.password, user.passwordHash))) {
+      throw new ForbiddenException('Incorrect password');
+    }
+
+    return this.savePin(userId, organizationId, dto.pin);
+  }
+
+  private async savePin(id: string, organizationId: string, pin: string) {
     // Uniqueness is enforced here (not a DB constraint, since the PIN is stored hashed) so two
     // staff in the same org can never end up with the same code and get mistaken for each other.
     const activeOrgUsers = await this.prisma.user.findMany({
@@ -496,14 +524,14 @@ export class UsersService {
       select: { pinHash: true },
     });
     for (const other of activeOrgUsers) {
-      if (other.pinHash && (await bcrypt.compare(dto.pin, other.pinHash))) {
+      if (other.pinHash && (await bcrypt.compare(pin, other.pinHash))) {
         throw new ConflictException('That PIN is already in use by another staff member — pick a different one');
       }
     }
 
     await this.prisma.user.update({
       where: { id },
-      data: { pinHash: await bcrypt.hash(dto.pin, 10), pinSetAt: new Date() },
+      data: { pinHash: await bcrypt.hash(pin, 10), pinSetAt: new Date() },
     });
 
     return { message: 'PIN set' };

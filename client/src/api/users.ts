@@ -91,6 +91,11 @@ export const usersApi = {
     const response = await apiClient.post<ApiResponse<{ message: string }>>(`/users/${id}/pin`, { pin })
     return response.data.data
   },
+  /** Sets the signed-in user's own PIN; the server re-checks their password. */
+  setOwnPin: async (pin: string, password: string): Promise<{ message: string }> => {
+    const response = await apiClient.post<ApiResponse<{ message: string }>>('/users/me/pin', { pin, password })
+    return response.data.data
+  },
   clearPin: async (id: string): Promise<{ message: string }> => {
     const response = await apiClient.delete<ApiResponse<{ message: string }>>(`/users/${id}/pin`)
     return response.data.data

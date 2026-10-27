@@ -1,3 +1,4 @@
+import * as bcrypt from 'bcrypt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ForbiddenException, NotFoundException, ConflictException } from '@nestjs/common';
 import { UsersService } from './users.service';
@@ -409,6 +410,43 @@ describe('UsersService — user limit enforcement', () => {
 
       await service.update('u1', ORG_ID, { roles: [Role.SUPERVISOR] }, CURRENT_USER_ID, [Role.SUPER_ADMIN]);
       expect(prisma.user.update.mock.lastCall[0].data).not.toHaveProperty('pinHash');
+    });
+  });
+
+  describe('setOwnPin', () => {
+    let passwordHash: string;
+    beforeAll(async () => {
+      passwordHash = await bcrypt.hash('correct-horse', 4);
+    });
+    beforeEach(() => {
+      prisma.user.findMany.mockResolvedValue([]);
+      prisma.user.update.mockResolvedValue({});
+    });
+
+    it('lets an Admin set their own approval PIN after re-confirming their password', async () => {
+      prisma.user.findFirst.mockResolvedValue({ id: 'u1', roles: [Role.WAITER, Role.ADMIN], passwordHash });
+      await expect(service.setOwnPin('u1', ORG_ID, { pin: '1234', password: 'correct-horse' })).resolves.toEqual({
+        message: 'PIN set',
+      });
+      expect(prisma.user.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'u1' } }));
+    });
+
+    it('refuses a wrong password without touching the PIN', async () => {
+      prisma.user.findFirst.mockResolvedValue({ id: 'u1', roles: [Role.ADMIN], passwordHash });
+      await expect(service.setOwnPin('u1', ORG_ID, { pin: '1234', password: 'nope' })).rejects.toThrow(ForbiddenException);
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('sends PIN-only staff (no password) back to a manager', async () => {
+      prisma.user.findFirst.mockResolvedValue({ id: 'u1', roles: [Role.WAITER], passwordHash: null });
+      await expect(service.setOwnPin('u1', ORG_ID, { pin: '1234', password: 'x' })).rejects.toThrow(ForbiddenException);
+    });
+
+    it('refuses a role that cannot hold a PIN', async () => {
+      prisma.user.findFirst.mockResolvedValue({ id: 'u1', roles: [Role.STAFF], passwordHash });
+      await expect(service.setOwnPin('u1', ORG_ID, { pin: '1234', password: 'correct-horse' })).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 

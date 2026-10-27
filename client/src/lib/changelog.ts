@@ -13,6 +13,24 @@ export interface ChangelogEntry {
 }
 
 export const changelogData: Record<string, ChangelogEntry> = {
+  '1.4.2': {
+    version: '1.4.2',
+    date: '2026-10-27',
+    title: 'Set Your Own PIN and Void Reasons',
+    type: 'patch',
+    features: [
+      {
+        title: 'Set Your Own Approval PIN',
+        description: 'Admins and managers can now set their own approval PIN from "My PIN" at the bottom of the sidebar. You confirm it with your password, so you no longer need a Super Admin to do it for you.',
+        tag: 'Improvement',
+      },
+      {
+        title: 'Voids Need a Reason',
+        description: 'Voiding an order now asks for a reason, just like a discount. The reason and who voided it show on the cancelled order.',
+        tag: 'Improvement',
+      },
+    ],
+  },
   '1.4.1': {
     version: '1.4.1',
     date: '2026-10-26',

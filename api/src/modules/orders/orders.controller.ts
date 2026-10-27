@@ -187,7 +187,7 @@ export class OrdersController {
     @Body() dto: CancelOrderDto,
     @CurrentUser() user: CurrentUserData,
   ) {
-    return this.ordersService.cancel(user.organizationId, id, user, dto.approverPin);
+    return this.ordersService.cancel(user.organizationId, id, user, dto.approverPin, dto.reason);
   }
 
   @Patch(':id/discount')

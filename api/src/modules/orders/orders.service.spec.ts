@@ -189,7 +189,7 @@ describe('OrdersService — status transitions across the waiter/cashier split',
       expect(prisma.__tx.order.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ status: { in: expect.arrayContaining(['OPEN', 'CLOSED_UNPAID']) } }),
-          data: { status: 'CANCELLED', cancelledById: SUPERVISOR.id, cancelApprovedById: SUPERVISOR.id },
+          data: { status: 'CANCELLED', cancelledById: SUPERVISOR.id, cancelApprovedById: SUPERVISOR.id, cancelReason: null },
         }),
       );
       expect(prisma.__tx.restaurantTable.update).toHaveBeenCalledWith(
@@ -255,7 +255,7 @@ describe('OrdersService — status transitions across the waiter/cashier split',
     it("voids under the approver's authority when the PIN matches a supervisor/manager", async () => {
       prisma.user.findMany.mockResolvedValue([{ id: 'user-manager-1', pinHash }]);
 
-      await service.cancel(ORG_ID, ORDER_ID, CASHIER, '4321');
+      await service.cancel(ORG_ID, ORDER_ID, CASHIER, '4321', '  Customer walked out  ');
 
       expect(prisma.user.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -269,7 +269,12 @@ describe('OrdersService — status transitions across the waiter/cashier split',
       );
       expect(prisma.__tx.order.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: { status: 'CANCELLED', cancelledById: USER_ID, cancelApprovedById: 'user-manager-1' },
+          data: {
+            status: 'CANCELLED',
+            cancelledById: USER_ID,
+            cancelApprovedById: 'user-manager-1',
+            cancelReason: 'Customer walked out',
+          },
         }),
       );
     });

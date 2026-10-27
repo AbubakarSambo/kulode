@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { UsersService } from './users.service';
-import { CreateUserDto, UpdateUserDto, SetPinDto } from './dto';
+import { CreateUserDto, UpdateUserDto, SetPinDto, SetOwnPinDto } from './dto';
 import { CurrentUser, CurrentUserData, Role, PaginationDto, Can } from '../../common';
 
 @ApiTags('Users')
@@ -110,6 +110,20 @@ export class UsersController {
     @CurrentUser() user: CurrentUserData,
   ) {
     return this.usersService.resendInvite(id, user.organizationId, user.roles);
+  }
+
+  // Declared before ':id/pin' so "me" never reaches the UUID-parsed route. No @Can — any signed-in
+  // user may set their own PIN; the service checks the role can hold one and re-confirms the password.
+  @Post('me/pin')
+  @ApiOperation({ summary: 'Set or change your own PIN (re-confirms your password)' })
+  @ApiResponse({ status: 200, description: 'PIN set' })
+  @ApiResponse({ status: 403, description: 'Wrong password, no password on the account, or role cannot hold a PIN' })
+  @ApiResponse({ status: 409, description: 'PIN already in use by another staff member' })
+  async setOwnPin(
+    @Body() dto: SetOwnPinDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.usersService.setOwnPin(user.id, user.organizationId, dto);
   }
 
   @Post(':id/pin')
