@@ -17,6 +17,7 @@ import {
   Martini,
   Landmark,
   LayoutDashboard,
+  KeyRound,
 } from 'lucide-react'
 import {
   DashboardIcon,
@@ -37,6 +38,7 @@ import {
 } from '@/components/ui/CustomIcons'
 import { Sidebar } from './Sidebar'
 import { OrgSwitcher } from './OrgSwitcher'
+import { MyPinModal } from './MyPinModal'
 import { TrialBanner } from '../shared/TrialBanner'
 import { ImpersonationBanner } from '../shared/ImpersonationBanner'
 import { useOrgSettingsSync } from '@/hooks/useOrgSettingsSync'
@@ -48,7 +50,7 @@ import { useSubscription } from '@/hooks/useSubscription'
 import { useOrgModules, usePosMode } from '@/hooks/useOrgModules'
 import { cn } from '@/lib/utils'
 import { isPinEligible } from '@/lib/pin'
-import { can } from '@/lib/permissions'
+import { can, canHoldPin } from '@/lib/permissions'
 import { getRestrictedHrefsUnion, type AllowedHref } from '@/lib/posRoleNav'
 import type { PlanTier } from '@/types'
 
@@ -61,6 +63,9 @@ export function AppLayout() {
   const logout = useLogout()
   const switchUser = useSwitchUser()
   const userIsPinEligible = !!user && isPinEligible(user.roles)
+  // Same rule as the sidebar's "My PIN" — this sheet is the phone equivalent of the sidebar footer
+  const canSetOwnPin = !!user && !userIsPinEligible && canHoldPin(user.roles)
+  const [myPinOpen, setMyPinOpen] = useState(false)
   const { hasRequiredPlan } = useSubscription()
   const { hasPos, hasInvoicing } = useOrgModules()
   const { isRetail } = usePosMode()
@@ -390,6 +395,18 @@ export function AppLayout() {
                   <SupportIcon className="h-5 w-5" />
                   Contact Support
                 </a>
+                {canSetOwnPin && hasPos && (
+                  <button
+                    onClick={() => {
+                      setMoreOpen(false)
+                      setMyPinOpen(true)
+                    }}
+                    className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-foreground bg-muted hover:bg-accent transition-colors cursor-pointer"
+                  >
+                    <KeyRound className="h-5 w-5" />
+                    My PIN
+                  </button>
+                )}
                 {!userIsPinEligible && hasPos && (
                   <button
                     onClick={() => {
@@ -420,6 +437,7 @@ export function AppLayout() {
             </div>
           </>
         )}
+        {myPinOpen && <MyPinModal isOpen onClose={() => setMyPinOpen(false)} />}
       </main>
     </div>
   )
