@@ -13,6 +13,19 @@ export interface ChangelogEntry {
 }
 
 export const changelogData: Record<string, ChangelogEntry> = {
+  '1.4.3': {
+    version: '1.4.3',
+    date: '2026-10-27',
+    title: 'My PIN on Phones',
+    type: 'patch',
+    features: [
+      {
+        title: 'Set Your PIN From Your Phone',
+        description: 'On a phone, "My PIN" is now in the More menu on the bottom bar, so admins and managers can set their approval PIN without a computer.',
+        tag: 'Improvement',
+      },
+    ],
+  },
   '1.4.2': {
     version: '1.4.2',
     date: '2026-10-27',
