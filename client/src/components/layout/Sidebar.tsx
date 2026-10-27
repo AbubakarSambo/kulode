@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, X, CreditCard, ChefHat, Clock, Receipt, Users, ShoppingCart, Tag, Timer, UserCog, RefreshCw, LayoutGrid, ListOrdered, Martini, Package, Landmark } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, CreditCard, ChefHat, Clock, Receipt, Users, ShoppingCart, Tag, Timer, UserCog, RefreshCw, KeyRound, LayoutGrid, ListOrdered, Martini, Package, Landmark } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { useLogout, useSwitchUser } from '@/hooks'
 import { isPinEligible } from '@/lib/pin'
 import { Logo } from '@/components/shared'
 import { OrgSwitcher } from './OrgSwitcher'
+import { MyPinModal } from './MyPinModal'
 import { useSubscription } from '@/hooks/useSubscription'
 import { useOrgModules, usePosMode } from '@/hooks/useOrgModules'
 import { getRestrictedHrefsUnion } from '@/lib/posRoleNav'
-import { can } from '@/lib/permissions'
+import { can, canHoldPin } from '@/lib/permissions'
 import type { PlanTier } from '@/types'
 import {
   DashboardIcon,
@@ -131,6 +132,10 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const logout = useLogout()
   const switchUser = useSwitchUser()
   const userIsPinEligible = !!user && isPinEligible(user.roles)
+  // Approver roles who sign in with a password set their own approval PIN; floor staff who sign in
+  // with a PIN get theirs from a manager on the Users page.
+  const canSetOwnPin = !!user && !userIsPinEligible && canHoldPin(user.roles)
+  const [myPinOpen, setMyPinOpen] = useState(false)
   const { hasRequiredPlan } = useSubscription()
   const { hasPos, hasInvoicing } = useOrgModules()
   const { isRetail } = usePosMode()
@@ -462,6 +467,24 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
               )}
             </a>
             
+            {canSetOwnPin && hasPos && (
+              <button
+                onClick={() => setMyPinOpen(true)}
+                className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-xs font-medium text-slate-500 hover:bg-[#eef4ff]/60 hover:text-slate-950 transition-colors relative group cursor-pointer"
+              >
+                <KeyRound className="h-4.5 w-4.5 shrink-0" />
+                <span className={cn(
+                  "transition-all duration-200",
+                  effectiveCollapsed && "lg:opacity-0 lg:max-w-0 lg:pointer-events-none lg:overflow-hidden"
+                )}>My PIN</span>
+                {effectiveCollapsed && (
+                  <div className="hidden lg:group-hover:block absolute left-16 bg-slate-900/90 backdrop-blur-md text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-md whitespace-nowrap z-55 pointer-events-none">
+                    My PIN
+                  </div>
+                )}
+              </button>
+            )}
+
             {/* Non-PIN roles (admin/manager/etc) still need a way to hand the terminal to a PIN
                 user without a full logout, so "Switch User" shows alongside "Logout" for them —
                 PIN-eligible roles only ever need the one (they're already PIN-only accounts). */}
@@ -521,6 +544,8 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           </div>
         </div>
       </div>
+      {/* Mounted only while open, so the sidebar itself never needs a query client */}
+      {myPinOpen && <MyPinModal isOpen onClose={() => setMyPinOpen(false)} />}
     </>
   )
 }

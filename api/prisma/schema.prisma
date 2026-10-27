@@ -1435,6 +1435,9 @@ model Order {
   cancelledBy          User?   @relation("OrderCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
   cancelApprovedById   String? @map("cancel_approved_by")
   cancelApprovedBy     User?   @relation("OrderCancelApprovedBy", fields: [cancelApprovedById], references: [id], onDelete: SetNull)
+  // Why it was voided — required at the till like a discount reason, since a void with no record
+  // of why is the same fraud vector. Null on orders voided before this was captured.
+  cancelReason         String? @map("cancel_reason")
 
   closedAt        DateTime? @map("closed_at")
   // Set only when a waiter adds/edits/removes an item on an order already sent to the kitchen —

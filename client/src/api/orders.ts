@@ -231,9 +231,12 @@ export const ordersApi = {
     return response.data.data
   },
 
-  /** Voids the order. A cashier must pass a supervisor's/manager's PIN as `approverPin`. */
-  cancel: async (id: string, approverPin?: string): Promise<{ message: string }> => {
-    const response = await apiClient.post<ApiResponse<{ message: string }>>(`/orders/${id}/cancel`, approverPin ? { approverPin } : {})
+  /** Voids the order with a required reason. A cashier must pass a supervisor's/manager's PIN as `approverPin`. */
+  cancel: async (id: string, reason: string, approverPin?: string): Promise<{ message: string }> => {
+    const response = await apiClient.post<ApiResponse<{ message: string }>>(`/orders/${id}/cancel`, {
+      reason,
+      ...(approverPin && { approverPin }),
+    })
     return response.data.data
   },
 

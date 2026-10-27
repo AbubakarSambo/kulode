@@ -417,6 +417,7 @@ function SyncedOrderView({ id }: { id: string }) {
   const [discountApproverPin, setDiscountApproverPin] = useState('')
   const [voidModalOpen, setVoidModalOpen] = useState(false)
   const [voidApproverPin, setVoidApproverPin] = useState('')
+  const [voidReason, setVoidReason] = useState('')
   // An item reduction waiting on a supervisor's PIN (only for roles that need approval).
   const [pendingReduction, setPendingReduction] = useState<{ itemId: string; itemName: string; quantity: number } | null>(null)
   const [reductionApproverPin, setReductionApproverPin] = useState('')
@@ -726,11 +727,13 @@ function SyncedOrderView({ id }: { id: string }) {
   })
 
   const cancelOrder = useMutation({
-    mutationFn: (approverPin?: string) => ordersApi.cancel(id, approverPin),
+    mutationFn: ({ reason, approverPin }: { reason: string; approverPin?: string }) =>
+      ordersApi.cancel(id, reason, approverPin),
     onSuccess: () => {
       toast.success('Order cancelled')
       setVoidModalOpen(false)
       setVoidApproverPin('')
+      setVoidReason('')
       queryClient.invalidateQueries({ queryKey: ['orders'] })
       navigate('/pos/tables')
     },
@@ -927,6 +930,15 @@ function SyncedOrderView({ id }: { id: string }) {
             </Button>
           )}
         </div>
+
+        {order.status === 'CANCELLED' && (order.cancelReason || order.cancelledBy) && (
+          <div className="mb-4 rounded-xl border border-border p-3">
+            <div className="text-sm font-medium text-foreground">
+              Voided{order.cancelledBy ? ` by ${order.cancelledBy.firstName} ${order.cancelledBy.lastName}` : ''}
+            </div>
+            {order.cancelReason && <div className="text-xs text-muted-foreground">{order.cancelReason}</div>}
+          </div>
+        )}
 
         <div className="mb-4 flex items-center justify-between rounded-xl border border-border p-3">
           <span className="text-sm font-medium text-foreground">
@@ -1803,13 +1815,27 @@ function SyncedOrderView({ id }: { id: string }) {
           <p className="text-sm text-muted-foreground">
             Voiding cancels the whole order and frees its table. This can't be undone.
           </p>
+          <div>
+            <Label>Reason (required)</Label>
+            <Input
+              value={voidReason}
+              onChange={(e) => setVoidReason(e.target.value)}
+              placeholder="e.g. Customer left, entered by mistake"
+              maxLength={500}
+            />
+          </div>
           {needsApproval && <ApproverPinField value={voidApproverPin} onChange={setVoidApproverPin} />}
           <Button
             variant="destructive"
             className="w-full"
             isLoading={cancelOrder.isPending}
-            disabled={needsApproval && !PIN_PATTERN.test(voidApproverPin)}
-            onClick={() => cancelOrder.mutate(needsApproval ? voidApproverPin : undefined)}
+            disabled={!voidReason.trim() || (needsApproval && !PIN_PATTERN.test(voidApproverPin))}
+            onClick={() =>
+              cancelOrder.mutate({
+                reason: voidReason.trim(),
+                ...(needsApproval && { approverPin: voidApproverPin }),
+              })
+            }
           >
             Void Order
           </Button>

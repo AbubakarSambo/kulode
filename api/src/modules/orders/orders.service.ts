@@ -180,6 +180,7 @@ export class OrdersService {
     customer: { select: { id: true, name: true, phone: true } },
     waiter: { select: { id: true, firstName: true, lastName: true, phone: true } },
     createdBy: { select: { id: true, firstName: true, lastName: true } },
+    cancelledBy: { select: { id: true, firstName: true, lastName: true } },
     items: {
       // `id` breaks ties: items on the same order are created together in one nested `create`,
       // so they share an identical `createdAt` — sorting on that alone left Postgres free to
@@ -1239,7 +1240,13 @@ export class OrdersService {
     });
   }
 
-  async cancel(organizationId: string, id: string, actor: { id: string; roles: string[] }, approverPin?: string) {
+  async cancel(
+    organizationId: string,
+    id: string,
+    actor: { id: string; roles: string[] },
+    approverPin?: string,
+    reason?: string,
+  ) {
     const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
     if (!order) throw new NotFoundException('Order not found');
     if (!VOIDABLE_STATUSES.includes(order.status)) {
@@ -1252,7 +1259,12 @@ export class OrdersService {
       // only an order still in a voidable status actually transitions.
       const result = await tx.order.updateMany({
         where: { id, organizationId, status: { in: VOIDABLE_STATUSES } },
-        data: { status: 'CANCELLED', cancelledById: actor.id, cancelApprovedById: approvedById },
+        data: {
+          status: 'CANCELLED',
+          cancelledById: actor.id,
+          cancelApprovedById: approvedById,
+          cancelReason: reason?.trim() || null,
+        },
       });
       if (result.count === 0) {
         throw new BadRequestException('Order was already closed or cancelled');
