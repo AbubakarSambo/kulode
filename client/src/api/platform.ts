@@ -98,6 +98,15 @@ export const platformApi = {
     return response.data.data
   },
 
+  /** Replaces the roles a user holds in one org — their primary org included. */
+  updateMembershipRoles: async (userId: string, organizationId: string, roles: UserRole[]): Promise<GrantedOrgAccess> => {
+    const response = await apiClient.patch<ApiResponse<GrantedOrgAccess>>(
+      `/platform/users/${userId}/organizations/${organizationId}`,
+      { roles },
+    )
+    return response.data.data
+  },
+
   grantOrganizationAccess: async (
     userId: string,
     organizationId: string,

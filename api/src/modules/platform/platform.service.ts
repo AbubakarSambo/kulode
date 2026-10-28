@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { assertNotBecomingInvoicingOnly } from '../../common/org-modules';
+import { canHoldPin } from '../../common/pin';
 import { PlanTier, SubscriptionStatus, OrgModule, UserRole, PosMode } from '@prisma/client';
 
 @Injectable()
@@ -1285,6 +1286,7 @@ export class PlatformService {
         firstName: true,
         lastName: true,
         organizationId: true,
+        roles: true,
         organization: { select: { id: true, name: true, slug: true } },
         organizationMemberships: {
           select: {
@@ -1301,7 +1303,56 @@ export class PlatformService {
       throw new NotFoundException('User not found');
     }
 
-    return user;
+    // The primary org always comes from the User row: its roles are the ones the JWT and the Users
+    // page use there, and users created after the 2026-10-09 backfill have no membership row for it.
+    const { roles: primaryRoles, organizationMemberships, ...rest } = user;
+    return {
+      ...rest,
+      organizationMemberships: [
+        { organizationId: user.organizationId, roles: primaryRoles, isDefault: true, organization: user.organization },
+        ...organizationMemberships
+          .filter((m) => m.organizationId !== user.organizationId)
+          .map((m) => ({ ...m, isDefault: false })),
+      ],
+    };
+  }
+
+  /**
+   * Sets the full list of roles a user holds in one organization. For their primary org that's
+   * the User row itself (and the backfilled membership row, kept in step); for any other org it's
+   * the membership row. A PIN the new roles can't hold is cleared, as the Users page does.
+   */
+  async updateMembershipRoles(userId: string, organizationId: string, roles: UserRole[]) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    const organization = await this.prisma.organization.findUnique({ where: { id: organizationId } });
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    if (organizationId === user.organizationId) {
+      await this.prisma.$transaction([
+        this.prisma.user.update({
+          where: { id: userId },
+          data: { roles, ...(!canHoldPin(roles) && { pinHash: null, pinSetAt: null }) },
+        }),
+        this.prisma.userOrganization.updateMany({ where: { userId, organizationId }, data: { roles } }),
+      ]);
+    } else {
+      const result = await this.prisma.userOrganization.updateMany({ where: { userId, organizationId }, data: { roles } });
+      if (result.count === 0) {
+        throw new NotFoundException(`${user.firstName} isn't a member of ${organization.name}`);
+      }
+    }
+
+    return {
+      organizationId,
+      organizationName: organization.name,
+      roles,
+      isDefault: organizationId === user.organizationId,
+    };
   }
 
   /**
@@ -1313,6 +1364,11 @@ export class PlatformService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('User not found');
+    }
+
+    // Their primary org isn't a membership to grant — its roles live on the User row
+    if (organizationId === user.organizationId) {
+      return this.updateMembershipRoles(userId, organizationId, roles && roles.length > 0 ? roles : user.roles);
     }
 
     const organization = await this.prisma.organization.findUnique({ where: { id: organizationId } });

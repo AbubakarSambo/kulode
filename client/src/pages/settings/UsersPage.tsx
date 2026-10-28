@@ -179,14 +179,17 @@ export function UsersPage() {
 
   // Only a Super Admin may touch an Admin or Super Admin account's fields at all (email included),
   // and a Manager only floor staff — see canManageAccount above.
-  const canEditProfile = (target: UserData) => target.isActive && canManageAccount(target.roles)
+  // A member whose account lives in another org (e.g. an owner who opened this org as a second
+  // business) is managed from that org — edits here would change their account everywhere.
+  const canManageRow = (target: UserData) => !target.isMember && canManageAccount(target.roles)
+  const canEditProfile = (target: UserData) => target.isActive && canManageRow(target)
 
   // Backend forbids modifying your own roles, and only a Super Admin can touch an Admin account's
   // (or promote someone into one) roles specifically — mirrored here so the Roles section just
   // isn't offered rather than opening a control that will fail on submit. Profile fields like
   // email aren't restricted this way — see canEditProfile above.
   const canEditRoles = (target: UserData) =>
-    target.id !== currentUser?.id && !target.roles.includes('SUPER_ADMIN') && canManageAccount(target.roles)
+    target.id !== currentUser?.id && !target.roles.includes('SUPER_ADMIN') && canManageRow(target)
 
   const updateUserMutation = useMutation({
     mutationFn: ({ id, email, roles }: { id: string; email?: string; roles: UserRole[] }) =>
@@ -326,6 +329,9 @@ export function UsersPage() {
                     >
                       <td className="px-6 py-4">
                         <p className="font-bold text-slate-900 text-sm">{user.firstName} {user.lastName}</p>
+                        {user.isMember && (
+                          <p className="text-[10px] font-semibold text-slate-400">Managed from their own organization</p>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-xs font-semibold text-slate-500">
                         {user.hasPlaceholderEmail ? (
@@ -357,7 +363,7 @@ export function UsersPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 text-right space-x-1">
-                        {user.isActive && !user.isEmailVerified && !user.hasPlaceholderEmail && canManageAccount(user.roles) && (
+                        {user.isActive && !user.isEmailVerified && !user.hasPlaceholderEmail && canManageRow(user) && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -380,7 +386,7 @@ export function UsersPage() {
                             <Pencil className="h-4 w-4" />
                           </Button>
                         )}
-                        {user.isActive && canHoldPin(user.roles) && canManageAccount(user.roles) && (
+                        {user.isActive && canHoldPin(user.roles) && canManageRow(user) && (
                           <>
                             <Button
                               variant="ghost"
@@ -406,7 +412,7 @@ export function UsersPage() {
                             )}
                           </>
                         )}
-                        {user.isActive && !user.roles.includes('SUPER_ADMIN') && canManageAccount(user.roles) && (
+                        {user.isActive && !user.roles.includes('SUPER_ADMIN') && canManageRow(user) && (
                           <Button
                             variant="ghost"
                             size="sm"
