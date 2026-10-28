@@ -30,7 +30,7 @@ import { useStartImpersonation } from '@/hooks/useImpersonation'
 import { getPostAuthRoute } from '@/lib/authRouting'
 import { formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
-import type { PlatformOrganizationDetails, PlatformOrganization, OrgModule, PosMode, UserRole } from '@/types'
+import type { PlatformOrganizationDetails, PlatformOrganization, OrgModule, PosMode, UserRole, PlatformUserLookup } from '@/types'
 import {
   ResponsiveContainer,
   AreaChart,
@@ -1715,6 +1715,108 @@ const GRANTABLE_ROLES: UserRole[] = [
   'KITCHEN',
 ]
 
+// One org in the user's membership list: shows the roles, and "Edit roles" turns them into toggles.
+// For the user's primary (Default) org this rewrites the account's own roles, so the save says so.
+function MembershipRolesRow({
+  userId,
+  membership,
+  onSaved,
+}: {
+  userId: string
+  membership: PlatformUserLookup['organizationMemberships'][number]
+  onSaved: () => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [selected, setSelected] = useState<UserRole[]>(membership.roles)
+
+  const saveMutation = useMutation({
+    mutationFn: () => platformApi.updateMembershipRoles(userId, membership.organizationId, selected),
+    onSuccess: (result) => {
+      toast.success(`Updated roles at ${result.organizationName}`, { description: result.roles.join(', ') })
+      setEditing(false)
+      onSaved()
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error('Failed to update roles', { description: message || 'Please try again' })
+    },
+  })
+
+  const toggle = (role: UserRole) =>
+    setSelected((prev) => (prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]))
+
+  const unchanged =
+    selected.length === membership.roles.length && selected.every((r) => membership.roles.includes(r))
+
+  return (
+    <div className="px-4 py-3 rounded-xl bg-[#f8f9ff] space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-semibold text-[#121c28] truncate">{membership.organization.name}</span>
+        <div className="flex items-center gap-2 shrink-0">
+          {membership.isDefault && (
+            <Badge variant="secondary" className="text-[9px] px-2 py-0.5">
+              Default
+            </Badge>
+          )}
+          {!editing && <span className="text-xs text-slate-500">{membership.roles.join(', ')}</span>}
+          {!editing && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSelected(membership.roles)
+                setEditing(true)
+              }}
+            >
+              Edit roles
+            </Button>
+          )}
+        </div>
+      </div>
+      {editing && (
+        <>
+          <div className="flex flex-wrap gap-2">
+            {GRANTABLE_ROLES.map((role) => (
+              <button
+                key={role}
+                type="button"
+                onClick={() => toggle(role)}
+                className={
+                  selected.includes(role)
+                    ? 'cursor-pointer rounded-full px-3 py-1.5 text-xs font-semibold bg-[#0037b0] text-white'
+                    : 'cursor-pointer rounded-full px-3 py-1.5 text-xs font-semibold bg-white text-slate-600 border border-slate-200'
+                }
+              >
+                {role}
+              </button>
+            ))}
+          </div>
+          {membership.isDefault && (
+            <p className="text-[11px] text-slate-500">
+              This is their primary organization, so this changes the account's own roles. A PIN the new roles can't hold is removed.
+            </p>
+          )}
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => saveMutation.mutate()}
+              isLoading={saveMutation.isPending}
+              disabled={selected.length === 0 || unchanged}
+            >
+              Save
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function UserOrgAccessPanel() {
   const queryClient = useQueryClient()
   const [email, setEmail] = useState('')
@@ -1821,20 +1923,12 @@ function UserOrgAccessPanel() {
                   Current organization memberships
                 </p>
                 {foundUser.organizationMemberships.map((m) => (
-                  <div
+                  <MembershipRolesRow
                     key={m.organizationId}
-                    className="flex items-center justify-between px-4 py-3 rounded-xl bg-[#f8f9ff]"
-                  >
-                    <span className="text-sm font-semibold text-[#121c28]">{m.organization.name}</span>
-                    <div className="flex items-center gap-2">
-                      {m.isDefault && (
-                        <Badge variant="secondary" className="text-[9px] px-2 py-0.5">
-                          Default
-                        </Badge>
-                      )}
-                      <span className="text-xs text-slate-500">{m.roles.join(', ')}</span>
-                    </div>
-                  </div>
+                    userId={foundUser.id}
+                    membership={m}
+                    onSaved={() => queryClient.invalidateQueries({ queryKey: ['platform', 'user-by-email', lookedUpEmail] })}
+                  />
                 ))}
               </div>
             </CardContent>
