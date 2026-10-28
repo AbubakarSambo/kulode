@@ -13,6 +13,19 @@ export interface ChangelogEntry {
 }
 
 export const changelogData: Record<string, ChangelogEntry> = {
+  '1.5.0': {
+    version: '1.5.0',
+    date: '2026-10-28',
+    title: 'Run More Than One Business',
+    type: 'minor',
+    features: [
+      {
+        title: 'Add Another Business to Your Login',
+        description: 'Opening a second branch or a new business? Tap your business name under your name in the menu and choose "New organization". You use the same email and password, and switch between your businesses from the same menu. The free trial only covers your first business, so you choose a plan for the new one in Billing.',
+        tag: 'New Feature',
+      },
+    ],
+  },
   '1.4.3': {
     version: '1.4.3',
     date: '2026-10-27',

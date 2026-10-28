@@ -17,6 +17,12 @@ export const authApi = {
     return response.data.data
   },
 
+  /** Creates another organization under the signed-in login and returns a session already switched into it. */
+  createOrganization: async (data: { organizationName: string; posMode?: 'RESTAURANT' | 'RETAIL' }): Promise<AuthResponse> => {
+    const response = await apiClient.post<ApiResponse<AuthResponse>>('/auth/organizations', data)
+    return response.data.data
+  },
+
   switchOrganization: async (organizationId: string): Promise<AuthResponse> => {
     const response = await apiClient.post<ApiResponse<AuthResponse>>('/auth/switch-org', { organizationId })
     return response.data.data

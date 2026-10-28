@@ -14,6 +14,8 @@ export interface UserData {
   isEmailVerified: boolean
   hasPlaceholderEmail?: boolean
   pinSetAt?: string | null
+  // Account belongs to another org and is a member here — managed from their own org
+  isMember?: boolean
   createdAt: string
   updatedAt?: string
 }

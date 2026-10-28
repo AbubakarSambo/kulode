@@ -10,7 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { CreateUserDto, UpdateUserDto, SetPinDto, SetOwnPinDto } from './dto';
 import { PaginationDto, paginate, PLAN_LIMITS, Role, PIN_ELIGIBLE_ROLES, FLOOR_STAFF_ROLES, canHoldPin } from '../../common';
-import { TokenType, OrgModule, PosMode } from '@prisma/client';
+import { TokenType, OrgModule, PosMode, Prisma } from '@prisma/client';
 
 const ADMIN_ROLES = [Role.ADMIN, Role.SUPER_ADMIN];
 
@@ -95,10 +95,11 @@ export class UsersService {
   async findAll(organizationId: string, pagination: PaginationDto) {
     const { page = 1, limit = 20 } = pagination;
     const skip = (page - 1) * limit;
+    const where = this.inOrgWhere(organizationId);
 
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({
-        where: { organizationId },
+        where,
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
@@ -116,12 +117,28 @@ export class UsersService {
           pinSetAt: true,
           createdAt: true,
           updatedAt: true,
+          organizationId: true,
+          organizationMemberships: { where: { organizationId }, select: { roles: true } },
         },
       }),
-      this.prisma.user.count({ where: { organizationId } }),
+      this.prisma.user.count({ where }),
     ]);
 
-    return paginate(users, total, page, limit);
+    // Someone whose account lives in another org (e.g. an owner who opened this org as a second
+    // business) shows with their roles HERE, and is flagged so the page doesn't offer edit /
+    // deactivate / PIN — those write to the account itself and would affect every org they're in.
+    const rows = users.map(({ organizationId: homeOrgId, organizationMemberships, ...u }) =>
+      homeOrgId === organizationId
+        ? { ...u, isMember: false }
+        : { ...u, roles: organizationMemberships[0]?.roles ?? u.roles, isMember: true },
+    );
+
+    return paginate(rows, total, page, limit);
+  }
+
+  // Accounts that belong to this org, plus accounts from other orgs with a membership here.
+  private inOrgWhere(organizationId: string): Prisma.UserWhereInput {
+    return { OR: [{ organizationId }, { organizationMemberships: { some: { organizationId } } }] };
   }
 
   // Deliberately unrestricted by @Roles at the controller — any authenticated POS user needs
@@ -260,7 +277,7 @@ export class UsersService {
 
       const limits = PLAN_LIMITS[effectivePlan];
       const activeUserCount = await this.prisma.user.count({
-        where: { organizationId, isActive: true },
+        where: { ...this.inOrgWhere(organizationId), isActive: true },
       });
 
       if (activeUserCount >= limits.maxUsers) {

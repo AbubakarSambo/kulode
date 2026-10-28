@@ -266,6 +266,26 @@ describe('UsersService — user limit enforcement', () => {
 
   // ─── remove (deactivation) ───────────────────────────────────────────────
 
+  describe('findAll', () => {
+    it("lists this org's accounts plus members from other orgs, with the member's roles here", async () => {
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'own', organizationId: ORG_ID, roles: [Role.CASHIER], organizationMemberships: [] },
+        { id: 'owner', organizationId: 'other-org', roles: [Role.WAITER], organizationMemberships: [{ roles: [Role.SUPER_ADMIN] }] },
+      ]);
+      prisma.user.count.mockResolvedValue(2);
+
+      const result = await service.findAll(ORG_ID, { page: 1, limit: 20 });
+
+      expect(prisma.user.findMany.mock.lastCall[0].where).toEqual({
+        OR: [{ organizationId: ORG_ID }, { organizationMemberships: { some: { organizationId: ORG_ID } } }],
+      });
+      expect(result.data).toEqual([
+        { id: 'own', roles: [Role.CASHIER], isMember: false },
+        { id: 'owner', roles: [Role.SUPER_ADMIN], isMember: true },
+      ]);
+    });
+  });
+
   describe('remove', () => {
     it('throws ForbiddenException when user tries to deactivate themselves', async () => {
       await expect(service.remove(CURRENT_USER_ID, ORG_ID, CURRENT_USER_ID, [Role.SUPER_ADMIN])).rejects.toThrow(ForbiddenException);
