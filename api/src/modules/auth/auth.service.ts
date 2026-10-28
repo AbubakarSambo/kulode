@@ -69,7 +69,6 @@ export class AuthService {
         slug,
         email: dto.email.toLowerCase(),
         posMode: dto.posMode,
-        withTrial: true,
       });
 
       // Create super admin user
@@ -147,7 +146,6 @@ export class AuthService {
         slug,
         email: dto.email.toLowerCase(),
         posMode: dto.posMode,
-        withTrial: true,
       });
 
       const user = await tx.user.create({
@@ -656,8 +654,7 @@ export class AuthService {
             slug,
             email,
             posMode,
-            withTrial: true,
-          });
+              });
 
           const newUser = await tx.user.create({
             data: {
@@ -1023,9 +1020,7 @@ export class AuthService {
   /**
    * A signed-in user opens another business under the same login (e.g. a second branch). They
    * become its Super Admin through a membership row, and get a token already switched into it.
-   * Only a person's first organization gets the free trial: this one starts on FREE with no
-   * trial, which the subscription guard treats as read-only until they pick a plan in Billing —
-   * otherwise anyone could keep creating orgs for endless trials.
+   * It gets the same 30-day Pro trial as a sign-up.
    */
   async createAdditionalOrganization(
     actor: { id: string; impersonationSessionId?: string },
@@ -1050,7 +1045,6 @@ export class AuthService {
         slug,
         email: user.email,
         posMode: dto.posMode,
-        withTrial: false,
       });
       await tx.userOrganization.create({
         data: { userId: user.id, organizationId: org.id, roles: ['SUPER_ADMIN'], isDefault: false },
@@ -1062,11 +1056,10 @@ export class AuthService {
     return this.switchOrganization(user.id, organization.id);
   }
 
-  // Everything a brand-new organization needs. A trial is only for someone's first org (see
-  // createAdditionalOrganization) — without one, FREE + EXPIRED matches every other unpaid org.
+  // Everything a brand-new organization needs, starting with a 30-day Pro trial.
   private async createOrganizationWithDefaults(
     tx: Prisma.TransactionClient,
-    opts: { name: string; slug: string; email: string; posMode?: PosMode; withTrial: boolean },
+    opts: { name: string; slug: string; email: string; posMode?: PosMode },
   ) {
     const now = new Date();
     const trialEnd = new Date(now);
@@ -1078,9 +1071,10 @@ export class AuthService {
         slug: opts.slug,
         email: opts.email,
         platformFeePercent: this.configService.get<number>('app.platformFeePercent') ?? 5,
-        ...(opts.withTrial
-          ? { planTier: 'PRO', subscriptionStatus: 'TRIALING', trialStartDate: now, trialEndDate: trialEnd }
-          : { planTier: 'FREE', subscriptionStatus: 'EXPIRED' }),
+        planTier: 'PRO',
+        subscriptionStatus: 'TRIALING',
+        trialStartDate: now,
+        trialEndDate: trialEnd,
         enabledModules: 'POS',
         posMode: opts.posMode ?? 'RESTAURANT',
       },

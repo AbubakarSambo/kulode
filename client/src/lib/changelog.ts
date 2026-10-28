@@ -21,7 +21,7 @@ export const changelogData: Record<string, ChangelogEntry> = {
     features: [
       {
         title: 'Add Another Business to Your Login',
-        description: 'Opening a second branch or a new business? Tap your business name under your name in the menu and choose "New organization". You use the same email and password, and switch between your businesses from the same menu. The free trial only covers your first business, so you choose a plan for the new one in Billing.',
+        description: 'Opening a second branch or a new business? Tap your business name under your name in the menu and choose "New organization". You use the same email and password, and switch between your businesses from the same menu. Each new business starts with its own 30-day free trial.',
         tag: 'New Feature',
       },
     ],

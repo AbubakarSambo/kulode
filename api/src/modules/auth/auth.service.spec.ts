@@ -446,7 +446,7 @@ describe('AuthService — switchOrganization', () => {
 describe('AuthService — createAdditionalOrganization', () => {
   let service: AuthService;
   let prisma: ReturnType<typeof createMockPrisma>;
-  const newOrg = { ...mockOrg, id: 'org-new', name: 'NOON Daytime Bar', slug: 'noon-daytime-bar', planTier: 'FREE', subscriptionStatus: 'EXPIRED' };
+  const newOrg = { ...mockOrg, id: 'org-new', name: 'NOON Daytime Bar', slug: 'noon-daytime-bar' };
 
   beforeEach(async () => {
     prisma = createMockPrisma();
@@ -469,7 +469,7 @@ describe('AuthService — createAdditionalOrganization', () => {
     prisma.userOrganization.findUnique.mockResolvedValue({ userId: 'user-1', organizationId: 'org-new', roles: ['SUPER_ADMIN'] });
   });
 
-  it('creates the org with no trial, makes the caller its Super Admin, and switches into it', async () => {
+  it('creates the org on a 30-day Pro trial, makes the caller its Super Admin, and switches into it', async () => {
     prisma.user.findUnique.mockResolvedValue(mockUser);
 
     const result = await service.createAdditionalOrganization({ id: 'user-1' }, { organizationName: ' NOON Daytime Bar ' });
@@ -478,12 +478,13 @@ describe('AuthService — createAdditionalOrganization', () => {
       data: expect.objectContaining({
         name: 'NOON Daytime Bar',
         email: 'admin@acme.com',
-        planTier: 'FREE',
-        subscriptionStatus: 'EXPIRED',
+        planTier: 'PRO',
+        subscriptionStatus: 'TRIALING',
         posMode: 'RESTAURANT',
       }),
     });
-    expect(prisma.organization.create.mock.calls[0][0].data).not.toHaveProperty('trialEndDate');
+    const { trialStartDate, trialEndDate } = prisma.organization.create.mock.calls[0][0].data;
+    expect(Math.round((trialEndDate.getTime() - trialStartDate.getTime()) / 86_400_000)).toBe(30);
     expect(prisma.expenseCategory.createMany).toHaveBeenCalled();
     expect(prisma.userOrganization.create).toHaveBeenCalledWith({
       data: { userId: 'user-1', organizationId: 'org-new', roles: ['SUPER_ADMIN'], isDefault: false },

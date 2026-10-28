@@ -220,7 +220,7 @@ export function useCreateOrganization() {
       queryClient.clear()
       posthog.capture('organization_created', { organizationId: data.user.organizationId })
       toast.success('Organization created', { description: data.user.organizationName })
-      navigate('/settings/billing')
+      navigate(postAuthRoute(data.user))
     },
     onError: (err: unknown) => {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to create organization'

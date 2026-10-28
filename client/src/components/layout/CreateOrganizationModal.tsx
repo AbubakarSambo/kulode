@@ -17,8 +17,7 @@ const POS_MODES = [
   { value: 'RETAIL', label: 'Retail store' },
 ] as const
 
-// A second business under the same login. Only someone's first org gets the free trial, so the
-// copy says up front that this one needs a plan before it can be set up.
+// A second business under the same login. It starts on its own 30-day Pro trial, like a sign-up.
 export function CreateOrganizationModal({ onClose }: { onClose: () => void }) {
   const form = useForm<CreateOrgFormData>({ resolver: zodResolver(createOrgSchema) })
   const [posMode, setPosMode] = useState<'RESTAURANT' | 'RETAIL'>('RESTAURANT')
@@ -29,7 +28,7 @@ export function CreateOrganizationModal({ onClose }: { onClose: () => void }) {
       isOpen
       onClose={onClose}
       title="New organization"
-      description="Add another business under your login. You'll be its Super Admin and can switch between your businesses from the menu under your name. The free trial only covers your first business, so you'll choose a plan for this one before you can set it up."
+      description="Add another business under your login. You'll be its Super Admin and can switch between your businesses from the menu under your name. It starts with its own 30-day free trial."
     >
       <form
         onSubmit={form.handleSubmit((data) =>
