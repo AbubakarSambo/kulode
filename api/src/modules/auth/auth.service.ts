@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
   BadRequestException,
   NotFoundException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -12,8 +13,8 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
-import { RegisterDto, LoginDto, AuthResponseDto, VerifyEmailDto, SetPasswordDto, ResendVerificationDto, ForgotPasswordDto, ResetPasswordDto, MagicLinkRegisterDto, PinLoginDto } from './dto';
-import { TokenType, PosMode } from '@prisma/client';
+import { RegisterDto, LoginDto, AuthResponseDto, VerifyEmailDto, SetPasswordDto, ResendVerificationDto, ForgotPasswordDto, ResetPasswordDto, MagicLinkRegisterDto, PinLoginDto, CreateOrganizationDto } from './dto';
+import { TokenType, PosMode, Prisma } from '@prisma/client';
 import { PIN_ELIGIBLE_ROLES, Role } from '../../common';
 
 @Injectable()
@@ -41,7 +42,9 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new ConflictException('Email already registered');
+      throw new ConflictException(
+        'You already have an account with this email. Sign in, then use "New organization" in the menu under your name to add another business.',
+      );
     }
 
     // Generate organization slug
@@ -61,24 +64,11 @@ export class AuthService {
 
     // Create organization, user, and verification token in a transaction
     const result = await this.prisma.$transaction(async (tx) => {
-      // Create organization with Pro trial
-      const now = new Date();
-      const trialEnd = new Date(now);
-      trialEnd.setDate(trialEnd.getDate() + 30);
-
-      const organization = await tx.organization.create({
-        data: {
-          name: dto.organizationName,
-          slug,
-          email: dto.email.toLowerCase(),
-          platformFeePercent: this.configService.get<number>('app.platformFeePercent') ?? 5,
-          planTier: 'PRO',
-          subscriptionStatus: 'TRIALING',
-          trialStartDate: now,
-          trialEndDate: trialEnd,
-          enabledModules: 'POS',
-          posMode: dto.posMode ?? 'RESTAURANT',
-        },
+      const organization = await this.createOrganizationWithDefaults(tx, {
+        name: dto.organizationName,
+        slug,
+        email: dto.email.toLowerCase(),
+        posMode: dto.posMode,
       });
 
       // Create super admin user
@@ -92,19 +82,6 @@ export class AuthService {
           roles: ['SUPER_ADMIN'],
           isEmailVerified: false,
         },
-      });
-
-      // Create default expense categories
-      await tx.expenseCategory.createMany({
-        data: [
-          { organizationId: organization.id, name: 'Supplies' },
-          { organizationId: organization.id, name: 'Salary' },
-          { organizationId: organization.id, name: 'Transport' },
-          { organizationId: organization.id, name: 'Utilities' },
-          { organizationId: organization.id, name: 'Equipment' },
-          { organizationId: organization.id, name: 'Marketing' },
-          { organizationId: organization.id, name: 'Other' },
-        ],
       });
 
       // Create verification token
@@ -148,7 +125,9 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new ConflictException('Email already registered');
+      throw new ConflictException(
+        'You already have an account with this email. Sign in, then use "New organization" in the menu under your name to add another business.',
+      );
     }
 
     const slug = this.generateSlug(dto.organizationName);
@@ -162,23 +141,11 @@ export class AuthService {
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
-      const now = new Date();
-      const trialEnd = new Date(now);
-      trialEnd.setDate(trialEnd.getDate() + 30);
-
-      const organization = await tx.organization.create({
-        data: {
-          name: dto.organizationName,
-          slug,
-          email: dto.email.toLowerCase(),
-          platformFeePercent: this.configService.get<number>('app.platformFeePercent') ?? 5,
-          planTier: 'PRO',
-          subscriptionStatus: 'TRIALING',
-          trialStartDate: now,
-          trialEndDate: trialEnd,
-          enabledModules: 'POS',
-          posMode: dto.posMode ?? 'RESTAURANT',
-        },
+      const organization = await this.createOrganizationWithDefaults(tx, {
+        name: dto.organizationName,
+        slug,
+        email: dto.email.toLowerCase(),
+        posMode: dto.posMode,
       });
 
       const user = await tx.user.create({
@@ -191,18 +158,6 @@ export class AuthService {
           roles: ['SUPER_ADMIN'],
           isEmailVerified: false,
         },
-      });
-
-      await tx.expenseCategory.createMany({
-        data: [
-          { organizationId: organization.id, name: 'Supplies' },
-          { organizationId: organization.id, name: 'Salary' },
-          { organizationId: organization.id, name: 'Transport' },
-          { organizationId: organization.id, name: 'Utilities' },
-          { organizationId: organization.id, name: 'Equipment' },
-          { organizationId: organization.id, name: 'Marketing' },
-          { organizationId: organization.id, name: 'Other' },
-        ],
       });
 
       const token = crypto.randomBytes(32).toString('hex');
@@ -694,24 +649,12 @@ export class AuthService {
         const slug = await this.generateUniqueSlug(orgName);
 
         user = await this.prisma.$transaction(async (tx) => {
-          const now = new Date();
-          const trialEnd = new Date(now);
-          trialEnd.setDate(trialEnd.getDate() + 30);
-
-          const organization = await tx.organization.create({
-            data: {
-              name: orgName,
-              slug,
-              email,
-              platformFeePercent: this.configService.get<number>('app.platformFeePercent') ?? 5,
-              planTier: 'PRO',
-              subscriptionStatus: 'TRIALING',
-              trialStartDate: now,
-              trialEndDate: trialEnd,
-              enabledModules: 'POS',
-              posMode: posMode ?? 'RESTAURANT',
-            },
-          });
+          const organization = await this.createOrganizationWithDefaults(tx, {
+            name: orgName,
+            slug,
+            email,
+            posMode,
+              });
 
           const newUser = await tx.user.create({
             data: {
@@ -723,18 +666,6 @@ export class AuthService {
               roles: ['SUPER_ADMIN'],
               isEmailVerified: true,
             },
-          });
-
-          await tx.expenseCategory.createMany({
-            data: [
-              { organizationId: organization.id, name: 'Supplies' },
-              { organizationId: organization.id, name: 'Salary' },
-              { organizationId: organization.id, name: 'Transport' },
-              { organizationId: organization.id, name: 'Utilities' },
-              { organizationId: organization.id, name: 'Equipment' },
-              { organizationId: organization.id, name: 'Marketing' },
-              { organizationId: organization.id, name: 'Other' },
-            ],
           });
 
           return { ...newUser, organization };
@@ -1016,24 +947,41 @@ export class AuthService {
   // always present) plus any additional UserOrganization memberships. A chain admin invited into
   // other restaurants will have rows beyond the default; most users will only ever see the one.
   async getMyOrganizations(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { organizationId: true, roles: true, organization: { select: { id: true, name: true, slug: true } } },
+    });
+    if (!user) return [];
+
     const memberships = await this.prisma.userOrganization.findMany({
-      where: { userId },
+      where: { userId, organizationId: { not: user.organizationId } },
       select: {
         organizationId: true,
         roles: true,
-        isDefault: true,
         organization: { select: { id: true, name: true, slug: true } },
       },
-      orderBy: { isDefault: 'desc' },
+      orderBy: { createdAt: 'asc' },
     });
 
-    return memberships.map((m) => ({
-      organizationId: m.organizationId,
-      organizationName: m.organization.name,
-      organizationSlug: m.organization.slug,
-      roles: m.roles,
-      isDefault: m.isDefault,
-    }));
+    // The default org always comes from the User row itself, not a membership row: users created
+    // after the 2026-10-09 backfill never got one, and the User row's roles are the ones the JWT
+    // and the Users page actually use for that org.
+    return [
+      {
+        organizationId: user.organizationId,
+        organizationName: user.organization.name,
+        organizationSlug: user.organization.slug,
+        roles: user.roles,
+        isDefault: true,
+      },
+      ...memberships.map((m) => ({
+        organizationId: m.organizationId,
+        organizationName: m.organization.name,
+        organizationSlug: m.organization.slug,
+        roles: m.roles,
+        isDefault: false,
+      })),
+    ];
   }
 
   // Re-signs the caller's token with a different active organization. Membership is re-verified
@@ -1041,14 +989,6 @@ export class AuthService {
   // which org a token grants access to, everything downstream (JwtStrategy, every org-scoped
   // query) just trusts whatever org this mints into the token.
   async switchOrganization(userId: string, organizationId: string): Promise<any> {
-    const membership = await this.prisma.userOrganization.findUnique({
-      where: { userId_organizationId: { userId, organizationId } },
-    });
-
-    if (!membership) {
-      throw new UnauthorizedException('You do not have access to this organization');
-    }
-
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { organization: true },
@@ -1058,9 +998,96 @@ export class AuthService {
       throw new UnauthorizedException('User not found or inactive');
     }
 
+    // Switching back to the default org uses the User row (see getMyOrganizations) — many users
+    // have no membership row for it.
+    if (organizationId === user.organizationId) {
+      return this.buildAuthResponse(user, this.generateToken(user));
+    }
+
+    const membership = await this.prisma.userOrganization.findUnique({
+      where: { userId_organizationId: { userId, organizationId } },
+    });
+
+    if (!membership) {
+      throw new UnauthorizedException('You do not have access to this organization');
+    }
+
     const target = await this.prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
     const accessToken = this.generateToken({ ...user, organizationId, roles: membership.roles });
     return this.buildAuthResponse({ ...user, organizationId, roles: membership.roles, organization: target }, accessToken);
+  }
+
+  /**
+   * A signed-in user opens another business under the same login (e.g. a second branch). They
+   * become its Super Admin through a membership row, and get a token already switched into it.
+   * It gets the same 30-day Pro trial as a sign-up.
+   */
+  async createAdditionalOrganization(
+    actor: { id: string; impersonationSessionId?: string },
+    dto: CreateOrganizationDto,
+  ): Promise<any> {
+    if (actor.impersonationSessionId) {
+      throw new ForbiddenException("You can't create an organization while viewing as another org");
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: actor.id } });
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('User not found or inactive');
+    }
+    if (user.hasPlaceholderEmail || !user.isEmailVerified) {
+      throw new ForbiddenException('Verify your email address before creating another organization');
+    }
+
+    const slug = await this.generateUniqueSlug(dto.organizationName);
+    const organization = await this.prisma.$transaction(async (tx) => {
+      const org = await this.createOrganizationWithDefaults(tx, {
+        name: dto.organizationName.trim(),
+        slug,
+        email: user.email,
+        posMode: dto.posMode,
+      });
+      await tx.userOrganization.create({
+        data: { userId: user.id, organizationId: org.id, roles: ['SUPER_ADMIN'], isDefault: false },
+      });
+      return org;
+    });
+
+    this.logger.log(`User ${user.id} created additional organization ${organization.id} (${organization.name})`);
+    return this.switchOrganization(user.id, organization.id);
+  }
+
+  // Everything a brand-new organization needs, starting with a 30-day Pro trial.
+  private async createOrganizationWithDefaults(
+    tx: Prisma.TransactionClient,
+    opts: { name: string; slug: string; email: string; posMode?: PosMode },
+  ) {
+    const now = new Date();
+    const trialEnd = new Date(now);
+    trialEnd.setDate(trialEnd.getDate() + 30);
+
+    const organization = await tx.organization.create({
+      data: {
+        name: opts.name,
+        slug: opts.slug,
+        email: opts.email,
+        platformFeePercent: this.configService.get<number>('app.platformFeePercent') ?? 5,
+        planTier: 'PRO',
+        subscriptionStatus: 'TRIALING',
+        trialStartDate: now,
+        trialEndDate: trialEnd,
+        enabledModules: 'POS',
+        posMode: opts.posMode ?? 'RESTAURANT',
+      },
+    });
+
+    await tx.expenseCategory.createMany({
+      data: ['Supplies', 'Salary', 'Transport', 'Utilities', 'Equipment', 'Marketing', 'Other'].map((name) => ({
+        organizationId: organization.id,
+        name,
+      })),
+    });
+
+    return organization;
   }
 
   private async generateUniqueSlug(name: string): Promise<string> {

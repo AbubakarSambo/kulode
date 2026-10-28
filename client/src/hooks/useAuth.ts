@@ -206,6 +206,29 @@ export function useSwitchOrganization() {
   })
 }
 
+// Same hand-off as useSwitchOrganization, but the target org is created first (see
+// AuthService.createAdditionalOrganization).
+export function useCreateOrganization() {
+  const navigate = useNavigate()
+  const setAuth = useAuthStore((state) => state.setAuth)
+
+  return useMutation({
+    mutationFn: (data: { organizationName: string; posMode?: 'RESTAURANT' | 'RETAIL' }) => authApi.createOrganization(data),
+    onSuccess: (data) => {
+      setAuth(data.user, data.accessToken)
+      // Same reason as switching: no cache key is org-namespaced
+      queryClient.clear()
+      posthog.capture('organization_created', { organizationId: data.user.organizationId })
+      toast.success('Organization created', { description: data.user.organizationName })
+      navigate(postAuthRoute(data.user))
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to create organization'
+      toast.error('Could not create organization', { description: message })
+    },
+  })
+}
+
 // For PIN-eligible roles on a shared terminal — hands off to the PIN pad instead of the full
 // email/password login screen. Deliberately does NOT clear the session here: /pin isn't under
 // ProtectedRoute, so navigating first (while still "authenticated") leaves cleanly with no

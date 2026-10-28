@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
@@ -24,6 +24,7 @@ function createMockPrisma() {
     userOrganization: {
       findUnique: jest.fn(),
       findMany: jest.fn(),
+      create: jest.fn(),
     },
     emailVerificationToken: {
       findUnique: jest.fn(),
@@ -365,10 +366,21 @@ describe('AuthService — switchOrganization', () => {
   });
 
   it('throws UnauthorizedException when the user has no membership in the target org', async () => {
+    prisma.user.findUnique.mockResolvedValue(mockUser);
     prisma.userOrganization.findUnique.mockResolvedValue(null);
 
     await expect(service.switchOrganization('user-1', 'org-2')).rejects.toThrow(UnauthorizedException);
-    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    expect(prisma.organization.findUniqueOrThrow).not.toHaveBeenCalled();
+  });
+
+  it('switches back to the default org from the User row, with no membership row needed', async () => {
+    prisma.user.findUnique.mockResolvedValue(mockUser);
+
+    const result = await service.switchOrganization('user-1', 'org-1');
+
+    expect(prisma.userOrganization.findUnique).not.toHaveBeenCalled();
+    expect(result.user.organizationId).toBe('org-1');
+    expect(result.user.roles).toEqual(['SUPER_ADMIN']);
   });
 
   it('mints a token scoped to the target org and its membership roles on success', async () => {
@@ -402,28 +414,98 @@ describe('AuthService — switchOrganization', () => {
     expect(result.user.roles).toEqual(['MANAGER']);
   });
 
-  it('getMyOrganizations lists memberships with the default org first', async () => {
+  it('getMyOrganizations always lists the default org first, from the User row', async () => {
+    // No membership row for org-1 — users created after the 2026-10-09 backfill never got one
+    prisma.user.findUnique.mockResolvedValue({
+      organizationId: 'org-1',
+      roles: ['SUPER_ADMIN'],
+      organization: { id: 'org-1', name: 'Acme Ltd', slug: 'acme-ltd' },
+    });
     prisma.userOrganization.findMany.mockResolvedValue([
-      {
-        organizationId: 'org-1',
-        roles: ['SUPER_ADMIN'],
-        isDefault: true,
-        organization: { id: 'org-1', name: 'Acme Ltd', slug: 'acme-ltd' },
-      },
       {
         organizationId: 'org-2',
         roles: ['MANAGER'],
-        isDefault: false,
         organization: { id: 'org-2', name: 'Second Branch', slug: 'second-branch' },
       },
     ]);
 
     const result = await service.getMyOrganizations('user-1');
 
+    expect(prisma.userOrganization.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 'user-1', organizationId: { not: 'org-1' } } }),
+    );
     expect(result).toEqual([
       { organizationId: 'org-1', organizationName: 'Acme Ltd', organizationSlug: 'acme-ltd', roles: ['SUPER_ADMIN'], isDefault: true },
       { organizationId: 'org-2', organizationName: 'Second Branch', organizationSlug: 'second-branch', roles: ['MANAGER'], isDefault: false },
     ]);
+  });
+});
+
+// ─── creating another organization under the same login ─────────────────────────
+
+describe('AuthService — createAdditionalOrganization', () => {
+  let service: AuthService;
+  let prisma: ReturnType<typeof createMockPrisma>;
+  const newOrg = { ...mockOrg, id: 'org-new', name: 'NOON Daytime Bar', slug: 'noon-daytime-bar' };
+
+  beforeEach(async () => {
+    prisma = createMockPrisma();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: JwtService, useValue: createMockJwt() },
+        { provide: ConfigService, useValue: createMockConfig() },
+        { provide: EmailService, useValue: createMockEmail() },
+      ],
+    }).compile();
+    service = module.get<AuthService>(AuthService);
+    jest.clearAllMocks();
+
+    prisma.$transaction.mockImplementation((fn: (tx: typeof prisma) => unknown) => fn(prisma));
+    prisma.organization.findUnique.mockResolvedValue(null); // slug is free
+    prisma.organization.create.mockResolvedValue(newOrg);
+    prisma.organization.findUniqueOrThrow.mockResolvedValue(newOrg);
+    prisma.userOrganization.findUnique.mockResolvedValue({ userId: 'user-1', organizationId: 'org-new', roles: ['SUPER_ADMIN'] });
+  });
+
+  it('creates the org on a 30-day Pro trial, makes the caller its Super Admin, and switches into it', async () => {
+    prisma.user.findUnique.mockResolvedValue(mockUser);
+
+    const result = await service.createAdditionalOrganization({ id: 'user-1' }, { organizationName: ' NOON Daytime Bar ' });
+
+    expect(prisma.organization.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        name: 'NOON Daytime Bar',
+        email: 'admin@acme.com',
+        planTier: 'PRO',
+        subscriptionStatus: 'TRIALING',
+        posMode: 'RESTAURANT',
+      }),
+    });
+    const { trialStartDate, trialEndDate } = prisma.organization.create.mock.calls[0][0].data;
+    expect(Math.round((trialEndDate.getTime() - trialStartDate.getTime()) / 86_400_000)).toBe(30);
+    expect(prisma.expenseCategory.createMany).toHaveBeenCalled();
+    expect(prisma.userOrganization.create).toHaveBeenCalledWith({
+      data: { userId: 'user-1', organizationId: 'org-new', roles: ['SUPER_ADMIN'], isDefault: false },
+    });
+    expect(result.user.organizationId).toBe('org-new');
+    expect(result.user.roles).toEqual(['SUPER_ADMIN']);
+  });
+
+  it('refuses an unverified email', async () => {
+    prisma.user.findUnique.mockResolvedValue({ ...mockUser, isEmailVerified: false });
+    await expect(
+      service.createAdditionalOrganization({ id: 'user-1' }, { organizationName: 'X' }),
+    ).rejects.toThrow(ForbiddenException);
+    expect(prisma.organization.create).not.toHaveBeenCalled();
+  });
+
+  it('refuses a "View as" session', async () => {
+    await expect(
+      service.createAdditionalOrganization({ id: 'user-1', impersonationSessionId: 's1' }, { organizationName: 'X' }),
+    ).rejects.toThrow(ForbiddenException);
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
   });
 });
 

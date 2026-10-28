@@ -4,7 +4,7 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
-import { RegisterDto, LoginDto, AuthResponseDto, VerifyEmailDto, SetPasswordDto, ResendVerificationDto, ForgotPasswordDto, ResetPasswordDto, MagicLinkRegisterDto, PinLoginDto, SwitchOrganizationDto } from './dto';
+import { RegisterDto, LoginDto, AuthResponseDto, VerifyEmailDto, SetPasswordDto, ResendVerificationDto, ForgotPasswordDto, ResetPasswordDto, MagicLinkRegisterDto, PinLoginDto, SwitchOrganizationDto, CreateOrganizationDto } from './dto';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { Public, CurrentUser, CurrentUserData } from '../../common';
 import { PosMode } from '@prisma/client';
@@ -182,6 +182,18 @@ export class AuthController {
     @Body() dto: SwitchOrganizationDto,
   ): Promise<AuthResponseDto> {
     return this.authService.switchOrganization(user.id, dto.organizationId);
+  }
+
+  @Post('organizations')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create another organization under your own login and switch into it' })
+  @ApiResponse({ status: 201, description: 'Created and switched — same shape as switch-org', type: AuthResponseDto })
+  @ApiResponse({ status: 403, description: 'Email not verified, or a "View as" session' })
+  async createOrganization(
+    @CurrentUser() user: CurrentUserData,
+    @Body() dto: CreateOrganizationDto,
+  ): Promise<AuthResponseDto> {
+    return this.authService.createAdditionalOrganization(user, dto);
   }
 
   @Post('verify-password')
