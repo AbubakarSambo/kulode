@@ -27,6 +27,23 @@ export function UnreconciledTransfersPage() {
   const [walletNotes, setWalletNotes] = useState('')
   const [ignoreNotes, setIgnoreNotes] = useState('')
 
+  // Every open/close of these modals resets the picker state, including the server-side search.
+  // SearchableSelect clears its own text box on select but deliberately leaves the caller's search
+  // as-is, so without this the next modal opened with an empty-looking box over a list still
+  // filtered to the previous search — and the top option was the last customer credited, which is
+  // how a transfer got credited to the wrong wallet.
+  const openAssign = (t: MoniepointUnreconciledTransfer | null) => {
+    setAssignTarget(t)
+    setSelectedOrderId('')
+    setOrderSearch('')
+  }
+  const openWallet = (t: MoniepointUnreconciledTransfer | null) => {
+    setWalletTarget(t)
+    setSelectedCustomerId('')
+    setCustomerSearch('')
+    setWalletNotes('')
+  }
+
   const { data: transfers, isLoading } = useQuery({
     queryKey: ['moniepoint-unreconciled-transfers'],
     queryFn: () => moniepointApi.listUnreconciledTransfers('PENDING_REVIEW'),
@@ -62,8 +79,7 @@ export function UnreconciledTransfersPage() {
     onSuccess: () => {
       toast.success('Transfer applied to order')
       queryClient.invalidateQueries({ queryKey: ['moniepoint-unreconciled-transfers'] })
-      setAssignTarget(null)
-      setSelectedOrderId('')
+      openAssign(null)
     },
     onError: (err: unknown) => {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -77,9 +93,7 @@ export function UnreconciledTransfersPage() {
     onSuccess: () => {
       toast.success('Transfer credited to customer wallet')
       queryClient.invalidateQueries({ queryKey: ['moniepoint-unreconciled-transfers'] })
-      setWalletTarget(null)
-      setSelectedCustomerId('')
-      setWalletNotes('')
+      openWallet(null)
     },
     onError: (err: unknown) => {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -145,8 +159,8 @@ export function UnreconciledTransfersPage() {
                       value=""
                       onChange={(e) => {
                         const action = e.target.value
-                        if (action === 'order') setAssignTarget(t)
-                        else if (action === 'wallet') setWalletTarget(t)
+                        if (action === 'order') openAssign(t)
+                        else if (action === 'wallet') openWallet(t)
                         else if (action === 'other') setIgnoreTarget(t)
                       }}
                     >
@@ -165,7 +179,7 @@ export function UnreconciledTransfersPage() {
         )}
       </div>
 
-      <Modal isOpen={!!assignTarget} onClose={() => setAssignTarget(null)} title="Apply Transfer to Order">
+      <Modal isOpen={!!assignTarget} onClose={() => openAssign(null)} title="Apply Transfer to Order">
         <div className="space-y-4">
           {assignTarget && (
             <p className="text-sm text-muted-foreground">
@@ -191,12 +205,18 @@ export function UnreconciledTransfersPage() {
         </div>
       </Modal>
 
-      <Modal isOpen={!!walletTarget} onClose={() => setWalletTarget(null)} title="Credit Customer Wallet">
+      <Modal isOpen={!!walletTarget} onClose={() => openWallet(null)} title="Credit Customer Wallet">
         <div className="space-y-4">
           {walletTarget && (
             <p className="text-sm text-muted-foreground">
               Crediting <span className="font-semibold text-foreground">{formatCurrency(Number(walletTarget.amount))}</span> to the
               selected customer's wallet — not tied to any order.
+            </p>
+          )}
+          {walletTarget?.senderMetadata?.customerName && (
+            <p className="text-sm text-muted-foreground">
+              Sent by <span className="font-semibold text-foreground">{walletTarget.senderMetadata.customerName}</span> — check
+              this matches the customer you pick.
             </p>
           )}
           <SearchableSelect

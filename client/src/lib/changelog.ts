@@ -13,6 +13,19 @@ export interface ChangelogEntry {
 }
 
 export const changelogData: Record<string, ChangelogEntry> = {
+  '1.5.1': {
+    version: '1.5.1',
+    date: '2026-10-28',
+    title: 'Safer Wallet Top-ups From Transfers',
+    type: 'patch',
+    features: [
+      {
+        title: 'Customer Search Starts Fresh Each Time',
+        description: 'When crediting an unreconciled transfer to a wallet (or applying it to an order), the customer and order lists no longer stay filtered to your previous search, so the last customer you picked isn\'t sitting at the top by mistake. The sender\'s name is also shown so you can check it matches.',
+        tag: 'Stability',
+      },
+    ],
+  },
   '1.5.0': {
     version: '1.5.0',
     date: '2026-10-28',
