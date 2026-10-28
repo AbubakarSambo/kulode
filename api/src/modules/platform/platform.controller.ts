@@ -4,6 +4,7 @@ import { PlatformService } from './platform.service';
 import { PlatformAdminGuard } from '../../common/guards/platform-admin.guard';
 import { UpdatePlatformOrgDto } from './dto/update-platform-org.dto';
 import { GrantOrgAccessDto } from './dto/grant-org-access.dto';
+import { UpdateMembershipRolesDto } from './dto/update-membership-roles.dto';
 import { ExtendTrialDto } from './dto/extend-trial.dto';
 import { PlanTier, SubscriptionStatus } from '@prisma/client';
 
@@ -121,6 +122,18 @@ export class PlatformController {
     @Body() dto: GrantOrgAccessDto,
   ) {
     return this.platformService.grantOrganizationAccess(userId, dto.organizationId, dto.roles);
+  }
+
+  @Patch('users/:userId/organizations/:organizationId')
+  @ApiOperation({ summary: "Replace the roles a user holds in one of their organizations (primary org included)" })
+  @ApiResponse({ status: 200, description: 'Roles updated' })
+  @ApiResponse({ status: 404, description: 'User, organization, or membership not found' })
+  async updateMembershipRoles(
+    @Param('userId') userId: string,
+    @Param('organizationId') organizationId: string,
+    @Body() dto: UpdateMembershipRolesDto,
+  ) {
+    return this.platformService.updateMembershipRoles(userId, organizationId, dto.roles);
   }
 }
 
