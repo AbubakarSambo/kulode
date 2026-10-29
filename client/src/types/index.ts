@@ -31,8 +31,10 @@ export interface SubscriptionDetails {
   isGrandfathered: boolean
   autoRenew: boolean
   limits: {
-    maxUsers: number
-    maxInvoicesPerMonth: number
+    // The API's Infinity (BUSINESS plan, or users during a live trial) arrives as null once
+    // JSON-serialized — null means unlimited.
+    maxUsers: number | null
+    maxInvoicesPerMonth: number | null
     restrictedPages: string[]
   }
   usage: {

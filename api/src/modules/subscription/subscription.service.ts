@@ -10,7 +10,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaystackService } from '../paystack/paystack.service';
 import { EmailService } from '../email/email.service';
-import { PLAN_LIMITS, PLAN_PRICES } from '../../common/plan-limits';
+import { PLAN_LIMITS, PLAN_PRICES, maxUsersFor } from '../../common/plan-limits';
 
 @Injectable()
 export class SubscriptionService {
@@ -100,7 +100,7 @@ export class SubscriptionService {
       isGrandfathered: org.isGrandfathered,
       autoRenew: org.autoRenew,
       limits: {
-        maxUsers: limits.maxUsers,
+        maxUsers: maxUsersFor(effectivePlan, org.subscriptionStatus),
         maxInvoicesPerMonth: limits.maxInvoicesPerMonth,
         restrictedPages: limits.restrictedPages,
       },
