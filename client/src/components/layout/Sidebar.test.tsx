@@ -413,4 +413,16 @@ describe('Sidebar', () => {
     expect(screen.queryByText('Users')).not.toBeInTheDocument()
     expect(screen.queryByText('Order Types')).not.toBeInTheDocument()
   })
+
+  it('labels the orders list "Sales" in a retail org and hides the restaurant-only items', () => {
+    mockUseAuthStore.mockReturnValue({ ...adminUser, organization: { enabledModules: 'POS', posMode: 'RETAIL' } })
+    mockUseSubscription.mockReturnValue({ hasRequiredPlan: () => true })
+
+    renderSidebar()
+
+    expect(screen.getAllByText('Sales').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Orders')).not.toBeInTheDocument()
+    expect(screen.queryByText('Tables')).not.toBeInTheDocument()
+    expect(screen.queryByText('Kitchen')).not.toBeInTheDocument()
+  })
 })
