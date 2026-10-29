@@ -69,6 +69,9 @@ export function AppLayout() {
   const { hasRequiredPlan } = useSubscription()
   const { hasPos, hasInvoicing } = useOrgModules()
   const { isRetail } = usePosMode()
+  // A retail sale is created and paid in one step at checkout, so the /pos/orders list is really a
+  // sales history there — mirrors the same relabel in Sidebar.tsx.
+  const ordersLabel = isRetail ? 'Sales' : 'Orders'
 
   useIdleLogout(userIsPinEligible, switchUser)
 
@@ -84,7 +87,7 @@ export function AppLayout() {
     if (path.startsWith('/vendors')) return 'Vendors'
     if (path.startsWith('/expenses')) return 'Expenses'
     if (path.startsWith('/inventory')) return 'Inventory'
-    if (path.startsWith('/pos/orders')) return 'Orders'
+    if (path.startsWith('/pos/orders')) return ordersLabel
     if (path.startsWith('/pos/customers')) return 'Customers'
     if (path.startsWith('/pos/menu')) return 'Menu'
     if (path.startsWith('/pos/categories')) return 'Categories'
@@ -113,7 +116,7 @@ export function AppLayout() {
 
   const RESTRICTED_NAV_ITEMS_BY_HREF: Record<AllowedHref, { name: string; icon: typeof ShoppingCart }> = {
     '/pos/order/new': { name: 'Sell', icon: ShoppingCart },
-    '/pos/orders': { name: 'Orders', icon: Receipt },
+    '/pos/orders': { name: ordersLabel, icon: Receipt },
     '/pos/tables': { name: 'Tables', icon: LayoutGrid },
     '/pos/customers': { name: 'Customers', icon: UserRound },
     '/pos/kitchen': { name: 'Kitchen', icon: Timer },
@@ -139,7 +142,7 @@ export function AppLayout() {
     : [
         { name: 'Dashboard', href: '/pos/dashboard', icon: DashboardIcon },
         { name: 'Sell', href: '/pos/order/new', icon: ShoppingCart },
-        { name: 'Orders', href: '/pos/orders', icon: Receipt },
+        { name: ordersLabel, href: '/pos/orders', icon: Receipt },
       ]
 
   const isAdmin = userRoles.includes('SUPER_ADMIN') || userRoles.includes('ADMIN')
@@ -172,7 +175,7 @@ export function AppLayout() {
         // need a home here too or they're unreachable on mobile.
         { name: 'Dashboard', href: '/pos/dashboard', icon: DashboardIcon, visible: hasPos },
         { name: 'Sell', href: '/pos/order/new', icon: ShoppingCart, visible: hasPos },
-        { name: 'Orders', href: '/pos/orders', icon: Receipt, visible: hasPos },
+        { name: ordersLabel, href: '/pos/orders', icon: Receipt, visible: hasPos },
         // No tables/kitchen-ticket concepts in a retail (scan-and-sell) org — mirrors
         // RESTAURANT_ONLY_HREFS in Sidebar.tsx.
         { name: 'Tables', href: '/pos/tables', icon: LayoutGrid, visible: hasPos && !isRetail },

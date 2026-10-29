@@ -26,6 +26,7 @@ import { useSubscription } from '@/hooks/useSubscription'
 import { usePosMode } from '@/hooks/useOrgModules'
 
 import { formatCurrency, cn } from '@/lib/utils'
+import { downloadCsv } from '@/lib/csv'
 import type { InventoryItem, StockMovement, StockMovementType, UnitOfMeasure } from '@/types'
 import { InventoryIcon } from '@/components/ui/CustomIcons'
 import { useOverscrollBounce } from '@/hooks'
@@ -112,6 +113,20 @@ const getInitials = (name: string) => {
   if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase()
   return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
 }
+
+// Template for the retail "Import CSV" button — headers match what InventoryService.bulkImport
+// reads (case-insensitive; only "name" is required). unitPrice is the cost price, sellPrice what
+// checkout charges. The server splits rows on plain commas, so sample values must not contain any.
+const CATALOG_CSV_SAMPLE_ROWS: (string | number)[][] = [
+  ['name', 'barcode', 'sellPrice', 'unitPrice', 'department', 'unitOfMeasure', 'reorderLevel', 'initialStock', 'sku'],
+  ['Peak Milk Powder 400g', '6151100000011', 2500, 2100, 'Dairy', 'UNIT', 10, 48, 'PEAK-400'],
+  ['Mama Gold Rice 5kg', '6151100000035', 9000, 7800, 'Grains', 'UNIT', 5, 20, 'MGR-5KG'],
+  ['Golden Penny Sugar 500g', '6151100000042', 1200, 950, 'Baking', 'UNIT', 12, 60, 'GPS-500'],
+]
+
+// Excel reads a 13-digit barcode as a number and saves it back as "6.15E+12", losing the real code.
+const CATALOG_CSV_EXCEL_NOTE =
+  'Editing in Excel? Set the barcode column to Text before typing, or use Google Sheets — otherwise Excel turns barcodes like 6151100000011 into 6.15E+12 and the real code is lost.'
 
 // ─── Components ─────────────────────────────────────────────────────────────
 
@@ -366,7 +381,17 @@ export function InventoryPage() {
                     onChange={handleImportFileSelected}
                   />
                   <Button
+                    variant="ghost"
+                    onClick={() => {
+                      downloadCsv('catalog-sample.csv', CATALOG_CSV_SAMPLE_ROWS)
+                      toast.info('Sample catalog downloaded', { description: CATALOG_CSV_EXCEL_NOTE, duration: 12_000 })
+                    }}
+                  >
+                    Sample CSV
+                  </Button>
+                  <Button
                     variant="outline"
+                    title={CATALOG_CSV_EXCEL_NOTE}
                     onClick={() => importInputRef.current?.click()}
                     isLoading={importMutation.isPending}
                   >

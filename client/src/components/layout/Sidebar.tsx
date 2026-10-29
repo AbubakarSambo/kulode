@@ -208,7 +208,10 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         )
           return false
         return true
-      }),
+      })
+        // A retail sale is created and paid in one step at checkout, so /pos/orders is really a
+        // sales history there — mirrors the same relabel in AppLayout.tsx.
+        .map((item) => (isRetail && item.href === '/pos/orders' ? { ...item, name: 'Sales' } : item)),
     }))
     .filter((group) => group.items.length > 0)
 
