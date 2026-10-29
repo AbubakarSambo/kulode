@@ -26,3 +26,11 @@ export const PLAN_PRICES = {
   PRO: { monthly: 35000, annual: 350000 },
   BUSINESS: { monthly: 50000, annual: 500000 },
 } as const;
+
+// A live trial (TRIALING, not yet past trialEndDate — callers already drop an expired trial to an
+// effective FREE plan) gets unlimited users, so a restaurant can load its whole floor staff while
+// evaluating. Once it subscribes, the chosen plan's own maxUsers applies again.
+export function maxUsersFor(effectivePlan: keyof typeof PLAN_LIMITS, subscriptionStatus: string): number {
+  if (subscriptionStatus === 'TRIALING' && effectivePlan !== 'FREE') return Infinity;
+  return PLAN_LIMITS[effectivePlan].maxUsers;
+}

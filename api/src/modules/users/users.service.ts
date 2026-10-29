@@ -9,7 +9,7 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { CreateUserDto, UpdateUserDto, SetPinDto, SetOwnPinDto } from './dto';
-import { PaginationDto, paginate, PLAN_LIMITS, Role, PIN_ELIGIBLE_ROLES, FLOOR_STAFF_ROLES, canHoldPin } from '../../common';
+import { PaginationDto, paginate, maxUsersFor, Role, PIN_ELIGIBLE_ROLES, FLOOR_STAFF_ROLES, canHoldPin } from '../../common';
 import { TokenType, OrgModule, PosMode, Prisma } from '@prisma/client';
 
 const ADMIN_ROLES = [Role.ADMIN, Role.SUPER_ADMIN];
@@ -275,18 +275,18 @@ export class UsersService {
         effectivePlan = 'FREE';
       }
 
-      const limits = PLAN_LIMITS[effectivePlan];
+      const maxUsers = maxUsersFor(effectivePlan, organization.subscriptionStatus);
       const activeUserCount = await this.prisma.user.count({
         where: { ...this.inOrgWhere(organizationId), isActive: true },
       });
 
-      if (activeUserCount >= limits.maxUsers) {
+      if (activeUserCount >= maxUsers) {
         throw new ForbiddenException({
           statusCode: 403,
           code: 'USER_LIMIT_REACHED',
-          message: `Your ${effectivePlan} plan allows up to ${limits.maxUsers} user(s). Please upgrade to add more.`,
+          message: `Your ${effectivePlan} plan allows up to ${maxUsers} user(s). Please upgrade to add more.`,
           currentPlan: effectivePlan,
-          limit: limits.maxUsers,
+          limit: maxUsers,
           current: activeUserCount,
         });
       }

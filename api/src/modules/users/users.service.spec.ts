@@ -190,13 +190,13 @@ describe('UsersService — user limit enforcement', () => {
 
   // ─── Trial scenarios ──────────────────────────────────────────────────────
 
-  it('applies PRO user limits during an active trial (PRO plan, trial not expired)', async () => {
+  it('has no user limit during an active PRO trial, even past the PRO cap of 10', async () => {
     const futureDate = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
     prisma.user.findUnique.mockResolvedValue(null);
     prisma.organization.findUnique.mockResolvedValue(
       orgWith({ planTier: 'PRO', subscriptionStatus: 'TRIALING', trialEndDate: futureDate }),
     );
-    prisma.user.count.mockResolvedValue(2); // 2 of 3 used
+    prisma.user.count.mockResolvedValue(25);
     setupTransactionMock(prisma);
 
     await expect(service.create(ORG_ID, createDto, [Role.SUPER_ADMIN])).resolves.toBeDefined();
