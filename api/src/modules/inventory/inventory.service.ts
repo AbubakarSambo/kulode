@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateInventoryItemDto, UpdateInventoryItemDto, AdjustStockDto } from './dto';
+import { parseCsv } from '../../common/csv';
 
 type TransactionClient = Prisma.TransactionClient;
 
@@ -113,18 +114,19 @@ export class InventoryService {
   }
 
   // Loads a retail catalog from a CSV (name,barcode,sellPrice,unitPrice,department,unitOfMeasure,
-  // reorderLevel,initialStock,sku — header required, unknown columns ignored). A supermarket's
+  // reorderLevel,initialStock,sku — header required, unknown columns ignored; quoted fields with
+  // embedded commas are supported, e.g. "Indomie Chicken, 70g"). A supermarket's
   // catalog runs to hundreds/thousands of SKUs, so this replaces hand-creating items one at a time.
   // Each row is created independently (not one all-or-nothing transaction) so one bad row — a
   // duplicate barcode, a missing name — doesn't block every other row in the file from loading;
   // the caller gets a per-row success/error report back instead.
   async bulkImport(organizationId: string, userId: string, csv: string) {
-    const lines = csv.split(/\r?\n/).filter((line) => line.trim().length > 0);
+    const lines = parseCsv(csv);
     if (lines.length < 2) {
       throw new BadRequestException('CSV must have a header row and at least one data row');
     }
 
-    const header = lines[0].split(',').map((h) => h.trim().toLowerCase());
+    const header = lines[0].map((h) => h.trim().toLowerCase());
     const col = (name: string) => header.indexOf(name.toLowerCase());
     const nameIdx = col('name');
     if (nameIdx === -1) {
@@ -134,7 +136,7 @@ export class InventoryService {
     const results: Array<{ row: number; name?: string; status: 'created' | 'error'; error?: string }> = [];
 
     for (let i = 1; i < lines.length; i++) {
-      const cells = lines[i].split(',').map((c) => c.trim());
+      const cells = lines[i].map((c) => c.trim());
       const get = (name: string) => {
         const idx = col(name);
         return idx === -1 ? undefined : cells[idx] || undefined;

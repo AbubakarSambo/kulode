@@ -11,6 +11,7 @@ import { formatCurrency, formatDateTime, formatPaymentMethod, cn } from '@/lib/u
 import { useAuthStore } from '@/stores/auth'
 import type { OrderStatus } from '@/types'
 import { can } from '@/lib/permissions'
+import { usePosMode } from '@/hooks/useOrgModules'
 
 function statusBadgeVariant(status: OrderStatus) {
   return status === 'CLOSED_PAID' ? 'success' : status === 'CANCELLED' ? 'destructive' : 'default'
@@ -97,15 +98,25 @@ const STATUS_OPTIONS: { value: OrderStatus | ''; label: string }[] = [
   { value: 'CANCELLED', label: 'Cancelled' },
 ]
 
+// A retail sale is created and paid in one step at checkout, so it never sits open, in the kitchen
+// or awaiting payment — only paid or (rarely) cancelled sales ever show up here.
+const RETAIL_STATUS_OPTIONS: { value: OrderStatus | ''; label: string }[] = [
+  { value: '', label: 'All Sales' },
+  { value: 'CLOSED_PAID', label: 'Paid' },
+  { value: 'CANCELLED', label: 'Cancelled' },
+]
+
 export function OrdersListPage() {
   const [searchParams] = useSearchParams()
   const customerId = searchParams.get('customerId') || undefined
   const waiterId = searchParams.get('waiterId') || undefined
+  const { isRetail } = usePosMode()
 
   // Defaults to Open on the plain orders list — the common case is checking what's currently
   // active. A customer/waiter history view (arrived via query param) defaults to All Statuses
   // instead, since that's meant to show their full order history, not just what's running now.
-  const [status, setStatus] = useState<OrderStatus | ''>(customerId || waiterId ? '' : 'OPEN')
+  // Retail never has open orders, so it defaults to All Sales (newest first) as well.
+  const [status, setStatus] = useState<OrderStatus | ''>(customerId || waiterId || isRetail ? '' : 'OPEN')
   const [tableId, setTableId] = useState('')
   const [page, setPage] = useState(1)
   const limit = 100
@@ -133,10 +144,15 @@ export function OrdersListPage() {
   }
 
   const currentUser = useAuthStore((s) => s.user)
-  // Anyone who takes payment gets the "an order is ready for payment" nudge.
-  const canTakePayment = can(currentUser, 'PAYMENT_TAKE')
+  // Anyone who takes payment gets the "an order is ready for payment" nudge — except in retail,
+  // where every sale is paid at checkout so nothing is ever left awaiting payment.
+  const canTakePayment = can(currentUser, 'PAYMENT_TAKE') && !isRetail
 
-  const { data: tables } = useQuery({ queryKey: ['restaurant-tables'], queryFn: () => tablesApi.list() })
+  const { data: tables } = useQuery({
+    queryKey: ['restaurant-tables'],
+    queryFn: () => tablesApi.list(),
+    enabled: !isRetail,
+  })
 
   // Cashier notification queue — polls the awaiting-payment count independent of whatever
   // filter is currently selected, and toasts when a new order shows up in it.
@@ -181,13 +197,18 @@ export function OrdersListPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <Header title="Orders" description="Browse past and current orders" icon={Receipt} badgeText={data?.meta.total} />
+      <Header
+        title={isRetail ? 'Sales' : 'Orders'}
+        description={isRetail ? 'Look up past sales and reprint receipts' : 'Browse past and current orders'}
+        icon={Receipt}
+        badgeText={data?.meta.total}
+      />
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="relative mb-4 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search order #, customer, or waiter..."
+                        placeholder={isRetail ? 'Search sale #, customer, or cashier...' : 'Search order #, customer, or waiter...'}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -215,28 +236,30 @@ export function OrdersListPage() {
               setPage(1)
             }}
           >
-            {STATUS_OPTIONS.map((opt) => (
+            {(isRetail ? RETAIL_STATUS_OPTIONS : STATUS_OPTIONS).map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>
             ))}
           </Select>
 
-          <Select
-            className="w-auto"
-            value={tableId}
-            onChange={(e) => {
-              setTableId(e.target.value)
-              setPage(1)
-            }}
-          >
-            <option value="">All Tables</option>
-            {tables?.map((table) => (
-              <option key={table.id} value={table.id}>
-                {table.name}
-              </option>
-            ))}
-          </Select>
+          {!isRetail && (
+            <Select
+              className="w-auto"
+              value={tableId}
+              onChange={(e) => {
+                setTableId(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">All Tables</option>
+              {tables?.map((table) => (
+                <option key={table.id} value={table.id}>
+                  {table.name}
+                </option>
+              ))}
+            </Select>
+          )}
         </div>
 
         {isLoading ? (
@@ -244,7 +267,7 @@ export function OrdersListPage() {
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           </div>
         ) : !data || data.data.length === 0 ? (
-          <EmptyState icon={ReceiptTextIcon} title="No orders found" description="Try adjusting your filters" />
+          <EmptyState icon={ReceiptTextIcon} title={isRetail ? 'No sales found' : 'No orders found'} description="Try adjusting your filters" />
         ) : (
           <>
             <Card className="hidden overflow-hidden md:block">
@@ -252,8 +275,8 @@ export function OrdersListPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-border bg-muted/50 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      <th className="px-4 py-3">Order</th>
-                      <th className="px-4 py-3">Table / Source</th>
+                      <th className="px-4 py-3">{isRetail ? 'Sale' : 'Order'}</th>
+                      <th className="px-4 py-3">{isRetail ? 'Source' : 'Table / Source'}</th>
                       <th className="px-4 py-3">Customer</th>
                       <th className="px-4 py-3">Staff</th>
                       <th className="px-4 py-3">Status</th>

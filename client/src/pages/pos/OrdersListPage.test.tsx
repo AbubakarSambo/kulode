@@ -22,8 +22,10 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: (selector: (state: unknown) => unknown) => mockUseAuthStore(selector),
 }))
 
-function setCurrentUser(roles: string[]) {
-  mockUseAuthStore.mockImplementation((selector: (state: unknown) => unknown) => selector({ user: { id: 'u1', roles } }))
+function setCurrentUser(roles: string[], posMode?: 'RESTAURANT' | 'RETAIL') {
+  mockUseAuthStore.mockImplementation((selector: (state: unknown) => unknown) =>
+    selector({ user: { id: 'u1', roles, organization: posMode ? { posMode } : undefined } }),
+  )
 }
 
 function orderWith(overrides: Partial<OrderSummary>): OrderSummary {
@@ -257,6 +259,36 @@ describe('OrdersListPage', () => {
       renderPage()
 
       await waitFor(() => expect(ordersApi.listSummary).toHaveBeenCalled())
+      expect(screen.queryByRole('button', { name: /Awaiting Payment/ })).not.toBeInTheDocument()
+    })
+  })
+
+  describe('retail org', () => {
+    it('shows a Sales history defaulting to all sales, with no table filter or restaurant statuses', async () => {
+      setCurrentUser(['WAITER'], 'RETAIL')
+      vi.mocked(ordersApi.listSummary).mockResolvedValue(paginated([orderWith({ id: 'sale-1', status: 'CLOSED_PAID' })]))
+
+      renderPage()
+
+      await waitFor(() =>
+        expect(ordersApi.listSummary).toHaveBeenCalledWith(expect.objectContaining({ status: undefined, page: 1 })),
+      )
+      expect(ordersApi.listSummary).not.toHaveBeenCalledWith(expect.objectContaining({ statuses: ['OPEN', 'IN_KITCHEN'] }))
+      expect(screen.getAllByText('Sales').length).toBeGreaterThan(0)
+      expect(tablesApi.list).not.toHaveBeenCalled()
+      expect(screen.queryByRole('option', { name: 'All Tables' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('option', { name: 'In Kitchen' })).not.toBeInTheDocument()
+      expect(screen.getByRole('option', { name: 'Paid' })).toBeInTheDocument()
+    })
+
+    it('never polls or shows the awaiting-payment queue, even for a cashier', async () => {
+      setCurrentUser(['CASHIER'], 'RETAIL')
+      vi.mocked(ordersApi.listSummary).mockResolvedValue(paginated([orderWith({ id: 'unpaid-1' })], { total: 3 }))
+
+      renderPage()
+
+      await waitFor(() => expect(ordersApi.listSummary).toHaveBeenCalled())
+      expect(ordersApi.listSummary).not.toHaveBeenCalledWith(expect.objectContaining({ status: 'CLOSED_UNPAID', limit: 1 }))
       expect(screen.queryByRole('button', { name: /Awaiting Payment/ })).not.toBeInTheDocument()
     })
   })

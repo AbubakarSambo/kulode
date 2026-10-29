@@ -6,8 +6,9 @@ import { Trash2, Minus, Plus, ScanLine } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Input, Label } from '@/components/ui'
 import { inventoryApi, ordersApi, paymentTypesApi } from '@/api'
-import { formatCurrency, formatPaymentMethod } from '@/lib/utils'
+import { cn, formatCurrency, formatPaymentMethod } from '@/lib/utils'
 import { printBill } from '@/lib/printBill'
+import type { InventoryItem } from '@/types'
 
 interface CartLine {
   inventoryItemId: string
@@ -22,6 +23,10 @@ interface CartLine {
 // this field has no other purpose that manual fast typing could be confused with.
 const MIN_CODE_LENGTH = 3
 
+// Name search kicks in from two characters so a single stray keystroke doesn't flood the list.
+const MIN_SEARCH_LENGTH = 2
+const MAX_SUGGESTIONS = 8
+
 export function RetailCheckoutPage() {
   const navigate = useNavigate()
   const scanInputRef = useRef<HTMLInputElement>(null)
@@ -29,6 +34,28 @@ export function RetailCheckoutPage() {
   const [cart, setCart] = useState<CartLine[]>([])
   const [paymentMethod, setPaymentMethod] = useState<string>('')
   const [isCharging, setIsCharging] = useState(false)
+  // Highlighted suggestion (arrow keys) — -1 means none, so a scanner's trailing Enter always goes
+  // to the barcode lookup rather than silently adding whatever name suggestion happens to be first.
+  const [activeIndex, setActiveIndex] = useState(-1)
+
+  // Same cache key as the Catalog page, so items added there show up here without a refetch dance.
+  const { data: catalog } = useQuery({
+    queryKey: ['inventory-items'],
+    queryFn: () => inventoryApi.list(),
+  })
+
+  const searchTerm = scanValue.trim().toLowerCase()
+  const suggestions = useMemo(() => {
+    if (searchTerm.length < MIN_SEARCH_LENGTH || !catalog) return []
+    return catalog
+      .filter(
+        (item) =>
+          item.name.toLowerCase().includes(searchTerm) ||
+          item.sku?.toLowerCase().includes(searchTerm) ||
+          item.barcode?.toLowerCase().includes(searchTerm),
+      )
+      .slice(0, MAX_SUGGESTIONS)
+  }, [catalog, searchTerm])
 
   const { data: paymentTypes } = useQuery({
     queryKey: ['payment-types'],
@@ -69,17 +96,53 @@ export function RetailCheckoutPage() {
   }
 
   const lookupMutation = useMutation({
-    mutationFn: (barcode: string) => inventoryApi.lookupByBarcode(barcode),
+    mutationFn: ({ code }: { code: string; nameMatches: InventoryItem[] }) => inventoryApi.lookupByBarcode(code),
     onSuccess: (item) => addToCart(item),
-    onError: () => toast.error(`No item found for barcode "${scanValue}"`),
+    // Not a barcode — if what was typed names exactly one catalog item, Enter just adds that.
+    onError: (_err, { code, nameMatches }) => {
+      if (nameMatches.length === 1) addToCart(nameMatches[0])
+      else if (nameMatches.length > 1) {
+        // Put the text back so the suggestion list reappears for the cashier to pick from.
+        setScanValue(code)
+        toast.error(`Several items match "${code}" — pick one from the list`)
+      } else toast.error(`No item found for "${code}"`)
+    },
   })
+
+  const resetSearch = () => {
+    setScanValue('')
+    setActiveIndex(-1)
+  }
+
+  const pickSuggestion = (item: InventoryItem) => {
+    addToCart(item)
+    resetSearch()
+    refocusScanInput()
+  }
 
   const handleScanSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (activeIndex >= 0 && suggestions[activeIndex]) {
+      pickSuggestion(suggestions[activeIndex])
+      return
+    }
     const code = scanValue.trim()
-    setScanValue('')
+    const nameMatches = suggestions
+    resetSearch()
     if (code.length < MIN_CODE_LENGTH) return
-    lookupMutation.mutate(code)
+    lookupMutation.mutate({ code, nameMatches })
+  }
+
+  const handleScanKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown' && suggestions.length > 0) {
+      e.preventDefault()
+      setActiveIndex((i) => (i + 1) % suggestions.length)
+    } else if (e.key === 'ArrowUp' && suggestions.length > 0) {
+      e.preventDefault()
+      setActiveIndex((i) => (i <= 0 ? suggestions.length - 1 : i - 1))
+    } else if (e.key === 'Escape') {
+      resetSearch()
+    }
   }
 
   const updateQuantity = (inventoryItemId: string, delta: number) => {
@@ -147,7 +210,7 @@ export function RetailCheckoutPage() {
     <div className="flex h-full flex-col overflow-hidden">
       <Header
         title="Checkout"
-        description="Scan an item's barcode to add it to the sale"
+        description="Scan a barcode or search by item name to add it to the sale"
         action={
           <Button variant="ghost" size="sm" onClick={() => navigate('/inventory')}>
             View Catalog
@@ -157,25 +220,71 @@ export function RetailCheckoutPage() {
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
         <form onSubmit={handleScanSubmit}>
-          <Label htmlFor="barcode-scan">Scan barcode</Label>
+          <Label htmlFor="barcode-scan">Scan barcode or search</Label>
           <div className="relative mt-1">
             <ScanLine className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               id="barcode-scan"
               ref={scanInputRef}
               value={scanValue}
-              onChange={(e) => setScanValue(e.target.value)}
+              onChange={(e) => {
+                setScanValue(e.target.value)
+                setActiveIndex(-1)
+              }}
+              onKeyDown={handleScanKeyDown}
               onBlur={refocusScanInput}
               autoComplete="off"
               className="pl-9"
-              placeholder="Scan or type a barcode, then press Enter"
+              placeholder="Scan a barcode, or type an item name"
+              role="combobox"
+              aria-expanded={suggestions.length > 0}
+              aria-controls="barcode-scan-suggestions"
+              aria-activedescendant={activeIndex >= 0 ? `barcode-scan-option-${activeIndex}` : undefined}
             />
+            {suggestions.length > 0 && (
+              <ul
+                id="barcode-scan-suggestions"
+                role="listbox"
+                className="absolute z-20 mt-1 max-h-80 w-full overflow-y-auto rounded-md border border-border bg-surface-container-lowest shadow-lg"
+              >
+                {suggestions.map((item, index) => (
+                  <li
+                    key={item.id}
+                    id={`barcode-scan-option-${index}`}
+                    role="option"
+                    aria-selected={index === activeIndex}
+                    // mousedown, not click — otherwise the input's blur-refocus fires first and the
+                    // list can re-render out from under the tap.
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      pickSuggestion(item)
+                    }}
+                    onMouseEnter={() => setActiveIndex(index)}
+                    className={cn(
+                      'flex cursor-pointer items-center justify-between gap-3 px-3 py-2 text-sm',
+                      index === activeIndex ? 'bg-surface-container' : 'hover:bg-surface-container-low',
+                    )}
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate font-medium text-foreground">{item.name}</div>
+                      <div className="truncate text-xs text-muted-foreground">
+                        {[item.sku, item.barcode].filter(Boolean).join(' · ') || 'No barcode'} · {item.availableQuantity} in
+                        stock
+                      </div>
+                    </div>
+                    <span className="shrink-0 font-semibold text-foreground">
+                      {item.sellPrice != null ? formatCurrency(item.sellPrice) : 'No price'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </form>
 
         <div className="space-y-2">
           {cart.length === 0 && (
-            <p className="py-8 text-center text-sm text-muted-foreground">Cart is empty — scan an item to begin</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">Cart is empty — scan or search for an item to begin</p>
           )}
           {cart.map((line) => (
             <Card key={line.inventoryItemId} className="p-3">
