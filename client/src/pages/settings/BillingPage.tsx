@@ -193,11 +193,14 @@ export function BillingPage() {
   }
 
   // Visual Progress calculations for limits
-  const invoicePercent = subscription && subscription.limits.maxInvoicesPerMonth !== Infinity
-    ? Math.min(100, (subscription.usage.invoicesThisMonth / subscription.limits.maxInvoicesPerMonth) * 100)
+  // null = unlimited (see SubscriptionInfo.limits)
+  const maxInvoices = subscription?.limits.maxInvoicesPerMonth ?? Infinity
+  const maxUsers = subscription?.limits.maxUsers ?? Infinity
+  const invoicePercent = subscription && maxInvoices !== Infinity
+    ? Math.min(100, (subscription.usage.invoicesThisMonth / maxInvoices) * 100)
     : 0
-  const userPercent = subscription && subscription.limits.maxUsers !== Infinity
-    ? Math.min(100, (subscription.usage.activeUsers / subscription.limits.maxUsers) * 100)
+  const userPercent = subscription && maxUsers !== Infinity
+    ? Math.min(100, (subscription.usage.activeUsers / maxUsers) * 100)
     : 0
 
   return (
@@ -298,7 +301,7 @@ export function BillingPage() {
                         <HugeiconsIcon icon={Invoice03Icon} size={14} className="text-slate-400" /> Invoices Created
                       </span>
                       <span className="font-semibold">
-                        {subscription.usage.invoicesThisMonth} / {subscription.limits.maxInvoicesPerMonth === Infinity ? '∞' : subscription.limits.maxInvoicesPerMonth}
+                        {subscription.usage.invoicesThisMonth} / {maxInvoices === Infinity ? '∞' : maxInvoices}
                       </span>
                     </div>
                     <div className="w-full bg-[#eef4ff] dark:bg-slate-800 rounded-full h-2">
@@ -316,7 +319,7 @@ export function BillingPage() {
                         <HugeiconsIcon icon={UserGroupIcon} size={14} className="text-slate-400" /> Team Seats
                       </span>
                       <span className="font-semibold">
-                        {subscription.usage.activeUsers} / {subscription.limits.maxUsers === Infinity ? '∞' : subscription.limits.maxUsers}
+                        {subscription.usage.activeUsers} / {maxUsers === Infinity ? '∞' : maxUsers}
                       </span>
                     </div>
                     <div className="w-full bg-[#eef4ff] dark:bg-slate-800 rounded-full h-2">
