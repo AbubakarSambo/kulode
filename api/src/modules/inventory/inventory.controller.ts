@@ -15,7 +15,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { InventoryService } from './inventory.service';
-import { CreateInventoryItemDto, UpdateInventoryItemDto, AdjustStockDto } from './dto';
+import { CreateInventoryItemDto, UpdateInventoryItemDto, AdjustStockDto, AssignBarcodesDto } from './dto';
 import { CurrentUser, Roles, Role, Can } from '../../common';
 
 @ApiTags('Inventory')
@@ -76,6 +76,15 @@ export class InventoryController {
     @Body() dto: AdjustStockDto,
   ) {
     return this.inventoryService.adjustStock(organizationId, id, userId, dto);
+  }
+
+  @Post('assign-barcodes')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  assignBarcodes(
+    @CurrentUser('organizationId') organizationId: string,
+    @Body() dto: AssignBarcodesDto,
+  ) {
+    return this.inventoryService.assignBarcodes(organizationId, dto.itemIds);
   }
 
   @Post('import')
