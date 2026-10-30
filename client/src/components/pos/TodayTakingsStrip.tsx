@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Eye, EyeOff } from 'lucide-react'
 import { posDashboardApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
+import { useCurrentOrgSettings } from '@/hooks/useOrgSettingsSync'
 import { can } from '@/lib/permissions'
 import { formatCurrency } from '@/lib/utils'
 
@@ -19,10 +20,13 @@ function readHidden(): boolean {
 // Today's running takings for this branch, so floor staff can see where the day stands without
 // opening a report — paid, still open, and the two together. Refreshes on the same 15s cadence as
 // the rest of the POS. The eye toggle masks the amounts for a screen that faces customers (e.g. a
-// retail till), and is remembered per device. Only shown once the org turns it on in settings.
+// retail till), and is remembered per device. Only shown once the org turns it on in settings —
+// read from the org settings the app already caches, so nothing polls while it's off. The server
+// checks the same flag too, so the figures never leave it for an org that has it off.
 export function TodayTakingsStrip() {
   const user = useAuthStore((state) => state.user)
-  const allowed = can(user, 'TODAY_TAKINGS_VIEW')
+  const { data: org } = useCurrentOrgSettings()
+  const allowed = can(user, 'TODAY_TAKINGS_VIEW') && !!org?.showTakingsStrip
   const [hidden, setHidden] = useState(readHidden)
 
   const { data } = useQuery({
@@ -30,8 +34,7 @@ export function TodayTakingsStrip() {
     queryKey: ['pos-dashboard', 'today', user?.organizationId],
     queryFn: () => posDashboardApi.getTodayTakings(),
     enabled: allowed,
-    // Turned off: check back now and then so switching it on in settings shows up without a reload
-    refetchInterval: (query) => (query.state.data?.enabled ? 15_000 : 60_000),
+    refetchInterval: 15_000,
   })
 
   if (!allowed || !data?.enabled) return null
