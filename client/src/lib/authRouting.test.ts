@@ -49,6 +49,16 @@ describe('getPostAuthRoute', () => {
       }
     })
 
+    it('lands on the POS dashboard in a retail org with BOTH modules, not the invoicing one', () => {
+      const user = makeUser({ roles: ['ADMIN'], organization: { id: 'o1', name: 'Org', slug: 'org', isPaystackVerified: false, enabledModules: 'BOTH', posMode: 'RETAIL' } })
+      expect(getPostAuthRoute(user)).toBe('/pos/dashboard')
+    })
+
+    it('keeps a POS-only retail admin on the Sell screen', () => {
+      const user = makeUser({ roles: ['ADMIN'], organization: { id: 'o1', name: 'Org', slug: 'org', isPaystackVerified: false, enabledModules: 'POS', posMode: 'RETAIL' } })
+      expect(getPostAuthRoute(user)).toBe('/pos/order/new')
+    })
+
     it('MANAGER + ADMIN keeps the admin module-based landing', () => {
       const user = makeUser({ roles: ['MANAGER', 'ADMIN'], organization: { id: 'o1', name: 'Org', slug: 'org', isPaystackVerified: false, enabledModules: 'POS' } })
       expect(getPostAuthRoute(user)).toBe('/pos/order/new')
