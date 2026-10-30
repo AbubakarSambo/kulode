@@ -5,14 +5,15 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, Users, Search, Upload } from 'lucide-react'
+import { Plus, Users, Search, Upload, AlertTriangle } from 'lucide-react'
 import { UserGroupIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Card, CardContent, EmptyState } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { CsvImportModal, type CsvColumn } from '@/components/shared/CsvImportModal'
 import { customersApi } from '@/api'
-import { formatDate } from '@/lib/utils'
+import { cn, formatCurrency, formatDate } from '@/lib/utils'
+import type { Customer } from '@/types'
 
 const CSV_COLUMNS: CsvColumn[] = [
   { key: 'name', label: 'Name', required: true },
@@ -34,19 +35,52 @@ const customerSchema = z.object({
 })
 type CustomerFormData = z.infer<typeof customerSchema>
 
+// Debt in red with how much of the credit limit it uses; a positive balance is prepaid credit.
+// Balances arrive as Decimal strings from the API, hence Number().
+function WalletBalance({ customer, compact = false }: { customer: Customer; compact?: boolean }) {
+  const balance = Number(customer.walletBalance)
+  const limit = Number(customer.creditLimit)
+  if (!balance) return <span className="text-sm text-muted-foreground">—</span>
+  if (balance > 0) return <span className="text-sm font-medium text-foreground">{formatCurrency(balance)}</span>
+
+  const owed = -balance
+  return (
+    <div className={cn('flex flex-col', compact ? 'items-end' : 'items-start')}>
+      <span className="text-sm font-semibold text-destructive">Owes {formatCurrency(owed)}</span>
+      {owed > limit ? (
+        <span className="text-xs font-medium text-destructive">Over limit{limit > 0 && ` of ${formatCurrency(limit)}`}</span>
+      ) : (
+        <span className="text-xs text-muted-foreground">of {formatCurrency(limit)} limit</span>
+      )}
+    </div>
+  )
+}
+
 export function CustomersListPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [owingOnly, setOwingOnly] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const limit = 100
 
   const { data, isLoading } = useQuery({
-    queryKey: ['customers', { search, page }],
-    queryFn: () => customersApi.list({ search: search || undefined, page, limit }),
+    queryKey: ['customers', { search, page, owingOnly }],
+    queryFn: () =>
+      customersApi.list({ search: search || undefined, page, limit, balance: owingOnly ? 'owing' : undefined }),
   })
+
+  const { data: walletSummary } = useQuery({
+    queryKey: ['customers', 'wallet-summary'],
+    queryFn: () => customersApi.getWalletSummary(),
+  })
+
+  const showOwing = (value: boolean) => {
+    setOwingOnly(value)
+    setPage(1)
+  }
 
   const form = useForm<CustomerFormData>({ resolver: zodResolver(customerSchema) })
 
@@ -86,6 +120,33 @@ export function CustomersListPage() {
       />
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        {!!walletSummary?.owingCount && (
+          <button
+            type="button"
+            onClick={() => showOwing(true)}
+            className="mb-4 flex w-full flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-left text-sm hover:bg-destructive/10"
+          >
+            <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
+            <span className="font-semibold text-foreground">
+              {walletSummary.owingCount} customer{walletSummary.owingCount === 1 ? ' owes' : 's owe'}{' '}
+              <span className="text-destructive">{formatCurrency(walletSummary.totalOwed)}</span>
+            </span>
+            {walletSummary.overLimitCount > 0 && (
+              <span className="text-muted-foreground">{walletSummary.overLimitCount} over their credit limit</span>
+            )}
+            {!owingOnly && <span className="ml-auto text-xs font-medium text-primary">View who's owing →</span>}
+          </button>
+        )}
+
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <Button size="sm" variant={owingOnly ? 'outline' : 'default'} onClick={() => showOwing(false)} aria-pressed={!owingOnly}>
+            All
+          </Button>
+          <Button size="sm" variant={owingOnly ? 'default' : 'outline'} onClick={() => showOwing(true)} aria-pressed={owingOnly}>
+            Owing{walletSummary ? ` (${walletSummary.owingCount})` : ''}
+          </Button>
+        </div>
+
         <div className="relative mb-4 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -103,6 +164,12 @@ export function CustomersListPage() {
           <div className="flex items-center justify-center py-12">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           </div>
+        ) : (!data || data.data.length === 0) && (owingOnly || search) ? (
+          <EmptyState
+            icon={UserGroupIcon}
+            title={owingOnly && !search ? 'Nobody owes anything' : 'No matching customers'}
+            description={owingOnly && !search ? 'No customer has a negative wallet balance' : 'Try a different search'}
+          />
         ) : !data || data.data.length === 0 ? (
           <EmptyState
             icon={UserGroupIcon}
@@ -122,6 +189,7 @@ export function CustomersListPage() {
                       <th className="px-4 py-3">Name</th>
                       <th className="px-4 py-3">Phone</th>
                       <th className="px-4 py-3">Email</th>
+                      <th className="px-4 py-3">Wallet</th>
                       <th className="px-4 py-3 text-center">Orders</th>
                       <th className="px-4 py-3">Since</th>
                     </tr>
@@ -136,6 +204,9 @@ export function CustomersListPage() {
                         <td className="px-4 py-3 font-semibold text-foreground">{customer.name}</td>
                         <td className="px-4 py-3 text-sm text-muted-foreground">{customer.phone || '—'}</td>
                         <td className="px-4 py-3 text-sm text-muted-foreground">{customer.email || '—'}</td>
+                        <td className="px-4 py-3">
+                          <WalletBalance customer={customer} />
+                        </td>
                         <td className="px-4 py-3 text-center text-sm font-medium text-foreground">
                           {customer._count?.orders ?? 0}
                         </td>
@@ -161,9 +232,13 @@ export function CustomersListPage() {
                         <div className="font-semibold text-foreground">{customer.name}</div>
                         <div className="text-xs text-muted-foreground">{customer.phone || '—'}</div>
                       </div>
-                      <span className="rounded-full bg-muted px-2 py-1 text-xs font-semibold text-foreground">
-                        {customer._count?.orders ?? 0} orders
-                      </span>
+                      {Number(customer.walletBalance) < 0 ? (
+                        <WalletBalance customer={customer} compact />
+                      ) : (
+                        <span className="rounded-full bg-muted px-2 py-1 text-xs font-semibold text-foreground">
+                          {customer._count?.orders ?? 0} orders
+                        </span>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
