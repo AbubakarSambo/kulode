@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Trash2, Minus, Plus, ScanLine } from 'lucide-react'
+import { Trash2, Minus, Plus, ScanLine, X } from 'lucide-react'
 import { Header } from '@/components/layout'
-import { Button, Card, CardContent, Input, Label } from '@/components/ui'
-import { inventoryApi, ordersApi, paymentTypesApi } from '@/api'
+import { Button, Card, CardContent, Input, Label, SearchableSelect } from '@/components/ui'
+import { customersApi, inventoryApi, ordersApi, organizationsApi, paymentTypesApi } from '@/api'
 import { cn, formatCurrency, formatPaymentMethod } from '@/lib/utils'
 import { printBill } from '@/lib/printBill'
-import type { InventoryItem } from '@/types'
+import { computeOrderCharges } from '@/lib/orderCharges'
+import type { Customer, InventoryItem } from '@/types'
 
 interface CartLine {
   inventoryItemId: string
@@ -27,8 +28,28 @@ const MIN_CODE_LENGTH = 3
 const MIN_SEARCH_LENGTH = 2
 const MAX_SUGGESTIONS = 8
 
+// The built-in wallet tender (a reserved payment method, never a configured PaymentType) — charges
+// the selected customer's wallet, so the sale must carry that customer.
+const WALLET = 'WALLET'
+
+function useIsOnline() {
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine)
+  useEffect(() => {
+    const update = () => setIsOnline(navigator.onLine)
+    window.addEventListener('online', update)
+    window.addEventListener('offline', update)
+    return () => {
+      window.removeEventListener('online', update)
+      window.removeEventListener('offline', update)
+    }
+  }, [])
+  return isOnline
+}
+
 export function RetailCheckoutPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const isOnline = useIsOnline()
   const scanInputRef = useRef<HTMLInputElement>(null)
   const [scanValue, setScanValue] = useState('')
   const [cart, setCart] = useState<CartLine[]>([])
@@ -57,6 +78,16 @@ export function RetailCheckoutPage() {
       .slice(0, MAX_SUGGESTIONS)
   }, [catalog, searchTerm])
 
+  // For the org's VAT / entertainment tax / service charge — the API adds whichever are enabled to
+  // every sale, so the total shown and charged here must include them. Always refetched on mount,
+  // like OrderTakingPage, so a rate change in settings shows up at the next sale.
+  const { data: organization } = useQuery({
+    queryKey: ['organization'],
+    queryFn: () => organizationsApi.getCurrent(),
+    staleTime: 0,
+    refetchOnMount: 'always',
+  })
+
   const { data: paymentTypes } = useQuery({
     queryKey: ['payment-types'],
     queryFn: () => paymentTypesApi.list(),
@@ -70,11 +101,40 @@ export function RetailCheckoutPage() {
     if (!paymentMethod && paymentOptions.length > 0) setPaymentMethod(paymentOptions[0].name)
   }, [paymentOptions, paymentMethod])
 
+  // Wallet sale: who's paying. Searched server-side (debounced) like OrderDetailPage's customer
+  // picker, so an org with thousands of customers can still find older ones.
+  const [walletCustomer, setWalletCustomer] = useState<Customer | null>(null)
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState('')
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedCustomerSearch(customerSearch), 300)
+    return () => clearTimeout(handler)
+  }, [customerSearch])
+  const isWallet = paymentMethod === WALLET
+  const { data: customersPage } = useQuery({
+    queryKey: ['customers', { limit: 100, search: debouncedCustomerSearch || undefined }],
+    queryFn: () => customersApi.list({ limit: 100, search: debouncedCustomerSearch || undefined }),
+    enabled: isWallet,
+  })
+  const customerOptions = useMemo(
+    () => (customersPage?.data ?? []).map((c) => ({ id: c.id, label: c.phone ? `${c.name} (${c.phone})` : c.name })),
+    [customersPage],
+  )
+
+  // A wallet charge has to be checked against the balance at the moment of sale — queued offline,
+  // two sales could spend the same money — so the option is unavailable without a connection.
+  useEffect(() => {
+    if (!isOnline && isWallet) setPaymentMethod(paymentOptions[0]?.name ?? '')
+  }, [isOnline, isWallet, paymentOptions])
+
   // Keeps the scan field focused at all times during checkout — a scanner is a keyboard-emulating
   // HID device, so it only "works" if this input (or nothing else) has focus when it fires.
   const refocusScanInput = () => {
     requestAnimationFrame(() => scanInputRef.current?.focus())
   }
+  // ...except while the cashier is picking a wallet customer — the picker's search box needs focus
+  // to be typed into. Resumes as soon as a customer is chosen (see pickWalletCustomer).
+  const isPickingCustomer = isWallet && !walletCustomer
   useEffect(() => {
     refocusScanInput()
   }, [])
@@ -160,11 +220,26 @@ export function RetailCheckoutPage() {
   }
 
   const subtotal = cart.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0)
+  const { vatAmount, entertainmentTaxAmount, serviceChargeAmount, total } = computeOrderCharges(subtotal, organization)
+
+  const pickWalletCustomer = (customerId: string) => {
+    setWalletCustomer(customersPage?.data.find((c) => c.id === customerId) ?? null)
+    refocusScanInput()
+  }
+
+  // Shown to the cashier before charging; the server makes the real check (and will refuse a sale
+  // past the credit limit).
+  const balanceAfter = walletCustomer ? walletCustomer.walletBalance - total : undefined
+  const exceedsCredit = walletCustomer !== null && balanceAfter !== undefined && balanceAfter < -walletCustomer.creditLimit
 
   const charge = async () => {
     if (cart.length === 0) return
     if (!paymentMethod) {
       toast.error('Select a payment method first')
+      return
+    }
+    if (isWallet && !walletCustomer) {
+      toast.error('Pick the customer whose wallet to charge')
       return
     }
     setIsCharging(true)
@@ -176,6 +251,7 @@ export function RetailCheckoutPage() {
       const order = await ordersApi.create({
         source: 'Retail Sale',
         items: cart.map((line) => ({ inventoryItemId: line.inventoryItemId, quantity: line.quantity })),
+        ...(isWallet && walletCustomer && { customerId: walletCustomer.id }),
       })
       if ('__offlinePending' in order) {
         toast.success('No connection — sale queued and will sync automatically')
@@ -197,6 +273,12 @@ export function RetailCheckoutPage() {
         }
       }
       setCart([])
+      if (isWallet) {
+        // Back to the default tender so the next sale isn't charged to this wallet by accident
+        setWalletCustomer(null)
+        setPaymentMethod(paymentOptions[0]?.name ?? '')
+        queryClient.invalidateQueries({ queryKey: ['customers'] })
+      }
       refocusScanInput()
     } catch (err) {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -232,7 +314,9 @@ export function RetailCheckoutPage() {
                 setActiveIndex(-1)
               }}
               onKeyDown={handleScanKeyDown}
-              onBlur={refocusScanInput}
+              onBlur={() => {
+                if (!isPickingCustomer) refocusScanInput()
+              }}
               autoComplete="off"
               className="pl-9"
               placeholder="Scan a barcode, or type an item name"
@@ -315,9 +399,35 @@ export function RetailCheckoutPage() {
       </div>
 
       <div className="border-t border-outline-variant/20 bg-surface-container-lowest p-4 sm:p-6 space-y-3">
+        {total !== subtotal && (
+          <div className="space-y-1 text-sm text-muted-foreground">
+            <div className="flex justify-between">
+              <span>Subtotal</span>
+              <span>{formatCurrency(subtotal)}</span>
+            </div>
+            {vatAmount > 0 && (
+              <div className="flex justify-between">
+                <span>VAT ({Number(organization?.taxRate)}%)</span>
+                <span>{formatCurrency(vatAmount)}</span>
+              </div>
+            )}
+            {entertainmentTaxAmount > 0 && (
+              <div className="flex justify-between">
+                <span>Entertainment Tax ({Number(organization?.entertainmentTaxRate)}%)</span>
+                <span>{formatCurrency(entertainmentTaxAmount)}</span>
+              </div>
+            )}
+            {serviceChargeAmount > 0 && (
+              <div className="flex justify-between">
+                <span>Service Charge ({Number(organization?.serviceChargeRate)}%)</span>
+                <span>{formatCurrency(serviceChargeAmount)}</span>
+              </div>
+            )}
+          </div>
+        )}
         <div className="flex items-center justify-between text-lg font-semibold text-foreground">
           <span>Total</span>
-          <span>{formatCurrency(subtotal)}</span>
+          <span>{formatCurrency(total)}</span>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -335,10 +445,81 @@ export function RetailCheckoutPage() {
               {formatPaymentMethod(type.name)}
             </button>
           ))}
+          <button
+            type="button"
+            disabled={!isOnline}
+            title={isOnline ? undefined : 'Customer Wallet needs a connection'}
+            onClick={() => setPaymentMethod(WALLET)}
+            className={cn(
+              'rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+              isWallet ? 'bg-primary text-white' : 'bg-surface-container text-foreground hover:bg-surface-container-low',
+            )}
+          >
+            Customer Wallet
+          </button>
         </div>
 
-        <Button className="w-full" size="lg" disabled={cart.length === 0 || isCharging} isLoading={isCharging} onClick={charge}>
-          Charge {formatCurrency(subtotal)}
+        {!isOnline && (
+          <p className="text-xs text-muted-foreground">Customer Wallet is unavailable offline — the balance has to be checked at the time of sale.</p>
+        )}
+
+        {isWallet && (
+          <div className="space-y-2 rounded-xl border border-border p-3 text-sm">
+            {walletCustomer ? (
+              <>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-foreground">
+                    {walletCustomer.name}
+                    {walletCustomer.phone && <span className="font-normal text-muted-foreground"> · {walletCustomer.phone}</span>}
+                  </span>
+                  <Button variant="ghost" size="sm" onClick={() => setWalletCustomer(null)}>
+                    <X className="mr-1 h-3.5 w-3.5" />
+                    Change
+                  </Button>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Current balance</span>
+                  <span className={cn('font-semibold', walletCustomer.walletBalance < 0 ? 'text-destructive' : 'text-foreground')}>
+                    {formatCurrency(walletCustomer.walletBalance)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Balance after sale</span>
+                  <span className={cn('font-semibold', balanceAfter !== undefined && balanceAfter < 0 ? 'text-destructive' : 'text-foreground')}>
+                    {balanceAfter !== undefined ? formatCurrency(balanceAfter) : '—'}
+                  </span>
+                </div>
+                {balanceAfter !== undefined && balanceAfter < 0 && (
+                  <p className={cn('text-xs', exceedsCredit ? 'text-destructive' : 'text-muted-foreground')}>
+                    {exceedsCredit
+                      ? `This exceeds the customer's approved credit limit of ${formatCurrency(walletCustomer.creditLimit)}.`
+                      : 'This will put the customer on account (approved credit).'}
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <Label>Customer</Label>
+                <SearchableSelect
+                  options={customerOptions}
+                  value=""
+                  onChange={pickWalletCustomer}
+                  onSearchChange={setCustomerSearch}
+                  placeholder="Search by name or phone"
+                />
+              </>
+            )}
+          </div>
+        )}
+
+        <Button
+          className="w-full"
+          size="lg"
+          disabled={cart.length === 0 || isCharging || (isWallet && (!walletCustomer || exceedsCredit))}
+          isLoading={isCharging}
+          onClick={charge}
+        >
+          Charge {formatCurrency(total)}
         </Button>
       </div>
     </div>
