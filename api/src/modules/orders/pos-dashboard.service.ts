@@ -121,9 +121,17 @@ export class PosDashboardService {
    * off createdAt so an order abandoned days ago doesn't sit in today's number forever. CLOSED_UNPAID
    * counts as open — it's marked ready for payment but no money has fully landed — and its
    * closedAt can be null after a partial payment, so it can't be bucketed by that.
+   *
+   * Off unless the org has turned on showTakingsStrip — checked here, not just in the client, so
+   * the figures never leave the server for an org that doesn't want the floor seeing them.
    */
   async getTodayTakings(organizationId: string) {
-    const shift = await this.getOrgShiftHours(organizationId);
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { shiftStartTime: true, shiftEndTime: true, showTakingsStrip: true },
+    });
+    if (!org?.showTakingsStrip) return { enabled: false as const };
+    const shift: ShiftHours = org;
     const businessToday = businessDateFor(new Date(), shift);
     const { startDate, endDate } = applyShiftHours(businessToday, businessToday, shift);
 
@@ -148,6 +156,7 @@ export class PosDashboardService {
     const open = Number(openAgg._sum.total || 0);
 
     return {
+      enabled: true as const,
       period: { startDate, endDate },
       paid: { count: paidAgg._count, amount: paid },
       open: { count: openAgg._count, amount: open },
