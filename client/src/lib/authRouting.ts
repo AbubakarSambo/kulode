@@ -25,6 +25,9 @@ export function getPostAuthRoute(user: User | null | undefined): string {
     // (whose landing stays module-based) or the org has no POS at all.
     const isManagerOnly = roles.includes('MANAGER') && !roles.includes('ADMIN') && !roles.includes('SUPER_ADMIN')
     if (isManagerOnly && user.organization?.enabledModules !== 'INVOICING') return '/pos/dashboard'
+    // A retail org with invoicing is a shop first — its admins start on the sales dashboard, not
+    // the invoicing one
+    if (user.organization?.posMode === 'RETAIL' && user.organization?.enabledModules === 'BOTH') return '/pos/dashboard'
     return (user.organization?.enabledModules ?? 'POS') === 'POS' ? '/pos/order/new' : '/dashboard'
   }
   if (roles.includes('WAITER')) return '/pos/order/new'

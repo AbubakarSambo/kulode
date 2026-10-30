@@ -18,6 +18,7 @@ import {
   Landmark,
   LayoutDashboard,
   KeyRound,
+  Package,
 } from 'lucide-react'
 import {
   DashboardIcon,
@@ -53,6 +54,7 @@ import { cn } from '@/lib/utils'
 import { isPinEligible } from '@/lib/pin'
 import { can, canHoldPin } from '@/lib/permissions'
 import { getRestrictedHrefsUnion, type AllowedHref } from '@/lib/posRoleNav'
+import { isRetailHidden, retailNavLabel, retailPageTitle } from '@/lib/retailNav'
 import type { PlanTier } from '@/types'
 
 export function AppLayout() {
@@ -73,6 +75,8 @@ export function AppLayout() {
   // A retail sale is created and paid in one step at checkout, so the /pos/orders list is really a
   // sales history there — mirrors the same relabel in Sidebar.tsx.
   const ordersLabel = isRetail ? 'Sales' : 'Orders'
+  // In retail /inventory is the product catalog (the page titles itself "Catalog") — mirrors Sidebar.tsx.
+  const inventoryLabel = isRetail ? 'Catalog' : 'Inventory'
 
   useIdleLogout(userIsPinEligible, switchUser)
 
@@ -80,6 +84,8 @@ export function AppLayout() {
 
   const getPageTitle = () => {
     const path = location.pathname
+    const retailTitle = isRetail ? retailPageTitle(path) : undefined
+    if (retailTitle) return retailTitle
     if (path.startsWith('/dashboard')) return 'Overview'
     if (path.startsWith('/pos/dashboard')) return 'Dashboard'
     if (path.startsWith('/clients')) return 'Clients'
@@ -87,7 +93,7 @@ export function AppLayout() {
     if (path.startsWith('/payments')) return 'Payments'
     if (path.startsWith('/vendors')) return 'Vendors'
     if (path.startsWith('/expenses')) return 'Expenses'
-    if (path.startsWith('/inventory')) return 'Inventory'
+    if (path.startsWith('/inventory')) return inventoryLabel
     if (path.startsWith('/pos/orders')) return ordersLabel
     if (path.startsWith('/pos/customers')) return 'Customers'
     if (path.startsWith('/pos/menu')) return 'Menu'
@@ -132,7 +138,23 @@ export function AppLayout() {
   }
 
   const navItems = restrictedHrefsUnion
-    ? restrictedHrefsUnion.map((href) => ({ href, ...RESTRICTED_NAV_ITEMS_BY_HREF[href] }))
+    ? restrictedHrefsUnion
+        // Same retail filtering/naming the desktop sidebar applies — without it a retail cashier's
+        // dock linked to Menu/Categories/Tables, which just bounce back to Sell
+        .filter((href) => !(isRetail && isRetailHidden(href)))
+        .map((href) => {
+          const item = RESTRICTED_NAV_ITEMS_BY_HREF[href]
+          return { href, ...item, name: isRetail ? retailNavLabel(href, item.name) : item.name }
+        })
+    : hasInvoicing && isRetail
+    ? [
+        // A retail org's main job is the till, so the shop stays in the dock even with invoicing
+        // on — the invoicing pages move to the "Invoicing" group in More instead
+        { name: 'Dashboard', href: '/pos/dashboard', icon: DashboardIcon },
+        { name: 'Sell', href: '/pos/order/new', icon: ShoppingCart },
+        { name: ordersLabel, href: '/pos/orders', icon: Receipt },
+        { name: 'Invoices', href: '/invoices', icon: InvoicesIcon },
+      ]
     : hasInvoicing
     ? [
         { name: 'Overview', href: '/dashboard', icon: DashboardIcon },
@@ -152,6 +174,16 @@ export function AppLayout() {
   type MoreItem = { name: string; href: string; icon: React.ComponentType<{ className?: string }>; requiresPlan?: PlanTier; visible?: boolean }
 
   const moreGroups: Array<{ label: string; items: MoreItem[] }> = [
+    {
+      // Only for retail + invoicing: these sit in the dock for every other invoicing org, but a
+      // retail dock holds the shop instead (see navItems above)
+      label: 'Invoicing',
+      items: [
+        { name: 'Overview', href: '/dashboard', icon: DashboardIcon, requiresPlan: 'PRO' as PlanTier, visible: hasInvoicing && isRetail },
+        { name: 'Clients', href: '/clients', icon: ClientsIcon, visible: hasInvoicing && isRetail },
+        { name: 'Payments', href: '/payments', icon: PaymentsIcon, visible: hasInvoicing && isRetail },
+      ] as MoreItem[],
+    },
     {
       label: 'Money',
       items: [
@@ -191,6 +223,9 @@ export function AppLayout() {
         { name: 'Menu', href: '/pos/menu', icon: ChefHat, visible: hasPos && !isRetail },
         { name: 'Categories', href: '/pos/categories', icon: Tag, visible: hasPos && !isRetail },
         { name: 'Order Types', href: '/pos/order-types', icon: ListOrdered, visible: hasPos && !isRetail },
+        // Was missing here entirely, so a retail org on a phone could only reach its products via
+        // the Checkout page's "View Catalog" button. Same visibility as the desktop sidebar.
+        { name: inventoryLabel, href: '/inventory', icon: Package, requiresPlan: 'PRO' as PlanTier, visible: hasPos },
         { name: 'Payment Types', href: '/pos/payment-types', icon: CreditCard, visible: hasPos },
       ] as MoreItem[],
     },
@@ -229,9 +264,13 @@ export function AppLayout() {
   ]
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) =>
-        restrictedHrefsUnion ? (restrictedHrefsUnion as string[]).includes(item.href) : item.visible !== false,
-      ),
+      label: isRetail && group.label === 'Floor Operations' ? 'Shop' : group.label,
+      items: group.items
+        .filter((item) => !(isRetail && isRetailHidden(item.href)))
+        .filter((item) =>
+          restrictedHrefsUnion ? (restrictedHrefsUnion as string[]).includes(item.href) : item.visible !== false,
+        )
+        .map((item) => (isRetail ? { ...item, name: retailNavLabel(item.href, item.name) } : item)),
     }))
     .filter((group) => group.items.length > 0)
 
@@ -278,7 +317,7 @@ export function AppLayout() {
                 const isActive = location.pathname.startsWith(item.href)
                 return (
                   <Link
-                  key={item.name}
+                  key={item.href}
                   to={item.href}
                   onClick={() => setMoreOpen(false)}
                   className={cn(
@@ -342,7 +381,7 @@ export function AppLayout() {
                         const isLocked = item.requiresPlan && !hasRequiredPlan(item.requiresPlan)
                         return (
                           <Link
-                            key={item.name}
+                            key={item.href}
                             to={item.href}
                             onClick={() => setMoreOpen(false)}
                             className={cn(

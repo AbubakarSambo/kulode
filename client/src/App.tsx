@@ -272,7 +272,7 @@ function App() {
                 <Route path="/pos/customers" element={<CustomersListPage />} />
                 <Route path="/pos/customers/:id" element={<CustomerDetailPage />} />
                 {/* Dine-in-only concepts — no tables/menu/kitchen-ticket workflow in a retail
-                    (scan-and-sell) org. Mirrors RESTAURANT_ONLY_HREFS in Sidebar.tsx. */}
+                    (scan-and-sell) org. Mirrors RETAIL_HIDDEN_HREFS in lib/retailNav.ts. */}
                 <Route element={<PosModeGatedRoute requiredPosMode="RESTAURANT" redirectTo="/pos/order/new" />}>
                   <Route path="/pos/menu" element={<MenuManagementPage />} />
                   <Route path="/pos/menu/:id" element={<MenuItemDetailPage />} />

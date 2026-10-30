@@ -424,5 +424,37 @@ describe('Sidebar', () => {
     expect(screen.queryByText('Orders')).not.toBeInTheDocument()
     expect(screen.queryByText('Tables')).not.toBeInTheDocument()
     expect(screen.queryByText('Kitchen')).not.toBeInTheDocument()
+    // /inventory is the product catalog in retail — named to match the page's own title
+    expect(screen.getByText('Catalog')).toBeInTheDocument()
+    expect(screen.queryByText('Inventory')).not.toBeInTheDocument()
+  })
+
+  it('gives a retail org with invoicing a shop-first menu with no look-alike names', () => {
+    mockUseAuthStore.mockReturnValue({ ...adminUser, organization: { enabledModules: 'BOTH', posMode: 'RETAIL' } })
+    mockUseSubscription.mockReturnValue({ hasRequiredPlan: () => true })
+
+    renderSidebar()
+
+    for (const heading of ['Shop', 'Invoicing', 'Money', 'Insights', 'Setup']) {
+      expect(screen.getByText(heading)).toBeInTheDocument()
+    }
+    for (const name of ['Dashboard', 'Overview', 'Till Payments', 'Invoice Payments', 'Sales Report', 'Business Reports', 'Sales AI Chat', 'Invoice AI Chat', 'Clients', 'Catalog', 'Wallets']) {
+      expect(screen.getByText(name)).toBeInTheDocument()
+    }
+    expect(screen.queryByText('Customers')).not.toBeInTheDocument()
+    expect(screen.queryByText('Payments')).not.toBeInTheDocument()
+    expect(screen.queryByText('Reports')).not.toBeInTheDocument()
+    expect(screen.queryByText('AI Chat')).not.toBeInTheDocument()
+  })
+
+  it('keeps the restaurant menu unchanged for a restaurant org with invoicing', () => {
+    mockUseAuthStore.mockReturnValue({ ...adminUser, organization: { enabledModules: 'BOTH', posMode: 'RESTAURANT' } })
+    mockUseSubscription.mockReturnValue({ hasRequiredPlan: () => true })
+
+    renderSidebar()
+
+    expect(screen.getByText('Floor Operations')).toBeInTheDocument()
+    expect(screen.getByText('Customers')).toBeInTheDocument()
+    expect(screen.queryByText('Shop')).not.toBeInTheDocument()
   })
 })
