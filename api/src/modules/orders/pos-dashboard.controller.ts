@@ -20,6 +20,13 @@ export class PosDashboardController {
     return this.posDashboardService.getSummary(organizationId, filter);
   }
 
+  @Get('today')
+  @ApiOperation({ summary: "Get today's running takings (paid + open) for the strip above the POS pages" })
+  @Can('TODAY_TAKINGS_VIEW')
+  async getTodayTakings(@CurrentUser('organizationId') organizationId: string) {
+    return this.posDashboardService.getTodayTakings(organizationId);
+  }
+
   @Get('trend')
   @ApiOperation({ summary: 'Get daily POS sales trend' })
   @Can('POS_DASHBOARD_VIEW')

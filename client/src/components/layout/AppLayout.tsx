@@ -44,6 +44,7 @@ import { ImpersonationBanner } from '../shared/ImpersonationBanner'
 import { useOrgSettingsSync } from '@/hooks/useOrgSettingsSync'
 import { SubscriptionExpiredBanner } from '../shared/SubscriptionExpiredBanner'
 import { OfflineQueueBanner } from '../pos/OfflineQueueBanner'
+import { TodayTakingsStrip } from '../pos/TodayTakingsStrip'
 import { useAuthStore } from '@/stores/auth'
 import { useLogout, useSwitchUser, useIdleLogout } from '@/hooks'
 import { useSubscription } from '@/hooks/useSubscription'
@@ -261,6 +262,9 @@ export function AppLayout() {
 
         <TrialBanner />
         <OfflineQueueBanner />
+        {/* Floor pages only — the dashboard already shows these figures, and the kitchen boards aren't about money */}
+        {location.pathname.startsWith('/pos/') &&
+          !['/pos/dashboard', '/pos/kitchen', '/pos/drinks'].some((p) => location.pathname.startsWith(p)) && <TodayTakingsStrip />}
 
         <div className={cn("flex-1 overflow-hidden flex flex-col", isHideMobileNav ? "pb-0" : "pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-0")}>
           <Outlet />
