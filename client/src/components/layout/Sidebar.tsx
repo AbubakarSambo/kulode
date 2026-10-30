@@ -11,6 +11,7 @@ import { MyPinModal } from './MyPinModal'
 import { useSubscription } from '@/hooks/useSubscription'
 import { useOrgModules, usePosMode } from '@/hooks/useOrgModules'
 import { getRestrictedHrefsUnion } from '@/lib/posRoleNav'
+import { isRetailHidden, retailNavLabel } from '@/lib/retailNav'
 import { can, canHoldPin } from '@/lib/permissions'
 import type { PlanTier } from '@/types'
 import {
@@ -116,6 +117,25 @@ const navigationGroups = [
 
 const POS_NAV_GROUP_TITLES = ['Floor Operations', 'Catalog & Setup', 'People', 'POS Insights']
 
+// A retail org runs the shop first and invoices second, so its menu is regrouped around that
+// rather than the restaurant/invoicing split above — same items (looked up by href, so plan locks
+// and icons stay in one place), just arranged so nothing appears twice under the same name.
+// Items still go through the normal module/role/plan filters; empty groups drop out.
+const RETAIL_GROUP_HREFS: { title: string; hrefs: string[] }[] = [
+  { title: 'Shop', hrefs: ['/pos/dashboard', '/pos/order/new', '/pos/orders', '/pos/shift', '/inventory', '/pos/customers'] },
+  { title: 'Invoicing', hrefs: ['/clients', '/invoices', '/payments', '/settings/services'] },
+  { title: 'Money', hrefs: ['/pos/payments', '/pos/unreconciled-transfers', '/expenses', '/vendors', '/tax'] },
+  { title: 'Insights', hrefs: ['/dashboard', '/pos/reports', '/reports', '/pos/ai-chat', '/ai-chat'] },
+  { title: 'Setup', hrefs: ['/pos/payment-types'] },
+]
+
+const NAV_ITEMS_BY_HREF = new Map(navigationGroups.flatMap((group) => group.items.map((item) => [item.href, item])))
+
+const retailNavigationGroups = RETAIL_GROUP_HREFS.map(({ title, hrefs }) => ({
+  title,
+  items: hrefs.map((href) => NAV_ITEMS_BY_HREF.get(href)!),
+}))
+
 const adminNavigation = [
   { name: 'Users', href: '/settings/users', icon: UserCog },
   { name: 'Settings', href: '/settings', icon: SettingsIcon },
@@ -177,22 +197,22 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   // invoicing, so it stays visible for POS-only orgs too.
   const INVOICING_ONLY_HREFS = ['/clients', '/invoices', '/tax', '/reports', '/ai-chat', '/payments', '/dashboard', '/settings/services', '/vendors', '/expenses']
 
-  // No tables/kitchen/menu-recipe concepts in a retail (scan-and-sell) org — these restaurant-only
-  // nav items are hidden the same way INVOICING_ONLY_HREFS is hidden for POS-only orgs.
-  const RESTAURANT_ONLY_HREFS = ['/pos/tables', '/pos/kitchen', '/pos/drinks', '/pos/menu', '/pos/categories', '/pos/order-types']
-
   // Role → allowed-hrefs lists live in posRoleNav.ts, shared with AppLayout.tsx (mobile bottom
   // dock), so the two can't silently drift apart the way they already have twice — see that
   // file's header comment for the incident history.
   const restrictedHrefsUnion = getRestrictedHrefsUnion(userRoles)
 
   // Filter groups and items
-  const filteredNavGroups = navigationGroups
+  const filteredNavGroups = (isRetail ? retailNavigationGroups : navigationGroups)
     .filter((group) => !POS_NAV_GROUP_TITLES.includes(group.title) || hasPos)
     .map((group) => ({
       ...group,
       items: group.items.filter((item) => {
-        if (isRetail && RESTAURANT_ONLY_HREFS.includes(item.href)) return false
+        // No tables/kitchen/menu in a retail org — see RETAIL_HIDDEN_HREFS
+        if (isRetail && isRetailHidden(item.href)) return false
+        // The retail grouping mixes POS items into every group, so POS_NAV_GROUP_TITLES can't
+        // drop them for an org without the POS module — check per item instead
+        if (isRetail && !hasPos && (item.href.startsWith('/pos/') || item.href === '/inventory')) return false
         if (restrictedHrefsUnion) return (restrictedHrefsUnion as string[]).includes(item.href)
         if (INVOICING_ONLY_HREFS.includes(item.href) && !hasInvoicing) return false
         if ((item.href === '/reports' || item.href === '/ai-chat') && !canViewReports) return false
@@ -209,9 +229,9 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           return false
         return true
       })
-        // A retail sale is created and paid in one step at checkout, so /pos/orders is really a
-        // sales history there — mirrors the same relabel in AppLayout.tsx.
-        .map((item) => (isRetail && item.href === '/pos/orders' ? { ...item, name: 'Sales' } : item)),
+        // Retail names: Sales for the orders list (a retail sale is created and paid in one step),
+        // Catalog for inventory, and a distinct name for each of the POS/invoicing look-alikes
+        .map((item) => (isRetail ? { ...item, name: retailNavLabel(item.href, item.name) } : item)),
     }))
     .filter((group) => group.items.length > 0)
 
@@ -291,7 +311,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                   const isLocked = item.requiresPlan && !hasRequiredPlan(item.requiresPlan)
                   return (
                     <NavLink
-                      key={item.name}
+                      key={item.href}
                       to={item.href}
                       onClick={handleNavClick}
                       className={({ isActive }) =>
