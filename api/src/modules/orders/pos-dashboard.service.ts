@@ -113,6 +113,48 @@ export class PosDashboardService {
     return Number((((current - previous) / previous) * 100).toFixed(2));
   }
 
+  /**
+   * The live "where are we today" figures for the strip above the POS pages: what's been paid
+   * and what's still open, for the current business day of this branch (org). Both are order
+   * totals, so paid + open is the day's sales so far if everything open gets paid. Paid is keyed
+   * off closedAt (an order opened last night and paid this morning counts today); open is keyed
+   * off createdAt so an order abandoned days ago doesn't sit in today's number forever. CLOSED_UNPAID
+   * counts as open — it's marked ready for payment but no money has fully landed — and its
+   * closedAt can be null after a partial payment, so it can't be bucketed by that.
+   */
+  async getTodayTakings(organizationId: string) {
+    const shift = await this.getOrgShiftHours(organizationId);
+    const businessToday = businessDateFor(new Date(), shift);
+    const { startDate, endDate } = applyShiftHours(businessToday, businessToday, shift);
+
+    const [paidAgg, openAgg] = await Promise.all([
+      this.prisma.order.aggregate({
+        where: { organizationId, status: OrderStatus.CLOSED_PAID, closedAt: { gte: startDate, lte: endDate } },
+        _count: true,
+        _sum: { total: true },
+      }),
+      this.prisma.order.aggregate({
+        where: {
+          organizationId,
+          status: { in: [OrderStatus.OPEN, OrderStatus.IN_KITCHEN, OrderStatus.READY, OrderStatus.CLOSED_UNPAID] },
+          createdAt: { gte: startDate, lte: endDate },
+        },
+        _count: true,
+        _sum: { total: true },
+      }),
+    ]);
+
+    const paid = Number(paidAgg._sum.total || 0);
+    const open = Number(openAgg._sum.total || 0);
+
+    return {
+      period: { startDate, endDate },
+      paid: { count: paidAgg._count, amount: paid },
+      open: { count: openAgg._count, amount: open },
+      total: paid + open,
+    };
+  }
+
   async getSummary(organizationId: string, filter: ReportFilterDto) {
     const { startDate, endDate } = await this.getDateRange(organizationId, filter);
     const prevRange = previousComparableRange(startDate, endDate, new Date());

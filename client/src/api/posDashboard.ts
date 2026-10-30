@@ -19,6 +19,13 @@ export interface PosDashboardSummary {
   topStaff: { id: string; name: string; revenue: number; orders: number }[]
 }
 
+export interface TodayTakings {
+  period: { startDate: string; endDate: string }
+  paid: { count: number; amount: number }
+  open: { count: number; amount: number }
+  total: number
+}
+
 export interface PosDashboardTrend {
   period: { startDate: string; endDate: string }
   daily: { day: string; total: number; count: number }[]
@@ -37,6 +44,11 @@ export const posDashboardApi = {
     const response = await apiClient.get<ApiResponse<PosDashboardSummary>>(
       `/pos-dashboard/summary?${buildParams(filters)}`,
     )
+    return response.data.data
+  },
+
+  getTodayTakings: async (): Promise<TodayTakings> => {
+    const response = await apiClient.get<ApiResponse<TodayTakings>>('/pos-dashboard/today')
     return response.data.data
   },
 
