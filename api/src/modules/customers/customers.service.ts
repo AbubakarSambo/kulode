@@ -13,10 +13,14 @@ export class CustomersService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(organizationId: string, filter: CustomerFilterDto) {
-    const { page = 1, limit = 20, search } = filter;
+    const { page = 1, limit = 20, search, balance } = filter;
     const skip = (page - 1) * limit;
 
     const where: any = { organizationId, isActive: true };
+
+    if (balance === 'owing') {
+      where.walletBalance = { lt: 0 };
+    }
 
     if (search) {
       where.OR = [
@@ -31,7 +35,8 @@ export class CustomersService {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        // Debtors list reads most-owed first; id breaks ties so paging stays stable
+        orderBy: balance === 'owing' ? [{ walletBalance: 'asc' }, { id: 'asc' }] : { createdAt: 'desc' },
         select: {
           id: true,
           name: true,
@@ -48,6 +53,29 @@ export class CustomersService {
     ]);
 
     return paginate(customers, total, page, limit);
+  }
+
+  /**
+   * Org-wide wallet debt at a glance: how many active customers have a negative balance, what they
+   * owe in total, and how many are past their credit limit. Over-limit can happen even though
+   * debits are capped at the limit — an admin can lower a limit, or adjust a balance, afterwards.
+   * Raw SQL because Prisma can't compare two columns (balance vs limit) in a where clause.
+   */
+  async getWalletSummary(organizationId: string) {
+    const [row] = await this.prisma.$queryRaw<{ owing_count: bigint; total_owed: Prisma.Decimal | null; over_limit_count: bigint }[]>`
+      SELECT
+        COUNT(*) FILTER (WHERE wallet_balance < 0) AS owing_count,
+        -SUM(wallet_balance) FILTER (WHERE wallet_balance < 0) AS total_owed,
+        COUNT(*) FILTER (WHERE wallet_balance < 0 AND -wallet_balance > credit_limit) AS over_limit_count
+      FROM customers
+      WHERE organization_id = ${organizationId} AND is_active = true
+    `;
+
+    return {
+      owingCount: Number(row?.owing_count ?? 0),
+      totalOwed: Number(row?.total_owed ?? 0),
+      overLimitCount: Number(row?.over_limit_count ?? 0),
+    };
   }
 
   async findOne(id: string, organizationId: string) {

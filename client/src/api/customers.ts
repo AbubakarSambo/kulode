@@ -5,6 +5,14 @@ export interface CustomerFilters {
   page?: number
   limit?: number
   search?: string
+  /** 'owing' = only customers with a negative wallet balance, most owed first */
+  balance?: 'owing'
+}
+
+export interface WalletSummary {
+  owingCount: number
+  totalOwed: number
+  overLimitCount: number
 }
 
 export interface CreateCustomerData {
@@ -32,8 +40,14 @@ export const customersApi = {
     if (filters.page) params.append('page', filters.page.toString())
     if (filters.limit) params.append('limit', filters.limit.toString())
     if (filters.search) params.append('search', filters.search)
+    if (filters.balance) params.append('balance', filters.balance)
 
     const response = await apiClient.get<ApiResponse<PaginatedResponse<Customer>>>(`/customers?${params}`)
+    return response.data.data
+  },
+
+  getWalletSummary: async (): Promise<WalletSummary> => {
+    const response = await apiClient.get<ApiResponse<WalletSummary>>('/customers/wallet-summary')
     return response.data.data
   },
 
