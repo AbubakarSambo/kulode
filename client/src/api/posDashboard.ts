@@ -19,12 +19,17 @@ export interface PosDashboardSummary {
   topStaff: { id: string; name: string; revenue: number; orders: number }[]
 }
 
-export interface TodayTakings {
-  period: { startDate: string; endDate: string }
-  paid: { count: number; amount: number }
-  open: { count: number; amount: number }
-  total: number
-}
+// `enabled: false` when the org hasn't turned on the takings strip (Settings → Organization) —
+// the server sends no figures at all in that case.
+export type TodayTakings =
+  | { enabled: false }
+  | {
+      enabled: true
+      period: { startDate: string; endDate: string }
+      paid: { count: number; amount: number }
+      open: { count: number; amount: number }
+      total: number
+    }
 
 export interface PosDashboardTrend {
   period: { startDate: string; endDate: string }

@@ -19,7 +19,7 @@ function readHidden(): boolean {
 // Today's running takings for this branch, so floor staff can see where the day stands without
 // opening a report — paid, still open, and the two together. Refreshes on the same 15s cadence as
 // the rest of the POS. The eye toggle masks the amounts for a screen that faces customers (e.g. a
-// retail till), and is remembered per device.
+// retail till), and is remembered per device. Only shown once the org turns it on in settings.
 export function TodayTakingsStrip() {
   const user = useAuthStore((state) => state.user)
   const allowed = can(user, 'TODAY_TAKINGS_VIEW')
@@ -30,10 +30,11 @@ export function TodayTakingsStrip() {
     queryKey: ['pos-dashboard', 'today', user?.organizationId],
     queryFn: () => posDashboardApi.getTodayTakings(),
     enabled: allowed,
-    refetchInterval: 15_000,
+    // Turned off: check back now and then so switching it on in settings shows up without a reload
+    refetchInterval: (query) => (query.state.data?.enabled ? 15_000 : 60_000),
   })
 
-  if (!allowed || !data) return null
+  if (!allowed || !data?.enabled) return null
 
   const toggle = () => {
     setHidden(!hidden)

@@ -262,6 +262,9 @@ model Organization {
   serviceChargeRate       Decimal   @default(0) @map("service_charge_rate") @db.Decimal(5, 2)
   serviceChargeEnabled    Boolean   @default(false) @map("service_charge_enabled")
   showQrCode              Boolean   @default(false) @map("show_qr_code")
+  // Shows floor staff (waiter and up) a live strip of today's paid/open takings on the POS pages.
+  // Off by default — some owners don't want the floor seeing the branch's money.
+  showTakingsStrip        Boolean   @default(false) @map("show_takings_strip")
   // What this restaurant considers one business day, e.g. "06:00"-"18:00" for a lunch spot or
   // "18:00"-"02:00" for a bar (end <= start means the shift crosses midnight). Reports and
   // dashboards bucket "today"/daily figures against this window instead of literal midnight.

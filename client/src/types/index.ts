@@ -174,6 +174,7 @@ export interface Organization {
   serviceChargeRate: number
   serviceChargeEnabled: boolean
   showQrCode: boolean
+  showTakingsStrip: boolean
   shiftStartTime: string
   shiftEndTime: string
   paymentTerms?: string

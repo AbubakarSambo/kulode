@@ -97,6 +97,11 @@ export class UpdateOrganizationDto {
   @IsBoolean()
   showQrCode?: boolean;
 
+  @ApiPropertyOptional({ example: false, description: "Show floor staff a live strip of today's takings on the POS pages" })
+  @IsOptional()
+  @IsBoolean()
+  showTakingsStrip?: boolean;
+
   @ApiPropertyOptional({
     example: '06:00',
     description: 'Start of the business day ("HH:mm", 24-hour) that reports/dashboards bucket "today" against',

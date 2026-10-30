@@ -32,9 +32,12 @@ describe('previousComparableRange', () => {
 });
 
 describe('getTodayTakings', () => {
-  const setup = (paid: { _count: number; _sum: { total: number | null } }, open: { _count: number; _sum: { total: number | null } }) => {
+  type Agg = { _count: number; _sum: { total: number | null } };
+  const setup = (paid: Agg, open: Agg, showTakingsStrip = true) => {
     const prisma = {
-      organization: { findUnique: jest.fn().mockResolvedValue({ shiftStartTime: '08:00', shiftEndTime: '02:00' }) },
+      organization: {
+        findUnique: jest.fn().mockResolvedValue({ shiftStartTime: '08:00', shiftEndTime: '02:00', showTakingsStrip }),
+      },
       order: { aggregate: jest.fn().mockResolvedValueOnce(paid).mockResolvedValueOnce(open) },
     };
     return { prisma, service: new PosDashboardService(prisma as never) };
@@ -43,6 +46,7 @@ describe('getTodayTakings', () => {
   it('splits the day into paid and still-open order totals', async () => {
     const { service } = setup({ _count: 3, _sum: { total: 15000 } }, { _count: 2, _sum: { total: 4500 } });
     const result = await service.getTodayTakings('org-1');
+    if (!result.enabled) throw new Error('expected enabled');
     expect(result.paid).toEqual({ count: 3, amount: 15000 });
     expect(result.open).toEqual({ count: 2, amount: 4500 });
     expect(result.total).toBe(19500);
@@ -51,10 +55,17 @@ describe('getTodayTakings', () => {
   it('counts awaiting-payment orders as open, by when they were created, scoped to the branch', async () => {
     const { prisma, service } = setup({ _count: 0, _sum: { total: null } }, { _count: 0, _sum: { total: null } });
     const result = await service.getTodayTakings('org-1');
+    if (!result.enabled) throw new Error('expected enabled');
     const [paidCall, openCall] = prisma.order.aggregate.mock.calls.map((c) => c[0].where);
     expect(paidCall).toMatchObject({ organizationId: 'org-1', status: 'CLOSED_PAID', closedAt: { gte: result.period.startDate } });
     expect(openCall).toMatchObject({ organizationId: 'org-1', createdAt: { gte: result.period.startDate } });
     expect(openCall.status.in).toEqual(['OPEN', 'IN_KITCHEN', 'READY', 'CLOSED_UNPAID']);
     expect(result.total).toBe(0);
+  });
+
+  it("returns no figures at all when the org hasn't turned the strip on", async () => {
+    const { prisma, service } = setup({ _count: 3, _sum: { total: 15000 } }, { _count: 2, _sum: { total: 4500 } }, false);
+    expect(await service.getTodayTakings('org-1')).toEqual({ enabled: false });
+    expect(prisma.order.aggregate).not.toHaveBeenCalled();
   });
 });

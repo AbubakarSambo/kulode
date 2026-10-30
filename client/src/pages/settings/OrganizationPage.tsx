@@ -22,6 +22,7 @@ const organizationSchema = z.object({
   invoicePrefix: z.string().max(10).optional(),
   vatEnabled: z.boolean().optional(),
   showQrCode: z.boolean().optional(),
+  showTakingsStrip: z.boolean().optional(),
   shiftStartTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Use HH:mm format').optional(),
   shiftEndTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Use HH:mm format').optional(),
   taxRate: z.number().min(0).max(100).optional(),
@@ -96,6 +97,7 @@ export function OrganizationPage() {
       invoicePrefix: '',
       vatEnabled: false,
       showQrCode: false,
+      showTakingsStrip: false,
       shiftStartTime: '00:00',
       shiftEndTime: '23:59',
       taxRate: 0,
@@ -125,6 +127,7 @@ export function OrganizationPage() {
         invoicePrefix: organization.invoicePrefix,
         vatEnabled: organization.vatEnabled,
         showQrCode: organization.showQrCode ?? false,
+        showTakingsStrip: organization.showTakingsStrip ?? false,
         shiftStartTime: organization.shiftStartTime || '00:00',
         shiftEndTime: organization.shiftEndTime || '23:59',
         taxRate: Number(organization.taxRate) || 0,
@@ -150,6 +153,7 @@ export function OrganizationPage() {
         email: data.email || undefined,
         vatEnabled: !!data.vatEnabled,
         showQrCode: !!data.showQrCode,
+        showTakingsStrip: !!data.showTakingsStrip,
         taxRate: Number(data.taxRate) || 0,
         entertainmentTaxEnabled: !!data.entertainmentTaxEnabled,
         entertainmentTaxRate: Number(data.entertainmentTaxRate) || 0,
@@ -552,6 +556,21 @@ export function OrganizationPage() {
                 If the end time is earlier than (or equal to) the start time, the shift is treated as
                 running overnight into the next calendar day.
               </p>
+              <div className="space-y-3 border-t border-border pt-4">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={watch('showTakingsStrip') || false}
+                    onChange={(e) => setValue('showTakingsStrip', e.target.checked, { shouldDirty: true })}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <span className="text-sm font-medium">Show today's takings to floor staff</span>
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Waiters, cashiers and supervisors see a live strip at the top of the POS pages with
+                  today's paid and open order totals for this branch.
+                </p>
+              </div>
             </CardContent>
           </Card>
 
