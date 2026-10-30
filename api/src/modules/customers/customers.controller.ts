@@ -30,6 +30,14 @@ export class CustomersController {
     return this.customersService.findAll(organizationId, filter);
   }
 
+  // Declared before ':id' so "wallet-summary" isn't parsed as a customer id
+  @Get('wallet-summary')
+  @ApiOperation({ summary: 'Count and total of customers with a negative wallet balance, and how many are over their credit limit' })
+  @ApiResponse({ status: 200, description: 'Wallet debt summary' })
+  async getWalletSummary(@CurrentUser('organizationId') organizationId: string) {
+    return this.customersService.getWalletSummary(organizationId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get customer by ID with recent orders' })
   @ApiResponse({ status: 200, description: 'Customer details' })
