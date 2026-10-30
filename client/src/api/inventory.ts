@@ -80,6 +80,13 @@ export const inventoryApi = {
     return response.data.data
   },
 
+  // Gives items without a barcode the branch's next in-store code (all of them when itemIds is
+  // omitted) — returns just the items that got one.
+  assignBarcodes: async (itemIds?: string[]): Promise<InventoryItem[]> => {
+    const response = await apiClient.post<ApiResponse<InventoryItem[]>>('/inventory-items/assign-barcodes', { itemIds })
+    return response.data.data
+  },
+
   importCsv: async (file: File): Promise<ImportInventoryResult> => {
     const formData = new FormData()
     formData.append('file', file)
