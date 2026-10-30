@@ -33,6 +33,7 @@ import { useOverscrollBounce } from '@/hooks'
 import { posthog } from '@/lib/posthog'
 import { useAuthStore } from '@/stores/auth'
 import { can } from '@/lib/permissions'
+import { PrintLabelsModal } from './PrintLabelsModal'
 
 // ─── Schemas ────────────────────────────────────────────────────────────────
 
@@ -167,6 +168,7 @@ export function InventoryPage() {
   const [movementsItem, setMovementsItem] = useState<InventoryItem | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [itemToDelete, setItemToDelete] = useState<InventoryItem | null>(null)
+  const [labelsOpen, setLabelsOpen] = useState(false)
 
   // ─── Queries ────────────────────────────────────────────────────────────
 
@@ -371,6 +373,11 @@ export function InventoryPage() {
             </Button>
           ) : (
             <div className="flex items-center gap-2">
+              {isRetail && (
+                <Button variant="outline" onClick={() => setLabelsOpen(true)} disabled={!items?.length}>
+                  Print Labels
+                </Button>
+              )}
               {isRetail && canManageInventory && (
                 <>
                   <input
@@ -1296,6 +1303,15 @@ export function InventoryPage() {
         isDangerous={true}
         isLoading={deleteMutation.isPending}
       />
+
+      {isRetail && (
+        <PrintLabelsModal
+          isOpen={labelsOpen}
+          onClose={() => setLabelsOpen(false)}
+          items={items ?? []}
+          canAssignCodes={canManageInventory && !isExpired}
+        />
+      )}
     </div>
   )
 }

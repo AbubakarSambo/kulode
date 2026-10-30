@@ -15,6 +15,19 @@ function toNumber(val: Prisma.Decimal | number): number {
   return typeof val === 'number' ? val : Number(val);
 }
 
+// In-store codes a shop prints on its own labels are short running numbers ("0264", "133890").
+// Only numeric barcodes up to this many digits count when finding the next one, so a
+// manufacturer's EAN-8/EAN-13 on a bought-in product never becomes the base of the sequence.
+const MAX_IN_STORE_CODE_DIGITS = 7;
+const MIN_IN_STORE_CODE_DIGITS = 4;
+
+/** The next `count` in-store codes after `highest` (null = none yet), zero-padded to at least 4 digits. */
+export function nextInStoreCodes(highest: string | null, count: number): string[] {
+  const start = highest ? Number(highest) + 1 : 1;
+  const width = Math.max(MIN_IN_STORE_CODE_DIGITS, highest?.length ?? 0);
+  return Array.from({ length: count }, (_, i) => String(start + i).padStart(width, '0'));
+}
+
 @Injectable()
 export class InventoryService {
   constructor(private prisma: PrismaService) {}
@@ -111,6 +124,42 @@ export class InventoryService {
     });
 
     return this.addAvailable(item);
+  }
+
+  /**
+   * Gives each active item that has no barcode the branch's next in-store code, so it can be
+   * labelled and scanned at checkout. Deliberately a manual action rather than automatic on create:
+   * a shop moving over from another system needs to import its existing codes first, or a freshly
+   * allocated number could collide with one already printed on stock.
+   *
+   * The per-org advisory lock serialises concurrent calls so two admins can't be handed the same
+   * numbers (the (organizationId, barcode) unique index would reject the second, but as an error).
+   */
+  async assignBarcodes(organizationId: string, itemIds?: string[]) {
+    const assigned = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'inventory-barcodes:' + organizationId}))`;
+
+      const targets = await tx.inventoryItem.findMany({
+        where: { organizationId, isActive: true, barcode: null, ...(itemIds && { id: { in: itemIds } }) },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (targets.length === 0) return [];
+
+      const rows = await tx.$queryRaw<{ barcode: string }[]>`
+        SELECT barcode FROM inventory_items
+        WHERE organization_id = ${organizationId}
+          AND barcode ~ ${`^[0-9]{1,${MAX_IN_STORE_CODE_DIGITS}}$`}
+        ORDER BY barcode::bigint DESC
+        LIMIT 1
+      `;
+
+      const codes = nextInStoreCodes(rows[0]?.barcode ?? null, targets.length);
+      return Promise.all(
+        targets.map((item, i) => tx.inventoryItem.update({ where: { id: item.id }, data: { barcode: codes[i] } })),
+      );
+    });
+
+    return assigned.map((item) => this.addAvailable(item));
   }
 
   // Loads a retail catalog from a CSV (name,barcode,sellPrice,unitPrice,department,unitOfMeasure,
