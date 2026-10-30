@@ -71,7 +71,16 @@ The full canonical event-type enum (confirmed from `GET https://api.pos.moniepoi
 
 ## 3. Save the webhook secret
 
-Moniepoint shows the webhook secret **once**, in the subscription's menu in their dashboard — it's not returned by the create API. Staff copies it and pastes it into the app.
+The secret isn't returned by the create API, and it isn't on the subscription's **Subscription Details** screen in the Moniepoint app either (that screen only shows the endpoint URL, status, created date and opted notification types — checked 2026-10-30). Fetch it from Moniepoint's API instead, with the same `mptp_...` API Key used in step 1:
+
+```bash
+curl -s "https://api.pos.moniepoint.com/v1/webhook-subscriptions/<subscriptionId>/secret" \
+  -H "Authorization: Bearer <mptp_... API Key>" \
+  -H "POS_BUSINESS_ID: <businessId>"
+# -> { "id": "<subscriptionId>", "secret": "..." }
+```
+
+`<subscriptionId>` is the org's `moniepointWebhookSubscriptionId` (or from the list call in Troubleshooting below). `POST` to the same path regenerates the secret — only do that deliberately, since the previously saved secret stops matching. Staff pastes the `secret` value into the app.
 
 → `POST /organizations/moniepoint-webhook-secret` (`moniepoint.controller.ts`, ADMIN/SUPER_ADMIN, body validated by `SetWebhookSecretDto`) → `setWebhookSecret` (`moniepoint.service.ts`) stores it encrypted as `moniepointWebhookSecretEncrypted`. No external call.
 
@@ -105,6 +114,33 @@ Model: `MoniepointUnreconciledTransfer` (`schema.prisma`) — `source` (`TRANSFE
 ## 6. Disconnect
 
 `DELETE /organizations/moniepoint` (`moniepoint.controller.ts`, ADMIN/SUPER_ADMIN) nulls out all Moniepoint fields on the `Organization` (`moniepoint.service.ts`).
+
+## Troubleshooting: transactions show in Moniepoint but no webhook ever arrives
+
+Work out which side the problem is on before changing anything — Moniepoint's API can tell you whether it ever generated an event for the subscription.
+
+**Every call below needs both headers.** The business ID goes in a `POS_BUSINESS_ID` header — not a `businessId` query parameter, `X-Business-Id` header or JSON body, all of which return `400 "Business ID is required"`, which reads like a missing value rather than a wrong place for it.
+
+1. **Is the subscription there and active?**
+   ```bash
+   curl -s "https://api.pos.moniepoint.com/v1/webhook-subscriptions" \
+     -H "Authorization: Bearer <mptp_... API Key>" \
+     -H "POS_BUSINESS_ID: <businessId>"
+   ```
+   Check `status: ACTIVE`, `endpointUrl` (`https://api.tarione.com/api/v1/webhooks/moniepoint` in prod) and `eventTypes`. If the key covers several businesses (introspect lists them all), query each — a subscription only belongs to one.
+
+2. **Did Moniepoint generate any events for it?**
+   ```bash
+   curl -s "https://api.pos.moniepoint.com/v1/webhook-subscription-events?subscriptionId=<subscriptionId>&size=20" \
+     -H "Authorization: Bearer <mptp_... API Key>" \
+     -H "POS_BUSINESS_ID: <businessId>"
+   ```
+   - **Events listed** → Moniepoint is sending; the problem is delivery or our handler. `GET /v1/webhook-subscription-events/{eventId}/logs` shows each delivery attempt and our response; then check our API logs for `Moniepoint webhook received` and the DB for `moniepoint_unreconciled_transfers` / payments with `moniepoint_reference`. `POST /v1/webhook-subscription-events/resend` re-sends events once fixed.
+   - **`404 "Subscription event not found"`** → Moniepoint never generated an event, so nothing on our side can fix it. Same as an empty **Event Logs** tab on the subscription in the Moniepoint app.
+
+**Seen 2026-10-30 — Dzyn Clothing (business `33531477`, subscription `b19efab5-5dd5-4f96-b380-1906bdc4189a`) and Paper Hospitality (business `1102148`, subscription `61450c9f-fa99-49ba-aaca-ec7db091c03d`):** transfers into both accounts showed in the Moniepoint app, the subscription was `ACTIVE` with the right URL and event types, but the events call returned 404 and Event Logs were empty — Moniepoint generated nothing. The working orgs (Living Room, Almond House) differ in two ways: they have a webhook secret saved (step 3), and they have Moniepoint POS terminals (card events arrive for both). The secret only signs deliveries, so with no events at all it's unlikely to be the cause; the leading suspect is that Moniepoint only raises these `V1_POS_*` events for accounts with a POS terminal / ERP integration active. **Unconfirmed — needs Moniepoint support to confirm;** update this note with their answer.
+
+**Reference.** Moniepoint's live OpenAPI spec is the reliable source for endpoints and parameters: `GET https://api.pos.moniepoint.com/v3/api-docs` (the docs site at docs.pos.moniepoint.com refuses non-browser requests). Webhook endpoints it lists: subscriptions (list/create/get/update/delete), `/{id}/secret` (get/regenerate), `/{id}/authentication`, subscription groups, and `/v1/webhook-subscription-events` (list, get, logs, resend). There's no `GET /v1/transactions` on this host (405), so a merchant's transactions can't be listed from here — confirm a transaction happened in the Moniepoint app instead.
 
 ## Known gaps — fix before relying on this in production
 
