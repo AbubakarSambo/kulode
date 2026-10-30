@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { ImagePlus, X, Lock, Copy, Check } from 'lucide-react'
+import { ImagePlus, X, Lock } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
-import { organizationsApi, googleSheetsApi } from '@/api'
+import { organizationsApi } from '@/api'
 import { useSubscription } from '@/hooks/useSubscription'
 import { posthog } from '@/lib/posthog'
 
@@ -32,7 +32,6 @@ const organizationSchema = z.object({
   serviceChargeRate: z.number().min(0).max(100).optional(),
   paymentTerms: z.string().max(2000).optional(),
   defaultNotes: z.string().max(2000).optional(),
-  googleSheetId: z.string().optional(),
   receiptBankName: z.string().max(255).optional(),
   receiptBankAccountNumber: z.string().max(50).optional(),
   receiptBankAccountName: z.string().max(255).optional(),
@@ -52,11 +51,6 @@ export function OrganizationPage() {
     queryFn: () => organizationsApi.getCurrent(),
   })
 
-  const { data: sheetsSync } = useQuery({
-    queryKey: ['google-sheets-sync-email'],
-    queryFn: () => googleSheetsApi.getSyncEmail(),
-  })
-  const [emailCopied, setEmailCopied] = useState(false)
 
   const uploadLogoMutation = useMutation({
     mutationFn: (file: File) => organizationsApi.uploadLogo(file),
@@ -107,7 +101,6 @@ export function OrganizationPage() {
       serviceChargeRate: 0,
       paymentTerms: '',
       defaultNotes: '',
-      googleSheetId: '',
       receiptBankName: '',
       receiptBankAccountNumber: '',
       receiptBankAccountName: '',
@@ -137,7 +130,6 @@ export function OrganizationPage() {
         serviceChargeRate: Number(organization.serviceChargeRate) || 0,
         paymentTerms: organization.paymentTerms || '',
         defaultNotes: organization.defaultNotes || '',
-        googleSheetId: organization.googleSheetId || '',
         receiptBankName: organization.receiptBankName || '',
         receiptBankAccountNumber: organization.receiptBankAccountNumber || '',
         receiptBankAccountName: organization.receiptBankAccountName || '',
@@ -161,7 +153,6 @@ export function OrganizationPage() {
         serviceChargeRate: Number(data.serviceChargeRate) || 0,
         paymentTerms: data.paymentTerms || '',
         defaultNotes: data.defaultNotes || '',
-        googleSheetId: data.googleSheetId || null,
       }),
     onSuccess: () => {
       posthog.capture('org_profile_updated')
@@ -569,55 +560,6 @@ export function OrganizationPage() {
                 <p className="text-xs text-muted-foreground">
                   Waiters, cashiers and supervisors see a live strip at the top of the POS pages with
                   today's paid and open order totals for this branch.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Google Sheets Sync */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Google Sheets Sync</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Orders, payments, and wallet activity sync to a Google Sheet you control. To set it up:
-                open your Sheet, click <strong>Share</strong>, add the email below as an <strong>Editor</strong>,
-                then paste the Sheet's ID below.
-              </p>
-
-              <div className="space-y-2">
-                <Label>Sync Email</Label>
-                <div className="flex gap-2">
-                  <Input readOnly value={sheetsSync?.email ?? 'Loading...'} className="font-mono text-sm" />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    disabled={!sheetsSync?.email}
-                    onClick={() => {
-                      if (!sheetsSync?.email) return
-                      navigator.clipboard.writeText(sheetsSync.email)
-                      setEmailCopied(true)
-                      setTimeout(() => setEmailCopied(false), 2000)
-                    }}
-                  >
-                    {emailCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="googleSheetId">Google Sheet ID</Label>
-                <Input
-                  id="googleSheetId"
-                  placeholder="e.g. 1yrBFrddzXGCuHWJF1X56-Y_wvZyO2JU-lK3yxCilibA"
-                  {...register('googleSheetId')}
-                  error={errors.googleSheetId?.message}
-                />
-                <p className="text-xs text-muted-foreground">
-                  The long ID in your Sheet's URL, between <code>/d/</code> and <code>/edit</code>.
-                  Leave blank to turn sync off.
                 </p>
               </div>
             </CardContent>
