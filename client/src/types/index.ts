@@ -444,7 +444,7 @@ export type TableStatus = 'AVAILABLE' | 'OCCUPIED' | 'RESERVED' | 'NEEDS_CLEANIN
 // The name of an org's OrderType (e.g. "Dine In", "Takeaway", or a custom type like "Hotel Room
 // Service") — a free-form per-org string, not a fixed set. See OrderType below.
 export type OrderSource = string
-export type OrderStatus = 'OPEN' | 'IN_KITCHEN' | 'READY' | 'CLOSED_PAID' | 'CLOSED_UNPAID' | 'CANCELLED'
+export type OrderStatus = 'OPEN' | 'IN_KITCHEN' | 'READY' | 'CLOSED_PAID' | 'CLOSED_UNPAID' | 'CANCELLED' | 'MERGED'
 export type OrderItemStatus = 'PENDING' | 'ON_IT' | 'PASS' | 'SERVED'
 export type ShiftStatus = 'OPEN' | 'CLOSED'
 

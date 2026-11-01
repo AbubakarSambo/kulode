@@ -80,7 +80,7 @@ const STATUS_ENUM = ['DRAFT', 'SENT', 'PAID', 'PARTIALLY_PAID', 'OVERDUE', 'CANC
 
 const periodParam = { type: 'string', enum: PERIOD_ENUM, description: 'The time period to query.' };
 
-const ORDER_STATUS_ENUM = ['OPEN', 'IN_KITCHEN', 'READY', 'CLOSED_PAID', 'CLOSED_UNPAID', 'CANCELLED'];
+const ORDER_STATUS_ENUM = ['OPEN', 'IN_KITCHEN', 'READY', 'CLOSED_PAID', 'CLOSED_UNPAID', 'CANCELLED', 'MERGED'];
 
 const INVOICING_CHAT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
   {
