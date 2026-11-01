@@ -19,27 +19,29 @@ export interface SendInvoiceReminderParams {
   shareToken?: string | null;
 }
 
-// Params map 1:1, in order, to the shift_report template's {{1}}..{{14}} placeholders —
-// see ShiftsService.sendShiftSummary for how each is computed. Today's Sales duplicates
-// paidToday's value (Meta templates require strictly sequential, non-reused placeholders,
-// so the same figure needs its own slot even though it's rendered twice in the message).
+// Params map 1:1, in order, to the shift_report_v2 template's {{1}}..{{16}} placeholders —
+// see ShiftsService.sendShiftSummary for how each is computed. Meta template params can't
+// contain newlines, tabs or 4+ consecutive spaces, so all line breaks and bold live in the
+// template text itself and each collections row gets its own slot.
 export interface SendShiftReportParams {
   organizationId: string;
   toPhone: string;
   orgName: string;
-  dateRange: string;
+  reportDate: string;
+  timeRange: string;
   totalSales: string;
   orderCount: string;
   avgOrder: string;
-  totalPayments: string;
-  paidToday: string;
+  cardCollected: string;
+  transferCollected: string;
+  cashCollected: string;
+  walletCollected: string;
+  otherCollected: string;
+  totalReceived: string;
   creditSales: string;
-  variance: string;
-  totalCollected: string;
-  todaysSales: string;
   creditRepayments: string;
   deposits: string;
-  paymentBreakdown: string;
+  variance: string;
 }
 
 @Injectable()
@@ -63,7 +65,7 @@ export class WhatsappService {
     this.apiVersion = this.configService.get<string>('whatsapp.apiVersion') || 'v21.0';
     this.reminderTemplateName = this.configService.get<string>('whatsapp.reminderTemplateName') || 'payment_reminder';
     this.summaryTemplateName = this.configService.get<string>('whatsapp.summaryTemplateName') || 'daily_sales_summary';
-    this.shiftReportTemplateName = this.configService.get<string>('whatsapp.shiftReportTemplateName') || 'shift_report';
+    this.shiftReportTemplateName = this.configService.get<string>('whatsapp.shiftReportTemplateName') || 'shift_report_v2';
     this.templateLanguage = this.configService.get<string>('whatsapp.templateLanguage') || 'en';
     this.webhookVerifyToken = this.configService.get<string>('whatsapp.webhookVerifyToken') || '';
   }
@@ -205,22 +207,24 @@ export class WhatsappService {
   async sendShiftReportTemplate(params: SendShiftReportParams): Promise<{ providerMessageId: string | null }> {
     const toPhone = this.normalizePhone(params.toPhone);
 
-    // Order matters — must match the shift_report template's {{1}}..{{14}} placeholders exactly.
+    // Order matters — must match the shift_report_v2 template's {{1}}..{{16}} placeholders exactly.
     const bodyValues = [
       params.orgName,
-      params.dateRange,
+      params.reportDate,
+      params.timeRange,
       params.totalSales,
       params.orderCount,
       params.avgOrder,
-      params.totalPayments,
-      params.paidToday,
+      params.cardCollected,
+      params.transferCollected,
+      params.cashCollected,
+      params.walletCollected,
+      params.otherCollected,
+      params.totalReceived,
       params.creditSales,
-      params.variance,
-      params.totalCollected,
-      params.todaysSales,
       params.creditRepayments,
       params.deposits,
-      params.paymentBreakdown,
+      params.variance,
     ];
 
     const payload = {

@@ -8,6 +8,23 @@ function toNumber(val: Prisma.Decimal | number): number {
   return typeof val === 'number' ? val : Number(val);
 }
 
+// Folds the shift's per-method payment totals into the fixed rows of the WhatsApp report.
+// Method names are free-form per org (PaymentType names like "Bank Transfer", plus reserved
+// literals like MONIEPOINT_POS), so match on a normalised name; anything unrecognised lands in
+// "other" rather than being silently mislabelled.
+export function bucketCollections(breakdown: Array<{ paymentMethod: string; expectedAmount: number }>) {
+  const totals = { card: 0, transfer: 0, cash: 0, wallet: 0, other: 0 };
+  for (const row of breakdown) {
+    const method = row.paymentMethod.toUpperCase().replace(/[\s-]+/g, '_');
+    if (method === 'CASH') totals.cash += row.expectedAmount;
+    else if (method === 'WALLET') totals.wallet += row.expectedAmount;
+    else if (method.includes('TRANSFER')) totals.transfer += row.expectedAmount;
+    else if (method.includes('CARD') || method.includes('POS') || method === 'PAYSTACK') totals.card += row.expectedAmount;
+    else totals.other += row.expectedAmount;
+  }
+  return totals;
+}
+
 @Injectable()
 export class ShiftsService {
   private readonly logger = new Logger(ShiftsService.name);
@@ -346,13 +363,11 @@ export class ShiftsService {
     const creditRepayments = toNumber(creditRepaymentsAgg._sum.amount ?? 0);
     const deposits = toNumber(depositsAgg._sum.amount ?? 0);
 
-    const dayLabel = closedAt.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    const reportDate = closedAt.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     const formatClock = (d: Date) => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-    const dateRange = `${dayLabel} (${formatClock(openedAt)} – ${formatClock(closedAt)})`;
+    const timeRange = `${formatClock(openedAt)} – ${formatClock(closedAt)}`;
     const currency = (value: number) => value.toLocaleString('en-NG', { style: 'currency', currency: 'NGN' });
-    const paymentBreakdownLine = breakdown
-      .map((row) => `${row.paymentMethod}: ${currency(row.expectedAmount)}`)
-      .join(' | ');
+    const collections = bucketCollections(breakdown);
 
     for (const phone of phones) {
       try {
@@ -360,20 +375,21 @@ export class ShiftsService {
           organizationId,
           toPhone: phone,
           orgName: org.name,
-          dateRange,
+          reportDate,
+          timeRange,
           totalSales: currency(totalSales),
           orderCount: String(orderCount),
           avgOrder: currency(avgOrder),
-          // Mirrors Total Sales rather than being separately tracked — see plan notes.
-          totalPayments: currency(totalSales),
-          paidToday: currency(closedPaidTotal),
+          cardCollected: currency(collections.card),
+          transferCollected: currency(collections.transfer),
+          cashCollected: currency(collections.cash),
+          walletCollected: currency(collections.wallet),
+          otherCollected: currency(collections.other),
+          totalReceived: currency(totalCollected),
           creditSales: currency(closedUnpaidTotal),
-          variance: currency(variance),
-          totalCollected: currency(totalCollected),
-          todaysSales: currency(closedPaidTotal),
           creditRepayments: currency(creditRepayments),
           deposits: currency(deposits),
-          paymentBreakdown: paymentBreakdownLine,
+          variance: currency(variance),
         });
       } catch (err) {
         this.logger.error(`Failed to send shift close report to ${phone} for org ${organizationId}: ${err.message}`);
