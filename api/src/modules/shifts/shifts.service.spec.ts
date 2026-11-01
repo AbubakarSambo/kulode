@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { ShiftsService } from './shifts.service';
+import { ShiftsService, bucketCollections } from './shifts.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 
@@ -285,5 +285,22 @@ describe('ShiftsService', () => {
       prisma.shift.findFirst.mockResolvedValue(shift);
       await expect(service.findOne(ORG_ID, SHIFT_ID)).resolves.toBe(shift);
     });
+  });
+});
+
+describe('bucketCollections', () => {
+  it('folds payment methods into the WhatsApp report rows', () => {
+    expect(
+      bucketCollections([
+        { paymentMethod: 'BANK_TRANSFER', expectedAmount: 145500 },
+        { paymentMethod: 'CARD', expectedAmount: 29000 },
+        { paymentMethod: 'CASH', expectedAmount: 5000 },
+        { paymentMethod: 'MONIEPOINT_POS', expectedAmount: 206800 },
+        { paymentMethod: 'MONIEPOINT_TRANSFER', expectedAmount: 155900 },
+        { paymentMethod: 'WALLET', expectedAmount: 83950 },
+        { paymentMethod: 'Bank Transfer', expectedAmount: 100 },
+        { paymentMethod: 'Cheque', expectedAmount: 50 },
+      ]),
+    ).toEqual({ card: 235800, transfer: 301500, cash: 5000, wallet: 83950, other: 50 });
   });
 });

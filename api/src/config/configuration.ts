@@ -90,7 +90,7 @@ export const whatsappConfig = registerAs("whatsapp", () => ({
   summaryTemplateName:
     process.env.WHATSAPP_SUMMARY_TEMPLATE_NAME || "daily_sales_summary",
   shiftReportTemplateName:
-    process.env.WHATSAPP_SHIFT_REPORT_TEMPLATE_NAME || "shift_report",
+    process.env.WHATSAPP_SHIFT_REPORT_TEMPLATE_NAME || "shift_report_v2",
   templateLanguage: process.env.WHATSAPP_TEMPLATE_LANGUAGE || "en",
   webhookVerifyToken: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "",
 }));
