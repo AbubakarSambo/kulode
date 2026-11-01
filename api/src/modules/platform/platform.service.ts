@@ -641,7 +641,8 @@ export class PlatformService {
 
     // isTestAccount excludes the team's own internal/QA orgs from every POS metric below.
     const posOrgWhere = { enabledModules: { in: [OrgModule.POS, OrgModule.BOTH] }, isTestAccount: false };
-    const nonCancelledOrderWhere = { status: { not: 'CANCELLED' as const } };
+    // MERGED orders are emptied into another order, so counting them would double-count that sale.
+    const nonCancelledOrderWhere = { status: { notIn: ['CANCELLED' as const, 'MERGED' as const] } };
 
     const [
       totalPosOrgs,

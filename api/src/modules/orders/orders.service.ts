@@ -591,6 +591,14 @@ export class OrdersService {
     const item = order.items.find((i) => i.id === itemId);
     if (!item) throw new NotFoundException('Order item not found');
 
+    // SERVED is final. Serving is where the recipe's ingredients come off stock (see
+    // shouldDeductStock below), and nothing puts them back — so letting an item step back out of
+    // SERVED and be served again would deduct the same dish twice. A dish that genuinely came
+    // back goes through item removal/void instead, which has its own supervisor approval.
+    if (item.status === 'SERVED' && dto.status !== 'SERVED') {
+      throw new BadRequestException('This item has already been served and can no longer change status');
+    }
+
     // Roll the order-level status up from its items so front-of-house and kitchen views agree.
     // Computed against the already-fetched items (patched in memory) rather than a re-fetch.
     const items = order.items.map((i) => (i.id === itemId ? { ...i, status: dto.status } : i));
@@ -780,8 +788,8 @@ export class OrdersService {
   async setCustomer(organizationId: string, id: string, dto: UpdateOrderCustomerDto) {
     const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
     if (!order) throw new NotFoundException('Order not found');
-    if (order.status === OrderStatus.CANCELLED) {
-      throw new BadRequestException('Cannot change customer on a cancelled order');
+    if (order.status === OrderStatus.CANCELLED || order.status === OrderStatus.MERGED) {
+      throw new BadRequestException('Cannot change customer on a cancelled or merged order');
     }
 
     if (dto.customerId) {
@@ -801,8 +809,8 @@ export class OrdersService {
   async setWaiter(organizationId: string, id: string, dto: UpdateOrderWaiterDto) {
     const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
     if (!order) throw new NotFoundException('Order not found');
-    if (order.status === OrderStatus.CANCELLED) {
-      throw new BadRequestException('Cannot change waiter on a cancelled order');
+    if (order.status === OrderStatus.CANCELLED || order.status === OrderStatus.MERGED) {
+      throw new BadRequestException('Cannot change waiter on a cancelled or merged order');
     }
 
     if (dto.waiterId) {
@@ -825,8 +833,8 @@ export class OrdersService {
   async setNotes(organizationId: string, id: string, dto: UpdateOrderNotesDto) {
     const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
     if (!order) throw new NotFoundException('Order not found');
-    if (order.status === OrderStatus.CANCELLED) {
-      throw new BadRequestException('Cannot change notes on a cancelled order');
+    if (order.status === OrderStatus.CANCELLED || order.status === OrderStatus.MERGED) {
+      throw new BadRequestException('Cannot change notes on a cancelled or merged order');
     }
 
     return this.prisma.order.update({
@@ -846,8 +854,8 @@ export class OrdersService {
   async setSource(organizationId: string, id: string, dto: UpdateOrderSourceDto) {
     const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
     if (!order) throw new NotFoundException('Order not found');
-    if (order.status === OrderStatus.CANCELLED) {
-      throw new BadRequestException('Cannot change the type of a cancelled order');
+    if (order.status === OrderStatus.CANCELLED || order.status === OrderStatus.MERGED) {
+      throw new BadRequestException('Cannot change the type of a cancelled or merged order');
     }
 
     const sourceRequiresTable = await this.orderTypesService.requiresTable(organizationId, dto.source);
@@ -886,7 +894,8 @@ export class OrdersService {
    * weren't originally on) so the merged bill goes through the normal single-order close/split
    * flow. Deliberately narrow for v1: both orders must still be open and unpaid — an order that
    * already has a payment recorded is left alone rather than trying to reconcile two payment
-   * ledgers. The source order is cancelled, not deleted, for an audit trail; its own totals are
+   * ledgers. The source order is marked MERGED (not CANCELLED — it isn't a void, and
+   * reporting/the accounting feed shouldn't count it as one), not deleted, for an audit trail; its own totals are
    * left as a historical snapshot rather than zeroed. Table occupancy is untouched — merging
    * bills says nothing about where the guests are actually sitting.
    */
@@ -926,7 +935,7 @@ export class OrdersService {
       const sourceResult = await tx.order.updateMany({
         where: { id: sourceOrderId, organizationId, status: { in: OPEN_STATUSES } },
         data: {
-          status: 'CANCELLED',
+          status: 'MERGED',
           notes: source.notes
             ? `${source.notes} — merged into order ${destinationId}`
             : `Merged into order ${destinationId}`,
@@ -1151,7 +1160,7 @@ export class OrdersService {
         where: { id: sourceOrderId, organizationId, status: { in: OPEN_STATUSES } },
         data:
           remainingCount === 0
-            ? { status: 'CANCELLED', notes: source.notes ? `${source.notes} — items moved to order ${destination.id}` : `Items moved to order ${destination.id}` }
+            ? { status: 'MERGED', notes: source.notes ? `${source.notes} — items moved to order ${destination.id}` : `Items moved to order ${destination.id}` }
             : {
                 ...(await this.recomputeOrderTotals(
                   tx,

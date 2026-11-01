@@ -614,4 +614,55 @@ describe('OrdersService — status transitions across the waiter/cashier split',
       expect(prisma.__tx.order.update).toHaveBeenCalled();
     });
   });
+
+  // ─── updateItemStatus ──────────────────────────────────────────────────────
+
+  describe('updateItemStatus', () => {
+    it('rejects moving an item back out of SERVED (stock was already deducted on serve)', async () => {
+      prisma.order.findFirst.mockResolvedValue(
+        orderWith({ items: [{ id: 'item-1', status: 'SERVED', menuItemId: 'menu-1', quantity: 1 }] }),
+      );
+
+      await expect(service.updateItemStatus(ORG_ID, ORDER_ID, 'item-1', { status: 'PASS' })).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('still allows a forward move into SERVED', async () => {
+      (inventoryService as unknown as { deductRecipeForOrderItem: jest.Mock }).deductRecipeForOrderItem = jest.fn();
+      prisma.order.findFirst.mockResolvedValue(
+        orderWith({ items: [{ id: 'item-1', status: 'PASS', menuItemId: 'menu-1', quantity: 1 }] }),
+      );
+
+      await service.updateItemStatus(ORG_ID, ORDER_ID, 'item-1', { status: 'SERVED' });
+
+      expect(prisma.__tx.orderItem.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'item-1' }, data: expect.objectContaining({ status: 'SERVED' }) }),
+      );
+    });
+  });
+
+  // ─── mergeOrders ───────────────────────────────────────────────────────────
+
+  describe('mergeOrders', () => {
+    it('marks the source order MERGED rather than CANCELLED', async () => {
+      prisma.order.findFirst.mockImplementation(({ where }: { where: { id: string } }) =>
+        Promise.resolve(orderWith({ id: where.id, amountPaid: 0, discountAmount: 0, notes: null })),
+      );
+      prisma.organization.findUniqueOrThrow.mockResolvedValue({ id: ORG_ID });
+      prisma.__tx.order.updateMany.mockResolvedValue({ count: 1 });
+      (prisma.__tx.orderItem as unknown as { updateMany: jest.Mock }).updateMany = jest.fn();
+      prisma.__tx.order.findUniqueOrThrow.mockResolvedValue(orderWith({}));
+
+      await service.mergeOrders(ORG_ID, ORDER_ID, 'order-source-1');
+
+      expect(prisma.__tx.order.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: 'order-source-1' }),
+          data: expect.objectContaining({ status: 'MERGED' }),
+        }),
+      );
+    });
+  });
 });

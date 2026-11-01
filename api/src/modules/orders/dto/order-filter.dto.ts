@@ -3,7 +3,7 @@ import { Transform } from 'class-transformer';
 import { IsArray, IsBoolean, IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { PaginationDto } from '../../../common';
 
-const ORDER_STATUSES = ['OPEN', 'IN_KITCHEN', 'READY', 'CLOSED_PAID', 'CLOSED_UNPAID', 'CANCELLED'] as const;
+const ORDER_STATUSES = ['OPEN', 'IN_KITCHEN', 'READY', 'CLOSED_PAID', 'CLOSED_UNPAID', 'CANCELLED', 'MERGED'] as const;
 
 export class OrderFilterDto extends PaginationDto {
   @ApiPropertyOptional({ enum: ORDER_STATUSES })

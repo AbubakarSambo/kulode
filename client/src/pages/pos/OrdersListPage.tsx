@@ -96,6 +96,7 @@ const STATUS_OPTIONS: { value: OrderStatus | ''; label: string }[] = [
   { value: 'CLOSED_PAID', label: 'Closed / Paid' },
   { value: 'CLOSED_UNPAID', label: 'Closed / Unpaid' },
   { value: 'CANCELLED', label: 'Cancelled' },
+  { value: 'MERGED', label: 'Merged' },
 ]
 
 // A retail sale is created and paid in one step at checkout, so it never sits open, in the kitchen
@@ -175,9 +176,10 @@ export function OrdersListPage() {
   }, [awaitingPayment, canTakePayment])
 
   // "Open" is meant to mean "still active" to staff, not literally the OPEN status — an order
-  // that's already IN_KITCHEN is just as much still-open/unresolved, so the Open filter queries
-  // both statuses together rather than only the narrow "not yet started" OPEN status.
-  const OPEN_FILTER_STATUSES: OrderStatus[] = ['OPEN', 'IN_KITCHEN']
+  // that's IN_KITCHEN, or READY (every item at the pass/served, still waiting to be closed), is
+  // just as much unresolved, so the Open filter queries all three together. Leaving READY out
+  // made an order vanish from the default view the moment the kitchen passed it.
+  const OPEN_FILTER_STATUSES: OrderStatus[] = ['OPEN', 'IN_KITCHEN', 'READY']
 
   const { data, isLoading } = useQuery({
     queryKey: ['orders-summary', { status, tableId, customerId, waiterId, page, search: debouncedSearch }],

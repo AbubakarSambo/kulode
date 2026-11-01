@@ -71,14 +71,14 @@ describe('OrdersListPage', () => {
     setCurrentUser(['WAITER']) // not a cashier by default — keeps the awaiting-payment poll off
   })
 
-  it('defaults to the Open filter and queries the merged OPEN+IN_KITCHEN statuses', async () => {
+  it('defaults to the Open filter and queries the merged OPEN+IN_KITCHEN+READY statuses', async () => {
     vi.mocked(ordersApi.listSummary).mockResolvedValue(paginated([orderWith({ id: 'order-1' })]))
 
     renderPage()
 
     await waitFor(() =>
       expect(ordersApi.listSummary).toHaveBeenCalledWith(
-        expect.objectContaining({ statuses: ['OPEN', 'IN_KITCHEN'], page: 1, limit: 100 }),
+        expect.objectContaining({ statuses: ['OPEN', 'IN_KITCHEN', 'READY'], page: 1, limit: 100 }),
       ),
     )
     expect(screen.getByDisplayValue('Open')).toBeInTheDocument()
@@ -273,7 +273,7 @@ describe('OrdersListPage', () => {
       await waitFor(() =>
         expect(ordersApi.listSummary).toHaveBeenCalledWith(expect.objectContaining({ status: undefined, page: 1 })),
       )
-      expect(ordersApi.listSummary).not.toHaveBeenCalledWith(expect.objectContaining({ statuses: ['OPEN', 'IN_KITCHEN'] }))
+      expect(ordersApi.listSummary).not.toHaveBeenCalledWith(expect.objectContaining({ statuses: ['OPEN', 'IN_KITCHEN', 'READY'] }))
       expect(screen.getAllByText('Sales').length).toBeGreaterThan(0)
       expect(tablesApi.list).not.toHaveBeenCalled()
       expect(screen.queryByRole('option', { name: 'All Tables' })).not.toBeInTheDocument()
