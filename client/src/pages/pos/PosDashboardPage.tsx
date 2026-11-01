@@ -228,6 +228,15 @@ export function PosDashboardPage() {
                   </span>
                   <span className="tabular-nums text-foreground">{formatCurrency(breakdown?.closedUnpaid.outstanding ?? 0)} owed</span>
                 </div>
+                {(breakdown?.walletCredit ?? 0) > 0 && (
+                  <div
+                    className="flex items-center justify-between gap-2"
+                    title="Orders marked paid by charging a customer's wallet past its balance — still owed"
+                  >
+                    <span className="flex items-center gap-1 pl-2.5">On wallet credit</span>
+                    <span className="tabular-nums text-foreground">{formatCurrency(breakdown?.walletCredit ?? 0)} owed</span>
+                  </div>
+                )}
                 {showOpen && (
                   <div className="flex items-center justify-between gap-2">
                     <span className="flex items-center gap-1">

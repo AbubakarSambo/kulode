@@ -3,6 +3,7 @@ import { OrderStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { applyShiftHours, businessDateFor, DEFAULT_SHIFT_HOURS, ShiftHours } from '../../common';
 import { ReportFilterDto, ReportPeriod } from '../reports/dto';
+import { splitWalletDebit } from '../shifts/shift-report-figures';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -107,6 +108,34 @@ export class PosDashboardService {
     return applyShiftHours(startDate, endDate, shift);
   }
 
+
+  // Credit taken through wallets on orders closed in the period: the part of each wallet charge
+  // that pushed the customer's balance below zero (see splitWalletDebit). Charges later reversed
+  // by "reassign wallet payment" are skipped.
+  private async walletCreditForOrdersClosed(organizationId: string, startDate: Date, endDate: Date) {
+    const debits = await this.prisma.walletTransaction.findMany({
+      where: {
+        organizationId,
+        type: 'ORDER_DEBIT',
+        order: {
+          status: { in: [OrderStatus.CLOSED_PAID, OrderStatus.CLOSED_UNPAID] },
+          closedAt: { gte: startDate, lte: endDate },
+        },
+      },
+      select: { id: true, amount: true, balanceBefore: true },
+    });
+    if (debits.length === 0) return 0;
+
+    const reversals = await this.prisma.walletTransaction.findMany({
+      where: { organizationId, type: 'REFUND', reference: { in: debits.map((d) => d.id) } },
+      select: { reference: true },
+    });
+    const reversed = new Set(reversals.map((r) => r.reference));
+
+    return debits
+      .filter((d) => !reversed.has(d.id))
+      .reduce((sum, d) => sum + splitWalletDebit(Number(d.amount), Number(d.balanceBefore)).onCredit, 0);
+  }
 
   private calculatePercentageChange(current: number, previous: number): number {
     if (previous === 0) return current > 0 ? 100 : 0;
@@ -279,6 +308,8 @@ export class PosDashboardService {
       `,
     ]);
 
+    const walletCredit = await this.walletCreditForOrdersClosed(organizationId, startDate, endDate);
+
     const totalSales = Number(sales._sum.amount || 0);
     const prevTotalSales = Number(prevSales._sum.amount || 0);
 
@@ -306,6 +337,9 @@ export class PosDashboardService {
           amount: closedUnpaidTotal,
           outstanding: closedUnpaidTotal - closedUnpaidCollected,
         },
+        // Paid orders that were charged to a wallet past its balance: they close as paid, but the
+        // customer still owes that part. Shown alongside "owed" so it isn't hidden.
+        walletCredit,
         // Live snapshot, not period-scoped — see the query above.
         open: { count: openAgg._count, amount: openTotal },
       },

@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { ShiftsService, bucketCollections } from './shifts.service';
+import { ShiftsService } from './shifts.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 
@@ -14,7 +14,9 @@ function createMockPrisma() {
       create: jest.fn(),
       update: jest.fn(),
     },
-    payment: { groupBy: jest.fn() },
+    payment: { groupBy: jest.fn(), aggregate: jest.fn() },
+    walletTransaction: { groupBy: jest.fn().mockResolvedValue([]), findMany: jest.fn().mockResolvedValue([]) },
+    order: { aggregate: jest.fn() },
     // close() looks the org up to decide whether to send the WhatsApp shift summary; no org
     // means no summary, which keeps these tests focused on the shift itself.
     organization: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -47,6 +49,7 @@ function shiftWith(overrides: object) {
 describe('ShiftsService', () => {
   let service: ShiftsService;
   let prisma: ReturnType<typeof createMockPrisma>;
+  let whatsapp: { sendShiftReportTemplate: jest.Mock };
 
   beforeEach(async () => {
     prisma = createMockPrisma();
@@ -55,7 +58,7 @@ describe('ShiftsService', () => {
       providers: [
         ShiftsService,
         { provide: PrismaService, useValue: prisma },
-        { provide: WhatsappService, useValue: { sendShiftReportTemplate: jest.fn() } },
+        { provide: WhatsappService, useValue: (whatsapp = { sendShiftReportTemplate: jest.fn() }) },
       ],
     }).compile();
 
@@ -126,6 +129,69 @@ describe('ShiftsService', () => {
   // ─── close ───────────────────────────────────────────────────────────────────
 
   describe('close', () => {
+    it('expects wallet top-ups in the drawer under the method they were paid with', async () => {
+      prisma.shift.findFirst.mockResolvedValue(shiftWith({ openingFloat: 20000 }));
+      prisma.shift.update.mockResolvedValue(shiftWith({ status: 'CLOSED' }));
+      prisma.payment.groupBy.mockResolvedValue([{ paymentMethod: 'CASH', _sum: { amount: 10000 } }]);
+      prisma.walletTransaction.groupBy.mockResolvedValue([
+        { paymentMethod: 'CASH', _sum: { amount: 5000 } },
+        { paymentMethod: null, _sum: { amount: 700 } },
+      ]);
+
+      await service.close(ORG_ID, SHIFT_ID, USER_ID, { countedCash: 35000 });
+
+      expect(prisma.shift.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ expectedCash: 35000, variance: 0 }) }),
+      );
+      expect(prisma.shiftPaymentBreakdown.createMany).toHaveBeenCalledWith({
+        data: expect.arrayContaining([
+          expect.objectContaining({ paymentMethod: 'CASH', expectedAmount: 35000 }),
+          expect.objectContaining({ paymentMethod: 'OTHER', expectedAmount: 700 }),
+        ]),
+      });
+    });
+
+    it('sends a WhatsApp report that does not count wallet spending as money received', async () => {
+      const openedAt = new Date('2026-08-30T19:00:00.000Z');
+      prisma.shift.findFirst.mockResolvedValue(shiftWith({ openingFloat: 0, openedAt }));
+      prisma.shift.update.mockResolvedValue(shiftWith({ status: 'CLOSED' }));
+      prisma.organization.findUnique.mockResolvedValue({
+        name: 'Almond House',
+        ownerWhatsappPhone: '2348000000000',
+        enabledModules: 'POS',
+      });
+      prisma.payment.groupBy.mockResolvedValue([
+        { paymentMethod: 'CASH', _sum: { amount: 10000 } },
+        { paymentMethod: 'WALLET', _sum: { amount: 30000 } },
+      ]);
+      prisma.walletTransaction.groupBy.mockResolvedValue([{ paymentMethod: 'BANK_TRANSFER', _sum: { amount: 8000 } }]);
+      prisma.order.aggregate
+        .mockResolvedValueOnce({ _sum: { total: 40000 }, _count: { id: 2 } }) // closed paid
+        .mockResolvedValueOnce({ _sum: { total: 6000, amountPaid: 1000 }, _count: { id: 1 } }); // closed unpaid
+      prisma.payment.aggregate.mockResolvedValue({ _sum: { amount: 0 } });
+      prisma.walletTransaction.findMany
+        // ₦30k wallet charge on a ₦10k balance: ₦10k from balance, ₦20k on credit.
+        .mockResolvedValueOnce([{ id: 'd1', amount: -30000, balanceBefore: 10000, order: { closedAt: openedAt } }])
+        .mockResolvedValueOnce([]) // no reversals
+        // ₦8k top-up on a -₦3k balance: ₦3k repays credit, ₦5k is a deposit.
+        .mockResolvedValueOnce([{ amount: 8000, balanceBefore: -3000 }]);
+
+      await service.close(ORG_ID, SHIFT_ID, USER_ID, { countedCash: 10000 });
+
+      expect(whatsapp.sendShiftReportTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          totalSales: '₦46,000.00',
+          cashCollected: '₦10,000.00',
+          transferCollected: '₦8,000.00',
+          totalReceived: '₦18,000.00',
+          paidFromWallet: '₦10,000.00',
+          creditSales: '₦25,000.00',
+          creditRepayments: '₦3,000.00',
+          walletTopUps: '₦5,000.00',
+        }),
+      );
+    });
+
     it('throws NotFoundException when the shift does not exist', async () => {
       prisma.shift.findFirst.mockResolvedValue(null);
       await expect(service.close(ORG_ID, SHIFT_ID, USER_ID, { countedCash: 0 })).rejects.toThrow(
@@ -288,19 +354,3 @@ describe('ShiftsService', () => {
   });
 });
 
-describe('bucketCollections', () => {
-  it('folds payment methods into the WhatsApp report rows', () => {
-    expect(
-      bucketCollections([
-        { paymentMethod: 'BANK_TRANSFER', expectedAmount: 145500 },
-        { paymentMethod: 'CARD', expectedAmount: 29000 },
-        { paymentMethod: 'CASH', expectedAmount: 5000 },
-        { paymentMethod: 'MONIEPOINT_POS', expectedAmount: 206800 },
-        { paymentMethod: 'MONIEPOINT_TRANSFER', expectedAmount: 155900 },
-        { paymentMethod: 'WALLET', expectedAmount: 83950 },
-        { paymentMethod: 'Bank Transfer', expectedAmount: 100 },
-        { paymentMethod: 'Cheque', expectedAmount: 50 },
-      ]),
-    ).toEqual({ card: 235800, transfer: 301500, cash: 5000, wallet: 83950, other: 50 });
-  });
-});

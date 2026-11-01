@@ -16,6 +16,7 @@ interface ApplyMovementParams {
   paymentId?: string;
   reference?: string;
   notes?: string;
+  paymentMethod?: string;
 }
 
 @Injectable()
@@ -110,6 +111,7 @@ export class WalletService {
         createdById: userId,
         reference: params.reference,
         notes: params.notes,
+        paymentMethod: params.paymentMethod,
       },
     });
 
@@ -172,7 +174,15 @@ export class WalletService {
     organizationId: string,
     customerId: string,
     userId: string,
-    params: { amount: number; type: WalletTransactionType; orderId?: string; paymentId?: string; reference?: string; notes?: string },
+    params: {
+      amount: number;
+      type: WalletTransactionType;
+      orderId?: string;
+      paymentId?: string;
+      reference?: string;
+      notes?: string;
+      paymentMethod?: string;
+    },
   ) {
     return this.applyMovement(tx, organizationId, customerId, userId, {
       ...params,
@@ -190,6 +200,7 @@ export class WalletService {
         this.credit(tx, organizationId, customerId, userId, {
           amount: dto.amount,
           type: 'TOPUP',
+          paymentMethod: dto.paymentMethod,
           reference: dto.reference,
           notes: dto.notes ?? `Top-up via ${TOPUP_PAYMENT_METHOD_LABELS[dto.paymentMethod] ?? dto.paymentMethod}`,
         }),

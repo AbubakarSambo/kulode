@@ -69,6 +69,9 @@ describe('WalletService', () => {
         balanceBefore: 100,
         balanceAfter: 150,
       });
+      expect(prisma.walletTransaction.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ type: 'TOPUP', paymentMethod: 'CASH' }),
+      });
     });
 
     it('labels the default note with a readable payment method', async () => {
