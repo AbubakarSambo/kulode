@@ -3,6 +3,8 @@ import type { ApiResponse } from '@/types'
 
 export interface MoniepointStatus {
   isSetup: boolean
+  businessId: string | null
+  businessName: string | null
   isWebhookSubscribed: boolean
   hasWebhookSecret: boolean
 }
@@ -10,7 +12,12 @@ export interface MoniepointStatus {
 export interface MoniepointSetupData {
   clientId: string
   clientSecret: string
-  businessId?: string
+  businessId: string
+}
+
+export interface MoniepointBusiness {
+  id: string
+  businessName: string
 }
 
 export interface MoniepointUnreconciledTransferSenderMetadata {
@@ -41,8 +48,16 @@ export const moniepointApi = {
     const response = await apiClient.get<ApiResponse<MoniepointStatus>>('/organizations/moniepoint-status')
     return response.data.data
   },
+  introspect: async (clientSecret: string): Promise<MoniepointBusiness[]> => {
+    const response = await apiClient.post<ApiResponse<MoniepointBusiness[]>>('/organizations/moniepoint-introspect', {
+      clientSecret,
+    })
+    return response.data.data
+  },
   setup: async (data: MoniepointSetupData) => {
-    const response = await apiClient.post<ApiResponse<{ success: boolean }>>('/organizations/setup-moniepoint', data)
+    const response = await apiClient.post<
+      ApiResponse<{ success: boolean; businessId: string; businessName: string; businessChanged: boolean }>
+    >('/organizations/setup-moniepoint', data)
     return response.data.data
   },
   disconnect: async () => {

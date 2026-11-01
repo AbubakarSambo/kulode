@@ -22,18 +22,23 @@ Confirmed by directly calling `GET https://api.pos.moniepoint.com/v1/introspect`
 
 Also note: `clientId` (the `api-client-...` value from the ERP integration screen) does not appear to be used anywhere in the actual Moniepoint API calls (introspect, webhook-subscriptions all authenticate with just the Bearer token) — it may be effectively vestigial for our purposes, but we still store and require it since the setup form/DTO expects it.
 
-## 1. Enter credentials
+## 1. Enter credentials and pick the business
 
-Staff goes to **Settings → Moniepoint** in the app and enters:
-- `clientId` (required) — the `api-client-...` value from the ERP Integration screen (see caveat above — likely unused for auth, but still required by the form)
-- `clientSecret` (required) — **the `mptp_...` API Key from POS APPS Developer → API Keys**, NOT the short string from the "Client Credentials Generated" screen (see above)
-- `businessId` (optional — usually auto-detected in step 2; if entering manually, it's purely numeric digits, e.g. `1120783` — never a phone number or any other format)
+Staff goes to **Settings → Moniepoint** in the app. Setup has two screens.
 
-Validated client-side by Zod (`client/src/pages/settings/MoniepointPage.tsx`).
+**Screen 1: credentials.** Staff enters:
+- `clientId` (required): the `api-client-...` value from the ERP Integration screen (see caveat above; likely unused for auth, but still required by the form)
+- `clientSecret`, labelled **API Key** (required): **the `mptp_...` API Key from POS APPS Developer → API Keys**, NOT the short string from the "Client Credentials Generated" screen (see above)
 
-→ `POST /organizations/setup-moniepoint` (`moniepoint.controller.ts`, role ADMIN/SUPER_ADMIN) → `MoniepointService.setupCredentials` (`moniepoint.service.ts`).
+Clicking **Find My Business** → `POST /organizations/moniepoint-introspect` (ADMIN/SUPER_ADMIN) → `MoniepointService.introspectBusinesses`, which calls `GET /v1/introspect` on `posApiBaseUrl` with the key as Bearer. Nothing is stored. A non-2xx from Moniepoint comes back as a 400 that includes Moniepoint's message, plus a reminder about the `mptp_` key if the value doesn't start with it. A key with no linked businesses is also a 400.
 
-No external Moniepoint call here — just persists on `Organization`: `moniepointClientId`, `moniepointClientSecretEncrypted` (encrypted), `moniepointBusinessId`, and clears any cached `moniepointAccessToken` / `moniepointAccessTokenExpiresAt`.
+**Screen 2: choose the business.** Every business on the key is listed by name and ID. With only one, it's pre-selected; when changing credentials, the org's current business is pre-selected if it's still on the key. Staff picks one and clicks **Connect Business**.
+
+→ `POST /organizations/setup-moniepoint` with `clientId`, `clientSecret` and `businessId` → `setupCredentials`, which:
+1. Calls introspect again and rejects a `businessId` the key doesn't cover (the client's choice isn't trusted).
+2. Rejects a business that's already connected to another org. Webhooks are routed by `businessId` with `findFirst`, so two orgs on one business would split deliveries unpredictably.
+3. Saves `moniepointClientId`, `moniepointClientSecretEncrypted`, `moniepointBusinessId`, `moniepointBusinessName`, and clears the cached access token.
+4. If the business changed, clears `moniepointWebhookSubscriptionId` and `moniepointWebhookSecretEncrypted`. The old subscription belongs to the old business, so staff has to subscribe again (the UI warns before they save).
 
 ## 2. Subscribe the webhook
 
@@ -41,7 +46,7 @@ Once `status.isSetup` is true, staff clicks **Subscribe**.
 
 → `POST /organizations/moniepoint-subscribe-webhook` (`moniepoint.controller.ts`, ADMIN/SUPER_ADMIN) → `subscribeToWebhook` (`moniepoint.service.ts`):
 
-1. If `businessId` wasn't supplied in step 1, calls `GET /v1/introspect` on `posApiBaseUrl` (Bearer: the `mptp_...` API Key) to auto-detect it. Fails with a 400 telling staff to re-enter `businessId` manually if introspect is ambiguous/fails (e.g. the key is linked to multiple businesses).
+1. Uses the `businessId` picked in step 1. Orgs set up before the business picker existed may have none saved. For those it falls back to introspect and auto-selects only if the key has exactly one business. Otherwise it returns a 400 asking staff to click Change Credentials and pick one.
 2. Calls `POST /v1/webhook-subscriptions` on `posApiBaseUrl` with:
    - `endpointUrl` = `MONIEPOINT_WEBHOOK_BASE_URL` + `/api/v1/webhooks/moniepoint`
    - `eventTypes: [WEBHOOK_EVENT_TYPE, ...TRANSFER_WEBHOOK_EVENT_TYPES]` — `['V1_POS_PURCHASE_TRANSACTION', 'V1_TRANSFER_TRANSACTION', 'V1_POS_TRANSFER_TRANSACTION']` (`moniepoint.service.ts`). Purchase events are required now too, since card payments reconcile the same way transfers do — see step 5.
