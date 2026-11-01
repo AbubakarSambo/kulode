@@ -11,6 +11,7 @@ export interface PosDashboardSummary {
     total: number
     closedPaid: { count: number; amount: number }
     closedUnpaid: { count: number; amount: number; outstanding: number }
+    walletCredit: number
     open: { count: number; amount: number }
   }
   byPaymentMethod: { method: string; total: number; count: number }[]
