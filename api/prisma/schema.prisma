@@ -159,6 +159,9 @@ enum OrderStatus {
   CLOSED_PAID
   CLOSED_UNPAID
   CANCELLED
+  // Folded into another order (merge, or move-all-items) — not a void. Kept distinct from
+  // CANCELLED so voids/cancellation reporting and the accounting feed don't count merges.
+  MERGED
 }
 
 enum OrderItemStatus {

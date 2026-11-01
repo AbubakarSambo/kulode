@@ -251,11 +251,14 @@ function TicketCard({ order, items, now }: { order: Order; items: OrderItem[]; n
                           }
                           updateItemStatus.mutate({ itemId: item.id, status: s })
                         }}
-                        disabled={pendingStatus !== null}
+                        // Served is final (the API rejects stepping back out of it — serving is
+                        // what deducts the recipe's stock), so lock the item once it's served.
+                        disabled={pendingStatus !== null || item.status === 'SERVED'}
                         className={cn(
                           'flex min-h-16 min-w-24 cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 py-4 text-lg font-bold transition-colors active:scale-95 disabled:cursor-not-allowed',
                           item.status === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
                           pendingStatus !== null && pendingStatus !== s && 'opacity-40',
+                          item.status === 'SERVED' && s !== 'SERVED' && 'opacity-40',
                         )}
                       >
                         {pendingStatus === s && (

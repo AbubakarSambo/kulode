@@ -894,7 +894,7 @@ function SyncedOrderView({ id }: { id: string }) {
   // side), so it stays available on CLOSED_UNPAID too — e.g. a guest orders dessert while waiting
   // to settle up.
   const canAddItems = isOpenStatus || order.status === 'CLOSED_UNPAID'
-  const canEditCustomerOrWaiter = order.status !== 'CANCELLED'
+  const canEditCustomerOrWaiter = order.status !== 'CANCELLED' && order.status !== 'MERGED'
   // Once a WALLET payment has actually moved money, plain "Change customer" would silently
   // re-attribute the order without touching either wallet — the wrong customer stays charged
   // and the right one never gets billed. Route through reassign-payment instead in that case.
@@ -1186,9 +1186,12 @@ function SyncedOrderView({ id }: { id: string }) {
                       <button
                         key={s}
                         onClick={() => updateItemStatus.mutate({ itemId: item.id, status: s })}
+                        // Served is final — the API rejects stepping back out of it.
+                        disabled={item.status === 'SERVED'}
                         className={cn(
-                          'min-h-11 rounded-full px-4 py-2 text-sm font-semibold',
+                          'min-h-11 rounded-full px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed',
                           item.status === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                          item.status === 'SERVED' && s !== 'SERVED' && 'opacity-40',
                         )}
                       >
                         {ITEM_STATUS_LABELS[s]}
