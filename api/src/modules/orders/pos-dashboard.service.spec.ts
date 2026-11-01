@@ -69,3 +69,23 @@ describe('getTodayTakings', () => {
     expect(prisma.order.aggregate).not.toHaveBeenCalled();
   });
 });
+
+describe('walletCreditForOrdersClosed', () => {
+  it('sums only the part of each wallet charge that went below zero, skipping reversed charges', async () => {
+    const prisma = {
+      walletTransaction: {
+        findMany: jest
+          .fn()
+          .mockResolvedValueOnce([
+            { id: 'd1', amount: -30000, balanceBefore: 10000 }, // ₦20k on credit
+            { id: 'd2', amount: -5000, balanceBefore: 50000 }, // covered by balance
+            { id: 'd3', amount: -8000, balanceBefore: 0 }, // reversed, ignored
+          ])
+          .mockResolvedValueOnce([{ reference: 'd3' }]),
+      },
+    };
+    const service = new PosDashboardService(prisma as never);
+    const credit = await (service as any).walletCreditForOrdersClosed('org-1', at('2026-11-01T00:00:00Z'), at('2026-11-02T00:00:00Z'));
+    expect(credit).toBe(20000);
+  });
+});
