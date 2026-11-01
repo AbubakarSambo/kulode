@@ -120,18 +120,82 @@ export class MoniepointService {
       throw new NotFoundException('Organization not found');
     }
 
+    // Don't trust the businessId the client sends back: check it against what this key can
+    // actually access. Otherwise a typo or tampered request would route another business's
+    // webhooks to this org.
+    const businesses = await this.introspectBusinesses(dto.clientSecret);
+    const business = businesses.find((b) => b.id === dto.businessId);
+    if (!business) {
+      throw new BadRequestException('That business is not linked to this API key. Pick one of the businesses listed for it.');
+    }
+
+    // Webhooks are routed to an org by businessId (processIncomingWebhook uses findFirst), so two
+    // orgs sharing one business would make deliveries go to whichever row Postgres returns first.
+    const conflict = await this.prisma.organization.findFirst({
+      where: { moniepointBusinessId: business.id, id: { not: organizationId } },
+      select: { id: true },
+    });
+    if (conflict) {
+      throw new BadRequestException(`${business.businessName} is already connected to another Tarione organization.`);
+    }
+
+    // The existing webhook subscription (and the secret that goes with it) was made for the old
+    // business. Clear both so the settings page asks for a fresh subscription.
+    const businessChanged = organization.moniepointBusinessId !== business.id;
+
     await this.prisma.organization.update({
       where: { id: organizationId },
       data: {
         moniepointClientId: dto.clientId,
         moniepointClientSecretEncrypted: encryptSecret(dto.clientSecret, this.encryptionKey),
-        moniepointBusinessId: dto.businessId,
+        moniepointBusinessId: business.id,
+        moniepointBusinessName: business.businessName,
         moniepointAccessToken: null,
         moniepointAccessTokenExpiresAt: null,
+        ...(businessChanged && {
+          moniepointWebhookSubscriptionId: null,
+          moniepointWebhookSecretEncrypted: null,
+        }),
       },
     });
 
-    return { success: true };
+    return { success: true, businessId: business.id, businessName: business.businessName, businessChanged };
+  }
+
+  /**
+   * Lists the businesses an API key can access, via GET /v1/introspect on posApiBaseUrl. Used by
+   * the setup flow so the restaurant picks their business from a list instead of typing an id.
+   * Throws a readable error on failure. The usual cause is a key copied from the wrong Moniepoint
+   * screen (see docs/moniepoint-onboarding.md): the real key starts with mptp_.
+   */
+  async introspectBusinesses(apiKey: string): Promise<{ id: string; businessName: string }[]> {
+    let result: { businesses?: { id: number | string; businessName: string }[] };
+    try {
+      result = await this.makeRequest<{ businesses?: { id: number | string; businessName: string }[] }>(
+        '/v1/introspect',
+        undefined,
+        apiKey,
+        'GET',
+        this.posApiBaseUrl,
+      );
+    } catch (error) {
+      // makeRequest throws BadRequest for a non-2xx from Moniepoint and InternalServerError when
+      // the request didn't complete. Only the first one means the key itself is bad.
+      if (!(error instanceof BadRequestException)) {
+        throw error;
+      }
+      const reason = error.message;
+      const hint = apiKey.startsWith('mptp_')
+        ? ''
+        : ' The API key should start with "mptp_". Create one under POS APPS Developer → API Keys in your Moniepoint dashboard.';
+      throw new BadRequestException(`Moniepoint rejected this API key (${reason}).${hint}`);
+    }
+
+    const businesses = (result?.businesses ?? []).map((b) => ({ id: String(b.id), businessName: b.businessName }));
+    if (businesses.length === 0) {
+      throw new BadRequestException('This API key is valid but has no Moniepoint businesses linked to it.');
+    }
+    return businesses;
   }
 
   async getStatus(organizationId: string) {
@@ -140,6 +204,7 @@ export class MoniepointService {
       select: {
         moniepointClientId: true,
         moniepointBusinessId: true,
+        moniepointBusinessName: true,
         moniepointWebhookSubscriptionId: true,
         moniepointWebhookSecretEncrypted: true,
       },
@@ -149,9 +214,9 @@ export class MoniepointService {
     }
 
     return {
-      // businessId deliberately excluded — it's usually only known after subscribeToWebhook
-      // auto-detects it from the access token, which happens after this is already "set up".
       isSetup: !!organization.moniepointClientId,
+      businessId: organization.moniepointBusinessId,
+      businessName: organization.moniepointBusinessName,
       isWebhookSubscribed: !!organization.moniepointWebhookSubscriptionId,
       hasWebhookSecret: !!organization.moniepointWebhookSecretEncrypted,
     };
@@ -166,6 +231,7 @@ export class MoniepointService {
         moniepointAccessToken: null,
         moniepointAccessTokenExpiresAt: null,
         moniepointBusinessId: null,
+        moniepointBusinessName: null,
         moniepointWebhookSecretEncrypted: null,
         moniepointWebhookSubscriptionId: null,
       },
@@ -214,7 +280,7 @@ export class MoniepointService {
     if (!businessId) {
       this.logger.error(`Could not determine businessId via GET /v1/introspect for org ${organizationId} — webhook subscription blocked`);
       throw new BadRequestException(
-        "Couldn't determine your Moniepoint businessId automatically. Please re-run setup with businessId set explicitly (find it via Moniepoint support if it's not visible in your dashboard).",
+        "No Moniepoint business is selected for this organization. Click Change Credentials, re-enter your API key and pick your business.",
       );
     }
 
