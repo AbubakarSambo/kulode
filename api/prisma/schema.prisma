@@ -237,6 +237,9 @@ model Organization {
   // it through to Moniepoint's API (as a JSON number, well within JS's safe-integer range), so
   // there's no reason to fight BigInt/JS-number-vs-bigint plumbing for it.
   moniepointBusinessId             String?   @map("moniepoint_business_id")
+  // Display name of the business picked from GET /v1/introspect at setup, so the settings page
+  // can show which Moniepoint business this org is wired to.
+  moniepointBusinessName           String?   @map("moniepoint_business_name")
   moniepointWebhookSecretEncrypted String?   @map("moniepoint_webhook_secret_encrypted")
   moniepointWebhookSubscriptionId  String?   @map("moniepoint_webhook_subscription_id")
 

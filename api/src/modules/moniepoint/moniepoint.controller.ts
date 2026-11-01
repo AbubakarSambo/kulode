@@ -17,6 +17,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { MoniepointService } from './moniepoint.service';
 import {
   SetupMoniepointDto,
+  IntrospectMoniepointDto,
   SetWebhookSecretDto,
   AssignUnreconciledTransferDto,
   IgnoreUnreconciledTransferDto,
@@ -41,6 +42,15 @@ export class MoniepointController {
     @CurrentUser('organizationId') organizationId: string,
   ) {
     return this.moniepointService.setupCredentials(organizationId, dto);
+  }
+
+  @Post('organizations/moniepoint-introspect')
+  @ApiBearerAuth()
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'List the Moniepoint businesses an API key can access (GET /v1/introspect). Stores nothing.' })
+  @ApiResponse({ status: 201, description: 'Businesses linked to the key' })
+  async introspect(@Body() dto: IntrospectMoniepointDto) {
+    return this.moniepointService.introspectBusinesses(dto.clientSecret);
   }
 
   @Get('organizations/moniepoint-status')
