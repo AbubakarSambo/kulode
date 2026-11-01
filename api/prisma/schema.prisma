@@ -550,6 +550,10 @@ model WalletTransaction {
   createdById    String                @map("created_by")
   reference      String?
   notes          String?
+  // How a TOPUP was paid (CASH / BANK_TRANSFER / CARD / OTHER), so top-ups land in the right
+  // shift reconciliation row. Null on every other type, and on top-ups recorded before this
+  // column existed (their method only survives in `notes`).
+  paymentMethod  String?               @map("payment_method")
 
   createdAt DateTime @default(now()) @map("created_at")
 

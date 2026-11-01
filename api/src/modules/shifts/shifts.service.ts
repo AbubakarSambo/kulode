@@ -3,26 +3,10 @@ import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { OpenShiftDto, CloseShiftDto, BackdateShiftDto } from './dto';
+import { bucketCollections, splitTopUp, splitWalletDebit } from './shift-report-figures';
 
 function toNumber(val: Prisma.Decimal | number): number {
   return typeof val === 'number' ? val : Number(val);
-}
-
-// Folds the shift's per-method payment totals into the fixed rows of the WhatsApp report.
-// Method names are free-form per org (PaymentType names like "Bank Transfer", plus reserved
-// literals like MONIEPOINT_POS), so match on a normalised name; anything unrecognised lands in
-// "other" rather than being silently mislabelled.
-export function bucketCollections(breakdown: Array<{ paymentMethod: string; expectedAmount: number }>) {
-  const totals = { card: 0, transfer: 0, cash: 0, wallet: 0, other: 0 };
-  for (const row of breakdown) {
-    const method = row.paymentMethod.toUpperCase().replace(/[\s-]+/g, '_');
-    if (method === 'CASH') totals.cash += row.expectedAmount;
-    else if (method === 'WALLET') totals.wallet += row.expectedAmount;
-    else if (method.includes('TRANSFER')) totals.transfer += row.expectedAmount;
-    else if (method.includes('CARD') || method.includes('POS') || method === 'PAYSTACK') totals.card += row.expectedAmount;
-    else totals.other += row.expectedAmount;
-  }
-  return totals;
 }
 
 @Injectable()
@@ -227,16 +211,31 @@ export class ShiftsService {
     });
   }
 
+  // Expected takings per method for the shift: order payments plus wallet top-ups, merged by
+  // method name. Top-ups have to be in here, or a cash top-up goes into the drawer without the
+  // drawer expecting it. Top-ups recorded before WalletTransaction.paymentMethod existed have no
+  // method and count as OTHER.
   private async paymentBreakdownDuringShift(organizationId: string, openedAt: Date, until: Date) {
-    const grouped = await this.prisma.payment.groupBy({
-      by: ['paymentMethod'],
-      where: { organizationId, createdAt: { gte: openedAt, lte: until } },
-      _sum: { amount: true },
-    });
-    const breakdown = grouped.map((row) => ({
-      paymentMethod: row.paymentMethod,
-      expectedAmount: toNumber(row._sum.amount ?? 0),
-    }));
+    const [payments, topUps] = await Promise.all([
+      this.prisma.payment.groupBy({
+        by: ['paymentMethod'],
+        where: { organizationId, createdAt: { gte: openedAt, lte: until } },
+        _sum: { amount: true },
+      }),
+      this.prisma.walletTransaction.groupBy({
+        by: ['paymentMethod'],
+        where: { organizationId, type: 'TOPUP', createdAt: { gte: openedAt, lte: until } },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const totals = new Map<string, number>();
+    const add = (method: string, amount: Prisma.Decimal | null) =>
+      totals.set(method, (totals.get(method) ?? 0) + toNumber(amount ?? 0));
+    for (const row of payments) add(row.paymentMethod, row._sum.amount);
+    for (const row of topUps) add(row.paymentMethod ?? 'OTHER', row._sum.amount);
+
+    const breakdown = Array.from(totals, ([paymentMethod, expectedAmount]) => ({ paymentMethod, expectedAmount }));
     // Cash always needs reconciling against the opening float, even with zero cash sales.
     if (!breakdown.some((b) => b.paymentMethod === 'CASH')) {
       breakdown.unshift({ paymentMethod: 'CASH', expectedAmount: 0 });
@@ -304,6 +303,10 @@ export class ShiftsService {
   // than one shift per business day, each shift gets its own report rather than a running
   // cross-shift total; variance and the payment breakdown are this shift's own (already computed
   // by close() right before this is called), not re-aggregated across every shift closed today.
+  //
+  // Wallet tenders are not counted as received (see shift-report-figures.ts): each wallet charge
+  // is split into "paid from wallet" (balance topped up earlier) and credit, and each top-up into
+  // credit repayment and deposit. Total Received is then only money that actually came in.
   private async sendShiftSummary(
     organizationId: string,
     openedAt: Date,
@@ -320,54 +323,82 @@ export class ShiftsService {
     const phones = (org.ownerWhatsappPhone ?? '').split(',').map((p) => p.trim()).filter(Boolean);
     if (phones.length === 0) return;
 
-    const [closedPaidAgg, closedUnpaidAgg, totalPaymentsAgg, creditRepaymentsAgg, depositsAgg] = await Promise.all([
-      this.prisma.order.aggregate({
-        where: { organizationId, status: OrderStatus.CLOSED_PAID, closedAt: { gte: openedAt, lte: closedAt } },
-        _sum: { total: true },
-        _count: { id: true },
-      }),
-      this.prisma.order.aggregate({
-        where: { organizationId, status: OrderStatus.CLOSED_UNPAID, closedAt: { gte: openedAt, lte: closedAt } },
-        _sum: { total: true, amountPaid: true },
-        _count: { id: true },
-      }),
-      // Every payment that actually landed during this shift, regardless of which order/day it
-      // belongs to — the honest "total money collected" figure, not a derived sum of the buckets
-      // below.
-      this.prisma.payment.aggregate({
-        where: { organizationId, createdAt: { gte: openedAt, lte: closedAt } },
-        _sum: { amount: true },
-      }),
-      // Collected during this shift, but for an order that was finalized *before this shift
-      // opened* — i.e. money collected now against old credit, not this shift's own sales.
-      this.prisma.payment.aggregate({
-        where: {
-          organizationId,
-          createdAt: { gte: openedAt, lte: closedAt },
-          order: { closedAt: { lt: openedAt } },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.walletTransaction.aggregate({
-        where: { organizationId, type: 'TOPUP', createdAt: { gte: openedAt, lte: closedAt } },
-        _sum: { amount: true },
-      }),
-    ]);
+    const window = { gte: openedAt, lte: closedAt };
+    const [closedPaidAgg, closedUnpaidAgg, oldOrderRepaymentsAgg, walletDebits, walletReversals, topUps] =
+      await Promise.all([
+        this.prisma.order.aggregate({
+          where: { organizationId, status: OrderStatus.CLOSED_PAID, closedAt: window },
+          _sum: { total: true },
+          _count: { id: true },
+        }),
+        this.prisma.order.aggregate({
+          where: { organizationId, status: OrderStatus.CLOSED_UNPAID, closedAt: window },
+          _sum: { total: true, amountPaid: true },
+          _count: { id: true },
+        }),
+        // Real money collected this shift against an order finalized before the shift opened, i.e.
+        // old credit being paid off. WALLET is excluded: that only moves the debt onto the wallet.
+        this.prisma.payment.aggregate({
+          where: {
+            organizationId,
+            createdAt: window,
+            paymentMethod: { not: 'WALLET' },
+            order: { closedAt: { lt: openedAt } },
+          },
+          _sum: { amount: true },
+        }),
+        this.prisma.walletTransaction.findMany({
+          where: { organizationId, type: 'ORDER_DEBIT', createdAt: window },
+          select: { id: true, amount: true, balanceBefore: true, order: { select: { closedAt: true } } },
+        }),
+        // Charges reversed by "reassign wallet payment" (a REFUND whose reference is the debit id),
+        // so a charge that went to the wrong customer isn't reported twice.
+        this.prisma.walletTransaction.findMany({
+          where: { organizationId, type: 'REFUND', reference: { not: null }, createdAt: { lte: closedAt } },
+          select: { reference: true },
+        }),
+        this.prisma.walletTransaction.findMany({
+          where: { organizationId, type: 'TOPUP', createdAt: window },
+          select: { amount: true, balanceBefore: true },
+        }),
+      ]);
+
+    const reversed = new Set(walletReversals.map((r) => r.reference));
+    let paidFromWallet = 0;
+    let walletCreditSales = 0;
+    for (const debit of walletDebits) {
+      if (reversed.has(debit.id)) continue;
+      const { fromBalance, onCredit } = splitWalletDebit(toNumber(debit.amount), toNumber(debit.balanceBefore));
+      paidFromWallet += fromBalance;
+      // Credit taken to settle an order closed in an earlier shift was already reported as a
+      // credit sale then; it is only being moved onto the wallet now.
+      const isOldOrder = debit.order?.closedAt && debit.order.closedAt < openedAt;
+      if (!isOldOrder) walletCreditSales += onCredit;
+    }
+
+    let topUpRepayments = 0;
+    let deposits = 0;
+    for (const topUp of topUps) {
+      const { repayment, deposit } = splitTopUp(toNumber(topUp.amount), toNumber(topUp.balanceBefore));
+      topUpRepayments += repayment;
+      deposits += deposit;
+    }
 
     const closedPaidTotal = toNumber(closedPaidAgg._sum.total ?? 0);
     const closedUnpaidTotal = toNumber(closedUnpaidAgg._sum.total ?? 0);
+    const closedUnpaidOutstanding = closedUnpaidTotal - toNumber(closedUnpaidAgg._sum.amountPaid ?? 0);
     const orderCount = closedPaidAgg._count.id + closedUnpaidAgg._count.id;
     const totalSales = closedPaidTotal + closedUnpaidTotal;
     const avgOrder = orderCount > 0 ? totalSales / orderCount : 0;
-    const totalCollected = toNumber(totalPaymentsAgg._sum.amount ?? 0) + toNumber(depositsAgg._sum.amount ?? 0);
-    const creditRepayments = toNumber(creditRepaymentsAgg._sum.amount ?? 0);
-    const deposits = toNumber(depositsAgg._sum.amount ?? 0);
+    const collections = bucketCollections(breakdown);
+    const totalReceived = collections.card + collections.transfer + collections.cash + collections.other;
+    const creditSales = closedUnpaidOutstanding + walletCreditSales;
+    const creditRepayments = toNumber(oldOrderRepaymentsAgg._sum.amount ?? 0) + topUpRepayments;
 
     const reportDate = closedAt.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     const formatClock = (d: Date) => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
     const timeRange = `${formatClock(openedAt)} – ${formatClock(closedAt)}`;
     const currency = (value: number) => value.toLocaleString('en-NG', { style: 'currency', currency: 'NGN' });
-    const collections = bucketCollections(breakdown);
 
     for (const phone of phones) {
       try {
@@ -383,12 +414,12 @@ export class ShiftsService {
           cardCollected: currency(collections.card),
           transferCollected: currency(collections.transfer),
           cashCollected: currency(collections.cash),
-          walletCollected: currency(collections.wallet),
           otherCollected: currency(collections.other),
-          totalReceived: currency(totalCollected),
-          creditSales: currency(closedUnpaidTotal),
+          totalReceived: currency(totalReceived),
+          paidFromWallet: currency(paidFromWallet),
+          creditSales: currency(creditSales),
           creditRepayments: currency(creditRepayments),
-          deposits: currency(deposits),
+          walletTopUps: currency(deposits),
           variance: currency(variance),
         });
       } catch (err) {
