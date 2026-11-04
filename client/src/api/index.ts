@@ -33,5 +33,5 @@ export type { CreateCustomerData, CustomerFilters, CustomerStats } from './custo
 export { walletApi } from './wallet'
 export type { WalletBalance, WalletTransactionFilters, TopUpWalletData, AdjustWalletData } from './wallet'
 export { googleSheetsApi } from './google-sheets'
-export { posReportsApi } from './posReports'
-export type { ItemSalesReport, ItemSalesCategoryRow, ItemSalesQuantityRow, ItemSalesProductRow } from './posReports'
+export { posReportsApi, salesReportApi } from './posReports'
+export type { ItemSalesReport, ItemSalesCategoryRow, ItemSalesQuantityRow, ItemSalesProductRow, SalesReport, SalesDepartment, SalesBreakdownRow, SalesItemRow, SalesDepartmentKey } from './posReports'
