@@ -69,6 +69,8 @@ export interface SalesDepartment extends SalesBreakdownRow {
 /** See api/src/modules/pos-reports/sales-report.builder.ts for how each number is defined. */
 export interface SalesReport {
   organizationName: string
+  /** Setup problems that make the report misleading, each with how to fix it. */
+  setupHints: string[]
   from: string
   to: string
   period: { startDate: string; endDate: string }

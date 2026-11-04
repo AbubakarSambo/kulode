@@ -1,4 +1,4 @@
-import { buildSalesReport, ReportLine, ReportOrder } from './sales-report.builder';
+import { buildSalesReport, daypartsForShift, DEFAULT_DAYPARTS, ReportLine, ReportOrder } from './sales-report.builder';
 import { comparisonRange, mostSpecificCategory } from './sales-report.service';
 
 const line = (itemKey: string, category: string, department: ReportLine['department'], quantity: number, amount: number): ReportLine => ({
@@ -140,5 +140,34 @@ describe('mostSpecificCategory', () => {
     expect(mostSpecificCategory([kitchen, eatUp])).toBe(eatUp);
     expect(mostSpecificCategory([eatUp, kitchen])).toBe(eatUp);
     expect(mostSpecificCategory([undefined])).toBeUndefined();
+  });
+});
+
+describe('daypartsForShift', () => {
+  it('keeps breakfast-to-late for all-day and daytime businesses', () => {
+    expect(daypartsForShift({ shiftStartTime: '00:00', shiftEndTime: '23:59' })).toBe(DEFAULT_DAYPARTS);
+    expect(daypartsForShift({ shiftStartTime: '07:00', shiftEndTime: '21:00' })).toBe(DEFAULT_DAYPARTS);
+    expect(daypartsForShift({ shiftStartTime: '06:00', shiftEndTime: '06:00' })).toBe(DEFAULT_DAYPARTS);
+    expect(daypartsForShift({ shiftStartTime: '08:00', shiftEndTime: '02:00' })).toBe(DEFAULT_DAYPARTS);
+  });
+
+  it('splits an evening venue into four slots of its opening hours', () => {
+    const parts = daypartsForShift({ shiftStartTime: '17:00', shiftEndTime: '05:59' });
+    expect(parts.map((p) => `${p.name} ${p.start}-${p.end}`)).toEqual([
+      'Opening 17:00-20:00',
+      'Early night 20:00-00:00',
+      'Late night 00:00-03:00',
+      'Closing 03:00-06:00',
+      'Outside opening hours 06:00-17:00',
+    ]);
+  });
+
+  it('only shows the outside-hours row when something sold then', () => {
+    const dayparts = daypartsForShift({ shiftStartTime: '17:00', shiftEndTime: '05:59' });
+    const at = (hour: number) => order(hour, [line('gin', 'Gin', 'DRINK', 1, 5000)]);
+    const quiet = buildSalesReport({ orders: [at(22)], voids: [], catalog: [], staffNames: new Map(), dayparts });
+    expect(quiet.dayparts.map((d) => d.name)).not.toContain('Outside opening hours');
+    const stray = buildSalesReport({ orders: [at(22), at(12)], voids: [], catalog: [], staffNames: new Map(), dayparts });
+    expect(stray.dayparts.find((d) => d.name === 'Outside opening hours')!.orders).toBe(1);
   });
 });

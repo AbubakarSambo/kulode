@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { applyShiftHours, dateAtTime, DEFAULT_SHIFT_HOURS } from '../../common';
-import { buildSalesReport, CatalogItem, DepartmentKey, ReportLine } from './sales-report.builder';
+import { buildSalesReport, CatalogItem, daypartsForShift, DEPARTMENT_NAMES, DepartmentKey, ReportLine } from './sales-report.builder';
 
 const num = (v: Prisma.Decimal | number | null | undefined) => (v == null ? 0 : Number(v));
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -104,7 +104,7 @@ export class SalesReportService {
       }),
       this.prisma.menuCategory.findMany({
         where: { organizationId },
-        select: { id: true, name: true, kind: true, sortOrder: true, _count: { select: { menuItems: true } } },
+        select: { id: true, name: true, kind: true, sortOrder: true, isActive: true, _count: { select: { menuItems: true } } },
       }),
       this.prisma.menuItem.findMany({
         where: { organizationId },
@@ -171,11 +171,34 @@ export class SalesReportService {
       voids: voided.map((v) => ({ staffId: v.waiterId ?? v.createdById, amount: v.items.reduce((s, i) => s + num(i.amount), 0) })),
       catalog,
       staffNames: new Map(users.map((u) => [u.id, `${u.firstName} ${u.lastName}`.trim()])),
+      dayparts: daypartsForShift(shift),
     });
+
+    // Setup problems that make the report misleading, shown above it with how to fix them.
+    const setupHints: string[] = [];
+    const filedCategories = categories.filter((c) => c.isActive && c._count.menuItems > 0);
+    const kinds = new Set(filedCategories.map((c) => c.kind));
+    if (org?.posMode !== 'RETAIL' && filedCategories.length >= 5 && kinds.size === 1) {
+      const kind = [...kinds][0];
+      const typeLabel = { FOOD: 'Food', DRINK: 'Drink', OTHER: 'Other' }[kind];
+      setupHints.push(
+        `All ${filedCategories.length} of your menu categories are set to ${typeLabel}, so everything is reported under ${DEPARTMENT_NAMES[kind]}. ` +
+          'Set each category\'s type in Menu Categories (for example Drink for wines, spirits and cocktails) to split Kitchen and Bar.',
+      );
+    }
+    const unfiled = new Set<string>();
+    for (const o of orders) for (const i of o.items) if (i.menuItemId && !menuItemCategory.get(i.menuItemId)) unfiled.add(i.menuItemId);
+    if (unfiled.size > 0) {
+      setupHints.push(
+        `${unfiled.size} menu item${unfiled.size === 1 ? '' : 's'} sold in this period ${unfiled.size === 1 ? 'has' : 'have'} no category, ` +
+          'so they show under Other › Uncategorized. Add them to a category in Menu Management.',
+      );
+    }
 
     const previousSales = num(cmpSales._sum.amount);
     return {
       organizationName: org?.name ?? '',
+      setupHints,
       from: query.from,
       to,
       period,

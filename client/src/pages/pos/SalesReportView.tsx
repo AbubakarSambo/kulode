@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
-import { ArrowDownRight, ArrowUpRight, ChevronRight } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { ArrowDownRight, ArrowUpRight, ChevronRight, Info } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui'
 import type { SalesReport, SalesDepartment } from '@/api'
 import { formatCurrency, formatPaymentMethod, cn } from '@/lib/utils'
@@ -58,7 +59,7 @@ function ShareBar({ percent }: { percent: number }) {
   )
 }
 
-const th = 'py-2 px-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground'
+const th = 'py-2.5 px-2 text-[10px] font-bold uppercase tracking-wider text-background'
 const td = 'py-2 px-2 tabular-nums'
 
 function Table({ children }: { children: ReactNode }) {
@@ -142,7 +143,7 @@ function CategoryBreakdown({ report }: { report: SalesReport }) {
     <section>
       <SectionTitle title="Breakdown by category" note="Tap a department to see its categories. Printing shows them all." />
       <Table>
-        <thead className="bg-muted/50">
+        <thead className="bg-foreground [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
           <tr>
             <th className={th}>Category</th>
             <th className={cn(th, 'text-right')}>Qty</th>
@@ -157,7 +158,7 @@ function CategoryBreakdown({ report }: { report: SalesReport }) {
           const open = expanded.includes(d.key)
           return (
             <tbody key={d.key} className="border-t border-border/60">
-              <tr className="bg-primary/5 font-bold cursor-pointer hover:bg-primary/10" onClick={() => toggle(d.key)}>
+              <tr className="bg-primary/10 font-bold cursor-pointer hover:bg-primary/15" onClick={() => toggle(d.key)}>
                 <td className={cn(td, 'font-bold')}>
                   <span className="inline-flex items-center gap-1">
                     <ChevronRight className={cn('h-3.5 w-3.5 transition-transform print:rotate-90', open && 'rotate-90')} />
@@ -217,7 +218,7 @@ function ItemList({ title, tone, items }: { title: string; tone: 'top' | 'bottom
         {title}
       </p>
       <Table>
-        <thead className="bg-muted/50">
+        <thead className="bg-foreground [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
           <tr>
             <th className={cn(th, 'w-8')}>#</th>
             <th className={th}>Item</th>
@@ -275,7 +276,7 @@ function Dayparts({ report }: { report: SalesReport }) {
     <section>
       <SectionTitle title="Sales by daypart" note="By when the order was placed. Shows where to put your strongest staff and when a promo would help." />
       <Table>
-        <thead className="bg-muted/50">
+        <thead className="bg-foreground [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
           <tr>
             <th className={th}>Daypart</th>
             <th className={cn(th, 'text-right')}>Orders</th>
@@ -322,7 +323,7 @@ function OrderTypesAndPayments({ report }: { report: SalesReport }) {
       <SectionTitle title="Order type and payment method" />
       <div className="grid gap-4 lg:grid-cols-2 print:grid-cols-2 items-start">
         <Table>
-          <thead className="bg-muted/50">
+          <thead className="bg-foreground [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
             <tr>
               <th className={th}>Order type</th>
               <th className={cn(th, 'text-right')}>Orders</th>
@@ -351,7 +352,7 @@ function OrderTypesAndPayments({ report }: { report: SalesReport }) {
         </Table>
         <div>
           <Table>
-            <thead className="bg-muted/50">
+            <thead className="bg-foreground [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
               <tr>
                 <th className={th}>Payment</th>
                 <th className={cn(th, 'text-right')}>Collected</th>
@@ -395,7 +396,7 @@ function Staff({ report }: { report: SalesReport }) {
     <section>
       <SectionTitle title="Staff performance" note="Orders are credited to the waiter, or to whoever opened them" />
       <Table>
-        <thead className="bg-muted/50">
+        <thead className="bg-foreground [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
           <tr>
             <th className={th}>Staff</th>
             <th className={cn(th, 'text-right')}>Orders</th>
@@ -460,9 +461,30 @@ function Controls({ report }: { report: SalesReport }) {
   )
 }
 
+function SetupHints({ hints }: { hints: string[] }) {
+  if (hints.length === 0) return null
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200 print:hidden">
+      <div className="flex gap-2">
+        <Info className="h-4 w-4 shrink-0 mt-0.5" />
+        <div className="space-y-1.5">
+          {hints.map((hint) => (
+            <p key={hint}>{hint}</p>
+          ))}
+          <p className="flex gap-3 font-semibold">
+            <Link to="/pos/categories" className="underline underline-offset-2">Menu Categories</Link>
+            <Link to="/pos/menu" className="underline underline-offset-2">Menu Management</Link>
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function SalesReportView({ report }: { report: SalesReport }) {
   return (
     <div className="space-y-8 max-w-5xl mx-auto print:max-w-none print:space-y-6">
+      <SetupHints hints={report.setupHints} />
       <Headline report={report} />
       <Departments report={report} />
       <CategoryBreakdown report={report} />
