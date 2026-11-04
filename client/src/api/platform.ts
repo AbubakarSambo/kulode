@@ -13,6 +13,8 @@ import type {
   GrantedOrgAccess,
   UserRole,
   AuthResponse,
+  GoLivePreview,
+  GoLiveSummary,
 } from '@/types'
 
 export const platformApi = {
@@ -78,6 +80,24 @@ export const platformApi = {
 
   extendTrial: async (id: string, days: number): Promise<PlatformOrganization> => {
     const response = await apiClient.patch<ApiResponse<PlatformOrganization>>(`/platform/organizations/${id}/trial`, { days })
+    return response.data.data
+  },
+
+  /** Counts of the pre-launch test activity that goLive would delete. */
+  previewGoLive: async (id: string): Promise<GoLivePreview> => {
+    const response = await apiClient.get<ApiResponse<GoLivePreview>>(`/platform/organizations/${id}/go-live/preview`)
+    return response.data.data
+  },
+
+  /** Deletes the org's pre-launch test activity, keeping its setup. One-shot per org. */
+  goLive: async (
+    id: string,
+    data: { confirmName: string; deleteCustomers: boolean },
+  ): Promise<GoLiveSummary & { wentLiveAt: string }> => {
+    const response = await apiClient.post<ApiResponse<GoLiveSummary & { wentLiveAt: string }>>(
+      `/platform/organizations/${id}/go-live`,
+      data,
+    )
     return response.data.data
   },
 

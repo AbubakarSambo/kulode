@@ -317,6 +317,11 @@ model Organization {
   // accounting feed (see FeedModule / GET /public/feed/sales). Off by default so a shared
   // feed secret never exposes a tenant that hasn't explicitly been granted access.
   isAccountingFeedEnabled   Boolean            @default(false) @map("is_accounting_feed_enabled")
+  // Set once by a platform admin's "Go live" (see OrgGoLiveService), which deletes the org's
+  // pre-launch test activity. Its presence locks go-live so a live org's trading can never be
+  // wiped by a second press. goLiveSummary records who ran it and the counts deleted.
+  wentLiveAt                DateTime?          @map("went_live_at")
+  goLiveSummary             Json?              @map("go_live_summary")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

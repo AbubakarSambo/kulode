@@ -29,6 +29,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useStartImpersonation } from '@/hooks/useImpersonation'
 import { getPostAuthRoute } from '@/lib/authRouting'
 import { formatCurrency } from '@/lib/utils'
+import { GoLivePanel } from './GoLivePanel'
 import { toast } from 'sonner'
 import type { PlatformOrganizationDetails, PlatformOrganization, OrgModule, PosMode, UserRole, PlatformUserLookup } from '@/types'
 import {
@@ -2274,6 +2275,8 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
               </Button>
             </div>
           </form>
+
+          <GoLivePanel org={org} />
 
           {/* User List */}
           <div className="space-y-2 pt-2">
