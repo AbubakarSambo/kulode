@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, Printer } from 'lucide-react'
+import { ChevronDown, Download, Printer } from 'lucide-react'
 import { ReceiptTextIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
-import { Card, CardContent, CardHeader, CardTitle, DatePicker, DropdownPanel, EmptyState, Input } from '@/components/ui'
-import { posReportsApi } from '@/api'
-import { formatCurrency, cn } from '@/lib/utils'
+import { DatePicker, DropdownPanel, EmptyState, Input } from '@/components/ui'
+import { salesReportApi } from '@/api'
+import { cn } from '@/lib/utils'
+import { SalesReportView } from './SalesReportView'
+import { downloadSalesReportCsv } from './salesReportCsv'
 
 function formatDateToYmd(d: Date) {
   const year = d.getFullYear()
@@ -72,13 +74,15 @@ export function PosReportsPage() {
   const effectiveFromTime = period === 'CUSTOM' && fromTime ? fromTime : undefined
   const effectiveToTime = period === 'CUSTOM' && toTime ? toTime : undefined
 
+  const compare = period === 'THIS_WEEK' ? 'week' : period === 'THIS_MONTH' ? 'month' : undefined
+
   const { data: report, isLoading } = useQuery({
-    queryKey: ['pos-reports', 'item-sales', from, to, effectiveFromTime, effectiveToTime],
-    queryFn: () => posReportsApi.getItemSales(from, to, effectiveFromTime, effectiveToTime),
+    queryKey: ['pos-reports', 'sales-report', from, to, effectiveFromTime, effectiveToTime, compare],
+    queryFn: () => salesReportApi.get({ from, to, fromTime: effectiveFromTime, toTime: effectiveToTime, compare }),
     enabled: !!from,
   })
 
-  const hasSales = !!report && report.products.length > 0
+  const hasSales = !!report && report.headline.orders > 0
   const activeOption = periodOptions.find((opt) => opt.value === period)
 
   const filterControls = (
@@ -129,14 +133,23 @@ export function PosReportsPage() {
           />
         </>
       )}
-      {hasSales && (
-        <button
-          onClick={() => window.print()}
-          className="h-11 px-4 rounded-xl border border-border bg-card text-xs font-bold text-foreground hover:bg-muted/50 transition-all flex items-center gap-2"
-        >
-          <Printer className="h-4 w-4" />
-          Print
-        </button>
+      {hasSales && report && (
+        <>
+          <button
+            onClick={() => downloadSalesReportCsv(report)}
+            className="h-11 px-4 rounded-xl border border-border bg-card text-xs font-bold text-foreground hover:bg-muted/50 transition-all flex items-center gap-2"
+          >
+            <Download className="h-4 w-4" />
+            CSV
+          </button>
+          <button
+            onClick={() => window.print()}
+            className="h-11 px-4 rounded-xl border border-border bg-card text-xs font-bold text-foreground hover:bg-muted/50 transition-all flex items-center gap-2"
+          >
+            <Printer className="h-4 w-4" />
+            Print / PDF
+          </button>
+        </>
       )}
     </div>
   )
@@ -144,8 +157,8 @@ export function PosReportsPage() {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <Header
-        title="Item Sales Report"
-        description="Sales and quantities by category and product for a chosen day or date range"
+        title="Sales Report"
+        description="Sales by department, category and item, with dayparts, payments, staff and controls"
         action={filterControls}
       />
 
@@ -154,134 +167,20 @@ export function PosReportsPage() {
           <EmptyState
             icon={ReceiptTextIcon}
             title="No sales in this range"
-            description="Pick a different day or date range to see item sales."
+            description="Pick a different day or date range to see the sales report."
           />
         )}
 
         {hasSales && report && (
-          <div className="space-y-6 max-w-3xl mx-auto">
-            <div className="text-center print:block hidden">
-              <p className="text-sm font-bold">Item Sales Report</p>
+          <>
+            <div className="hidden print:block mb-6 border-b-4 border-primary pb-3">
+              <p className="text-xl font-bold">Sales Report</p>
               <p className="text-xs text-muted-foreground">
-                {formatDateTime(report.period.startDate)} – {formatDateTime(report.period.endDate)}
+                {report.organizationName} · {formatDateTime(report.period.startDate)} – {formatDateTime(report.period.endDate)}
               </p>
             </div>
-
-            <Card>
-              <CardHeader className="p-6 pb-2">
-                <CardTitle className="text-base font-bold text-foreground">Sales by Item Group</CardTitle>
-              </CardHeader>
-              <CardContent className="p-6 pt-2">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                      <th className="py-2">Category</th>
-                      <th className="py-2 text-right">%</th>
-                      <th className="py-2 text-right">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/60">
-                    {report.salesByCategory.map((row) => (
-                      <tr key={row.category} className="font-semibold">
-                        <td className="py-2.5">{row.category}</td>
-                        <td className="py-2.5 text-right text-muted-foreground tabular-nums">{row.percent.toFixed(2)}%</td>
-                        <td className="py-2.5 text-right tabular-nums">{formatCurrency(row.amount)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="font-bold border-t border-border">
-                      <td className="py-2.5">Total</td>
-                      <td></td>
-                      <td className="py-2.5 text-right tabular-nums">{formatCurrency(report.totalSales)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="p-6 pb-2">
-                <CardTitle className="text-base font-bold text-foreground">Quantities by Item Group</CardTitle>
-              </CardHeader>
-              <CardContent className="p-6 pt-2">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                      <th className="py-2">Category</th>
-                      <th className="py-2 text-right">%</th>
-                      <th className="py-2 text-right">Qty</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/60">
-                    {report.quantitiesByCategory.map((row) => (
-                      <tr key={row.category} className="font-semibold">
-                        <td className="py-2.5">{row.category}</td>
-                        <td className="py-2.5 text-right text-muted-foreground tabular-nums">{row.percent.toFixed(2)}%</td>
-                        <td className="py-2.5 text-right tabular-nums">{row.quantity}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="font-bold border-t border-border">
-                      <td className="py-2.5">Total</td>
-                      <td></td>
-                      <td className="py-2.5 text-right tabular-nums">{report.totalQuantity}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="p-6 pb-2">
-                <CardTitle className="text-base font-bold text-foreground">Product</CardTitle>
-              </CardHeader>
-              <CardContent className="p-6 pt-2">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                      <th className="py-2">Product</th>
-                      <th className="py-2 text-right">Quantity</th>
-                      <th className="py-2 text-right">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/60">
-                    {report.products.map((row) => (
-                      <tr key={row.name} className="font-semibold">
-                        <td className="py-2.5">{row.name}</td>
-                        <td className="py-2.5 text-right tabular-nums">{row.quantity}</td>
-                        <td className="py-2.5 text-right tabular-nums">{formatCurrency(row.amount)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="font-bold border-t border-border">
-                      <td className="py-2.5">Total</td>
-                      <td></td>
-                      <td className="py-2.5 text-right tabular-nums">{formatCurrency(report.totalSales)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="p-6 pb-2">
-                <CardTitle className="text-base font-bold text-foreground">General Information</CardTitle>
-              </CardHeader>
-              <CardContent className="p-6 pt-2 space-y-2 text-xs">
-                <div className="flex items-center justify-between font-semibold">
-                  <span className="text-muted-foreground">Orders</span>
-                  <span className="tabular-nums">{report.orders}</span>
-                </div>
-                <div className="flex items-center justify-between font-semibold">
-                  <span className="text-muted-foreground">Cashier(s)</span>
-                  <span>{report.cashiers.length > 0 ? report.cashiers.join(', ') : '—'}</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+            <SalesReportView report={report} />
+          </>
         )}
       </div>
     </div>

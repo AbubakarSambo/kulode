@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsOptional, IsString, Matches } from 'class-validator';
+import { IsDateString, IsIn, IsOptional, IsString, Matches } from 'class-validator';
 
 const TIME_OF_DAY_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -33,4 +33,12 @@ export class ItemSalesReportQueryDto {
   @IsString()
   @Matches(TIME_OF_DAY_PATTERN, { message: 'toTime must be in HH:mm format' })
   toTime?: string;
+
+  @ApiPropertyOptional({
+    enum: ['week', 'month'],
+    description: 'Sales report only: what to compare with. Defaults by range length (a day or week vs last week, longer vs the period before).',
+  })
+  @IsOptional()
+  @IsIn(['week', 'month'])
+  compare?: 'week' | 'month';
 }
