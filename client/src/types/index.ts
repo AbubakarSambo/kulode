@@ -984,7 +984,37 @@ export interface PendingVendorPayout {
   }
 }
 
+export interface GoLiveCounts {
+  orders: number
+  payments: number
+  shifts: number
+  invoices: number
+  expenses: number
+  walletTransactions: number
+  unreconciledTransfers: number
+  whatsappMessages: number
+  stockMovements: number
+  stockItemsRestored: number
+  customers: number
+  customersWithWalletBalance: number
+}
+
+export interface GoLivePreview {
+  organization: { id: string; name: string; wentLiveAt: string | null }
+  counts: GoLiveCounts
+  firstActivityAt: string | null
+  lastActivityAt: string | null
+}
+
+export interface GoLiveSummary {
+  ranBy: { id: string; email: string }
+  deleteCustomers: boolean
+  counts: GoLiveCounts
+}
+
 export interface PlatformOrganizationDetails extends PlatformOrganization {
+  wentLiveAt: string | null
+  goLiveSummary: GoLiveSummary | null
   clientCount: number
   paymentCount: number
   totalGmv: number

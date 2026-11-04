@@ -6,6 +6,9 @@ import { UpdatePlatformOrgDto } from './dto/update-platform-org.dto';
 import { GrantOrgAccessDto } from './dto/grant-org-access.dto';
 import { UpdateMembershipRolesDto } from './dto/update-membership-roles.dto';
 import { ExtendTrialDto } from './dto/extend-trial.dto';
+import { GoLiveDto } from './dto/go-live.dto';
+import { OrgGoLiveService } from './org-go-live.service';
+import { CurrentUser, CurrentUserData } from '../../common/decorators/current-user.decorator';
 import { PlanTier, SubscriptionStatus } from '@prisma/client';
 
 @ApiTags('Platform')
@@ -13,7 +16,10 @@ import { PlanTier, SubscriptionStatus } from '@prisma/client';
 @Controller('platform')
 @UseGuards(PlatformAdminGuard)
 export class PlatformController {
-  constructor(private readonly platformService: PlatformService) {}
+  constructor(
+    private readonly platformService: PlatformService,
+    private readonly orgGoLiveService: OrgGoLiveService,
+  ) {}
 
   @Get('dashboard')
   @ApiOperation({ summary: 'Get platform admin dashboard data' })
@@ -89,6 +95,25 @@ export class PlatformController {
     @Body() dto: ExtendTrialDto,
   ) {
     return this.platformService.extendTrial(id, dto.days);
+  }
+
+  @Get('organizations/:id/go-live/preview')
+  @ApiOperation({ summary: 'Count the pre-launch test activity that Go live would delete' })
+  @ApiResponse({ status: 404, description: 'Organization not found' })
+  async previewGoLive(@Param('id') id: string) {
+    return this.orgGoLiveService.preview(id);
+  }
+
+  @Post('organizations/:id/go-live')
+  @ApiOperation({ summary: "Delete an org's pre-launch test activity, keeping its setup. Runs once per org." })
+  @ApiResponse({ status: 400, description: 'Confirmation name does not match' })
+  @ApiResponse({ status: 409, description: 'Organization already went live' })
+  async goLive(
+    @Param('id') id: string,
+    @Body() dto: GoLiveDto,
+    @CurrentUser() admin: CurrentUserData,
+  ) {
+    return this.orgGoLiveService.goLive(id, dto, { id: admin.id, email: admin.email });
   }
 
   @Get('vendor-payouts/pending')
