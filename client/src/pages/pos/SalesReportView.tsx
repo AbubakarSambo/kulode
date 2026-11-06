@@ -40,10 +40,14 @@ function SectionTitle({ title, note }: { title: string; note?: string }) {
 
 function Tile({ label, value, sub, accent }: { label: string; value: ReactNode; sub?: ReactNode; accent?: string }) {
   return (
-    <Card className="break-inside-avoid">
+    // min-w-0: a grid item won't shrink below its content by default, so a long amount stretched the
+    // column past the screen on mobile and got clipped. The value is also a size smaller there so
+    // a seven-figure total with kobo (₦14,079,800.50) fits a half-width tile; break-words is the
+    // last resort for anything longer.
+    <Card className="break-inside-avoid min-w-0">
       <CardContent className="p-4">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-        <p className={cn('mt-1 text-lg sm:text-xl font-semibold tabular-nums text-foreground', accent)}>{value}</p>
+        <p className={cn('mt-1 text-base sm:text-xl font-semibold tabular-nums text-foreground break-words', accent)}>{value}</p>
         {sub && <p className="mt-1 text-[11px] text-muted-foreground">{sub}</p>}
       </CardContent>
     </Card>

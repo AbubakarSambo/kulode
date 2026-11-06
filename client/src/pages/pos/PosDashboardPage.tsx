@@ -9,18 +9,8 @@ import { Header } from '@/components/layout'
 import { Card, CardContent, CardHeader, CardTitle, DropdownPanel, DatePicker, EmptyState, Button } from '@/components/ui'
 import { posDashboardApi, organizationsApi } from '@/api'
 import type { ReportPeriod } from '@/api/reports'
+import { REPORT_PERIOD_OPTIONS as periodOptions } from '@/lib/reportPeriods'
 import { formatCurrency, formatPaymentMethod, normalizePhoneForWhatsApp, cn } from '@/lib/utils'
-
-const periodOptions: Array<{ value: ReportPeriod; label: string }> = [
-  { value: 'TODAY', label: 'Today' },
-  { value: 'YESTERDAY', label: 'Yesterday' },
-  { value: 'LAST_WEEK', label: 'Last Week' },
-  { value: 'THIS_MONTH', label: 'This Month' },
-  { value: 'LAST_MONTH', label: 'Last Month' },
-  { value: 'THIS_QUARTER', label: 'This Quarter' },
-  { value: 'THIS_YEAR', label: 'This Year' },
-  { value: 'CUSTOM', label: 'Custom Range' },
-]
 
 export function PosDashboardPage() {
   const [period, setPeriod] = useState<ReportPeriod>('TODAY')

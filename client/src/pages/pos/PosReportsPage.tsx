@@ -5,40 +5,14 @@ import { ChevronDown, Download, Printer } from 'lucide-react'
 import { ReceiptTextIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { DatePicker, DropdownPanel, EmptyState, Input } from '@/components/ui'
-import { posReportsApi, salesReportApi } from '@/api'
+import { posReportsApi, salesReportApi, organizationsApi } from '@/api'
 import { cn } from '@/lib/utils'
 import { can } from '@/lib/permissions'
+import { REPORT_PERIOD_OPTIONS as periodOptions, formatYmd as formatDateToYmd, reportPeriodRange, businessToday, type ReportsPeriod } from '@/lib/reportPeriods'
 import { useAuthStore } from '@/stores/auth'
 import { ItemSalesReportView } from './ItemSalesReportView'
 import { SalesReportView } from './SalesReportView'
 import { downloadSalesReportCsv } from './salesReportCsv'
-
-function formatDateToYmd(d: Date) {
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-type ReportsPeriod = 'TODAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'CUSTOM'
-
-const periodOptions: Array<{ value: ReportsPeriod; label: string }> = [
-  { value: 'TODAY', label: 'Today' },
-  { value: 'THIS_WEEK', label: 'This Week' },
-  { value: 'THIS_MONTH', label: 'This Month' },
-  { value: 'CUSTOM', label: 'Custom Range' },
-]
-
-// Matches the week-start convention used elsewhere in this app (Sunday).
-function startOfWeek(d: Date): Date {
-  const start = new Date(d)
-  start.setDate(d.getDate() - d.getDay())
-  return start
-}
-
-function startOfMonth(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), 1)
-}
 
 function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString(undefined, {
@@ -51,8 +25,9 @@ function formatDateTime(iso: string) {
 }
 
 export function PosReportsPage() {
-  const today = formatDateToYmd(new Date())
-  const [period, setPeriod] = useState<ReportsPeriod>('THIS_WEEK')
+  const { data: organization } = useQuery({ queryKey: ['organization'], queryFn: () => organizationsApi.getCurrent() })
+  const today = formatDateToYmd(businessToday(new Date(), organization?.shiftStartTime))
+  const [period, setPeriod] = useState<ReportsPeriod>('TODAY')
   const [customFrom, setCustomFrom] = useState(today)
   const [customTo, setCustomTo] = useState(today)
   const [fromTime, setFromTime] = useState('')
@@ -67,26 +42,20 @@ export function PosReportsPage() {
   const view: 'sales' | 'items' = canSeeSalesReport && searchParams.get('view') !== 'items' ? 'sales' : 'items'
   const setView = (v: 'sales' | 'items') => setSearchParams(v === 'items' ? { view: 'items' } : {}, { replace: true })
 
-  const { from, to } = useMemo(() => {
-    const now = new Date()
-    switch (period) {
-      case 'TODAY':
-        return { from: today, to: today }
-      case 'THIS_WEEK':
-        return { from: formatDateToYmd(startOfWeek(now)), to: today }
-      case 'THIS_MONTH':
-        return { from: formatDateToYmd(startOfMonth(now)), to: today }
-      case 'CUSTOM':
-        return { from: customFrom, to: customTo }
-    }
-  }, [period, today, customFrom, customTo])
+  const shiftStartTime = organization?.shiftStartTime
+  const { from, to } = useMemo(
+    () => (period === 'CUSTOM' ? { from: customFrom, to: customTo } : reportPeriodRange(period, new Date(), shiftStartTime)),
+    [period, customFrom, customTo, shiftStartTime],
+  )
 
   // Time-of-day bounds only make sense once you've picked a specific day/range — reset them
   // whenever the period changes away from Custom so a stale time filter doesn't silently apply.
   const effectiveFromTime = period === 'CUSTOM' && fromTime ? fromTime : undefined
   const effectiveToTime = period === 'CUSTOM' && toTime ? toTime : undefined
 
-  const compare = period === 'THIS_WEEK' ? 'week' : period === 'THIS_MONTH' ? 'month' : undefined
+  // Anything else lets the server pick: a day or week vs the same days last week, longer ranges vs
+  // the period just before.
+  const compare = period === 'THIS_MONTH' ? 'month' : undefined
 
   const { data: report, isLoading: salesLoading } = useQuery({
     queryKey: ['pos-reports', 'sales-report', from, to, effectiveFromTime, effectiveToTime, compare],
