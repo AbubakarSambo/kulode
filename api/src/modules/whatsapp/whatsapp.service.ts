@@ -19,7 +19,8 @@ export interface SendInvoiceReminderParams {
   shareToken?: string | null;
 }
 
-// Params map 1:1, in order, to the shift_report_v3 template's {{1}}..{{16}} placeholders —
+// Params map 1:1, in order, to the shift report template's {{1}}..{{16}} placeholders (v4+ adds
+// {{17}}..{{19}}, the month-to-date block) —
 // see ShiftsService.sendShiftSummary for how each is computed. Meta template params can't
 // contain newlines, tabs or 4+ consecutive spaces, so all line breaks and bold live in the
 // template text itself and each collections row gets its own slot.
@@ -42,6 +43,10 @@ export interface SendShiftReportParams {
   creditRepayments: string;
   walletTopUps: string;
   variance: string;
+  // Month-to-date block, sent only to shift_report_v4 and later (see shiftReportIncludesMtd).
+  mtdSales?: string;
+  mtdPayments?: string;
+  mtdCredits?: string;
 }
 
 @Injectable()
@@ -204,10 +209,21 @@ export class WhatsappService {
     }
   }
 
+  /**
+   * v4+ of the shift report template adds the month-to-date block ({{17}}..{{19}}). The template
+   * has to be approved in Meta before it can be sent, so the code stays on v3's 16 placeholders
+   * until WHATSAPP_SHIFT_REPORT_TEMPLATE_NAME is switched to a v4+ name — a count that doesn't
+   * match the approved template makes Meta reject the message.
+   */
+  get shiftReportIncludesMtd(): boolean {
+    const version = Number(/_v(\d+)$/.exec(this.shiftReportTemplateName)?.[1] ?? 0);
+    return version >= 4;
+  }
+
   async sendShiftReportTemplate(params: SendShiftReportParams): Promise<{ providerMessageId: string | null }> {
     const toPhone = this.normalizePhone(params.toPhone);
 
-    // Order matters — must match the shift_report_v3 template's {{1}}..{{16}} placeholders exactly.
+    // Order matters — must match the template's placeholders exactly.
     const bodyValues = [
       params.orgName,
       params.reportDate,
@@ -226,6 +242,9 @@ export class WhatsappService {
       params.walletTopUps,
       params.variance,
     ];
+    if (this.shiftReportIncludesMtd) {
+      bodyValues.push(params.mtdSales ?? '', params.mtdPayments ?? '', params.mtdCredits ?? '');
+    }
 
     const payload = {
       messaging_product: 'whatsapp',

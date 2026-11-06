@@ -15,7 +15,11 @@ function createMockPrisma() {
       update: jest.fn(),
     },
     payment: { groupBy: jest.fn(), aggregate: jest.fn() },
-    walletTransaction: { groupBy: jest.fn().mockResolvedValue([]), findMany: jest.fn().mockResolvedValue([]) },
+    walletTransaction: {
+      groupBy: jest.fn().mockResolvedValue([]),
+      findMany: jest.fn().mockResolvedValue([]),
+      aggregate: jest.fn().mockResolvedValue({ _sum: { amount: 0 } }),
+    },
     order: { aggregate: jest.fn() },
     // close() looks the org up to decide whether to send the WhatsApp shift summary; no org
     // means no summary, which keeps these tests focused on the shift itself.
@@ -189,6 +193,58 @@ describe('ShiftsService', () => {
           creditRepayments: '₦3,000.00',
           walletTopUps: '₦5,000.00',
         }),
+      );
+    });
+
+    it('adds a month-to-date block when the report template supports it, and omits it otherwise', async () => {
+      const openedAt = new Date('2026-08-30T19:00:00.000Z');
+      const setup = () => {
+        prisma.shift.findFirst.mockResolvedValue(shiftWith({ openingFloat: 0, openedAt }));
+        prisma.shift.update.mockResolvedValue(shiftWith({ status: 'CLOSED' }));
+        prisma.organization.findUnique.mockResolvedValue({
+          name: 'Almond House',
+          ownerWhatsappPhone: '2348000000000',
+          enabledModules: 'POS',
+        });
+        prisma.payment.groupBy.mockResolvedValue([]);
+        prisma.walletTransaction.groupBy.mockResolvedValue([]);
+        prisma.order.aggregate.mockResolvedValue({ _sum: { total: 0, amountPaid: 0 }, _count: { id: 0 } });
+        prisma.payment.aggregate.mockResolvedValue({ _sum: { amount: 0 } });
+        prisma.walletTransaction.findMany.mockResolvedValue([]);
+      };
+
+      // Template still on v3: no MTD params, and none of the extra month queries are run.
+      setup();
+      (whatsapp as any).shiftReportIncludesMtd = false;
+      await service.close(ORG_ID, SHIFT_ID, USER_ID, { countedCash: 0 });
+      expect(whatsapp.sendShiftReportTemplate.mock.calls[0][0]).not.toHaveProperty('mtdSales');
+
+      // v4: MTD sales = closed order totals, payments = non-wallet money in + top-ups, credits =
+      // still-owed on unpaid orders + over-balance wallet charges (₦30k on a ₦10k balance = ₦20k).
+      whatsapp.sendShiftReportTemplate.mockClear();
+      setup();
+      (whatsapp as any).shiftReportIncludesMtd = true;
+      prisma.order.aggregate.mockReset();
+      prisma.order.aggregate
+        .mockResolvedValueOnce({ _sum: { total: 0 }, _count: { id: 0 } }) // shift: closed paid
+        .mockResolvedValueOnce({ _sum: { total: 0, amountPaid: 0 }, _count: { id: 0 } }) // shift: closed unpaid
+        .mockResolvedValueOnce({ _sum: { total: 1000000 } }) // MTD: closed orders
+        .mockResolvedValueOnce({ _sum: { total: 50000, amountPaid: 20000 } }); // MTD: unpaid
+      prisma.payment.aggregate.mockReset();
+      prisma.payment.aggregate
+        .mockResolvedValueOnce({ _sum: { amount: 0 } }) // shift: old-order repayments
+        .mockResolvedValueOnce({ _sum: { amount: 900000 } }); // MTD: non-wallet payments
+      prisma.walletTransaction.aggregate.mockResolvedValue({ _sum: { amount: 40000 } });
+      prisma.walletTransaction.findMany.mockReset();
+      prisma.walletTransaction.findMany
+        .mockResolvedValueOnce([]) // shift debits
+        .mockResolvedValueOnce([]) // shift reversals
+        .mockResolvedValueOnce([]) // shift top-ups
+        .mockResolvedValueOnce([{ id: 'd1', amount: -30000, balanceBefore: 10000, order: { closedAt: openedAt } }]) // MTD debits
+        .mockResolvedValueOnce([]); // MTD reversals
+      await service.close(ORG_ID, SHIFT_ID, USER_ID, { countedCash: 0 });
+      expect(whatsapp.sendShiftReportTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({ mtdSales: '₦1,000,000.00', mtdPayments: '₦940,000.00', mtdCredits: '₦50,000.00' }),
       );
     });
 
