@@ -68,6 +68,8 @@ export const PERMISSIONS = {
   // Item-sales report. WAITER only ever sees their own orders (see POS_REPORTS_ALL).
   POS_REPORTS_VIEW: [...WAITER_UP, ...LEGACY],
   POS_REPORTS_ALL: [...CASHIER_UP, ...LEGACY],
+  // The redesigned Sales report (departments, dayparts, staff, controls) — owner-level view
+  POS_SALES_REPORT_VIEW: ADMINS,
   POS_DASHBOARD_VIEW: [...SUPERVISOR_UP, ...LEGACY],
   // Today's running takings (paid + still-open) for the branch — the strip above the POS pages
   TODAY_TAKINGS_VIEW: WAITER_UP,
