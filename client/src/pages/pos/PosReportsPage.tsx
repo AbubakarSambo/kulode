@@ -8,7 +8,14 @@ import { DatePicker, DropdownPanel, EmptyState, Input } from '@/components/ui'
 import { posReportsApi, salesReportApi, organizationsApi } from '@/api'
 import { cn } from '@/lib/utils'
 import { can } from '@/lib/permissions'
-import { REPORT_PERIOD_OPTIONS as periodOptions, formatYmd as formatDateToYmd, reportPeriodRange, businessToday, type ReportsPeriod } from '@/lib/reportPeriods'
+import { printWithTitle, reportFileTitle } from '@/lib/printWithTitle'
+import {
+  REPORT_PERIOD_OPTIONS as periodOptions,
+  formatYmd as formatDateToYmd,
+  reportPeriodRange,
+  businessToday,
+  type ReportsPeriod,
+} from '@/lib/reportPeriods'
 import { useAuthStore } from '@/stores/auth'
 import { ItemSalesReportView } from './ItemSalesReportView'
 import { SalesReportView } from './SalesReportView'
@@ -155,7 +162,9 @@ export function PosReportsPage() {
             </button>
           )}
           <button
-            onClick={() => window.print()}
+            onClick={() =>
+              printWithTitle(reportFileTitle(organization?.name, view === 'sales' ? 'Sales Report' : 'Item Sales Report', from, to))
+            }
             className="h-11 px-4 rounded-xl border border-border bg-card text-xs font-bold text-foreground hover:bg-muted/50 transition-all flex items-center gap-2"
           >
             <Printer className="h-4 w-4" />
