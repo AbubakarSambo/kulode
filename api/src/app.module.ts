@@ -56,13 +56,7 @@ import {
     // instrument.ts didn't call Sentry.init(), i.e. SENTRY_DSN isn't set).
     SentryModule.forRoot(),
     ConfigModule,
-    // The default throttler keys on route + client IP. THROTTLE_DISABLED exists for load tests on
-    // staging, where every simulated restaurant shares the test machine's IP; never set it in prod.
-    // Per-route @Throttle limits (login, signup, password reset) are skipped too while it's set.
-    ThrottlerModule.forRoot({
-      throttlers: [{ name: 'global', ttl: 60000, limit: 60 }],
-      skipIf: () => process.env.THROTTLE_DISABLED === 'true' && process.env.RAILWAY_ENVIRONMENT_NAME !== 'production',
-    }),
+    ThrottlerModule.forRoot([{ name: 'global', ttl: 60000, limit: 60 }]),
     ScheduleModule.forRoot(),
     PrismaModule,
     EmailModule,
