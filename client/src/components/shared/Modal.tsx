@@ -43,7 +43,10 @@ export function Modal({ isOpen, onClose, title, description, children, className
       }}
     >
       <div className={cn(
-        'relative w-full max-w-lg rounded-xl bg-white p-6 shadow-xl border',
+        // Cap at the visible viewport (dvh follows the mobile browser's collapsing address bar)
+        // and scroll inside the panel — the overlay is fixed with body scroll locked, so a tall
+        // dialog (e.g. Close Order with split payments) would otherwise be cut off and unreachable.
+        'relative w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-xl bg-white p-6 shadow-xl border',
         className
       )}>
         <div className="mb-4 flex items-start justify-between">
