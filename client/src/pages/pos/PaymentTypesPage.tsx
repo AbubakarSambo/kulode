@@ -14,6 +14,7 @@ import type { PaymentType } from '@/types'
 const paymentTypeSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   sortOrder: z.number().optional(),
+  isComplimentary: z.boolean().optional(),
 })
 
 type PaymentTypeFormData = z.infer<typeof paymentTypeSchema>
@@ -34,7 +35,7 @@ export function PaymentTypesPage() {
 
   const save = useMutation({
     mutationFn: (data: PaymentTypeFormData) =>
-      editing ? paymentTypesApi.update(editing.id, data) : paymentTypesApi.create({ name: data.name, sortOrder: data.sortOrder }),
+      editing ? paymentTypesApi.update(editing.id, data) : paymentTypesApi.create({ name: data.name, sortOrder: data.sortOrder, isComplimentary: data.isComplimentary }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payment-types'] })
       toast.success(editing ? 'Payment type updated' : 'Payment type created')
@@ -65,13 +66,13 @@ export function PaymentTypesPage() {
 
   const openNew = () => {
     setEditing(null)
-    form.reset({ name: '', sortOrder: (paymentTypes?.length ?? 0) + 1 })
+    form.reset({ name: '', sortOrder: (paymentTypes?.length ?? 0) + 1, isComplimentary: false })
     setModalOpen(true)
   }
 
   const openEdit = (paymentType: PaymentType) => {
     setEditing(paymentType)
-    form.reset({ name: paymentType.name, sortOrder: paymentType.sortOrder })
+    form.reset({ name: paymentType.name, sortOrder: paymentType.sortOrder, isComplimentary: paymentType.isComplimentary })
     setModalOpen(true)
   }
 
@@ -106,7 +107,14 @@ export function PaymentTypesPage() {
                 .map((paymentType) => (
                   <div key={paymentType.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50">
                     <div className="min-w-0 flex-1">
-                      <h3 className="truncate font-semibold text-foreground">{paymentType.name}</h3>
+                      <h3 className="truncate font-semibold text-foreground">
+                        {paymentType.name}
+                        {paymentType.isComplimentary && (
+                          <Badge variant="secondary" className="ml-2 align-middle">
+                            Complimentary
+                          </Badge>
+                        )}
+                      </h3>
                     </div>
                     <span className="shrink-0 text-xs text-muted-foreground">Order: {paymentType.sortOrder}</span>
                     <button
@@ -148,6 +156,15 @@ export function PaymentTypesPage() {
             <Label>Sort Order</Label>
             <Input type="number" {...form.register('sortOrder', { valueAsNumber: true })} />
           </div>
+          <label className="flex items-start gap-2">
+            <input type="checkbox" {...form.register('isComplimentary')} className="mt-0.5 h-4 w-4 rounded border-gray-300" />
+            <span className="text-sm">
+              <span className="font-medium">Complimentary</span>
+              <span className="block text-xs text-muted-foreground">
+                Settles the order but isn't counted as sales — reports show it on its own line.
+              </span>
+            </span>
+          </label>
           <Button type="submit" className="w-full" isLoading={save.isPending}>
             {editing ? 'Save Changes' : 'Create Payment Type'}
           </Button>

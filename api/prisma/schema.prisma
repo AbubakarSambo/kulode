@@ -1274,11 +1274,15 @@ model OrderType {
 // Terminal - GTBank"). PAYSTACK and WALLET are NOT managed here — they're hardcoded, code-tied
 // (checkout flow / wallet debit) and always available regardless of this list.
 model PaymentType {
-  id             String  @id @default(uuid())
-  organizationId String  @map("organization_id")
-  name           String
-  sortOrder      Int     @default(0) @map("sort_order")
-  isActive       Boolean @default(true) @map("is_active")
+  id              String  @id @default(uuid())
+  organizationId  String  @map("organization_id")
+  name            String
+  sortOrder       Int     @default(0) @map("sort_order")
+  isActive        Boolean @default(true) @map("is_active")
+  // A comp: payments on this type settle an order but bring no money in, so reports keep them out of
+  // sales and show them on their own line. Payments store the type by name, so renaming a type
+  // renames its payments too (see PaymentTypesService.update).
+  isComplimentary Boolean @default(false) @map("is_complimentary")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

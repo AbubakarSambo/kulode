@@ -471,6 +471,8 @@ export interface PaymentType {
   name: string
   sortOrder: number
   isActive: boolean
+  // A comp: counts as settled but is kept out of sales and shown on its own line
+  isComplimentary: boolean
 }
 
 export interface MenuItemIngredient {

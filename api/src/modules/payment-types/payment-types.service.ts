@@ -66,6 +66,7 @@ export class PaymentTypesService {
         organizationId,
         name,
         sortOrder: dto.sortOrder ?? 0,
+        isComplimentary: dto.isComplimentary ?? false,
       },
     });
   }
@@ -79,14 +80,26 @@ export class PaymentTypesService {
       await this.assertNameAvailable(organizationId, name, id);
     }
 
-    return this.prisma.paymentType.update({
-      where: { id },
-      data: {
-        ...(name && { name }),
-        ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
-        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
-      },
-    });
+    const data = {
+      ...(name && { name }),
+      ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
+      ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      ...(dto.isComplimentary !== undefined && { isComplimentary: dto.isComplimentary }),
+    };
+    // Payments store their type by name, so a rename has to carry the org's existing payments along
+    // — otherwise they'd stop matching this type (and, for a complimentary type, drift back into
+    // sales). Same transaction, so the two can't get out of step.
+    if (name && name !== paymentType.name) {
+      const [updated] = await this.prisma.$transaction([
+        this.prisma.paymentType.update({ where: { id }, data }),
+        this.prisma.payment.updateMany({
+          where: { organizationId, paymentMethod: paymentType.name },
+          data: { paymentMethod: name },
+        }),
+      ]);
+      return updated;
+    }
+    return this.prisma.paymentType.update({ where: { id }, data });
   }
 
   async remove(organizationId: string, id: string) {

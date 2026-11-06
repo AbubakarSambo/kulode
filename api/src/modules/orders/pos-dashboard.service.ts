@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { applyShiftHours, businessDateFor, DEFAULT_SHIFT_HOURS, ShiftHours } from '../../common';
 import { ReportFilterDto, ReportPeriod } from '../reports/dto';
 import { splitWalletDebit } from '../shifts/shift-report-figures';
+import { classifyPaymentMethod } from '../../common/payment-method-kind';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -206,11 +207,19 @@ export class PosDashboardService {
       status: { in: [OrderStatus.CLOSED_PAID, OrderStatus.CLOSED_UNPAID] },
     };
 
+    // Complimentary payment types are comps, not takings: kept out of sales and shown on their own
+    // line. Inactive (deleted) types count too — their old payments are still comps.
+    const complimentaryNames = (
+      await this.prisma.paymentType.findMany({ where: { organizationId, isComplimentary: true }, select: { name: true } })
+    ).map((p) => p.name);
+    const notComplimentary = complimentaryNames.length > 0 ? { paymentMethod: { notIn: complimentaryNames } } : {};
+
     const [sales, prevSales, orderCount, closedPaidAgg, closedUnpaidAgg, openAgg, byMethod, bySource, topItems, topStaff] = await Promise.all([
       this.prisma.payment.aggregate({
         where: {
           organizationId,
           orderId: { not: null },
+          ...notComplimentary,
           order: { ...closedOrderFilter, closedAt: { gte: startDate, lte: endDate } },
         },
         _sum: { amount: true },
@@ -220,6 +229,7 @@ export class PosDashboardService {
         where: {
           organizationId,
           orderId: { not: null },
+          ...notComplimentary,
           order: { ...closedOrderFilter, closedAt: { gte: prevRange.startDate, lte: prevRange.endDate } },
         },
         _sum: { amount: true },
@@ -253,6 +263,7 @@ export class PosDashboardService {
         where: {
           organizationId,
           orderId: { not: null },
+          ...notComplimentary,
           order: { ...closedOrderFilter, closedAt: { gte: startDate, lte: endDate } },
         },
         _sum: { amount: true },
@@ -316,6 +327,20 @@ export class PosDashboardService {
     // "Sales" is money actually received. A wallet charge past the customer's balance is recorded
     // as a full payment (the order closes paid), but the over-balance part is credit the customer
     // still owes — so it comes out of Sales, in both periods so the % change compares like with like.
+    const complimentaryAgg =
+      complimentaryNames.length > 0
+        ? await this.prisma.payment.aggregate({
+            where: {
+              organizationId,
+              orderId: { not: null },
+              paymentMethod: { in: complimentaryNames },
+              order: { ...closedOrderFilter, closedAt: { gte: startDate, lte: endDate } },
+            },
+            _sum: { amount: true },
+            _count: true,
+          })
+        : null;
+
     const totalSales = Number(sales._sum.amount || 0) - walletCredit;
     const prevTotalSales = Number(prevSales._sum.amount || 0) - prevWalletCredit;
 
@@ -354,6 +379,9 @@ export class PosDashboardService {
         total: Number(m._sum.amount || 0),
         count: m._count,
       })),
+      // The Sales card's lines. Sales = paid + other: money actually received, so complimentary
+      // payments and the wallet-credit part of wallet charges are outside it. Counts are payments.
+      paymentBreakdown: this.buildPaymentBreakdown(byMethod, walletCredit, complimentaryAgg, closedUnpaidTotal - closedUnpaidCollected),
       byOrderType: bySource.map((s) => ({
         type: s.source,
         total: Number(s._sum.total || 0),
@@ -372,6 +400,30 @@ export class PosDashboardService {
         revenue: Number(w.revenue),
         orders: Number(w.orders),
       })),
+    };
+  }
+
+  private buildPaymentBreakdown(
+    byMethod: Array<{ paymentMethod: string; _sum: { amount: Prisma.Decimal | null }; _count: number }>,
+    walletCredit: number,
+    complimentaryAgg: { _sum: { amount: Prisma.Decimal | null }; _count: number } | null,
+    unpaidOutstanding: number,
+  ) {
+    const paid = { count: 0, amount: 0 };
+    const other = { count: 0, amount: 0 };
+    for (const m of byMethod) {
+      const bucket = classifyPaymentMethod(m.paymentMethod) === 'other' ? other : paid;
+      bucket.count += m._count;
+      bucket.amount += Number(m._sum.amount || 0);
+    }
+    // A wallet charge past the customer's balance is recorded as a full payment but is really credit
+    // still owed — it leaves Paid and joins Owed.
+    paid.amount -= walletCredit;
+    return {
+      paid,
+      other,
+      complimentary: { count: complimentaryAgg?._count ?? 0, amount: Number(complimentaryAgg?._sum.amount || 0) },
+      owed: { amount: unpaidOutstanding + walletCredit, onWalletCredit: walletCredit },
     };
   }
 
