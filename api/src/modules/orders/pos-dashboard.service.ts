@@ -308,10 +308,16 @@ export class PosDashboardService {
       `,
     ]);
 
-    const walletCredit = await this.walletCreditForOrdersClosed(organizationId, startDate, endDate);
+    const [walletCredit, prevWalletCredit] = await Promise.all([
+      this.walletCreditForOrdersClosed(organizationId, startDate, endDate),
+      this.walletCreditForOrdersClosed(organizationId, prevRange.startDate, prevRange.endDate),
+    ]);
 
-    const totalSales = Number(sales._sum.amount || 0);
-    const prevTotalSales = Number(prevSales._sum.amount || 0);
+    // "Sales" is money actually received. A wallet charge past the customer's balance is recorded
+    // as a full payment (the order closes paid), but the over-balance part is credit the customer
+    // still owes — so it comes out of Sales, in both periods so the % change compares like with like.
+    const totalSales = Number(sales._sum.amount || 0) - walletCredit;
+    const prevTotalSales = Number(prevSales._sum.amount || 0) - prevWalletCredit;
 
     const closedPaidTotal = Number(closedPaidAgg._sum.total || 0);
     const closedUnpaidTotal = Number(closedUnpaidAgg._sum.total || 0);

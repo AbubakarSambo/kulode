@@ -56,6 +56,11 @@ export function PosDashboardPage() {
   // no closedAt to bucket by) — showing it next to e.g. Last Month's numbers would misleadingly
   // imply it's last month's open orders, so it only makes sense alongside Today.
   const showOpen = period === 'TODAY'
+  // closedPaid.amount is the order totals of paid orders, which includes wallet charges that went
+  // past the customer's balance. That part is still owed, so Paid shows only what was received and
+  // the credit gets its own line — Paid + credit + unpaid (+ open) still adds up to the total.
+  const walletCredit = breakdown?.walletCredit ?? 0
+  const paidReceived = (breakdown?.closedPaid.amount ?? 0) - walletCredit
   const closedCount = (breakdown?.closedPaid.count ?? 0) + (breakdown?.closedUnpaid.count ?? 0)
   const closedValue = (breakdown?.closedPaid.amount ?? 0) + (breakdown?.closedUnpaid.amount ?? 0)
   const totalOrders = showOpen ? (breakdown?.total ?? 0) : closedCount
@@ -84,8 +89,8 @@ export function PosDashboardPage() {
       // Full value of everything sold in this period (paid + still-owed) — NOT summary.sales.total,
       // which is only actual payments received and silently excludes any still-unpaid order.
       `Total Sales: *${formatCurrency(closedValue)}*`,
-      `Paid: ${formatCurrency(breakdown?.closedPaid.amount ?? 0)}`,
-      `Credit (unpaid): ${formatCurrency(breakdown?.closedUnpaid.outstanding ?? 0)}`,
+      `Paid: ${formatCurrency(paidReceived)}`,
+      `Credit (unpaid): ${formatCurrency((breakdown?.closedUnpaid.outstanding ?? 0) + walletCredit)}`,
       ``,
       `${totalOrders} orders total`,
     ]
@@ -219,7 +224,7 @@ export function PosDashboardPage() {
                     <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success" />
                     Paid ({breakdown?.closedPaid.count ?? 0})
                   </span>
-                  <span className="tabular-nums text-foreground">{formatCurrency(breakdown?.closedPaid.amount ?? 0)}</span>
+                  <span className="tabular-nums text-foreground">{formatCurrency(paidReceived)}</span>
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1">
@@ -228,13 +233,13 @@ export function PosDashboardPage() {
                   </span>
                   <span className="tabular-nums text-foreground">{formatCurrency(breakdown?.closedUnpaid.outstanding ?? 0)} owed</span>
                 </div>
-                {(breakdown?.walletCredit ?? 0) > 0 && (
+                {walletCredit > 0 && (
                   <div
                     className="flex items-center justify-between gap-2"
                     title="Orders marked paid by charging a customer's wallet past its balance — still owed"
                   >
                     <span className="flex items-center gap-1 pl-2.5">On wallet credit</span>
-                    <span className="tabular-nums text-foreground">{formatCurrency(breakdown?.walletCredit ?? 0)} owed</span>
+                    <span className="tabular-nums text-foreground">{formatCurrency(walletCredit)} owed</span>
                   </div>
                 )}
                 {showOpen && (
