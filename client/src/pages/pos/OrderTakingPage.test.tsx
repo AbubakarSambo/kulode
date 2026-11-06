@@ -187,7 +187,7 @@ describe('OrderTakingPage', () => {
 
       await user.click(await screen.findByRole('button', { name: 'Dine In' }))
       await user.click(await screen.findByText('Burger'))
-      await user.click(screen.getByText('Table, Customer, Waiter & Notes'))
+      await user.click(screen.getByText('Table, Customer & Notes'))
 
       await user.click(await screen.findByText('Attach a table'))
       await user.click(await screen.findByText('Table 5'))
@@ -200,7 +200,7 @@ describe('OrderTakingPage', () => {
       renderPage(['/pos/order-taking?tableId=t1&source=Dine In'])
       await screen.findByText('Burger')
       expect(screen.queryByRole('button', { name: 'Dine In' })).not.toBeInTheDocument()
-      expect(screen.getByText('Customer, Waiter & Notes')).toBeInTheDocument()
+      expect(screen.getByText('Customer & Notes')).toBeInTheDocument()
     })
   })
 
@@ -276,7 +276,7 @@ describe('OrderTakingPage', () => {
       renderPage()
 
       await user.click(await screen.findByText('Burger'))
-      await user.click(screen.getByText('Customer, Waiter & Notes'))
+      await user.click(screen.getByText('Customer & Notes'))
       await user.click(await screen.findByText('New', { selector: 'button' }))
 
       await user.type(screen.getByPlaceholderText('e.g. Tunde Bakare'), 'Ada Lovelace')
