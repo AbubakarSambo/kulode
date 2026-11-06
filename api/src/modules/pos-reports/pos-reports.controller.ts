@@ -16,7 +16,7 @@ export class PosReportsController {
 
   @Get('sales-report')
   @ApiOperation({ summary: 'Sales report: headline numbers, Department › Category › Item breakdown, dayparts, order types, payments, staff and controls' })
-  @Can('POS_REPORTS_VIEW')
+  @Can('POS_SALES_REPORT_VIEW')
   getSalesReport(
     @CurrentUser() user: CurrentUserData,
     @Query() query: ItemSalesReportQueryDto,
