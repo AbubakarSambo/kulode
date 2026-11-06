@@ -89,3 +89,26 @@ describe('walletCreditForOrdersClosed', () => {
     expect(credit).toBe(20000);
   });
 });
+
+describe('payment breakdown on the sales card', () => {
+  const service = new PosDashboardService({} as never);
+  const build = (service as any).buildPaymentBreakdown.bind(service);
+  const row = (paymentMethod: string, amount: number, count: number) => ({ paymentMethod, _sum: { amount }, _count: count });
+
+  it('splits money received into paid and other, takes wallet credit out of paid, and reports comps and owed separately', () => {
+    const result = build(
+      [row('Card (MP)', 100000, 4), row('Cash', 20000, 3), row('WALLET', 50000, 2), row('Cheque', 7000, 1)],
+      12000, // over-balance part of wallet charges
+      { _sum: { amount: 30000 }, _count: 5 }, // complimentary
+      9000, // still owed on unpaid orders
+    );
+    expect(result.paid).toEqual({ count: 9, amount: 158000 }); // 100k + 20k + 50k wallet - 12k credit
+    expect(result.other).toEqual({ count: 1, amount: 7000 });
+    expect(result.complimentary).toEqual({ count: 5, amount: 30000 });
+    expect(result.owed).toEqual({ amount: 21000, onWalletCredit: 12000 });
+  });
+
+  it('has no complimentary line when the org has no complimentary types', () => {
+    expect(build([row('Cash', 1000, 1)], 0, null, 0).complimentary).toEqual({ count: 0, amount: 0 });
+  });
+});

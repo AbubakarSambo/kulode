@@ -14,6 +14,14 @@ export interface PosDashboardSummary {
     walletCredit: number
     open: { count: number; amount: number }
   }
+  // The Sales card's lines. Sales = paid + other (money actually received); complimentary and owed
+  // sit outside it. Counts are payments, not orders.
+  paymentBreakdown: {
+    paid: { count: number; amount: number }
+    other: { count: number; amount: number }
+    complimentary: { count: number; amount: number }
+    owed: { amount: number; onWalletCredit: number }
+  }
   byPaymentMethod: { method: string; total: number; count: number }[]
   byOrderType: { type: string; total: number; count: number }[]
   topItems: { id: string; name: string; quantity: number; revenue: number; orders: number }[]
