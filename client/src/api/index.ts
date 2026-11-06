@@ -35,3 +35,5 @@ export type { WalletBalance, WalletTransactionFilters, TopUpWalletData, AdjustWa
 export { googleSheetsApi } from './google-sheets'
 export { posReportsApi, salesReportApi } from './posReports'
 export type { ItemSalesReport, ItemSalesCategoryRow, ItemSalesQuantityRow, ItemSalesProductRow, SalesReport, SalesDepartment, SalesBreakdownRow, SalesItemRow, SalesDepartmentKey } from './posReports'
+export { leaderboardApi } from './leaderboard'
+export type { Leaderboard, LeaderboardEntry, LeaderboardSettings, LeaderboardMetric, LeaderboardRole } from './leaderboard'

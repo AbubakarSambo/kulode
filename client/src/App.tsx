@@ -88,6 +88,7 @@ const CustomerDetailPage = lazyPage(() => import('@/pages/pos/CustomerDetailPage
 const KitchenTicketsPage = lazyPage(() => import('@/pages/kitchen/KitchenTicketsPage'), 'KitchenTicketsPage')
 const DrinksTicketsPage = lazyPage(() => import('@/pages/kitchen/DrinksTicketsPage'), 'DrinksTicketsPage')
 const PosReportsPage = lazyPage(() => import('@/pages/pos/PosReportsPage'), 'PosReportsPage')
+const LeaderboardPage = lazyPage(() => import('@/pages/pos/LeaderboardPage'), 'LeaderboardPage')
 const PosPaymentsPage = lazyPage(() => import('@/pages/pos/PosPaymentsPage'), 'PosPaymentsPage')
 const UnreconciledTransfersPage = lazyPage(() => import('@/pages/pos/UnreconciledTransfersPage'), 'UnreconciledTransfersPage')
 const PosAiChatPage = lazyPage(() => import('@/pages/pos/PosAiChatPage'), 'PosAiChatPage')
@@ -292,6 +293,9 @@ function App() {
                 </Route>
                 <Route element={<ProtectedRoute allowedRoles={PERMISSIONS.POS_REPORTS_VIEW} />}>
                   <Route path="/pos/reports" element={<PosReportsPage />} />
+                </Route>
+                <Route element={<ProtectedRoute allowedRoles={PERMISSIONS.LEADERBOARD_VIEW} />}>
+                  <Route path="/pos/leaderboard" element={<LeaderboardPage />} />
                 </Route>
                 <Route element={<ProtectedRoute allowedRoles={PERMISSIONS.POS_PAYMENTS_VIEW} />}>
                   <Route path="/pos/payments" element={<PosPaymentsPage />} />

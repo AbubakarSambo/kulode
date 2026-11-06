@@ -19,6 +19,7 @@ import {
   LayoutDashboard,
   KeyRound,
   Package,
+  Trophy,
 } from 'lucide-react'
 import {
   DashboardIcon,
@@ -103,6 +104,7 @@ export function AppLayout() {
     if (path.startsWith('/pos/kitchen')) return 'Kitchen'
     if (path.startsWith('/pos/drinks')) return 'Drinks'
     if (path.startsWith('/pos/reports')) return 'POS Reports'
+    if (path.startsWith('/pos/leaderboard')) return 'Leaderboard'
     if (path.startsWith('/pos/waiters')) return 'Waiters'
     if (path.startsWith('/pos/shift')) return 'Shift'
     if (path.startsWith('/pos/order')) return 'Order'
@@ -130,6 +132,7 @@ export function AppLayout() {
     '/pos/drinks': { name: 'Drinks', icon: Martini },
     '/pos/shift': { name: 'Shift', icon: Clock },
     '/pos/reports': { name: 'POS Reports', icon: Receipt },
+    '/pos/leaderboard': { name: 'Leaderboard', icon: Trophy },
     '/pos/payments': { name: 'Payments', icon: CreditCard },
     '/pos/unreconciled-transfers': { name: 'Transfers', icon: Landmark },
     '/pos/menu': { name: 'Menu', icon: ChefHat },
@@ -242,6 +245,7 @@ export function AppLayout() {
       items: [
         { name: 'Reports', href: '/reports', icon: ReportsIcon, requiresPlan: 'PRO' as PlanTier, visible: canViewReports && hasInvoicing },
         { name: 'POS Reports', href: '/pos/reports', icon: ReportsIcon, visible: hasPos },
+        { name: 'Leaderboard', href: '/pos/leaderboard', icon: Trophy, visible: hasPos && !isRetail && can(user, 'LEADERBOARD_VIEW') },
         { name: 'AI Chat', href: '/ai-chat', icon: AiChatIcon, requiresPlan: 'PRO' as PlanTier, visible: canViewReports && hasInvoicing },
         { name: 'AI Chat', href: '/pos/ai-chat', icon: AiChatIcon, requiresPlan: 'PRO' as PlanTier, visible: hasPos && isAdmin },
         { name: 'Payments', href: '/pos/payments', icon: CreditCard, visible: hasPos && can(user, 'POS_PAYMENTS_VIEW') },

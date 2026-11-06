@@ -12,7 +12,7 @@ import type { UserRole } from '@/types'
 // `AllowedHref` below), so a missing icon is a compile error rather than a runtime crash.
 
 // Waiters handle selling, order tracking, customer lookup, and the table list
-export const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/customers', '/pos/tables', '/pos/reports'] as const
+export const WAITER_ALLOWED_HREFS = ['/pos/order/new', '/pos/orders', '/pos/customers', '/pos/tables', '/pos/reports', '/pos/leaderboard'] as const
 
 // Pass/Runner/Kitchen are kitchen-only roles — the ticket boards are the only pages they can see
 // (no sales reports: the org's takings aren't kitchen business)
@@ -27,6 +27,7 @@ export const CASHIER_ALLOWED_HREFS = [
   '/pos/shift',
   '/pos/tables',
   '/pos/reports',
+  '/pos/leaderboard',
   '/pos/menu',
   '/pos/categories',
   '/pos/unreconciled-transfers',

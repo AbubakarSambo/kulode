@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, X, CreditCard, ChefHat, Clock, Receipt, Users, ShoppingCart, Tag, Timer, UserCog, RefreshCw, KeyRound, LayoutGrid, ListOrdered, Martini, Package, Landmark } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, CreditCard, ChefHat, Clock, Receipt, Users, ShoppingCart, Tag, Timer, UserCog, RefreshCw, KeyRound, LayoutGrid, ListOrdered, Martini, Package, Landmark, Trophy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { useLogout, useSwitchUser } from '@/hooks'
@@ -95,6 +95,7 @@ const navigationGroups = [
     title: 'POS Insights',
     items: [
       { name: 'Reports', href: '/pos/reports', icon: ReportsIcon, requiresPlan: undefined as PlanTier | undefined },
+      { name: 'Leaderboard', href: '/pos/leaderboard', icon: Trophy, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Payments', href: '/pos/payments', icon: CreditCard, requiresPlan: undefined as PlanTier | undefined },
       { name: 'Unreconciled Transfers', href: '/pos/unreconciled-transfers', icon: Landmark, requiresPlan: undefined as PlanTier | undefined },
       { name: 'AI Chat', href: '/pos/ai-chat', icon: AiChatIcon, requiresPlan: 'PRO' as PlanTier | undefined },
@@ -217,6 +218,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         if (INVOICING_ONLY_HREFS.includes(item.href) && !hasInvoicing) return false
         if ((item.href === '/reports' || item.href === '/ai-chat') && !canViewReports) return false
         if (item.href === '/pos/ai-chat' && !isAdmin) return false
+        if (item.href === '/pos/leaderboard' && !can(user, 'LEADERBOARD_VIEW')) return false
         if (item.href === '/pos/payments' && !can(user, 'POS_PAYMENTS_VIEW')) return false
         if (item.href === '/pos/unreconciled-transfers' && !can(user, 'UNRECONCILED_TRANSFERS')) return false
         if (
