@@ -395,6 +395,10 @@ export class ShiftsService {
     const creditSales = closedUnpaidOutstanding + walletCreditSales;
     const creditRepayments = toNumber(oldOrderRepaymentsAgg._sum.amount ?? 0) + topUpRepayments;
 
+    const mtd = this.whatsappService.shiftReportIncludesMtd
+      ? await this.monthToDateFigures(organizationId, new Date(openedAt.getFullYear(), openedAt.getMonth(), 1), closedAt)
+      : null;
+
     const reportDate = closedAt.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     const formatClock = (d: Date) => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
     const timeRange = `${formatClock(openedAt)} – ${formatClock(closedAt)}`;
@@ -421,10 +425,67 @@ export class ShiftsService {
           creditRepayments: currency(creditRepayments),
           walletTopUps: currency(deposits),
           variance: currency(variance),
+          ...(mtd && { mtdSales: currency(mtd.sales), mtdPayments: currency(mtd.payments), mtdCredits: currency(mtd.credits) }),
         });
       } catch (err) {
         this.logger.error(`Failed to send shift close report to ${phone} for org ${organizationId}: ${err.message}`);
       }
     }
+  }
+  // Month-to-date block of the shift report, from the 1st of the shift's month to its close. Same
+  // definitions as the shift's own figures, just over the longer window:
+  //  - sales: totals of orders closed paid or unpaid;
+  //  - payments: money actually received (order payments + wallet top-ups, wallet tenders aren't);
+  //  - credits: credit given — still-owed amounts on closed orders plus the over-balance part of
+  //    wallet charges (reversed charges, and charges settling orders from before the month, skipped).
+  private async monthToDateFigures(organizationId: string, monthStart: Date, closedAt: Date) {
+    const window = { gte: monthStart, lte: closedAt };
+    const [closedAgg, unpaidAgg, paymentsAgg, topUpsAgg, walletDebits, walletReversals] = await Promise.all([
+      this.prisma.order.aggregate({
+        where: { organizationId, status: { in: [OrderStatus.CLOSED_PAID, OrderStatus.CLOSED_UNPAID] }, closedAt: window },
+        _sum: { total: true },
+      }),
+      this.prisma.order.aggregate({
+        where: { organizationId, status: OrderStatus.CLOSED_UNPAID, closedAt: window },
+        _sum: { total: true, amountPaid: true },
+      }),
+      this.prisma.payment.aggregate({
+        where: { organizationId, createdAt: window, paymentMethod: { not: 'WALLET' } },
+        _sum: { amount: true },
+      }),
+      // Top-ups with no recorded method count as OTHER, so a null method must not be filtered out.
+      this.prisma.walletTransaction.aggregate({
+        where: {
+          organizationId,
+          type: 'TOPUP',
+          createdAt: window,
+          OR: [{ paymentMethod: null }, { paymentMethod: { not: 'WALLET' } }],
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.walletTransaction.findMany({
+        where: { organizationId, type: 'ORDER_DEBIT', createdAt: window },
+        select: { id: true, amount: true, balanceBefore: true, order: { select: { closedAt: true } } },
+      }),
+      this.prisma.walletTransaction.findMany({
+        where: { organizationId, type: 'REFUND', reference: { not: null }, createdAt: { lte: closedAt } },
+        select: { reference: true },
+      }),
+    ]);
+
+    const reversed = new Set(walletReversals.map((r) => r.reference));
+    let walletCredit = 0;
+    for (const debit of walletDebits) {
+      if (reversed.has(debit.id)) continue;
+      if (debit.order?.closedAt && debit.order.closedAt < monthStart) continue;
+      walletCredit += splitWalletDebit(toNumber(debit.amount), toNumber(debit.balanceBefore)).onCredit;
+    }
+
+    const unpaidOutstanding = toNumber(unpaidAgg._sum.total ?? 0) - toNumber(unpaidAgg._sum.amountPaid ?? 0);
+    return {
+      sales: toNumber(closedAgg._sum.total ?? 0),
+      payments: toNumber(paymentsAgg._sum.amount ?? 0) + toNumber(topUpsAgg._sum.amount ?? 0),
+      credits: unpaidOutstanding + walletCredit,
+    };
   }
 }
