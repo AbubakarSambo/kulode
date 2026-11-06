@@ -33,6 +33,7 @@ import { WalletModule } from './modules/wallet';
 import { GoogleSheetsModule } from './modules/google-sheets';
 import { SheetSyncModule } from './modules/sheet-sync';
 import { PosReportsModule } from './modules/pos-reports';
+import { LeaderboardModule } from './modules/leaderboard';
 import { PrintersModule } from './modules/printers';
 import { OrderTypesModule } from './modules/order-types';
 import { PaymentTypesModule } from './modules/payment-types';
@@ -86,6 +87,7 @@ import {
     GoogleSheetsModule,
     SheetSyncModule,
     PosReportsModule,
+    LeaderboardModule,
     PrintersModule,
     OrderTypesModule,
     PaymentTypesModule,

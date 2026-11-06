@@ -271,6 +271,9 @@ model Organization {
   // Shows floor staff (waiter and up) a live strip of today's paid/open takings on the POS pages.
   // Off by default — some owners don't want the floor seeing the branch's money.
   showTakingsStrip        Boolean   @default(false) @map("show_takings_strip")
+  // Staff leaderboard settings (metrics offered, roles competing, top N, minimum orders, whether
+  // everyone sees everyone's amounts). Null = defaults; see leaderboard.settings.ts.
+  leaderboardSettings     Json?     @map("leaderboard_settings")
   // What this restaurant considers one business day, e.g. "06:00"-"18:00" for a lunch spot or
   // "18:00"-"02:00" for a bar (end <= start means the shift crosses midnight). Reports and
   // dashboards bucket "today"/daily figures against this window instead of literal midnight.
