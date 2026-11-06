@@ -71,6 +71,12 @@ export const PERMISSIONS = {
   // The redesigned Sales report (departments, dayparts, staff, controls) — owner-level view
   POS_SALES_REPORT_VIEW: ADMINS,
   POS_DASHBOARD_VIEW: [...SUPERVISOR_UP, ...LEGACY],
+  // Staff leaderboard (revenue / average check). Everyone on the floor can see the ranking; only
+  // MANAGER and up see other people's actual figures (an org can open that to all — see
+  // LeaderboardSettings.showAmountsToAll); only ADMIN configures it.
+  LEADERBOARD_VIEW: WAITER_UP,
+  LEADERBOARD_AMOUNTS_ALL: MANAGER_UP,
+  LEADERBOARD_CONFIGURE: ADMINS,
   // Today's running takings (paid + still-open) for the branch — the strip above the POS pages
   TODAY_TAKINGS_VIEW: WAITER_UP,
   // Stock counts/restocks vs. creating/editing/deleting/importing inventory items

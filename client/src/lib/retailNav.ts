@@ -10,6 +10,8 @@ export const RETAIL_HIDDEN_HREFS = [
   '/pos/menu',
   '/pos/categories',
   '/pos/order-types',
+  // A shop has no waiters to rank
+  '/pos/leaderboard',
 ]
 
 // A retail org that also has invoicing would otherwise see two "Dashboard"s, two "Payments", two
