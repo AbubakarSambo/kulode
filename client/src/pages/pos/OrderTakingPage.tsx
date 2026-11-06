@@ -10,7 +10,7 @@ import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Label, Input, Textarea, SearchableSelect } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { BottomSheet } from '@/components/shared/BottomSheet'
-import { menuCategoriesApi, menuItemsApi, ordersApi, customersApi, tablesApi, usersApi, organizationsApi, orderTypesApi } from '@/api'
+import { menuCategoriesApi, menuItemsApi, ordersApi, customersApi, tablesApi, organizationsApi, orderTypesApi } from '@/api'
 import type { ReceiptData } from '@/api/orders'
 import { formatCurrency, cn } from '@/lib/utils'
 import { printBill } from '@/lib/printBill'
@@ -110,7 +110,6 @@ export function OrderTakingPage() {
   const [selectedTableId, setSelectedTableId] = useState(() =>
     typeof initialDraft?.selectedTableId === 'string' ? initialDraft.selectedTableId : '',
   )
-  const [waiterId, setWaiterId] = useState(() => (typeof initialDraft?.waiterId === 'string' ? initialDraft.waiterId : ''))
   const [orderNotes, setOrderNotes] = useState(() => (typeof initialDraft?.orderNotes === 'string' ? initialDraft.orderNotes : ''))
   const [assignmentsOpen, setAssignmentsOpen] = useState(false)
   const [newTableOpen, setNewTableOpen] = useState(false)
@@ -133,7 +132,6 @@ export function OrderTakingPage() {
           JSON.stringify({
             cart,
             customerId,
-            waiterId,
             orderNotes,
             selectedTableId,
             source,
@@ -146,7 +144,7 @@ export function OrderTakingPage() {
     } catch {
       // Storage unavailable (private browsing, quota) — draft just won't persist this time.
     }
-  }, [draftKey, cart, customerId, waiterId, orderNotes, selectedTableId, source, applyVat, applyEntertainmentTax, applyServiceCharge])
+  }, [draftKey, cart, customerId, orderNotes, selectedTableId, source, applyVat, applyEntertainmentTax, applyServiceCharge])
 
   const { data: tables } = useQuery({
     queryKey: ['restaurant-tables'],
@@ -225,21 +223,9 @@ export function OrderTakingPage() {
       ...customerOptions,
     ]
   }, [customerOptions, pinnedCustomer])
-  const { data: waiters } = useQuery({
-    queryKey: ['waiters-directory'],
-    queryFn: () => usersApi.directory(['WAITER', 'CASHIER']),
-  })
-  const waiterOptions = useMemo(
-    () => (waiters ?? []).map((w) => ({ id: w.id, label: `${w.firstName} ${w.lastName}` })),
-    [waiters],
-  )
   const selectedCustomerLabel = useMemo(
     () => customerOptionsWithSelected.find((c) => c.id === customerId)?.label,
     [customerOptionsWithSelected, customerId],
-  )
-  const selectedWaiterLabel = useMemo(
-    () => waiterOptions.find((w) => w.id === waiterId)?.label,
-    [waiterOptions, waiterId],
   )
   const tableOptions = useMemo(
     () => availableTables.map((t) => ({ id: t.id, label: t.name + (t.section ? ` — ${t.section}` : '') })),
@@ -310,7 +296,6 @@ export function OrderTakingPage() {
     () => tables?.find((t) => t.id === effectiveTableId)?.name ?? null,
     [tables, effectiveTableId],
   )
-  const selectedWaiter = waiters?.find((w) => w.id === waiterId)
   const selectedCustomer =
     customersPage?.data.find((c) => c.id === customerId) ?? (pinnedCustomer?.id === customerId ? pinnedCustomer : undefined)
 
@@ -323,7 +308,7 @@ export function OrderTakingPage() {
       source,
       table: effectiveTableName ? { name: effectiveTableName } : null,
       customer: selectedCustomer ? { name: selectedCustomer.name, phone: selectedCustomer.phone ?? null } : null,
-      waiter: selectedWaiter ? { firstName: selectedWaiter.firstName, lastName: selectedWaiter.lastName } : null,
+      waiter: authUser ? { firstName: authUser.firstName, lastName: authUser.lastName } : null,
       items: cart.map((l) => ({ name: l.name, quantity: l.quantity, unitPrice: l.price, amount: l.price * l.quantity, notes: l.notes })),
       subtotal,
       taxAmount: vatAmount + entertainmentTaxAmount + serviceChargeAmount,
@@ -383,7 +368,6 @@ export function OrderTakingPage() {
       ordersApi.create({
         tableId: effectiveTableId,
         customerId: customerId || undefined,
-        waiterId: waiterId || undefined,
         source,
         items: cart.map((l) => ({ menuItemId: l.menuItemId, quantity: l.quantity, notes: l.notes || undefined })),
         notes: orderNotes || undefined,
@@ -550,18 +534,18 @@ export function OrderTakingPage() {
           >
             <div className="min-w-0">
               <div className="text-xs font-medium text-muted-foreground">
-                {showTablePicker ? 'Table, Customer, Waiter & Notes' : 'Customer, Waiter & Notes'}
+                {showTablePicker ? 'Table, Customer & Notes' : 'Customer & Notes'}
               </div>
               <div
                 className={cn(
                   'truncate text-sm font-semibold',
-                  !selectedTableLabel && !selectedCustomerLabel && !selectedWaiterLabel && !orderNotes && showTablePicker
+                  !selectedTableLabel && !selectedCustomerLabel && !orderNotes && showTablePicker
                     ? 'text-amber-600'
                     : 'text-foreground',
                 )}
               >
-                {selectedTableLabel || selectedCustomerLabel || selectedWaiterLabel || orderNotes
-                  ? [selectedTableLabel, selectedCustomerLabel, selectedWaiterLabel, orderNotes]
+                {selectedTableLabel || selectedCustomerLabel || orderNotes
+                  ? [selectedTableLabel, selectedCustomerLabel, orderNotes]
                       .filter(Boolean)
                       .join(' · ')
                   // A table-requiring order type genuinely can't be sent without one — don't call
@@ -663,7 +647,7 @@ export function OrderTakingPage() {
       <BottomSheet
         isOpen={assignmentsOpen}
         onClose={() => setAssignmentsOpen(false)}
-        title={showTablePicker ? 'Table, Customer, Waiter & Notes' : 'Customer, Waiter & Notes'}
+        title={showTablePicker ? 'Table, Customer & Notes' : 'Customer & Notes'}
         mobileOnly={false}
         panelClassName="sm:max-w-md sm:mx-auto sm:rounded-b-[32px]"
       >
@@ -736,30 +720,6 @@ export function OrderTakingPage() {
                   }}
                   className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted"
                   aria-label="Clear customer"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <Label>Waiter (optional)</Label>
-            <div className="mt-1 flex items-center gap-1.5">
-              <div className="flex-1">
-                <SearchableSelect
-                  options={waiterOptions}
-                  value={waiterId}
-                  onChange={setWaiterId}
-                  placeholder="Assign a waiter"
-                />
-              </div>
-              {waiterId && (
-                <button
-                  type="button"
-                  onClick={() => setWaiterId('')}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted"
-                  aria-label="Clear waiter"
                 >
                   <X className="h-4 w-4" />
                 </button>
