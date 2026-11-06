@@ -1,11 +1,15 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { ChevronDown, Download, Printer } from 'lucide-react'
 import { ReceiptTextIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { DatePicker, DropdownPanel, EmptyState, Input } from '@/components/ui'
-import { salesReportApi } from '@/api'
+import { posReportsApi, salesReportApi } from '@/api'
 import { cn } from '@/lib/utils'
+import { can } from '@/lib/permissions'
+import { useAuthStore } from '@/stores/auth'
+import { ItemSalesReportView } from './ItemSalesReportView'
 import { SalesReportView } from './SalesReportView'
 import { downloadSalesReportCsv } from './salesReportCsv'
 
@@ -55,6 +59,14 @@ export function PosReportsPage() {
   const [toTime, setToTime] = useState('')
   const [dropdownOpen, setDropdownOpen] = useState(false)
 
+  // Admins get the redesigned Sales report (default) and can flip to the original Item sales
+  // view; everyone else only ever sees Item sales. The API enforces the same split.
+  const user = useAuthStore((state) => state.user)
+  const canSeeSalesReport = can(user, 'POS_SALES_REPORT_VIEW')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const view: 'sales' | 'items' = canSeeSalesReport && searchParams.get('view') !== 'items' ? 'sales' : 'items'
+  const setView = (v: 'sales' | 'items') => setSearchParams(v === 'items' ? { view: 'items' } : {}, { replace: true })
+
   const { from, to } = useMemo(() => {
     const now = new Date()
     switch (period) {
@@ -76,17 +88,52 @@ export function PosReportsPage() {
 
   const compare = period === 'THIS_WEEK' ? 'week' : period === 'THIS_MONTH' ? 'month' : undefined
 
-  const { data: report, isLoading } = useQuery({
+  const { data: report, isLoading: salesLoading } = useQuery({
     queryKey: ['pos-reports', 'sales-report', from, to, effectiveFromTime, effectiveToTime, compare],
-    queryFn: () => salesReportApi.get({ from, to, fromTime: effectiveFromTime, toTime: effectiveToTime, compare }),
-    enabled: !!from,
+    queryFn: () =>
+      salesReportApi.get({
+        from,
+        to,
+        fromTime: effectiveFromTime,
+        toTime: effectiveToTime,
+        compare,
+      }),
+    enabled: !!from && view === 'sales',
   })
 
-  const hasSales = !!report && report.headline.orders > 0
+  const { data: itemReport, isLoading: itemsLoading } = useQuery({
+    queryKey: ['pos-reports', 'item-sales', from, to, effectiveFromTime, effectiveToTime],
+    queryFn: () => posReportsApi.getItemSales(from, to, effectiveFromTime, effectiveToTime),
+    enabled: !!from && view === 'items',
+  })
+
+  const isLoading = view === 'sales' ? salesLoading : itemsLoading
+  const hasSales = view === 'sales' ? !!report && report.headline.orders > 0 : !!itemReport && itemReport.products.length > 0
   const activeOption = periodOptions.find((opt) => opt.value === period)
 
   const filterControls = (
     <div className="flex items-center gap-2 print:hidden">
+      {canSeeSalesReport && (
+        <div className="h-11 p-1 rounded-xl border border-border bg-card flex items-center gap-1">
+          {(
+            [
+              ['sales', 'Sales report'],
+              ['items', 'Item sales'],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setView(value)}
+              className={cn(
+                'h-full px-3 rounded-lg text-xs font-semibold transition-colors',
+                view === value ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="relative inline-block text-left w-full sm:w-auto">
         <button
           onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -95,7 +142,13 @@ export function PosReportsPage() {
           <span>{activeOption?.label}</span>
           <ChevronDown className={cn('h-3.5 w-3.5 text-muted-foreground transition-transform', dropdownOpen && 'rotate-180')} />
         </button>
-        <DropdownPanel isOpen={dropdownOpen} onClose={() => setDropdownOpen(false)} align="right" widthClass="w-full sm:w-48" zIndexClass="z-20">
+        <DropdownPanel
+          isOpen={dropdownOpen}
+          onClose={() => setDropdownOpen(false)}
+          align="right"
+          widthClass="w-full sm:w-48"
+          zIndexClass="z-20"
+        >
           {periodOptions.map((opt) => (
             <button
               key={opt.value}
@@ -116,38 +169,28 @@ export function PosReportsPage() {
       {period === 'CUSTOM' && (
         <>
           <DatePicker value={customFrom} onChange={setCustomFrom} className="w-36" align="right" placeholder="From" />
-          <Input
-            type="time"
-            value={fromTime}
-            onChange={(e) => setFromTime(e.target.value)}
-            className="h-11 w-32"
-            aria-label="From time"
-          />
+          <Input type="time" value={fromTime} onChange={(e) => setFromTime(e.target.value)} className="h-11 w-32" aria-label="From time" />
           <DatePicker value={customTo} onChange={setCustomTo} className="w-36" align="right" placeholder="To" />
-          <Input
-            type="time"
-            value={toTime}
-            onChange={(e) => setToTime(e.target.value)}
-            className="h-11 w-32"
-            aria-label="To time"
-          />
+          <Input type="time" value={toTime} onChange={(e) => setToTime(e.target.value)} className="h-11 w-32" aria-label="To time" />
         </>
       )}
-      {hasSales && report && (
+      {hasSales && (
         <>
-          <button
-            onClick={() => downloadSalesReportCsv(report)}
-            className="h-11 px-4 rounded-xl border border-border bg-card text-xs font-bold text-foreground hover:bg-muted/50 transition-all flex items-center gap-2"
-          >
-            <Download className="h-4 w-4" />
-            CSV
-          </button>
+          {view === 'sales' && report && (
+            <button
+              onClick={() => downloadSalesReportCsv(report)}
+              className="h-11 px-4 rounded-xl border border-border bg-card text-xs font-bold text-foreground hover:bg-muted/50 transition-all flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+              CSV
+            </button>
+          )}
           <button
             onClick={() => window.print()}
             className="h-11 px-4 rounded-xl border border-border bg-card text-xs font-bold text-foreground hover:bg-muted/50 transition-all flex items-center gap-2"
           >
             <Printer className="h-4 w-4" />
-            Print / PDF
+            {view === 'sales' ? 'Print / PDF' : 'Print'}
           </button>
         </>
       )}
@@ -157,8 +200,12 @@ export function PosReportsPage() {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <Header
-        title="Sales Report"
-        description="Sales by department, category and item, with dayparts, payments, staff and controls"
+        title={view === 'sales' ? 'Sales Report' : 'Item Sales Report'}
+        description={
+          view === 'sales'
+            ? 'Sales by department, category and item, with dayparts, payments, staff and controls'
+            : 'Sales and quantities by category and product for a chosen day or date range'
+        }
         action={filterControls}
       />
 
@@ -167,11 +214,13 @@ export function PosReportsPage() {
           <EmptyState
             icon={ReceiptTextIcon}
             title="No sales in this range"
-            description="Pick a different day or date range to see the sales report."
+            description="Pick a different day or date range to see the report."
           />
         )}
 
-        {hasSales && report && (
+        {hasSales && view === 'items' && itemReport && <ItemSalesReportView report={itemReport} />}
+
+        {hasSales && view === 'sales' && report && (
           <>
             <div className="hidden print:block mb-6 border-b-4 border-primary pb-3">
               <p className="text-xl font-bold">Sales Report</p>
