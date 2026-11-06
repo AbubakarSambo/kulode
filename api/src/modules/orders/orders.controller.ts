@@ -67,7 +67,13 @@ export class OrdersController {
     @Body() dto: CreateOrderDto,
     @CurrentUser() user: CurrentUserData,
   ) {
-    return this.ordersService.create(user.organizationId, user.id, dto);
+    // The till no longer asks who the waiter is — the person ringing the order up is the waiter.
+    // Only WAITER/CASHIER accounts can be an order's waiter (the service validates that), so a
+    // manager/admin placing an order leaves it unassigned. An explicit waiterId (e.g. from an
+    // offline-queued request or an older client) is still honoured.
+    const isFloorWaiter = user.roles.some((r) => r === 'WAITER' || r === 'CASHIER');
+    const withWaiter = dto.waiterId || !isFloorWaiter ? dto : { ...dto, waiterId: user.id };
+    return this.ordersService.create(user.organizationId, user.id, withWaiter);
   }
 
   @Post(':id/items')
