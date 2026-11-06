@@ -18,4 +18,9 @@ export class UpdatePaymentTypeDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isComplimentary?: boolean;
 }

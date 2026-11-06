@@ -46,15 +46,23 @@ export function PosDashboardPage() {
   // no closedAt to bucket by) — showing it next to e.g. Last Month's numbers would misleadingly
   // imply it's last month's open orders, so it only makes sense alongside Today.
   const showOpen = period === 'TODAY'
-  // closedPaid.amount is the order totals of paid orders, which includes wallet charges that went
-  // past the customer's balance. That part is still owed, so Paid shows only what was received and
-  // the credit gets its own line — Paid + credit + unpaid (+ open) still adds up to the total.
-  const walletCredit = breakdown?.walletCredit ?? 0
-  const paidReceived = (breakdown?.closedPaid.amount ?? 0) - walletCredit
+  // The Sales card's lines come from the server's paymentBreakdown (see PosDashboardSummary):
+  // Sales = Paid + Other, money actually received. Complimentary and Owed sit outside it.
+  const pay = summary?.paymentBreakdown
+  const owedAmount = pay?.owed.amount ?? 0
+  const complimentaryAmount = pay?.complimentary.amount ?? 0
   const closedCount = (breakdown?.closedPaid.count ?? 0) + (breakdown?.closedUnpaid.count ?? 0)
   const closedValue = (breakdown?.closedPaid.amount ?? 0) + (breakdown?.closedUnpaid.amount ?? 0)
   const totalOrders = showOpen ? (breakdown?.total ?? 0) : closedCount
   const totalValue = showOpen ? closedValue + (breakdown?.open.amount ?? 0) : closedValue
+  const salesBarSegments = [
+    { label: 'Paid', amount: pay?.paid.amount ?? 0, color: 'bg-success' },
+    { label: 'Other', amount: pay?.other.amount ?? 0, color: 'bg-sky-500' },
+    { label: 'Complimentary', amount: complimentaryAmount, color: 'bg-violet-500' },
+    { label: 'Owed', amount: owedAmount, color: 'bg-amber-500' },
+    ...(showOpen ? [{ label: 'Open', amount: breakdown?.open.amount ?? 0, color: 'bg-slate-400' }] : []),
+  ]
+  const salesBarTotal = salesBarSegments.reduce((sum, s) => sum + s.amount, 0) || 1
   const paidPct = totalOrders > 0 ? (breakdown!.closedPaid.count / totalOrders) * 100 : 0
   const unpaidPct = totalOrders > 0 ? (breakdown!.closedUnpaid.count / totalOrders) * 100 : 0
   const openPct = showOpen && totalOrders > 0 ? (breakdown!.open.count / totalOrders) * 100 : 0
@@ -79,8 +87,9 @@ export function PosDashboardPage() {
       // Full value of everything sold in this period (paid + still-owed) — NOT summary.sales.total,
       // which is only actual payments received and silently excludes any still-unpaid order.
       `Total Sales: *${formatCurrency(closedValue)}*`,
-      `Paid: ${formatCurrency(paidReceived)}`,
-      `Credit (unpaid): ${formatCurrency((breakdown?.closedUnpaid.outstanding ?? 0) + walletCredit)}`,
+      `Paid: ${formatCurrency((pay?.paid.amount ?? 0) + (pay?.other.amount ?? 0))}`,
+      `Owed: ${formatCurrency(owedAmount)}`,
+      ...(complimentaryAmount > 0 ? [`Complimentary: ${formatCurrency(complimentaryAmount)}`] : []),
       ``,
       `${totalOrders} orders total`,
     ]
@@ -199,37 +208,48 @@ export function PosDashboardPage() {
               </div>
               <div
                 className="mt-3 flex h-2 w-full gap-0.5 overflow-hidden rounded-full bg-muted"
-                title={
-                  `${breakdown?.closedPaid.count ?? 0} paid · ${breakdown?.closedUnpaid.count ?? 0} unpaid` +
-                  (showOpen ? ` · ${breakdown?.open.count ?? 0} open` : '')
-                }
+                title={salesBarSegments.map((s) => `${s.label} ${formatCurrency(s.amount)}`).join(' · ')}
               >
-                {paidPct > 0 && <div className="h-full bg-success" style={{ width: `${paidPct}%` }} />}
-                {unpaidPct > 0 && <div className="h-full bg-amber-500" style={{ width: `${unpaidPct}%` }} />}
-                {openPct > 0 && <div className="h-full bg-slate-400" style={{ width: `${openPct}%` }} />}
+                {salesBarSegments.map(
+                  (s) => s.amount > 0 && <div key={s.label} className={cn('h-full', s.color)} style={{ width: `${(s.amount / salesBarTotal) * 100}%` }} />,
+                )}
               </div>
               <div className="mt-2 space-y-1 text-[9px] sm:text-[10px] font-medium text-muted-foreground">
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1">
                     <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success" />
-                    Paid ({breakdown?.closedPaid.count ?? 0})
+                    Paid ({pay?.paid.count ?? 0})
                   </span>
-                  <span className="tabular-nums text-foreground">{formatCurrency(paidReceived)}</span>
+                  <span className="tabular-nums text-foreground">{formatCurrency(pay?.paid.amount ?? 0)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2" title="Payments on types that aren't cash, card, transfer, wallet or complimentary">
+                  <span className="flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" />
+                    Other ({pay?.other.count ?? 0})
+                  </span>
+                  <span className="tabular-nums text-foreground">{formatCurrency(pay?.other.amount ?? 0)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2" title="Settled with a complimentary payment type — not counted in sales">
+                  <span className="flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" />
+                    Complimentary ({pay?.complimentary.count ?? 0})
+                  </span>
+                  <span className="tabular-nums text-foreground">{formatCurrency(complimentaryAmount)}</span>
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1">
                     <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-                    Unpaid ({breakdown?.closedUnpaid.count ?? 0})
+                    Owed
                   </span>
-                  <span className="tabular-nums text-foreground">{formatCurrency(breakdown?.closedUnpaid.outstanding ?? 0)} owed</span>
+                  <span className="tabular-nums text-foreground">{formatCurrency(owedAmount)}</span>
                 </div>
-                {walletCredit > 0 && (
+                {(pay?.owed.onWalletCredit ?? 0) > 0 && (
                   <div
                     className="flex items-center justify-between gap-2"
                     title="Orders marked paid by charging a customer's wallet past its balance — still owed"
                   >
-                    <span className="flex items-center gap-1 pl-2.5">On wallet credit</span>
-                    <span className="tabular-nums text-foreground">{formatCurrency(walletCredit)} owed</span>
+                    <span className="flex items-center gap-1 pl-2.5">of which on wallet credit</span>
+                    <span className="tabular-nums text-foreground">{formatCurrency(pay?.owed.onWalletCredit ?? 0)}</span>
                   </div>
                 )}
                 {showOpen && (

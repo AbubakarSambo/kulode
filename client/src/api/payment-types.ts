@@ -4,12 +4,14 @@ import type { ApiResponse, PaymentType } from '@/types'
 export interface CreatePaymentTypeData {
   name: string
   sortOrder?: number
+  isComplimentary?: boolean
 }
 
 export interface UpdatePaymentTypeData {
   name?: string
   sortOrder?: number
   isActive?: boolean
+  isComplimentary?: boolean
 }
 
 export const paymentTypesApi = {

@@ -5,6 +5,8 @@
 // when the customer topped up, or it is credit the customer now owes. Each wallet movement stores
 // balanceBefore, so it can be split exactly into those parts.
 
+import { classifyPaymentMethod } from '../../common/payment-method-kind';
+
 export interface CollectionRow {
   paymentMethod: string;
   expectedAmount: number;
@@ -25,12 +27,9 @@ export interface CollectionBuckets {
 export function bucketCollections(breakdown: CollectionRow[]): CollectionBuckets {
   const totals: CollectionBuckets = { card: 0, transfer: 0, cash: 0, other: 0 };
   for (const row of breakdown) {
-    const method = row.paymentMethod.toUpperCase().replace(/[\s-]+/g, '_');
-    if (method === 'WALLET') continue;
-    if (method === 'CASH') totals.cash += row.expectedAmount;
-    else if (method.includes('TRANSFER')) totals.transfer += row.expectedAmount;
-    else if (method.includes('CARD') || method.includes('POS') || method === 'PAYSTACK') totals.card += row.expectedAmount;
-    else totals.other += row.expectedAmount;
+    const kind = classifyPaymentMethod(row.paymentMethod);
+    if (kind === 'wallet') continue;
+    totals[kind] += row.expectedAmount;
   }
   return totals;
 }
