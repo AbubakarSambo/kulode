@@ -22,6 +22,7 @@ import { Modal } from '@/components/shared'
 import { cn } from '@/lib/utils'
 import type { PlanTier, BillingPeriod } from '@/types'
 import { posthog } from '@/lib/posthog'
+import { useAuthStore } from '@/stores/auth'
 
 const PLAN_MAX_USERS: Record<string, number> = {
   FREE: 1,
@@ -88,6 +89,9 @@ function formatAmount(naira: number) {
 
 export function BillingPage() {
   const queryClient = useQueryClient()
+  const userRoles = useAuthStore((state) => state.user?.roles) ?? []
+  // Supervisors and managers can upgrade, but cancelling and auto-renew are admin-only on the API.
+  const isAdmin = userRoles.includes('SUPER_ADMIN') || userRoles.includes('ADMIN')
   const { subscription, effectivePlan, isGrandfathered, autoRenew } = useSubscription()
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('MONTHLY')
   const [showCancelModal, setShowCancelModal] = useState(false)
@@ -271,7 +275,7 @@ export function BillingPage() {
                     </div>
                   </div>
 
-                  {subscription?.subscriptionStatus === 'ACTIVE' && (
+                  {isAdmin && subscription?.subscriptionStatus === 'ACTIVE' && (
                     <button
                       onClick={() => setShowCancelModal(true)}
                       className="text-xs font-semibold text-rose-500 hover:text-rose-600 transition-colors py-1.5 px-3 rounded-lg hover:bg-rose-500/5 cursor-pointer min-h-[44px] flex items-center justify-center"
@@ -341,7 +345,7 @@ export function BillingPage() {
         </div>
 
         {/* Auto-renew Toggle */}
-        {subscription && subscription.subscriptionStatus === 'ACTIVE' && !isGrandfathered && (
+        {isAdmin && subscription && subscription.subscriptionStatus === 'ACTIVE' && !isGrandfathered && (
           <Card className="rounded-[24px] border-0 shadow-[0_12px_32px_rgba(0,55,176,0.04)] overflow-hidden">
             <CardContent className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="space-y-1 max-w-xl">
