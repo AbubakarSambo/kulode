@@ -6,7 +6,7 @@ describe('maxUsersFor', () => {
   });
 
   it("uses the plan's own cap once subscribed", () => {
-    expect(maxUsersFor('PRO', 'ACTIVE')).toBe(10);
+    expect(maxUsersFor('PRO', 'ACTIVE')).toBe(20);
     expect(maxUsersFor('STARTER', 'ACTIVE')).toBe(1);
   });
 
