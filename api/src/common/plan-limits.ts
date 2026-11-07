@@ -10,7 +10,7 @@ export const PLAN_LIMITS = {
     restrictedPages: ['vendors', 'expenses', 'reports', 'inventory', 'expense-categories', 'tax'],
   },
   PRO: {
-    maxUsers: 10,
+    maxUsers: 20,
     maxInvoicesPerMonth: 100,
     restrictedPages: [],
   },

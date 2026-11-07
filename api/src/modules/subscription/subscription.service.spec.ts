@@ -127,7 +127,7 @@ describe('SubscriptionService', () => {
       expect(result.subscriptionStatus).toBe('TRIALING');
       expect(result.trialDaysRemaining).toBeGreaterThan(0);
       expect(result.trialDaysRemaining).toBeLessThanOrEqual(15);
-      // Unlimited users while the trial is live; PRO's cap of 10 applies once subscribed.
+      // Unlimited users while the trial is live; PRO's cap of 20 applies once subscribed.
       expect(result.limits.maxUsers).toBe(Infinity);
       expect(result.limits.maxInvoicesPerMonth).toBe(100);
     });

@@ -55,7 +55,7 @@ const PLAN_FEATURES: Record<string, { name: string; price: { monthly: number; an
     price: { monthly: 35000, annual: 350000 },
     description: 'For restaurants running a full floor with staff and inventory to manage.',
     features: [
-      'Up to 10 active users',
+      'Up to 20 active users',
       'Everything in Starter',
       'Sales dashboard & item reports',
       'Waiters, order & payment types',

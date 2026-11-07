@@ -151,26 +151,26 @@ describe('UsersService — user limit enforcement', () => {
 
   // ─── PRO plan limits ─────────────────────────────────────────────────────
 
-  it('allows user creation when ACTIVE PRO plan has 9 active users (limit is 10)', async () => {
+  it('allows user creation when ACTIVE PRO plan has 19 active users (limit is 20)', async () => {
     prisma.user.findUnique.mockResolvedValue(null);
     prisma.organization.findUnique.mockResolvedValue(orgWith({ planTier: 'PRO', subscriptionStatus: 'ACTIVE' }));
-    prisma.user.count.mockResolvedValue(9);
+    prisma.user.count.mockResolvedValue(19);
     setupTransactionMock(prisma);
 
     await expect(service.create(ORG_ID, createDto, [Role.SUPER_ADMIN])).resolves.toBeDefined();
   });
 
-  it('throws USER_LIMIT_REACHED when ACTIVE PRO plan already has 10 active users', async () => {
+  it('throws USER_LIMIT_REACHED when ACTIVE PRO plan already has 20 active users', async () => {
     prisma.user.findUnique.mockResolvedValue(null);
     prisma.organization.findUnique.mockResolvedValue(orgWith({ planTier: 'PRO', subscriptionStatus: 'ACTIVE' }));
-    prisma.user.count.mockResolvedValue(10);
+    prisma.user.count.mockResolvedValue(20);
 
     await expect(service.create(ORG_ID, createDto, [Role.SUPER_ADMIN])).rejects.toMatchObject({
       response: expect.objectContaining({
         code: 'USER_LIMIT_REACHED',
         currentPlan: 'PRO',
-        limit: 10,
-        current: 10,
+        limit: 20,
+        current: 20,
       }),
     });
   });
@@ -190,7 +190,7 @@ describe('UsersService — user limit enforcement', () => {
 
   // ─── Trial scenarios ──────────────────────────────────────────────────────
 
-  it('has no user limit during an active PRO trial, even past the PRO cap of 10', async () => {
+  it('has no user limit during an active PRO trial, even past the PRO cap of 20', async () => {
     const futureDate = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
     prisma.user.findUnique.mockResolvedValue(null);
     prisma.organization.findUnique.mockResolvedValue(
@@ -208,7 +208,7 @@ describe('UsersService — user limit enforcement', () => {
     prisma.organization.findUnique.mockResolvedValue(
       orgWith({ planTier: 'PRO', subscriptionStatus: 'TRIALING', trialEndDate: pastDate }),
     );
-    prisma.user.count.mockResolvedValue(2); // above FREE limit (1), below PRO limit (10)
+    prisma.user.count.mockResolvedValue(2); // above FREE limit (1), below PRO limit (20)
 
     await expect(service.create(ORG_ID, createDto, [Role.SUPER_ADMIN])).rejects.toMatchObject({
       response: expect.objectContaining({
