@@ -24,7 +24,9 @@ export class SubscriptionController {
   }
 
   @Post('subscribe')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  // Supervisors and managers are often the ones on site when a trial ends, so they can start a
+  // payment. Cancelling and the auto-renew toggle stay admin-only.
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.MANAGER, Role.SUPERVISOR)
   @ApiOperation({ summary: 'Subscribe to a plan' })
   @ApiResponse({ status: 201, description: 'Paystack payment URL' })
   async subscribe(

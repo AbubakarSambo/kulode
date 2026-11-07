@@ -238,8 +238,14 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
     .filter((group) => group.items.length > 0)
 
   // Managers get the Users page (floor staff only) without the rest of the admin configuration.
+  // Billing is also open to supervisors and managers, who can start an upgrade (not cancel).
+  const canOpenBilling = isAdmin || userRoles.includes('MANAGER') || userRoles.includes('SUPERVISOR')
   const visibleAdminNavigation = adminNavigation.filter((item) =>
-    item.href === '/settings/users' ? can(user, 'STAFF_MANAGE') : isAdmin,
+    item.href === '/settings/users'
+      ? can(user, 'STAFF_MANAGE')
+      : item.href === '/settings/billing'
+        ? canOpenBilling
+        : isAdmin,
   )
 
   const handleNavClick = () => {
