@@ -19,6 +19,7 @@ export class SubscriptionService {
   private readonly paystackBaseUrl: string;
   private readonly callbackUrl: string;
   private readonly directDebitMaxAmount: number;
+  private readonly bankCheckoutEnabled: boolean;
 
   constructor(
     private prisma: PrismaService,
@@ -31,6 +32,7 @@ export class SubscriptionService {
     this.paystackBaseUrl = this.configService.get<string>('paystack.baseUrl') || 'https://api.paystack.co';
     this.callbackUrl = this.configService.get<string>('paystack.callbackUrl') || 'http://localhost:5173/payment/callback';
     this.directDebitMaxAmount = Number(this.configService.get<number>('paystack.directDebitMaxAmount')) || 100000;
+    this.bankCheckoutEnabled = this.configService.get<boolean>('paystack.bankCheckoutEnabled') !== false;
   }
 
   async getCurrentPlan(organizationId: string) {
@@ -125,6 +127,8 @@ export class SubscriptionService {
           : null,
         // The largest renewal a bank account is used for; bigger ones (annual plans) stay on the card.
         directDebitMaxAmount: this.directDebitMaxAmount,
+        // Whether the Upgrade page may offer "pay from a bank account" (test accounts always may).
+        bankFirstPaymentEnabled: this.bankCheckoutEnabled || org.isTestAccount,
         renewalPending: !!org.pendingRenewalReference,
       },
       limits: {
@@ -169,6 +173,9 @@ export class SubscriptionService {
     const reference = `SUB-${organizationId.slice(0, 8)}-${Date.now()}`;
 
     const payByBank = paymentMethod === 'BANK';
+    if (payByBank && !this.bankCheckoutEnabled && !org?.isTestAccount) {
+      throw new BadRequestException('Paying from a bank account is not available yet. Please pay by card.');
+    }
     if (payByBank && amount > this.directDebitMaxAmount) {
       throw new BadRequestException(
         `Paying from a bank account is available for payments up to ${this.directDebitMaxAmount.toLocaleString('en-NG')} naira (monthly plans). Please pay this one by card.`,
@@ -186,7 +193,7 @@ export class SubscriptionService {
         amount: amount * 100, // Convert to kobo
         reference,
         callback_url: `${this.callbackUrl}?type=subscription`,
-        channels: payByBank ? ['direct_debit'] : ['card'],
+        channels: payByBank ? ['bank'] : ['card'],
         metadata: {
           type: 'subscription',
           organization_id: organizationId,
@@ -204,12 +211,16 @@ export class SubscriptionService {
     }
 
     if (payByBank) {
-      // Paying approves a bank mandate, which later renewals reuse. Record who it will be tied
-      // to so the mandate webhook can find this org (unless a mandate is already active).
-      await this.prisma.organization.updateMany({
-        where: { id: organizationId, OR: [{ directDebitStatus: null }, { directDebitStatus: { not: 'ACTIVE' } }] },
-        data: { directDebitStatus: 'PENDING', directDebitEmail: email, directDebitReference: data.data.reference },
-      });
+      // Paystack accepts the request but its checkout page can still refuse to open ("No active
+      // channel") when bank payment isn't enabled for us. Ask the same question the page will, so
+      // the customer gets a clear message here instead of a dead Paystack page.
+      const check = await fetch(`${this.paystackBaseUrl}/transaction/verify_access_code/${encodeURIComponent(data.data.access_code)}`)
+        .then((r) => r.json())
+        .catch(() => null);
+      if (check && check.status === false) {
+        this.logger.warn(`Bank checkout refused by Paystack for org ${organizationId}: ${check.message ?? 'no message'} (reference ${data.data.reference})`);
+        throw new BadRequestException('Paying from a bank account is not available right now. Please pay by card.');
+      }
     }
 
     return {
@@ -664,6 +675,8 @@ export class SubscriptionService {
         where: { id: org.id },
         data: {
           directDebitStatus: 'ACTIVE',
+          // Linking a bank account is an explicit choice to renew from it, even if the last payment saved no card.
+          autoRenew: true,
           directDebitAuthorizationCode: code,
           directDebitEmail: email ?? org.directDebitEmail,
           directDebitBankName: bank,
@@ -693,8 +706,8 @@ export class SubscriptionService {
     const result = await response.json();
     const status = result.data?.status;
     const paid = !!result.status && status === 'success';
-    // A bank debit isn't settled when the customer returns from checkout; Paystack calls that
-    // "processing". It is not a failure — see grantBankPaymentGrace.
+    // A bank payment may not be settled when the customer returns from checkout (Paystack
+    // "processing"). That is not a failure — see grantBankPaymentGrace.
     const processing = !!result.status && status === 'processing';
 
     if (!paid && !processing) {
@@ -900,7 +913,8 @@ export class SubscriptionService {
         subscriptionStatus: 'ACTIVE',
         subscriptionEndDate: { gte: now, lt: tomorrow },
         autoRenew: true,
-        paystackAuthorizationCode: { not: null },
+        // A saved card, or a bank mandate that is active (a bank-only org has no card).
+        OR: [{ paystackAuthorizationCode: { not: null } }, { directDebitStatus: 'ACTIVE' }],
         isGrandfathered: false,
       },
       select: { id: true },

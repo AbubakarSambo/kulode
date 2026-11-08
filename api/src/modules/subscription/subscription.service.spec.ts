@@ -662,6 +662,16 @@ describe('SubscriptionService', () => {
       });
     });
 
+    it('renews an org that has an active bank mandate but no saved card', async () => {
+      prisma.organization.findMany.mockResolvedValue([]);
+      prisma.organization.updateMany.mockResolvedValue({ count: 0 });
+
+      await service.checkAndExpireSubscriptions();
+
+      const renewable = prisma.organization.findMany.mock.calls.find((c) => c[0]?.where?.autoRenew === true)![0];
+      expect(renewable.where.OR).toEqual([{ paystackAuthorizationCode: { not: null } }, { directDebitStatus: 'ACTIVE' }]);
+    });
+
     it("does not let one org's renewal failure block other orgs or the expiry sweep", async () => {
       // First findMany is the pending-bank-debit sweep (none); the second is the renewable orgs.
       prisma.organization.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'org-fail' }, { id: 'org-ok' }]);
@@ -1093,6 +1103,7 @@ describe('SubscriptionService', () => {
         where: { id: ORG_ID },
         data: {
           directDebitStatus: 'ACTIVE',
+          autoRenew: true,
           directDebitAuthorizationCode: 'AUTH_bank',
           directDebitEmail: 'admin@example.com',
           directDebitBankName: 'Zenith Bank',
@@ -1127,28 +1138,49 @@ describe('SubscriptionService', () => {
   describe('first payment by bank account', () => {
     const okInit = { status: true, data: { authorization_url: 'https://checkout.paystack.com/x', reference: 'ref-bank', access_code: 'ac' } };
 
-    it('opens bank-only checkout for a monthly plan and records the mandate as pending', async () => {
+    it('opens the Bank checkout channel for a monthly plan', async () => {
       mockFetch.mockResolvedValue({ json: async () => okInit });
       prisma.user.count.mockResolvedValue(1);
+      prisma.organization.findUnique.mockResolvedValue({ isTestAccount: true });
       prisma.organization.updateMany.mockResolvedValue({ count: 1 });
 
       const result = await service.subscribe(ORG_ID, 'PRO', 'MONTHLY', 'admin@example.com', 'BANK');
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body.channels).toEqual(['direct_debit']);
+      expect(body.channels).toEqual(['bank']);
+      expect(String(mockFetch.mock.calls[1][0])).toContain('/transaction/verify_access_code/ac');
       expect(body.metadata.payment_method).toBe('BANK');
       expect(result.paymentUrl).toBe('https://checkout.paystack.com/x');
-      expect(prisma.organization.updateMany).toHaveBeenCalledWith({
-        where: { id: ORG_ID, OR: [{ directDebitStatus: null }, { directDebitStatus: { not: 'ACTIVE' } }] },
-        data: { directDebitStatus: 'PENDING', directDebitEmail: 'admin@example.com', directDebitReference: 'ref-bank' },
-      });
+      // Paying from the bank saves no mandate; linking one for renewals is a separate step.
+      expect(prisma.organization.updateMany).not.toHaveBeenCalled();
     });
 
     it('does not offer bank payment for an annual plan above the cap', async () => {
       prisma.user.count.mockResolvedValue(1);
+      prisma.organization.findUnique.mockResolvedValue({ isTestAccount: false });
 
       await expect(service.subscribe(ORG_ID, 'PRO', 'ANNUAL', 'a@b.com', 'BANK')).rejects.toThrow(/by card/);
       expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('keeps bank payment closed to ordinary orgs when it is switched off', async () => {
+      (service as any).bankCheckoutEnabled = false;
+      prisma.user.count.mockResolvedValue(1);
+      prisma.organization.findUnique.mockResolvedValue({ isTestAccount: false });
+
+      await expect(service.subscribe(ORG_ID, 'PRO', 'MONTHLY', 'a@b.com', 'BANK')).rejects.toThrow(/not available yet/);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('turns a Paystack "No active channel" checkout into a clear message, not a dead page', async () => {
+      mockFetch
+        .mockResolvedValueOnce({ json: async () => okInit })
+        .mockResolvedValueOnce({ json: async () => ({ status: false, message: 'No active channel to process transaction. Please contact merchant' }) });
+      prisma.user.count.mockResolvedValue(1);
+      prisma.organization.findUnique.mockResolvedValue({ isTestAccount: true });
+
+      await expect(service.subscribe(ORG_ID, 'PRO', 'MONTHLY', 'a@b.com', 'BANK')).rejects.toThrow(/not available right now/);
+      expect(prisma.organization.updateMany).not.toHaveBeenCalled();
     });
 
     it('still pays by card by default', async () => {

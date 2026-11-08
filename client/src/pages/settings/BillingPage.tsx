@@ -110,8 +110,9 @@ export function BillingPage() {
       posthog.capture('subscription_plan_change_initiated', { plan: subscribingPlan, period: billingPeriod, method: payWith })
       window.location.href = data.paymentUrl
     },
-    onError: () => {
-      toast.error('Failed to initialize payment. Please try again.')
+    onError: (error: { response?: { data?: { message?: string } } }) => {
+      // Show the server's reason (e.g. "bank payment is not available") instead of a generic failure.
+      toast.error(error?.response?.data?.message || 'Failed to initialize payment. Please try again.')
     },
   })
 
@@ -570,6 +571,7 @@ export function BillingPage() {
             )}
 
             {/* How to pay: card, or a bank account (monthly plans) */}
+            {subscription?.paymentMethods?.bankFirstPaymentEnabled && (
             <div className="flex flex-col items-center gap-2 pt-1">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-slate-500">Pay with</span>
@@ -596,10 +598,11 @@ export function BillingPage() {
                 {billingPeriod === 'ANNUAL' && !subscription?.isTestAccount
                   ? 'Annual plans are paid by card. Switch to Monthly to pay from a bank account.'
                   : payWith === 'BANK'
-                    ? 'Your plan switches on right away. Your bank can take a few hours to confirm the payment; if it does not go through within 24 hours, the plan lapses.'
-                    : 'Pay by card, or choose Bank account to be debited from your bank.'}
+                    ? 'You will approve this payment from your bank on Paystack\'s page. It is a one-off payment; to renew from your bank automatically, link the account under Renewal payment method afterwards.'
+                    : 'Pay by card, or choose Bank account to approve the payment from your bank.'}
               </p>
             </div>
+            )}
 
             {/* Redesigned Pricing cards grid */}
             <div className="grid gap-6 md:grid-cols-3 items-stretch pt-4">
