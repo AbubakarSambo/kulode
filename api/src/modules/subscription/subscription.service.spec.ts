@@ -293,10 +293,10 @@ describe('SubscriptionService', () => {
       expect(result.reference).toBe('SUB-org-1234-12345');
       expect(result.accessCode).toBe('access123');
 
-      // Verify the correct amount was sent (35000 * 100 = 3500000 kobo)
+      // Verify the correct amount was sent (50000 * 100 = 5000000 kobo)
       const fetchCall = mockFetch.mock.calls[0];
       const body = JSON.parse(fetchCall[1].body);
-      expect(body.amount).toBe(3500000);
+      expect(body.amount).toBe(5000000);
       expect(body.email).toBe('user@test.com');
       expect(body.metadata.type).toBe('subscription');
       expect(body.metadata.plan_tier).toBe('PRO');
@@ -321,7 +321,7 @@ describe('SubscriptionService', () => {
       expect(result.paymentUrl).toBe('https://paystack.com/pay/xyz');
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body.amount).toBe(50000000); // 500000 * 100 kobo
+      expect(body.amount).toBe(60000000); // 600000 * 100 kobo
     });
 
     it('should throw if Paystack initialization fails', async () => {
@@ -892,9 +892,9 @@ describe('SubscriptionService', () => {
       await expect(service.renewSubscription(ORG_ID)).resolves.toBe(true);
 
       expect(charge()).toHaveBeenCalledTimes(1);
-      expect(charge().mock.calls[0].slice(0, 3)).toEqual(['admin@example.com', 3500000, 'AUTH_bank']);
+      expect(charge().mock.calls[0].slice(0, 3)).toEqual(['admin@example.com', 5000000, 'AUTH_bank']);
       expect(activate).toHaveBeenCalledWith(
-        ORG_ID, 'PRO', 'MONTHLY', 'R1', 35000,
+        ORG_ID, 'PRO', 'MONTHLY', 'R1', 50000,
         undefined, undefined, undefined, undefined, { keepPaymentMethod: true },
       );
     });
@@ -926,7 +926,7 @@ describe('SubscriptionService', () => {
       expect(charge()).toHaveBeenCalledTimes(2);
       expect(charge().mock.calls[1][2]).toBe('AUTH_card');
       expect(activate).toHaveBeenCalledWith(
-        ORG_ID, 'PRO', 'MONTHLY', 'R4', 35000, 'AUTH_card', 'owner@example.com', 'visa', '4081',
+        ORG_ID, 'PRO', 'MONTHLY', 'R4', 50000, 'AUTH_card', 'owner@example.com', 'visa', '4081',
       );
     });
 
@@ -1279,7 +1279,7 @@ describe('SubscriptionService', () => {
 
       await service.subscribe(ORG_ID, 'PRO', 'MONTHLY', 'a@b.com');
 
-      expect(JSON.parse(mockFetch.mock.calls[0][1].body).amount).toBe(3500000);
+      expect(JSON.parse(mockFetch.mock.calls[0][1].body).amount).toBe(5000000);
     });
 
     it('renews a test account for the token amount too', async () => {

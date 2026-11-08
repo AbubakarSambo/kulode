@@ -40,7 +40,7 @@ const PLAN_FEATURES: Record<string, { name: string; price: { monthly: number; an
   },
   STARTER: {
     name: 'Starter',
-    price: { monthly: 20000, annual: 200000 },
+    price: { monthly: 30000, annual: 300000 },
     description: 'Perfect for freelancers and side-hustles starting out.',
     features: [
       '1 active user seat',
@@ -52,7 +52,7 @@ const PLAN_FEATURES: Record<string, { name: string; price: { monthly: number; an
   },
   PRO: {
     name: 'Pro',
-    price: { monthly: 35000, annual: 350000 },
+    price: { monthly: 50000, annual: 500000 },
     description: 'For restaurants running a full floor with staff and inventory to manage.',
     features: [
       'Up to 20 active users',
@@ -67,7 +67,7 @@ const PLAN_FEATURES: Record<string, { name: string; price: { monthly: number; an
   },
   BUSINESS: {
     name: 'Business',
-    price: { monthly: 50000, annual: 500000 },
+    price: { monthly: 60000, annual: 600000 },
     description: 'For large organizations managing heavy volume and teams.',
     features: [
       'Unlimited active users',
