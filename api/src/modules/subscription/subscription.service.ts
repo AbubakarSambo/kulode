@@ -18,6 +18,7 @@ export class SubscriptionService {
   private readonly paystackSecretKey: string;
   private readonly paystackBaseUrl: string;
   private readonly callbackUrl: string;
+  private readonly directDebitMaxAmount: number;
 
   constructor(
     private prisma: PrismaService,
@@ -29,6 +30,7 @@ export class SubscriptionService {
     this.paystackSecretKey = this.configService.get<string>('paystack.secretKey') || '';
     this.paystackBaseUrl = this.configService.get<string>('paystack.baseUrl') || 'https://api.paystack.co';
     this.callbackUrl = this.configService.get<string>('paystack.callbackUrl') || 'http://localhost:5173/payment/callback';
+    this.directDebitMaxAmount = Number(this.configService.get<number>('paystack.directDebitMaxAmount')) || 100000;
   }
 
   async getCurrentPlan(organizationId: string) {
@@ -43,6 +45,13 @@ export class SubscriptionService {
         subscriptionStartDate: true,
         subscriptionEndDate: true,
         isGrandfathered: true,
+        paystackAuthorizationCode: true,
+        paystackCardType: true,
+        paystackCardLast4: true,
+        directDebitStatus: true,
+        directDebitBankName: true,
+        directDebitAccountLast4: true,
+        pendingRenewalReference: true,
         autoRenew: true,
       },
     });
@@ -99,6 +108,21 @@ export class SubscriptionService {
       subscriptionEndDate: org.subscriptionEndDate,
       isGrandfathered: org.isGrandfathered,
       autoRenew: org.autoRenew,
+      paymentMethods: {
+        card: org.paystackAuthorizationCode
+          ? { type: org.paystackCardType ?? null, last4: org.paystackCardLast4 ?? null }
+          : null,
+        directDebit: org.directDebitStatus
+          ? {
+              status: org.directDebitStatus,
+              bankName: org.directDebitBankName ?? null,
+              last4: org.directDebitAccountLast4 ?? null,
+            }
+          : null,
+        // The largest renewal a bank account is used for; bigger ones (annual plans) stay on the card.
+        directDebitMaxAmount: this.directDebitMaxAmount,
+        renewalPending: !!org.pendingRenewalReference,
+      },
       limits: {
         maxUsers: maxUsersFor(effectivePlan, org.subscriptionStatus),
         maxInvoicesPerMonth: limits.maxInvoicesPerMonth,
@@ -176,6 +200,9 @@ export class SubscriptionService {
     billingEmail?: string,
     cardType?: string,
     cardLast4?: string,
+    // A renewal paid from a bank-account mandate must leave the saved card, its email and the
+    // autoRenew flag alone — the card is the fallback if a later bank debit fails.
+    opts: { keepPaymentMethod?: boolean } = {},
   ) {
     // Idempotent: skip if this reference was already processed, but patch auth code if it arrived late
     const existing = await this.prisma.subscriptionPayment.findUnique({
@@ -222,11 +249,15 @@ export class SubscriptionService {
             billingPeriod: billingPeriod as any,
             subscriptionStartDate: now,
             subscriptionEndDate: periodEnd,
-            autoRenew: !!authorizationCode,
-            ...(authorizationCode && { paystackAuthorizationCode: authorizationCode }),
-            ...(billingEmail && { paystackBillingEmail: billingEmail }),
-            ...(cardType && { paystackCardType: cardType }),
-            ...(cardLast4 && { paystackCardLast4: cardLast4 }),
+            pendingRenewalReference: null,
+            pendingRenewalStartedAt: null,
+            ...(!opts.keepPaymentMethod && {
+              autoRenew: !!authorizationCode,
+              ...(authorizationCode && { paystackAuthorizationCode: authorizationCode }),
+              ...(billingEmail && { paystackBillingEmail: billingEmail }),
+              ...(cardType && { paystackCardType: cardType }),
+              ...(cardLast4 && { paystackCardLast4: cardLast4 }),
+            }),
           },
         });
 
@@ -295,30 +326,100 @@ export class SubscriptionService {
         paystackBillingEmail: true,
         paystackCardType: true,
         paystackCardLast4: true,
+        directDebitStatus: true,
+        directDebitAuthorizationCode: true,
+        directDebitEmail: true,
+        pendingRenewalReference: true,
       },
     });
 
-    if (
-      !org ||
-      !org.paystackAuthorizationCode ||
-      !org.paystackBillingEmail ||
-      !org.billingPeriod ||
-      org.planTier === 'FREE'
-    ) {
-      if (org && org.planTier !== 'FREE' && org.billingPeriod && !org.paystackAuthorizationCode) {
-        const admin = await this.getOrgAdmin(organizationId);
-        if (admin) {
-          this.emailService
-            .sendRenewalFailedEmail(admin.email, admin.firstName, org.planTier, admin.posMode)
-            .catch((err) => this.logger.error(`Failed to send renewal failed email: ${err.message}`));
-        }
-        this.logger.warn(`Auto-renewal skipped for org ${organizationId}: no payment method on file`);
-      }
+    if (!org || !org.billingPeriod || org.planTier === 'FREE') return false;
+
+    // A bank debit was already submitted and hasn't settled: never charge twice for one renewal.
+    if (org.pendingRenewalReference) {
+      this.logger.log(`Renewal for org ${organizationId} is still settling (${org.pendingRenewalReference}), not charging again`);
       return false;
     }
 
     const prices = PLAN_PRICES[org.planTier as keyof typeof PLAN_PRICES];
     if (!prices) return false;
+    const amount = org.billingPeriod === 'ANNUAL' ? prices.annual : prices.monthly;
+
+    const canDebitBank =
+      org.directDebitStatus === 'ACTIVE' &&
+      !!org.directDebitAuthorizationCode &&
+      !!org.directDebitEmail &&
+      amount <= this.directDebitMaxAmount;
+    const canChargeCard = !!org.paystackAuthorizationCode && !!org.paystackBillingEmail;
+
+    if (!canDebitBank && !canChargeCard) {
+      this.logger.warn(`Auto-renewal skipped for org ${organizationId}: no usable payment method on file`);
+      await this.notifyRenewalFailed(organizationId, org.planTier);
+      return false;
+    }
+
+    if (canDebitBank) {
+      const reference = `RENEW-${organizationId.slice(0, 8)}-${Date.now()}`;
+      const result = await this.paystackService.chargeAuthorization(
+        org.directDebitEmail!,
+        amount * 100,
+        org.directDebitAuthorizationCode!,
+        reference,
+        this.renewalMetadata(organizationId, org.planTier, org.billingPeriod),
+      );
+
+      if (result.success) {
+        await this.activateSubscription(
+          organizationId, org.planTier, org.billingPeriod, result.reference, amount,
+          undefined, undefined, undefined, undefined, { keepPaymentMethod: true },
+        );
+        this.logger.log(`Auto-renewed subscription for org ${organizationId} from bank account`);
+        return true;
+      }
+
+      if (result.pending) {
+        // Settles later; the charge.success webhook (or the nightly follow-up) finishes it.
+        await this.prisma.organization.update({
+          where: { id: organizationId },
+          data: { pendingRenewalReference: result.reference, pendingRenewalStartedAt: new Date() },
+        });
+        this.logger.log(`Bank debit for org ${organizationId} submitted and settling (${result.reference})`);
+        return true;
+      }
+
+      this.logger.warn(`Bank debit failed for org ${organizationId}${canChargeCard ? ', trying the card' : ''}`);
+    }
+
+    if (canChargeCard) {
+      return this.renewWithCard(organizationId, org);
+    }
+
+    await this.notifyRenewalFailed(organizationId, org.planTier);
+    return false;
+  }
+
+  private renewalMetadata(organizationId: string, planTier: string, billingPeriod: string) {
+    return {
+      type: 'subscription',
+      organization_id: organizationId,
+      plan_tier: planTier,
+      billing_period: billingPeriod,
+    };
+  }
+
+  private async renewWithCard(
+    organizationId: string,
+    org: {
+      planTier: string;
+      billingPeriod: string | null;
+      paystackAuthorizationCode: string | null;
+      paystackBillingEmail: string | null;
+      paystackCardType: string | null;
+      paystackCardLast4: string | null;
+    },
+  ): Promise<boolean> {
+    const prices = PLAN_PRICES[org.planTier as keyof typeof PLAN_PRICES];
+    if (!prices || !org.billingPeriod || !org.paystackAuthorizationCode || !org.paystackBillingEmail) return false;
 
     const amount = org.billingPeriod === 'ANNUAL' ? prices.annual : prices.monthly;
     const reference = `RENEW-${organizationId.slice(0, 8)}-${Date.now()}`;
@@ -328,22 +429,12 @@ export class SubscriptionService {
       amount * 100,
       org.paystackAuthorizationCode,
       reference,
-      {
-        type: 'subscription',
-        organization_id: organizationId,
-        plan_tier: org.planTier,
-        billing_period: org.billingPeriod,
-      },
+      this.renewalMetadata(organizationId, org.planTier, org.billingPeriod),
     );
 
     if (!result.success) {
       this.logger.warn(`Auto-renewal failed for org ${organizationId}`);
-      const admin = await this.getOrgAdmin(organizationId);
-      if (admin) {
-        this.emailService
-          .sendRenewalFailedEmail(admin.email, admin.firstName, org.planTier, admin.posMode)
-          .catch((err) => this.logger.error(`Failed to send renewal failed email: ${err.message}`));
-      }
+      await this.notifyRenewalFailed(organizationId, org.planTier);
       return false;
     }
 
@@ -361,6 +452,197 @@ export class SubscriptionService {
 
     this.logger.log(`Auto-renewed subscription for org ${organizationId}`);
     return true;
+  }
+
+  private async notifyRenewalFailed(organizationId: string, planTier: string) {
+    const admin = await this.getOrgAdmin(organizationId);
+    if (!admin) return;
+    this.emailService
+      .sendRenewalFailedEmail(admin.email, admin.firstName, planTier, admin.posMode)
+      .catch((err) => this.logger.error(`Failed to send renewal failed email: ${err.message}`));
+  }
+
+  /** How long a submitted bank debit may stay unresolved before we treat the renewal as failed. */
+  private static readonly PENDING_RENEWAL_MAX_DAYS = 3;
+
+  /**
+   * Follows up bank debits that were submitted but hadn't settled. Paystack only webhooks
+   * successes, so a failed debit is only discovered by asking. A debit that failed or has been
+   * stuck too long falls back to the card, or tells the admin.
+   */
+  async reconcilePendingRenewals() {
+    const pending = await this.prisma.organization.findMany({
+      where: { pendingRenewalReference: { not: null } },
+      select: {
+        id: true,
+        planTier: true,
+        billingPeriod: true,
+        pendingRenewalReference: true,
+        pendingRenewalStartedAt: true,
+        paystackAuthorizationCode: true,
+        paystackBillingEmail: true,
+        paystackCardType: true,
+        paystackCardLast4: true,
+      },
+    });
+
+    for (const org of pending) {
+      try {
+        const reference = org.pendingRenewalReference!;
+        const status = await this.paystackService.getTransactionStatus(reference);
+        if (!status) continue; // Paystack unreachable — try again tomorrow
+
+        if (status.status === 'success') {
+          await this.activateSubscription(
+            org.id, org.planTier, org.billingPeriod!, reference, status.amount / 100,
+            undefined, undefined, undefined, undefined, { keepPaymentMethod: true },
+          );
+          continue;
+        }
+
+        const ageMs = Date.now() - (org.pendingRenewalStartedAt?.getTime() ?? 0);
+        const tooOld = ageMs > SubscriptionService.PENDING_RENEWAL_MAX_DAYS * 24 * 60 * 60 * 1000;
+        const failed = ['failed', 'reversed', 'abandoned'].includes(status.status);
+        if (!failed && !tooOld) continue; // still settling
+
+        await this.prisma.organization.update({
+          where: { id: org.id },
+          data: { pendingRenewalReference: null, pendingRenewalStartedAt: null },
+        });
+        this.logger.warn(`Bank debit ${reference} for org ${org.id} ${failed ? `failed (${status.gatewayResponse ?? status.status})` : 'never settled'}`);
+
+        if (org.paystackAuthorizationCode && org.paystackBillingEmail) {
+          await this.renewWithCard(org.id, org);
+        } else {
+          await this.notifyRenewalFailed(org.id, org.planTier);
+        }
+      } catch (err) {
+        this.logger.error(`Failed to reconcile pending renewal for org ${org.id}: ${err.message}`);
+      }
+    }
+  }
+
+  // ── Bank-account (Direct Debit) renewals ────────────────────────────────────
+
+  getDirectDebitBanks() {
+    return this.paystackService.listDirectDebitBanks();
+  }
+
+  /**
+   * Starts a bank-account mandate for renewals. No money moves: the admin links an account on
+   * Paystack's page and the mandate arrives later by webhook. The mandate is tied to the email
+   * used here, which Paystack requires again on every charge.
+   */
+  async setupDirectDebit(organizationId: string, email: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { subscriptionStatus: true, isGrandfathered: true, directDebitStatus: true },
+    });
+    if (!org) throw new BadRequestException('Organization not found');
+    if (org.isGrandfathered || org.subscriptionStatus !== 'ACTIVE') {
+      throw new BadRequestException('Subscribe to a plan first, then you can use a bank account for renewals.');
+    }
+    if (org.directDebitStatus === 'ACTIVE') {
+      throw new BadRequestException('A bank account is already linked. Remove it before linking another.');
+    }
+
+    const { redirectUrl, reference } = await this.paystackService.initializeDirectDebitAuthorization(
+      email,
+      `${this.callbackUrl}?type=direct_debit`,
+    );
+
+    await this.prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        directDebitStatus: 'PENDING',
+        directDebitReference: reference,
+        directDebitEmail: email,
+        directDebitAuthorizationCode: null,
+        directDebitBankName: null,
+        directDebitAccountLast4: null,
+      },
+    });
+
+    return { paymentUrl: redirectUrl, reference };
+  }
+
+  async removeDirectDebit(organizationId: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { directDebitAuthorizationCode: true },
+    });
+    if (org?.directDebitAuthorizationCode) {
+      await this.paystackService.deactivateAuthorization(org.directDebitAuthorizationCode);
+    }
+    await this.prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        directDebitStatus: null,
+        directDebitAuthorizationCode: null,
+        directDebitEmail: null,
+        directDebitBankName: null,
+        directDebitAccountLast4: null,
+        directDebitReference: null,
+      },
+    });
+    return { message: 'Bank account removed. Renewals will use your card.' };
+  }
+
+  /**
+   * Handles Paystack's direct_debit.authorization.* webhooks. Only ".active" makes a mandate
+   * chargeable. The payload is matched to an org by the reference we got when starting the
+   * mandate, falling back to the customer email we started it with.
+   */
+  async handleDirectDebitEvent(event: string, data: any) {
+    const auth = data?.authorization ?? data ?? {};
+    const code: string | undefined = auth.authorization_code ?? data?.authorization_code;
+    const email: string | undefined = data?.customer?.email ?? data?.email ?? auth.email;
+    const reference: string | undefined = data?.reference ?? auth.reference;
+
+    const matchers: Prisma.OrganizationWhereInput[] = [];
+    if (reference) matchers.push({ directDebitReference: reference });
+    if (email) matchers.push({ directDebitEmail: email, directDebitStatus: { in: ['PENDING', 'ACTIVE'] } });
+    const org = matchers.length
+      ? await this.prisma.organization.findFirst({ where: { OR: matchers }, select: { id: true, directDebitEmail: true } })
+      : null;
+
+    if (!org) {
+      this.logger.warn(`Direct debit event ${event} matched no organization (reference=${reference ?? '-'}, email=${email ?? '-'})`);
+      return;
+    }
+
+    if (event === 'direct_debit.authorization.created') {
+      await this.prisma.organization.update({ where: { id: org.id }, data: { directDebitStatus: 'PENDING' } });
+      return;
+    }
+
+    if (event === 'direct_debit.authorization.active') {
+      if (!code) {
+        this.logger.error(`direct_debit.authorization.active for org ${org.id} carried no authorization code; keys=${Object.keys(auth).join(',')}`);
+        return;
+      }
+      const bank = typeof auth.bank === 'string' ? auth.bank : auth.bank?.name ?? auth.bank_name ?? null;
+      const accountNumber: string | undefined = auth.account_number ?? auth.last4;
+      await this.prisma.organization.update({
+        where: { id: org.id },
+        data: {
+          directDebitStatus: 'ACTIVE',
+          directDebitAuthorizationCode: code,
+          directDebitEmail: email ?? org.directDebitEmail,
+          directDebitBankName: bank,
+          directDebitAccountLast4: accountNumber ? String(accountNumber).slice(-4) : null,
+        },
+      });
+      this.logger.log(`Direct debit mandate active for org ${org.id}`);
+      return;
+    }
+
+    if (/revoked|deactivated|cancel/i.test(event)) {
+      await this.prisma.organization.update({ where: { id: org.id }, data: { directDebitStatus: 'REVOKED' } });
+      return;
+    }
+
+    this.logger.log(`Unhandled direct debit event ${event} for org ${org.id}; keys=${Object.keys(data ?? {}).join(',')}`);
   }
 
   async verifyAndActivatePayment(organizationId: string, reference: string) {
@@ -493,6 +775,9 @@ export class SubscriptionService {
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
+    // Settle bank debits submitted on earlier nights before deciding who has lapsed.
+    await this.reconcilePendingRenewals();
+
     // Attempt auto-renewal for ACTIVE subscriptions expiring in the next 24 hours
     const renewableOrgs = await this.prisma.organization.findMany({
       where: {
@@ -521,6 +806,11 @@ export class SubscriptionService {
         subscriptionStatus: { in: ['CANCELLED', 'ACTIVE'] },
         subscriptionEndDate: { lt: now },
         isGrandfathered: false,
+        // A bank debit that is still settling gets a few days before the plan is treated as lapsed.
+        OR: [
+          { pendingRenewalReference: null },
+          { pendingRenewalStartedAt: { lt: new Date(now.getTime() - SubscriptionService.PENDING_RENEWAL_MAX_DAYS * 24 * 60 * 60 * 1000) } },
+        ],
       },
       data: {
         planTier: 'FREE',

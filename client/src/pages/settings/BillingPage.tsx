@@ -147,6 +147,37 @@ export function BillingPage() {
     subscribeMutation.mutate({ planTier, period: billingPeriod })
   }
 
+  const [showBanks, setShowBanks] = useState(false)
+  const { data: directDebitBanks } = useQuery({
+    queryKey: ['subscription', 'direct-debit-banks'],
+    queryFn: subscriptionApi.getDirectDebitBanks,
+    enabled: showBanks,
+    staleTime: 60 * 60 * 1000,
+  })
+
+  const setupDirectDebitMutation = useMutation({
+    mutationFn: subscriptionApi.setupDirectDebit,
+    onSuccess: (data) => {
+      posthog.capture('direct_debit_setup_started')
+      window.location.href = data.paymentUrl
+    },
+    onError: (error: { response?: { data?: { message?: string } } }) => {
+      toast.error(error?.response?.data?.message || 'Could not start linking your bank account. Please try again.')
+    },
+  })
+
+  const removeDirectDebitMutation = useMutation({
+    mutationFn: subscriptionApi.removeDirectDebit,
+    onSuccess: (data) => {
+      posthog.capture('direct_debit_removed')
+      toast.success(data.message)
+      queryClient.invalidateQueries({ queryKey: ['subscription'] })
+    },
+    onError: () => {
+      toast.error('Could not remove the bank account. Please try again.')
+    },
+  })
+
   // Track page view once on mount
   useEffect(() => {
     posthog.capture('billing_page_viewed', { current_plan: effectivePlan })
@@ -379,6 +410,111 @@ export function BillingPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Renewal payment method: card, or a linked bank account (admins only) */}
+        {isAdmin && subscription && subscription.subscriptionStatus === 'ACTIVE' && !isGrandfathered && subscription.paymentMethods && (() => {
+          const pm = subscription.paymentMethods
+          const dd = pm.directDebit
+          const bankLabel = dd?.bankName ? `${dd.bankName}${dd.last4 ? ` •••• ${dd.last4}` : ''}` : 'Your bank account'
+          const annualOnCard = subscription.billingPeriod === 'ANNUAL'
+          return (
+            <Card className="rounded-[24px] border-0 shadow-[0_12px_32px_rgba(0,55,176,0.04)] overflow-hidden">
+              <CardContent className="p-6 space-y-5">
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">Renewal payment method</h4>
+                  <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                    Link a bank account and we will take monthly renewals from it. If a debit ever fails, we fall back to your card.
+                    {' '}Annual plans (over {formatAmount(pm.directDebitMaxAmount)}) always renew from your card.
+                  </p>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-100 dark:border-slate-800 p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Card</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">
+                      {pm.card ? `${pm.card.type ? pm.card.type.charAt(0).toUpperCase() + pm.card.type.slice(1) : 'Card'}${pm.card.last4 ? ` •••• ${pm.card.last4}` : ''}` : 'No card saved'}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-100 dark:border-slate-800 p-4 space-y-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Bank account</p>
+                    {!dd || dd.status === 'REVOKED' ? (
+                      <>
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                          {dd?.status === 'REVOKED' ? 'Your bank account was revoked' : 'Not linked'}
+                        </p>
+                        <button
+                          onClick={() => setupDirectDebitMutation.mutate()}
+                          disabled={setupDirectDebitMutation.isPending}
+                          className="text-xs font-semibold text-[#0037b0] hover:underline cursor-pointer min-h-[36px] disabled:opacity-60"
+                        >
+                          {setupDirectDebitMutation.isPending ? 'Opening Paystack…' : 'Use a bank account for renewals'}
+                        </button>
+                      </>
+                    ) : dd.status === 'PENDING' ? (
+                      <>
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Waiting for your bank to confirm</p>
+                        <p className="text-[11px] text-slate-500 font-medium">This can take a few hours. We will use it once it is confirmed.</p>
+                        <div className="flex gap-4">
+                          <button
+                            onClick={() => setupDirectDebitMutation.mutate()}
+                            disabled={setupDirectDebitMutation.isPending}
+                            className="text-xs font-semibold text-[#0037b0] hover:underline cursor-pointer min-h-[36px] disabled:opacity-60"
+                          >
+                            Start again
+                          </button>
+                          <button
+                            onClick={() => removeDirectDebitMutation.mutate()}
+                            disabled={removeDirectDebitMutation.isPending}
+                            className="text-xs font-semibold text-rose-500 hover:underline cursor-pointer min-h-[36px] disabled:opacity-60"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{bankLabel}</p>
+                        <Badge className="bg-[#6ffbbe] text-[#006c49] text-[9px] font-bold px-2 py-0.5 border-0">
+                          {annualOnCard ? 'Active · annual plan uses card' : 'Active · used for renewals'}
+                        </Badge>
+                        <div>
+                          <button
+                            onClick={() => removeDirectDebitMutation.mutate()}
+                            disabled={removeDirectDebitMutation.isPending}
+                            className="text-xs font-semibold text-rose-500 hover:underline cursor-pointer min-h-[36px] disabled:opacity-60"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {pm.renewalPending && (
+                  <p className="text-xs font-medium text-amber-700 bg-amber-500/10 rounded-xl px-3 py-2">
+                    A renewal payment from your bank is processing. Your plan stays active while it settles.
+                  </p>
+                )}
+
+                <div>
+                  <button
+                    onClick={() => setShowBanks((v) => !v)}
+                    className="text-[11px] font-semibold text-slate-500 hover:text-slate-700 cursor-pointer"
+                  >
+                    {showBanks ? 'Hide supported banks' : 'See supported banks'}
+                  </button>
+                  {showBanks && (
+                    <p className="mt-2 text-[11px] text-slate-500 leading-relaxed font-medium">
+                      {directDebitBanks ? directDebitBanks.map((b) => b.name).join(', ') : 'Loading…'}
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })()}
 
         {/* Plan pricing tables header */}
         {!isGrandfathered && (

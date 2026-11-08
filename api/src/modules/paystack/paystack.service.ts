@@ -51,6 +51,7 @@ export interface PaystackTransaction {
     card_type: string;
     last4: string;
     reusable: boolean;
+    channel?: string;
   };
   customer?: {
     email: string;
@@ -726,7 +727,7 @@ export class PaystackService {
     authorizationCode: string,
     reference: string,
     metadata: Record<string, unknown>,
-  ): Promise<{ success: boolean; reference: string }> {
+  ): Promise<{ success: boolean; pending: boolean; reference: string; status?: string }> {
     try {
       const data = await this.makeRequest<{ status: string; reference: string }>(
         '/transaction/charge_authorization',
@@ -739,10 +740,79 @@ export class PaystackService {
           metadata,
         },
       );
-      return { success: data.status === 'success', reference: data.reference };
+      // A bank-account (Direct Debit) charge isn't settled when the call returns: Paystack answers
+      // "processing"/"pending" and the final result arrives later. That is neither a success nor
+      // a failure, and callers must not retry it or tell the customer it failed.
+      const pending = ['processing', 'pending', 'queued'].includes(data.status);
+      return { success: data.status === 'success', pending, reference: data.reference ?? reference, status: data.status };
     } catch (error) {
       this.logger.error(`chargeAuthorization failed for ref ${reference}`, error);
-      return { success: false, reference };
+      return { success: false, pending: false, reference };
+    }
+  }
+
+  /** Current Paystack status of a transaction, with no reconciliation side effects. */
+  async getTransactionStatus(reference: string): Promise<{
+    status: string;
+    amount: number;
+    gatewayResponse?: string;
+  } | null> {
+    try {
+      const data = await this.makeRequest<{ status: string; amount: number; gateway_response?: string }>(
+        `/transaction/verify/${encodeURIComponent(reference)}`,
+      );
+      return { status: data.status, amount: data.amount, gatewayResponse: data.gateway_response };
+    } catch (error) {
+      this.logger.warn(`getTransactionStatus failed for ref ${reference}: ${error instanceof Error ? error.message : error}`);
+      return null;
+    }
+  }
+
+  /**
+   * Starts a Direct Debit mandate with no payment: returns Paystack's hosted page where the
+   * customer links their bank account. The mandate arrives later as direct_debit.authorization.*
+   * webhooks; it is chargeable only after ".active".
+   */
+  async initializeDirectDebitAuthorization(
+    email: string,
+    callbackUrl: string,
+  ): Promise<{ redirectUrl: string; reference: string }> {
+    const data = await this.makeRequest<{ redirect_url: string; reference: string }>(
+      '/customer/authorization/initialize',
+      'POST',
+      { email, channel: 'direct_debit', callback_url: callbackUrl },
+    );
+    if (!data?.redirect_url) throw new BadRequestException('Paystack did not return a link to set up the bank account');
+    return { redirectUrl: data.redirect_url, reference: data.reference };
+  }
+
+  private directDebitBanksCache: { at: number; banks: { name: string; code: string }[] } | null = null;
+
+  /** Banks that accept Direct Debit mandates (cached for an hour — the list rarely changes). */
+  async listDirectDebitBanks(): Promise<{ name: string; code: string }[]> {
+    const HOUR = 60 * 60 * 1000;
+    if (this.directDebitBanksCache && Date.now() - this.directDebitBanksCache.at < HOUR) {
+      return this.directDebitBanksCache.banks;
+    }
+    const data = await this.makeRequest<{ name: string; code: string; available_for_direct_debit?: boolean }[]>(
+      '/bank?country=nigeria&perPage=500',
+    );
+    const banks = (data ?? [])
+      .filter((b) => b.available_for_direct_debit)
+      .map((b) => ({ name: b.name, code: b.code }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    this.directDebitBanksCache = { at: Date.now(), banks };
+    return banks;
+  }
+
+  /** Best effort: stops Paystack honouring a mandate we no longer want. */
+  async deactivateAuthorization(authorizationCode: string): Promise<boolean> {
+    try {
+      await this.makeRequest('/customer/deactivate_authorization', 'POST', { authorization_code: authorizationCode });
+      return true;
+    } catch (error) {
+      this.logger.warn(`deactivateAuthorization failed: ${error instanceof Error ? error.message : error}`);
+      return false;
     }
   }
 

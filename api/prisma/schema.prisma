@@ -135,6 +135,12 @@ enum TaxCategory {
   UNCATEGORIZED
 }
 
+enum DirectDebitStatus {
+  PENDING
+  ACTIVE
+  REVOKED
+}
+
 enum PaystackSubaccountStatus {
   PENDING
   ACTIVE
@@ -299,32 +305,44 @@ model Organization {
   printAgentToken String? @unique @map("print_agent_token")
 
   // Subscription
-  planTier                  PlanTier           @default(FREE) @map("plan_tier")
-  subscriptionStatus        SubscriptionStatus @default(TRIALING) @map("subscription_status")
-  billingPeriod             BillingPeriod?     @map("billing_period")
-  trialStartDate            DateTime?          @map("trial_start_date")
-  trialEndDate              DateTime?          @map("trial_end_date")
-  subscriptionStartDate     DateTime?          @map("subscription_start_date")
-  subscriptionEndDate       DateTime?          @map("subscription_end_date")
-  paystackCustomerCode      String?            @map("paystack_customer_code")
-  paystackAuthorizationCode String?            @map("paystack_authorization_code")
-  paystackBillingEmail      String?            @map("paystack_billing_email")
-  paystackCardLast4         String?            @map("paystack_card_last4")
-  paystackCardType          String?            @map("paystack_card_type")
-  autoRenew                 Boolean            @default(true) @map("auto_renew")
-  isGrandfathered           Boolean            @default(false) @map("is_grandfathered")
+  planTier                     PlanTier           @default(FREE) @map("plan_tier")
+  subscriptionStatus           SubscriptionStatus @default(TRIALING) @map("subscription_status")
+  billingPeriod                BillingPeriod?     @map("billing_period")
+  trialStartDate               DateTime?          @map("trial_start_date")
+  trialEndDate                 DateTime?          @map("trial_end_date")
+  subscriptionStartDate        DateTime?          @map("subscription_start_date")
+  subscriptionEndDate          DateTime?          @map("subscription_end_date")
+  paystackCustomerCode         String?            @map("paystack_customer_code")
+  paystackAuthorizationCode    String?            @map("paystack_authorization_code")
+  paystackBillingEmail         String?            @map("paystack_billing_email")
+  paystackCardLast4            String?            @map("paystack_card_last4")
+  paystackCardType             String?            @map("paystack_card_type")
+  // Bank-account renewals (Paystack Direct Debit). A mandate is set up with no payment, becomes
+  // ACTIVE once the bank confirms (webhook), and is then charged through the same
+  // charge_authorization call as a card. Debits are asynchronous: pendingRenewalReference marks a
+  // renewal that was submitted but hasn't settled yet, so it is neither retried nor reported as failed.
+  directDebitStatus            DirectDebitStatus? @map("direct_debit_status")
+  directDebitAuthorizationCode String?            @map("direct_debit_authorization_code")
+  directDebitEmail             String?            @map("direct_debit_email")
+  directDebitBankName          String?            @map("direct_debit_bank_name")
+  directDebitAccountLast4      String?            @map("direct_debit_account_last4")
+  directDebitReference         String?            @map("direct_debit_reference")
+  pendingRenewalReference      String?            @map("pending_renewal_reference")
+  pendingRenewalStartedAt      DateTime?          @map("pending_renewal_started_at")
+  autoRenew                    Boolean            @default(true) @map("auto_renew")
+  isGrandfathered              Boolean            @default(false) @map("is_grandfathered")
   // Internal/QA org (e.g. the team's own testing account) — excluded from platform-admin
   // analytics (GMV, org counts, top orgs, etc.) so test data never pollutes real metrics.
-  isTestAccount             Boolean            @default(false) @map("is_test_account")
+  isTestAccount                Boolean            @default(false) @map("is_test_account")
   // Platform-admin-only opt-in: whether this org's closed POS sales appear in the public
   // accounting feed (see FeedModule / GET /public/feed/sales). Off by default so a shared
   // feed secret never exposes a tenant that hasn't explicitly been granted access.
-  isAccountingFeedEnabled   Boolean            @default(false) @map("is_accounting_feed_enabled")
+  isAccountingFeedEnabled      Boolean            @default(false) @map("is_accounting_feed_enabled")
   // Set once by a platform admin's "Go live" (see OrgGoLiveService), which deletes the org's
   // pre-launch test activity. Its presence locks go-live so a live org's trading can never be
   // wiped by a second press. goLiveSummary records who ran it and the counts deleted.
-  wentLiveAt                DateTime?          @map("went_live_at")
-  goLiveSummary             Json?              @map("go_live_summary")
+  wentLiveAt                   DateTime?          @map("went_live_at")
+  goLiveSummary                Json?              @map("go_live_summary")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

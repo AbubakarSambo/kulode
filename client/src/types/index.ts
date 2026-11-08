@@ -30,6 +30,13 @@ export interface SubscriptionDetails {
   subscriptionEndDate?: string
   isGrandfathered: boolean
   autoRenew: boolean
+  paymentMethods?: {
+    card: { type: string | null; last4: string | null } | null
+    directDebit: { status: 'PENDING' | 'ACTIVE' | 'REVOKED'; bankName: string | null; last4: string | null } | null
+    // Largest renewal (naira) charged to a bank account; bigger ones stay on the card.
+    directDebitMaxAmount: number
+    renewalPending: boolean
+  }
   limits: {
     // The API's Infinity (BUSINESS plan, or users during a live trial) arrives as null once
     // JSON-serialized — null means unlimited.

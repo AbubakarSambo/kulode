@@ -43,6 +43,10 @@ export const paystackConfig = registerAs("paystack", () => ({
     process.env.PAYSTACK_CALLBACK_URL ||
     "http://localhost:5173/payment/callback",
   // Production: https://app.tarione.com/payment/callback
+  // Largest renewal (NGN) charged to a bank-account mandate. Paystack publishes no per-debit limit,
+  // so only monthly plans use Direct Debit by default; larger (annual) renewals stay on the card
+  // until a bigger debit has been seen to succeed. Raise it once that has happened.
+  directDebitMaxAmount: Number(process.env.DIRECT_DEBIT_MAX_AMOUNT) || 100000,
 }));
 
 export const moniepointConfig = registerAs("moniepoint", () => ({
