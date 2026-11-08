@@ -122,7 +122,7 @@ export class CustomersService {
       status: { in: [OrderStatus.CLOSED_PAID, OrderStatus.CLOSED_UNPAID] },
     };
 
-    const [sales, orderAgg, lastOrder, bySource, topMeals, topDrinks, byWeekday] = await Promise.all([
+    const [sales, orderAgg, lastOrder, bySource, topMeals, topDrinks, topProducts, byWeekday] = await Promise.all([
       this.prisma.payment.aggregate({
         where: { organizationId, orderId: { not: null }, order: closedOrderFilter },
         _sum: { amount: true },
@@ -187,6 +187,25 @@ export class CustomersService {
         ORDER BY revenue DESC
         LIMIT 5
       `,
+      // Retail orgs sell InventoryItems directly (no MenuItem layer), so a retail customer's
+      // "top items" come from order_items.inventory_item_id rather than the meal/drink split.
+      this.prisma.$queryRaw<{ id: string; name: string; quantity: number; revenue: number; orders: number }[]>`
+        SELECT
+          oi.inventory_item_id as id,
+          MAX(oi.item_name) as name,
+          SUM(oi.quantity)::numeric as quantity,
+          SUM(oi.amount)::numeric as revenue,
+          COUNT(DISTINCT oi.order_id)::integer as orders
+        FROM order_items oi
+        JOIN orders o ON oi.order_id = o.id
+        WHERE o.organization_id = ${organizationId}
+          AND o.customer_id = ${id}
+          AND o.status IN ('CLOSED_PAID', 'CLOSED_UNPAID')
+          AND oi.inventory_item_id IS NOT NULL
+        GROUP BY oi.inventory_item_id
+        ORDER BY revenue DESC
+        LIMIT 5
+      `,
       this.prisma.$queryRaw<{ dow: number; count: number }[]>`
         SELECT
           EXTRACT(DOW FROM o.closed_at)::integer as dow,
@@ -223,6 +242,13 @@ export class CustomersService {
         orders: Number(m.orders),
       })),
       topDrinks: topDrinks.map((m) => ({
+        id: m.id,
+        name: m.name,
+        quantity: Number(m.quantity),
+        revenue: Number(m.revenue),
+        orders: Number(m.orders),
+      })),
+      topProducts: topProducts.map((m) => ({
         id: m.id,
         name: m.name,
         quantity: Number(m.quantity),

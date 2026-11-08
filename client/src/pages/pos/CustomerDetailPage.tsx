@@ -21,6 +21,7 @@ import {
   CreditCard,
   UtensilsCrossed,
   CupSoda,
+  Package,
   PieChart as PieChartIcon,
   BarChart3,
 } from 'lucide-react'
@@ -37,6 +38,7 @@ import { printCustomerStatement } from '@/lib/printCustomerStatement'
 import { useAuthStore } from '@/stores/auth'
 import type { Customer, OrderStatus, OrderSource, WalletTransactionType } from '@/types'
 import { can } from '@/lib/permissions'
+import { usePosMode } from '@/hooks/useOrgModules'
 
 const CHART_COLORS = ['#0037b0', '#1d4ed8', '#2563eb', '#3b82f6', '#60a5fa']
 
@@ -89,6 +91,7 @@ function TopItemsCard({
 }
 
 function CustomerStatsSection({ customerId }: { customerId: string }) {
+  const { isRetail } = usePosMode()
   const { data: stats } = useQuery({
     queryKey: ['customer-stats', customerId],
     queryFn: () => customersApi.getStats(customerId),
@@ -140,12 +143,17 @@ function CustomerStatsSection({ customerId }: { customerId: string }) {
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <TopItemsCard title="Top 5 Meals" icon={UtensilsCrossed} items={stats.topMeals} emptyLabel="No meals ordered yet" />
-        <TopItemsCard title="Top 5 Drinks" icon={CupSoda} items={stats.topDrinks} emptyLabel="No drinks ordered yet" />
-      </div>
+      {isRetail ? (
+        <TopItemsCard title="Top 5 Products" icon={Package} items={stats.topProducts} emptyLabel="No products bought yet" />
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <TopItemsCard title="Top 5 Meals" icon={UtensilsCrossed} items={stats.topMeals} emptyLabel="No meals ordered yet" />
+          <TopItemsCard title="Top 5 Drinks" icon={CupSoda} items={stats.topDrinks} emptyLabel="No drinks ordered yet" />
+        </div>
+      )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className={cn('grid gap-6', !isRetail && 'lg:grid-cols-2')}>
+        {!isRetail && (
         <Card>
           <CardHeader className="p-8 pb-4">
             <CardTitle className="flex items-center gap-2.5 text-base font-semibold text-foreground">
@@ -185,6 +193,7 @@ function CustomerStatsSection({ customerId }: { customerId: string }) {
             )}
           </CardContent>
         </Card>
+        )}
 
         <Card>
           <CardHeader className="p-8 pb-4">
