@@ -22,10 +22,29 @@ export const PLAN_LIMITS = {
 } as const;
 
 export const PLAN_PRICES = {
-  STARTER: { monthly: 20000, annual: 200000 },
-  PRO: { monthly: 35000, annual: 350000 },
-  BUSINESS: { monthly: 50000, annual: 500000 },
+  STARTER: { monthly: 30000, annual: 300000 },
+  PRO: { monthly: 50000, annual: 500000 },
+  BUSINESS: { monthly: 60000, annual: 600000 },
 } as const;
+
+/**
+ * Organizations a platform admin has flagged as test accounts pay this token amount (naira)
+ * instead of the plan price, so real payments — cards, bank debits, webhooks, renewals — can be
+ * tried end to end with real money for almost nothing. Real customers are never affected.
+ * Paystack recommends at least 50 naira for a first charge.
+ */
+export const TEST_ACCOUNT_PRICE = 100;
+
+/** What an organization is charged for a plan: the plan price, or the token amount for a test account. */
+export function planAmount(
+  planTier: keyof typeof PLAN_PRICES,
+  billingPeriod: 'MONTHLY' | 'ANNUAL' | string | null | undefined,
+  isTestAccount = false,
+): number {
+  if (isTestAccount) return TEST_ACCOUNT_PRICE;
+  const prices = PLAN_PRICES[planTier];
+  return billingPeriod === 'ANNUAL' ? prices.annual : prices.monthly;
+}
 
 // A live trial (TRIALING, not yet past trialEndDate — callers already drop an expired trial to an
 // effective FREE plan) gets unlimited users, so a restaurant can load its whole floor staff while

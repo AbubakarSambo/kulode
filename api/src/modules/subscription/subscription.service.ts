@@ -10,7 +10,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaystackService } from '../paystack/paystack.service';
 import { EmailService } from '../email/email.service';
-import { PLAN_LIMITS, PLAN_PRICES, maxUsersFor } from '../../common/plan-limits';
+import { PLAN_LIMITS, PLAN_PRICES, TEST_ACCOUNT_PRICE, maxUsersFor, planAmount } from '../../common/plan-limits';
 
 @Injectable()
 export class SubscriptionService {
@@ -45,6 +45,7 @@ export class SubscriptionService {
         subscriptionStartDate: true,
         subscriptionEndDate: true,
         isGrandfathered: true,
+        isTestAccount: true,
         paystackAuthorizationCode: true,
         paystackCardType: true,
         paystackCardLast4: true,
@@ -108,6 +109,9 @@ export class SubscriptionService {
       subscriptionEndDate: org.subscriptionEndDate,
       isGrandfathered: org.isGrandfathered,
       autoRenew: org.autoRenew,
+      // Test accounts are charged a token amount for any plan (see planAmount).
+      isTestAccount: org.isTestAccount,
+      testAccountPrice: org.isTestAccount ? TEST_ACCOUNT_PRICE : null,
       paymentMethods: {
         card: org.paystackAuthorizationCode
           ? { type: org.paystackCardType ?? null, last4: org.paystackCardLast4 ?? null }
@@ -159,7 +163,9 @@ export class SubscriptionService {
       }
     }
 
-    const amount = billingPeriod === 'MONTHLY' ? prices.monthly : prices.annual;
+    const org = await this.prisma.organization.findUnique({ where: { id: organizationId }, select: { isTestAccount: true } });
+    const amount = planAmount(planTier, billingPeriod, !!org?.isTestAccount);
+    if (org?.isTestAccount) this.logger.log(`Test account ${organizationId}: charging ${amount} naira for ${planTier} ${billingPeriod}`);
     const reference = `SUB-${organizationId.slice(0, 8)}-${Date.now()}`;
 
     const payByBank = paymentMethod === 'BANK';
@@ -353,6 +359,7 @@ export class SubscriptionService {
         directDebitAuthorizationCode: true,
         directDebitEmail: true,
         pendingRenewalReference: true,
+        isTestAccount: true,
       },
     });
 
@@ -366,7 +373,7 @@ export class SubscriptionService {
 
     const prices = PLAN_PRICES[org.planTier as keyof typeof PLAN_PRICES];
     if (!prices) return false;
-    const amount = org.billingPeriod === 'ANNUAL' ? prices.annual : prices.monthly;
+    const amount = planAmount(org.planTier as keyof typeof PLAN_PRICES, org.billingPeriod, org.isTestAccount);
 
     const canDebitBank =
       org.directDebitStatus === 'ACTIVE' &&
@@ -439,12 +446,13 @@ export class SubscriptionService {
       paystackBillingEmail: string | null;
       paystackCardType: string | null;
       paystackCardLast4: string | null;
+      isTestAccount?: boolean;
     },
   ): Promise<boolean> {
     const prices = PLAN_PRICES[org.planTier as keyof typeof PLAN_PRICES];
     if (!prices || !org.billingPeriod || !org.paystackAuthorizationCode || !org.paystackBillingEmail) return false;
 
-    const amount = org.billingPeriod === 'ANNUAL' ? prices.annual : prices.monthly;
+    const amount = planAmount(org.planTier as keyof typeof PLAN_PRICES, org.billingPeriod, !!org.isTestAccount);
     const reference = `RENEW-${organizationId.slice(0, 8)}-${Date.now()}`;
 
     const result = await this.paystackService.chargeAuthorization(
@@ -511,6 +519,7 @@ export class SubscriptionService {
         paystackBillingEmail: true,
         paystackCardType: true,
         paystackCardLast4: true,
+        isTestAccount: true,
       },
     });
 

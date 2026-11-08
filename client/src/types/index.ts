@@ -30,6 +30,9 @@ export interface SubscriptionDetails {
   subscriptionEndDate?: string
   isGrandfathered: boolean
   autoRenew: boolean
+  // Platform-admin test accounts are charged this token amount (naira) for any plan.
+  isTestAccount?: boolean
+  testAccountPrice?: number | null
   paymentMethods?: {
     card: { type: string | null; last4: string | null } | null
     directDebit: { status: 'PENDING' | 'ACTIVE' | 'REVOKED'; bankName: string | null; last4: string | null } | null
