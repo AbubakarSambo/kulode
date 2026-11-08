@@ -110,8 +110,9 @@ export function BillingPage() {
       posthog.capture('subscription_plan_change_initiated', { plan: subscribingPlan, period: billingPeriod, method: payWith })
       window.location.href = data.paymentUrl
     },
-    onError: () => {
-      toast.error('Failed to initialize payment. Please try again.')
+    onError: (error: { response?: { data?: { message?: string } } }) => {
+      // Show the server's reason (e.g. "bank payment is not available") instead of a generic failure.
+      toast.error(error?.response?.data?.message || 'Failed to initialize payment. Please try again.')
     },
   })
 
@@ -569,7 +570,8 @@ export function BillingPage() {
               </div>
             )}
 
-            {/* How to pay: card, or a bank account (monthly plans) */}
+            {/* How to pay: card, or a bank account (monthly plans). Hidden until Paystack's checkout offers it. */}
+            {subscription?.paymentMethods?.bankFirstPaymentEnabled && (
             <div className="flex flex-col items-center gap-2 pt-1">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-slate-500">Pay with</span>
@@ -600,6 +602,7 @@ export function BillingPage() {
                     : 'Pay by card, or choose Bank account to be debited from your bank.'}
               </p>
             </div>
+            )}
 
             {/* Redesigned Pricing cards grid */}
             <div className="grid gap-6 md:grid-cols-3 items-stretch pt-4">

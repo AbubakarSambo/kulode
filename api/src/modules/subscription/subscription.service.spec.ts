@@ -1130,12 +1130,14 @@ describe('SubscriptionService', () => {
     it('opens bank-only checkout for a monthly plan and records the mandate as pending', async () => {
       mockFetch.mockResolvedValue({ json: async () => okInit });
       prisma.user.count.mockResolvedValue(1);
+      prisma.organization.findUnique.mockResolvedValue({ isTestAccount: true });
       prisma.organization.updateMany.mockResolvedValue({ count: 1 });
 
       const result = await service.subscribe(ORG_ID, 'PRO', 'MONTHLY', 'admin@example.com', 'BANK');
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
       expect(body.channels).toEqual(['direct_debit']);
+      expect(String(mockFetch.mock.calls[1][0])).toContain('/transaction/verify_access_code/ac');
       expect(body.metadata.payment_method).toBe('BANK');
       expect(result.paymentUrl).toBe('https://checkout.paystack.com/x');
       expect(prisma.organization.updateMany).toHaveBeenCalledWith({
@@ -1146,9 +1148,29 @@ describe('SubscriptionService', () => {
 
     it('does not offer bank payment for an annual plan above the cap', async () => {
       prisma.user.count.mockResolvedValue(1);
+      prisma.organization.findUnique.mockResolvedValue({ isTestAccount: false });
 
       await expect(service.subscribe(ORG_ID, 'PRO', 'ANNUAL', 'a@b.com', 'BANK')).rejects.toThrow(/by card/);
       expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('keeps bank payment closed to ordinary orgs until it is switched on', async () => {
+      prisma.user.count.mockResolvedValue(1);
+      prisma.organization.findUnique.mockResolvedValue({ isTestAccount: false });
+
+      await expect(service.subscribe(ORG_ID, 'PRO', 'MONTHLY', 'a@b.com', 'BANK')).rejects.toThrow(/not available yet/);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('turns a Paystack "No active channel" checkout into a clear message, not a dead page', async () => {
+      mockFetch
+        .mockResolvedValueOnce({ json: async () => okInit })
+        .mockResolvedValueOnce({ json: async () => ({ status: false, message: 'No active channel to process transaction. Please contact merchant' }) });
+      prisma.user.count.mockResolvedValue(1);
+      prisma.organization.findUnique.mockResolvedValue({ isTestAccount: true });
+
+      await expect(service.subscribe(ORG_ID, 'PRO', 'MONTHLY', 'a@b.com', 'BANK')).rejects.toThrow(/not available right now/);
+      expect(prisma.organization.updateMany).not.toHaveBeenCalled();
     });
 
     it('still pays by card by default', async () => {

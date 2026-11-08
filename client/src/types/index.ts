@@ -38,6 +38,8 @@ export interface SubscriptionDetails {
     directDebit: { status: 'PENDING' | 'ACTIVE' | 'REVOKED'; bankName: string | null; last4: string | null } | null
     // Largest renewal (naira) charged to a bank account; bigger ones stay on the card.
     directDebitMaxAmount: number
+    // Whether the Upgrade page may offer paying the first plan from a bank account.
+    bankFirstPaymentEnabled?: boolean
     renewalPending: boolean
   }
   limits: {

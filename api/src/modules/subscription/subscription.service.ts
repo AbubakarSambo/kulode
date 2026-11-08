@@ -19,6 +19,7 @@ export class SubscriptionService {
   private readonly paystackBaseUrl: string;
   private readonly callbackUrl: string;
   private readonly directDebitMaxAmount: number;
+  private readonly directDebitCheckoutEnabled: boolean;
 
   constructor(
     private prisma: PrismaService,
@@ -31,6 +32,7 @@ export class SubscriptionService {
     this.paystackBaseUrl = this.configService.get<string>('paystack.baseUrl') || 'https://api.paystack.co';
     this.callbackUrl = this.configService.get<string>('paystack.callbackUrl') || 'http://localhost:5173/payment/callback';
     this.directDebitMaxAmount = Number(this.configService.get<number>('paystack.directDebitMaxAmount')) || 100000;
+    this.directDebitCheckoutEnabled = this.configService.get<boolean>('paystack.directDebitCheckoutEnabled') === true;
   }
 
   async getCurrentPlan(organizationId: string) {
@@ -125,6 +127,8 @@ export class SubscriptionService {
           : null,
         // The largest renewal a bank account is used for; bigger ones (annual plans) stay on the card.
         directDebitMaxAmount: this.directDebitMaxAmount,
+        // Whether the Upgrade page may offer "pay from a bank account" (test accounts always may).
+        bankFirstPaymentEnabled: this.directDebitCheckoutEnabled || org.isTestAccount,
         renewalPending: !!org.pendingRenewalReference,
       },
       limits: {
@@ -169,6 +173,9 @@ export class SubscriptionService {
     const reference = `SUB-${organizationId.slice(0, 8)}-${Date.now()}`;
 
     const payByBank = paymentMethod === 'BANK';
+    if (payByBank && !this.directDebitCheckoutEnabled && !org?.isTestAccount) {
+      throw new BadRequestException('Paying from a bank account is not available yet. Please pay by card.');
+    }
     if (payByBank && amount > this.directDebitMaxAmount) {
       throw new BadRequestException(
         `Paying from a bank account is available for payments up to ${this.directDebitMaxAmount.toLocaleString('en-NG')} naira (monthly plans). Please pay this one by card.`,
@@ -201,6 +208,19 @@ export class SubscriptionService {
 
     if (!data.status) {
       throw new BadRequestException(data.message || 'Failed to initialize payment');
+    }
+
+    if (payByBank) {
+      // Paystack accepts the request but its checkout page can still refuse to open ("No active
+      // channel") when bank payment isn't enabled for us. Ask the same question the page will, so
+      // the customer gets a clear message here instead of a dead Paystack page.
+      const check = await fetch(`${this.paystackBaseUrl}/transaction/verify_access_code/${encodeURIComponent(data.data.access_code)}`)
+        .then((r) => r.json())
+        .catch(() => null);
+      if (check && check.status === false) {
+        this.logger.warn(`Bank checkout refused by Paystack for org ${organizationId}: ${check.message ?? 'no message'} (reference ${data.data.reference})`);
+        throw new BadRequestException('Paying from a bank account is not available right now. Please pay by card.');
+      }
     }
 
     if (payByBank) {

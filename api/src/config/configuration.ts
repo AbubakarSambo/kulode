@@ -47,6 +47,10 @@ export const paystackConfig = registerAs("paystack", () => ({
   // so only monthly plans use Direct Debit by default; larger (annual) renewals stay on the card
   // until a bigger debit has been seen to succeed. Raise it once that has happened.
   directDebitMaxAmount: Number(process.env.DIRECT_DEBIT_MAX_AMOUNT) || 100000,
+  // Paying a first plan from a bank account needs Paystack's checkout to offer it. It does not yet
+  // (checkout answers "No active channel"), so this stays off for customers until Paystack enables
+  // it; platform-flagged test accounts can still try it. Set DIRECT_DEBIT_CHECKOUT_ENABLED=true to open it up.
+  directDebitCheckoutEnabled: process.env.DIRECT_DEBIT_CHECKOUT_ENABLED === 'true',
 }));
 
 export const moniepointConfig = registerAs("moniepoint", () => ({
