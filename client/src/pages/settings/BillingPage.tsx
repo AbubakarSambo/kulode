@@ -570,7 +570,7 @@ export function BillingPage() {
               </div>
             )}
 
-            {/* How to pay: card, or a bank account (monthly plans). Hidden until Paystack's checkout offers it. */}
+            {/* How to pay: card, or a bank account (monthly plans) */}
             {subscription?.paymentMethods?.bankFirstPaymentEnabled && (
             <div className="flex flex-col items-center gap-2 pt-1">
               <div className="flex items-center gap-2">
@@ -598,8 +598,8 @@ export function BillingPage() {
                 {billingPeriod === 'ANNUAL' && !subscription?.isTestAccount
                   ? 'Annual plans are paid by card. Switch to Monthly to pay from a bank account.'
                   : payWith === 'BANK'
-                    ? 'Your plan switches on right away. Your bank can take a few hours to confirm the payment; if it does not go through within 24 hours, the plan lapses.'
-                    : 'Pay by card, or choose Bank account to be debited from your bank.'}
+                    ? 'You will approve this payment from your bank on Paystack\'s page. It is a one-off payment; to renew from your bank automatically, link the account under Renewal payment method afterwards.'
+                    : 'Pay by card, or choose Bank account to approve the payment from your bank.'}
               </p>
             </div>
             )}

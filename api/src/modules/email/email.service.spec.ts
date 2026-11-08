@@ -1,4 +1,5 @@
 import { ConfigService } from '@nestjs/config';
+import { PLAN_PRICES } from '../../common/plan-limits';
 import { EmailService } from './email.service';
 
 // No RESEND_API_KEY → mock mode; the private sendEmail is spied on to read the rendered HTML.
@@ -37,6 +38,7 @@ describe('EmailService — POS wording matches how the org sells', () => {
   it("quotes the Starter price from PLAN_PRICES rather than a hard-coded figure", async () => {
     const { service, html } = makeService();
     await service.sendTrialExpiredEmail('a@b.ng', 'Ada');
-    expect(html()).toMatch(/Starter plan at just ₦20,000\/month/);
+    const starter = PLAN_PRICES.STARTER.monthly.toLocaleString('en-NG');
+    expect(html()).toContain(`Starter plan at just ₦${starter}/month`);
   });
 });
