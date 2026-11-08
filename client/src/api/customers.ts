@@ -31,6 +31,7 @@ export interface CustomerStats {
   byOrderType: { type: string; total: number; count: number }[]
   topMeals: { id: string; name: string; quantity: number; revenue: number; orders: number }[]
   topDrinks: { id: string; name: string; quantity: number; revenue: number; orders: number }[]
+  topProducts: { id: string; name: string; quantity: number; revenue: number; orders: number }[]
   visitsByWeekday: { day: string; count: number }[]
 }
 
