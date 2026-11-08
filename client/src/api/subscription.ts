@@ -7,10 +7,15 @@ export const subscriptionApi = {
     return response.data.data
   },
 
-  subscribe: async (planTier: PlanTier, billingPeriod: BillingPeriod): Promise<{ paymentUrl: string; reference: string }> => {
+  subscribe: async (
+    planTier: PlanTier,
+    billingPeriod: BillingPeriod,
+    paymentMethod: 'CARD' | 'BANK' = 'CARD',
+  ): Promise<{ paymentUrl: string; reference: string }> => {
     const response = await apiClient.post<ApiResponse<{ paymentUrl: string; reference: string }>>('/subscription/subscribe', {
       planTier,
       billingPeriod,
+      paymentMethod,
     })
     return response.data.data
   },

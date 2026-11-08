@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class SubscribeDto {
@@ -11,4 +11,9 @@ export class SubscribeDto {
   @IsEnum(['MONTHLY', 'ANNUAL'])
   @IsNotEmpty()
   billingPeriod: 'MONTHLY' | 'ANNUAL';
+
+  @ApiProperty({ enum: ['CARD', 'BANK'], required: false, description: 'How the first payment is made. BANK debits a bank account (monthly plans only).' })
+  @IsOptional()
+  @IsEnum(['CARD', 'BANK'])
+  paymentMethod?: 'CARD' | 'BANK';
 }

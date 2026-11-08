@@ -130,6 +130,9 @@ export class PaystackController {
           isBankDebit ? undefined : result.authorization?.last4,
           { keepPaymentMethod: isBankDebit },
         );
+        if (isBankDebit) {
+          await this.subscriptionService.saveBankMandateFromCharge(organization_id, result.authorization, result.customerEmail);
+        }
       }
     }
 

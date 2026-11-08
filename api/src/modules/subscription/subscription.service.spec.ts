@@ -1121,4 +1121,130 @@ describe('SubscriptionService', () => {
       });
     });
   });
+
+  // ─── first payment by bank account, with a grace period ───────────
+
+  describe('first payment by bank account', () => {
+    const okInit = { status: true, data: { authorization_url: 'https://checkout.paystack.com/x', reference: 'ref-bank', access_code: 'ac' } };
+
+    it('opens bank-only checkout for a monthly plan and records the mandate as pending', async () => {
+      mockFetch.mockResolvedValue({ json: async () => okInit });
+      prisma.user.count.mockResolvedValue(1);
+      prisma.organization.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await service.subscribe(ORG_ID, 'PRO', 'MONTHLY', 'admin@example.com', 'BANK');
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.channels).toEqual(['direct_debit']);
+      expect(body.metadata.payment_method).toBe('BANK');
+      expect(result.paymentUrl).toBe('https://checkout.paystack.com/x');
+      expect(prisma.organization.updateMany).toHaveBeenCalledWith({
+        where: { id: ORG_ID, OR: [{ directDebitStatus: null }, { directDebitStatus: { not: 'ACTIVE' } }] },
+        data: { directDebitStatus: 'PENDING', directDebitEmail: 'admin@example.com', directDebitReference: 'ref-bank' },
+      });
+    });
+
+    it('does not offer bank payment for an annual plan above the cap', async () => {
+      prisma.user.count.mockResolvedValue(1);
+
+      await expect(service.subscribe(ORG_ID, 'PRO', 'ANNUAL', 'a@b.com', 'BANK')).rejects.toThrow(/by card/);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('still pays by card by default', async () => {
+      mockFetch.mockResolvedValue({ json: async () => okInit });
+      prisma.user.count.mockResolvedValue(1);
+
+      await service.subscribe(ORG_ID, 'PRO', 'MONTHLY', 'a@b.com');
+
+      expect(JSON.parse(mockFetch.mock.calls[0][1].body).channels).toEqual(['card']);
+      expect(prisma.organization.updateMany).not.toHaveBeenCalled();
+    });
+
+    const verifyResponse = (status: string, paymentMethod = 'BANK', extra: object = {}) => ({
+      json: async () => ({
+        status: true,
+        data: {
+          status,
+          amount: 3500000,
+          metadata: { type: 'subscription', organization_id: ORG_ID, plan_tier: 'PRO', billing_period: 'MONTHLY', payment_method: paymentMethod },
+          customer: { email: 'admin@example.com' },
+          ...extra,
+        },
+      }),
+    });
+
+    it('turns the plan on for a 24 hour grace while a first bank payment is processing', async () => {
+      mockFetch.mockResolvedValue(verifyResponse('processing'));
+      prisma.organization.findUnique.mockResolvedValue({ pendingRenewalReference: null, subscriptionEndDate: null, subscriptionStatus: 'TRIALING' });
+      prisma.organization.update.mockResolvedValue({});
+
+      const before = Date.now();
+      const result = await service.verifyAndActivatePayment(ORG_ID, 'ref-bank');
+
+      expect(result).toMatchObject({ activated: false, pending: true, graceHours: 24 });
+      const data = prisma.organization.update.mock.calls[0][0].data;
+      expect(data).toMatchObject({ planTier: 'PRO', subscriptionStatus: 'ACTIVE', billingPeriod: 'MONTHLY', pendingRenewalReference: 'ref-bank' });
+      expect(data.subscriptionEndDate.getTime() - before).toBeGreaterThan(23.9 * 3600 * 1000);
+      expect(data.subscriptionEndDate.getTime() - before).toBeLessThan(24.1 * 3600 * 1000);
+    });
+
+    it('does not shorten time an active org has already paid for when upgrading by bank', async () => {
+      const paidUntil = new Date(Date.now() + 20 * 24 * 3600 * 1000);
+      mockFetch.mockResolvedValue(verifyResponse('processing'));
+      prisma.organization.findUnique.mockResolvedValue({ pendingRenewalReference: null, subscriptionEndDate: paidUntil, subscriptionStatus: 'ACTIVE' });
+      prisma.organization.update.mockResolvedValue({});
+
+      await service.verifyAndActivatePayment(ORG_ID, 'ref-bank');
+
+      expect(prisma.organization.update.mock.calls[0][0].data.subscriptionEndDate).toBe(paidUntil);
+    });
+
+    it('does not grant grace twice for the same payment', async () => {
+      mockFetch.mockResolvedValue(verifyResponse('processing'));
+      prisma.organization.findUnique.mockResolvedValue({ pendingRenewalReference: 'ref-bank', subscriptionEndDate: null, subscriptionStatus: 'ACTIVE' });
+
+      await service.verifyAndActivatePayment(ORG_ID, 'ref-bank');
+
+      expect(prisma.organization.update).not.toHaveBeenCalled();
+    });
+
+    it('does not treat a processing card payment as paid', async () => {
+      mockFetch.mockResolvedValue(verifyResponse('processing', 'CARD'));
+
+      await expect(service.verifyAndActivatePayment(ORG_ID, 'ref-card')).rejects.toThrow('Payment verification failed');
+      expect(prisma.organization.update).not.toHaveBeenCalled();
+    });
+
+    it('still rejects a failed payment', async () => {
+      mockFetch.mockResolvedValue(verifyResponse('failed'));
+
+      await expect(service.verifyAndActivatePayment(ORG_ID, 'ref-bank')).rejects.toThrow('Payment verification failed');
+    });
+
+    it('keeps the bank mandate (and not a card) when a first bank payment succeeds', async () => {
+      const activate = jest.spyOn(service, 'activateSubscription').mockResolvedValue(undefined);
+      prisma.organization.update.mockResolvedValue({});
+      mockFetch.mockResolvedValue(
+        verifyResponse('success', 'BANK', { authorization: { authorization_code: 'AUTH_bank', reusable: true, channel: 'direct_debit', bank: 'Zenith Bank', last4: '6789' } }),
+      );
+
+      await service.verifyAndActivatePayment(ORG_ID, 'ref-bank');
+
+      expect(activate).toHaveBeenCalledWith(
+        ORG_ID, 'PRO', 'MONTHLY', 'ref-bank', 35000,
+        undefined, undefined, undefined, undefined, { keepPaymentMethod: true },
+      );
+      expect(prisma.organization.update).toHaveBeenCalledWith({
+        where: { id: ORG_ID },
+        data: {
+          directDebitStatus: 'ACTIVE',
+          directDebitAuthorizationCode: 'AUTH_bank',
+          directDebitEmail: 'admin@example.com',
+          directDebitBankName: 'Zenith Bank',
+          directDebitAccountLast4: '6789',
+        },
+      });
+    });
+  });
 });

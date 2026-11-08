@@ -40,6 +40,7 @@ export class SubscriptionController {
       dto.planTier,
       dto.billingPeriod,
       email,
+      dto.paymentMethod ?? 'CARD',
     );
   }
 

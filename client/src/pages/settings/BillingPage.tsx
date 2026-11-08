@@ -96,6 +96,7 @@ export function BillingPage() {
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('MONTHLY')
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [subscribingPlan, setSubscribingPlan] = useState<PlanTier | null>(null)
+  const [payWith, setPayWith] = useState<'CARD' | 'BANK'>('CARD')
 
   const { data: paymentHistory } = useQuery({
     queryKey: ['subscription', 'payment-history'],
@@ -103,10 +104,10 @@ export function BillingPage() {
   })
 
   const subscribeMutation = useMutation({
-    mutationFn: ({ planTier, period }: { planTier: PlanTier; period: BillingPeriod }) =>
-      subscriptionApi.subscribe(planTier, period),
+    mutationFn: ({ planTier, period, method }: { planTier: PlanTier; period: BillingPeriod; method: 'CARD' | 'BANK' }) =>
+      subscriptionApi.subscribe(planTier, period, method),
     onSuccess: (data) => {
-      posthog.capture('subscription_plan_change_initiated', { plan: subscribingPlan, period: billingPeriod })
+      posthog.capture('subscription_plan_change_initiated', { plan: subscribingPlan, period: billingPeriod, method: payWith })
       window.location.href = data.paymentUrl
     },
     onError: () => {
@@ -144,7 +145,7 @@ export function BillingPage() {
 
   const handleSubscribe = (planTier: PlanTier) => {
     setSubscribingPlan(planTier)
-    subscribeMutation.mutate({ planTier, period: billingPeriod })
+    subscribeMutation.mutate({ planTier, period: billingPeriod, method: payWith })
   }
 
   const [showBanks, setShowBanks] = useState(false)
@@ -177,6 +178,11 @@ export function BillingPage() {
       toast.error('Could not remove the bank account. Please try again.')
     },
   })
+
+  // Bank-account payment is for monthly plans only; switching to annual goes back to card.
+  useEffect(() => {
+    if (billingPeriod === 'ANNUAL' && payWith === 'BANK') setPayWith('CARD')
+  }, [billingPeriod, payWith])
 
   // Track page view once on mount
   useEffect(() => {
@@ -555,6 +561,38 @@ export function BillingPage() {
                   </span>
                 </button>
               </div>
+            </div>
+
+            {/* How to pay: card, or a bank account (monthly plans) */}
+            <div className="flex flex-col items-center gap-2 pt-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-slate-500">Pay with</span>
+                <div className="bg-[#eef4ff] dark:bg-slate-900 p-1 rounded-xl flex items-center">
+                  {(['CARD', 'BANK'] as const).map((method) => {
+                    const disabled = method === 'BANK' && billingPeriod === 'ANNUAL'
+                    return (
+                      <button
+                        key={method}
+                        onClick={() => setPayWith(method)}
+                        disabled={disabled}
+                        className={cn(
+                          'py-1.5 px-4 text-xs font-semibold rounded-lg transition-all cursor-pointer min-h-[36px] disabled:opacity-40 disabled:cursor-not-allowed',
+                          payWith === method ? 'bg-[#0037b0] text-white shadow-sm font-bold' : 'text-slate-600 dark:text-slate-400',
+                        )}
+                      >
+                        {method === 'CARD' ? 'Card' : 'Bank account'}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium text-center max-w-md leading-relaxed">
+                {billingPeriod === 'ANNUAL'
+                  ? 'Annual plans are paid by card. Switch to Monthly to pay from a bank account.'
+                  : payWith === 'BANK'
+                    ? 'Your plan switches on right away. Your bank can take a few hours to confirm the payment; if it does not go through within 24 hours, the plan lapses.'
+                    : 'Pay by card, or choose Bank account to be debited from your bank.'}
+              </p>
             </div>
 
             {/* Redesigned Pricing cards grid */}

@@ -135,7 +135,13 @@ export class SubscriptionService {
     };
   }
 
-  async subscribe(organizationId: string, planTier: 'STARTER' | 'PRO' | 'BUSINESS', billingPeriod: 'MONTHLY' | 'ANNUAL', email: string) {
+  async subscribe(
+    organizationId: string,
+    planTier: 'STARTER' | 'PRO' | 'BUSINESS',
+    billingPeriod: 'MONTHLY' | 'ANNUAL',
+    email: string,
+    paymentMethod: 'CARD' | 'BANK' = 'CARD',
+  ) {
     const prices = PLAN_PRICES[planTier];
     if (!prices) {
       throw new BadRequestException('Invalid plan tier');
@@ -156,6 +162,13 @@ export class SubscriptionService {
     const amount = billingPeriod === 'MONTHLY' ? prices.monthly : prices.annual;
     const reference = `SUB-${organizationId.slice(0, 8)}-${Date.now()}`;
 
+    const payByBank = paymentMethod === 'BANK';
+    if (payByBank && amount > this.directDebitMaxAmount) {
+      throw new BadRequestException(
+        `Paying from a bank account is available for payments up to ${this.directDebitMaxAmount.toLocaleString('en-NG')} naira (monthly plans). Please pay this one by card.`,
+      );
+    }
+
     const response = await fetch(`${this.paystackBaseUrl}/transaction/initialize`, {
       method: 'POST',
       headers: {
@@ -167,12 +180,13 @@ export class SubscriptionService {
         amount: amount * 100, // Convert to kobo
         reference,
         callback_url: `${this.callbackUrl}?type=subscription`,
-        channels: ['card'],
+        channels: payByBank ? ['direct_debit'] : ['card'],
         metadata: {
           type: 'subscription',
           organization_id: organizationId,
           plan_tier: planTier,
           billing_period: billingPeriod,
+          payment_method: payByBank ? 'BANK' : 'CARD',
         },
       }),
     });
@@ -181,6 +195,15 @@ export class SubscriptionService {
 
     if (!data.status) {
       throw new BadRequestException(data.message || 'Failed to initialize payment');
+    }
+
+    if (payByBank) {
+      // Paying approves a bank mandate, which later renewals reuse. Record who it will be tied
+      // to so the mandate webhook can find this org (unless a mandate is already active).
+      await this.prisma.organization.updateMany({
+        where: { id: organizationId, OR: [{ directDebitStatus: null }, { directDebitStatus: { not: 'ACTIVE' } }] },
+        data: { directDebitStatus: 'PENDING', directDebitEmail: email, directDebitReference: data.data.reference },
+      });
     }
 
     return {
@@ -462,8 +485,13 @@ export class SubscriptionService {
       .catch((err) => this.logger.error(`Failed to send renewal failed email: ${err.message}`));
   }
 
-  /** How long a submitted bank debit may stay unresolved before we treat the renewal as failed. */
-  private static readonly PENDING_RENEWAL_MAX_DAYS = 3;
+  /**
+   * How long a bank debit may stay unresolved before it is treated as failed. This is also the
+   * grace a customer gets after paying their first plan by bank: access is on straight away and
+   * lapses if the debit hasn't gone through within this time.
+   */
+  private static readonly BANK_DEBIT_GRACE_HOURS = 24;
+  private static readonly BANK_DEBIT_GRACE_MS = SubscriptionService.BANK_DEBIT_GRACE_HOURS * 60 * 60 * 1000;
 
   /**
    * Follows up bank debits that were submitted but hadn't settled. Paystack only webhooks
@@ -501,7 +529,7 @@ export class SubscriptionService {
         }
 
         const ageMs = Date.now() - (org.pendingRenewalStartedAt?.getTime() ?? 0);
-        const tooOld = ageMs > SubscriptionService.PENDING_RENEWAL_MAX_DAYS * 24 * 60 * 60 * 1000;
+        const tooOld = ageMs > SubscriptionService.BANK_DEBIT_GRACE_MS;
         const failed = ['failed', 'reversed', 'abandoned'].includes(status.status);
         if (!failed && !tooOld) continue; // still settling
 
@@ -654,8 +682,13 @@ export class SubscriptionService {
     });
 
     const result = await response.json();
+    const status = result.data?.status;
+    const paid = !!result.status && status === 'success';
+    // A bank debit isn't settled when the customer returns from checkout; Paystack calls that
+    // "processing". It is not a failure — see grantBankPaymentGrace.
+    const processing = !!result.status && status === 'processing';
 
-    if (!result.status || result.data?.status !== 'success') {
+    if (!paid && !processing) {
       throw new BadRequestException('Payment verification failed');
     }
 
@@ -669,19 +702,93 @@ export class SubscriptionService {
       throw new BadRequestException('Payment does not belong to this organization');
     }
 
+    if (processing) {
+      if (metadata.payment_method !== 'BANK') {
+        throw new BadRequestException('Payment verification failed');
+      }
+      await this.grantBankPaymentGrace(organizationId, metadata.plan_tier, metadata.billing_period, reference);
+      return {
+        activated: false,
+        pending: true,
+        planTier: metadata.plan_tier,
+        billingPeriod: metadata.billing_period,
+        graceHours: SubscriptionService.BANK_DEBIT_GRACE_HOURS,
+      };
+    }
+
+    const isBankDebit = authorization?.channel === 'direct_debit' || authorization?.card_type === 'mandate';
     await this.activateSubscription(
       organizationId,
       metadata.plan_tier,
       metadata.billing_period,
       reference,
       amount / 100, // kobo → naira
-      authorization?.reusable ? authorization.authorization_code : undefined,
-      customer?.email,
-      authorization?.card_type,
-      authorization?.last4,
+      isBankDebit ? undefined : authorization?.reusable ? authorization.authorization_code : undefined,
+      isBankDebit ? undefined : customer?.email,
+      isBankDebit ? undefined : authorization?.card_type,
+      isBankDebit ? undefined : authorization?.last4,
+      { keepPaymentMethod: isBankDebit },
     );
+    if (isBankDebit) await this.saveBankMandateFromCharge(organizationId, authorization, customer?.email);
 
     return { activated: true, planTier: metadata.plan_tier, billingPeriod: metadata.billing_period };
+  }
+
+  /**
+   * First payment by bank account came back "processing". Switch the plan on now with a short
+   * grace so the customer isn't locked out while the bank settles: if the debit confirms, the
+   * charge.success webhook (or the nightly follow-up) gives them the full period; if it fails or
+   * hasn't settled when the grace ends, the plan lapses like any unpaid one.
+   */
+  async grantBankPaymentGrace(organizationId: string, planTier: string, billingPeriod: string, reference: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { pendingRenewalReference: true, subscriptionEndDate: true, subscriptionStatus: true },
+    });
+    if (!org) throw new BadRequestException('Organization not found');
+    if (org.pendingRenewalReference === reference) return; // already granted (page refreshed, webhook raced)
+
+    const now = new Date();
+    const graceEnd = new Date(now.getTime() + SubscriptionService.BANK_DEBIT_GRACE_MS);
+    // Upgrading mid-period must not cut short time already paid for.
+    const keepExistingEnd =
+      org.subscriptionStatus === 'ACTIVE' && org.subscriptionEndDate && org.subscriptionEndDate > graceEnd;
+
+    await this.prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        planTier: planTier as any,
+        subscriptionStatus: 'ACTIVE',
+        billingPeriod: billingPeriod as any,
+        subscriptionStartDate: now,
+        subscriptionEndDate: keepExistingEnd ? org.subscriptionEndDate : graceEnd,
+        pendingRenewalReference: reference,
+        pendingRenewalStartedAt: now,
+      },
+    });
+    this.logger.log(`Bank payment ${reference} for org ${organizationId} is processing; ${planTier} ${billingPeriod} active for ${SubscriptionService.BANK_DEBIT_GRACE_HOURS}h grace`);
+  }
+
+  /**
+   * A bank debit that succeeded proves the mandate works, so keep its authorization for renewals
+   * even if the separate mandate-active webhook is late or shaped differently than expected.
+   */
+  async saveBankMandateFromCharge(
+    organizationId: string,
+    authorization: { authorization_code?: string; reusable?: boolean; bank?: string; last4?: string } | undefined,
+    email?: string,
+  ) {
+    if (!authorization?.authorization_code || authorization.reusable === false) return;
+    await this.prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        directDebitStatus: 'ACTIVE',
+        directDebitAuthorizationCode: authorization.authorization_code,
+        ...(email && { directDebitEmail: email }),
+        ...(authorization.bank && { directDebitBankName: authorization.bank }),
+        ...(authorization.last4 && { directDebitAccountLast4: authorization.last4 }),
+      },
+    });
   }
 
   async cancelSubscription(organizationId: string) {
@@ -806,10 +913,10 @@ export class SubscriptionService {
         subscriptionStatus: { in: ['CANCELLED', 'ACTIVE'] },
         subscriptionEndDate: { lt: now },
         isGrandfathered: false,
-        // A bank debit that is still settling gets a few days before the plan is treated as lapsed.
+        // A bank debit that is still settling gets its grace period before the plan is treated as lapsed.
         OR: [
           { pendingRenewalReference: null },
-          { pendingRenewalStartedAt: { lt: new Date(now.getTime() - SubscriptionService.PENDING_RENEWAL_MAX_DAYS * 24 * 60 * 60 * 1000) } },
+          { pendingRenewalStartedAt: { lt: new Date(now.getTime() - SubscriptionService.BANK_DEBIT_GRACE_MS) } },
         ],
       },
       data: {

@@ -34,4 +34,16 @@ describe('PaymentCallbackPage', () => {
     expect(await screen.findByText('Subscription Activated!')).toBeInTheDocument()
     expect(apiClient.post).toHaveBeenCalledWith('/subscription/verify-payment', { reference: 'SUB-1' })
   })
+
+  it('tells the customer their plan is active while a bank payment is still processing', async () => {
+    ;(apiClient.post as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { data: { activated: false, pending: true } } })
+    render(
+      <MemoryRouter initialEntries={['/payment/callback?type=subscription&reference=SUB-2']}>
+        <PaymentCallbackPage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('Your plan is active')).toBeInTheDocument()
+    expect(screen.getByText(/within 24 hours/)).toBeInTheDocument()
+  })
 })
