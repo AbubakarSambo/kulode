@@ -181,8 +181,8 @@ export function BillingPage() {
 
   // Bank-account payment is for monthly plans only; switching to annual goes back to card.
   useEffect(() => {
-    if (billingPeriod === 'ANNUAL' && payWith === 'BANK') setPayWith('CARD')
-  }, [billingPeriod, payWith])
+    if (billingPeriod === 'ANNUAL' && payWith === 'BANK' && !subscription?.isTestAccount) setPayWith('CARD')
+  }, [billingPeriod, payWith, subscription?.isTestAccount])
 
   // Track page view once on mount
   useEffect(() => {
@@ -563,13 +563,19 @@ export function BillingPage() {
               </div>
             </div>
 
+            {subscription?.isTestAccount && subscription.testAccountPrice != null && (
+              <div className="mx-auto max-w-xl rounded-xl bg-amber-500/10 px-4 py-2 text-center text-xs font-semibold text-amber-700">
+                Test account: any plan costs {formatAmount(subscription.testAccountPrice)}, so real payments can be tried safely.
+              </div>
+            )}
+
             {/* How to pay: card, or a bank account (monthly plans) */}
             <div className="flex flex-col items-center gap-2 pt-1">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-slate-500">Pay with</span>
                 <div className="bg-[#eef4ff] dark:bg-slate-900 p-1 rounded-xl flex items-center">
                   {(['CARD', 'BANK'] as const).map((method) => {
-                    const disabled = method === 'BANK' && billingPeriod === 'ANNUAL'
+                    const disabled = method === 'BANK' && billingPeriod === 'ANNUAL' && !subscription?.isTestAccount
                     return (
                       <button
                         key={method}
@@ -587,7 +593,7 @@ export function BillingPage() {
                 </div>
               </div>
               <p className="text-[11px] text-slate-500 font-medium text-center max-w-md leading-relaxed">
-                {billingPeriod === 'ANNUAL'
+                {billingPeriod === 'ANNUAL' && !subscription?.isTestAccount
                   ? 'Annual plans are paid by card. Switch to Monthly to pay from a bank account.'
                   : payWith === 'BANK'
                     ? 'Your plan switches on right away. Your bank can take a few hours to confirm the payment; if it does not go through within 24 hours, the plan lapses.'
@@ -602,7 +608,7 @@ export function BillingPage() {
                   if (tier === 'FREE') return null
                   const isTrialing = subscription?.subscriptionStatus === 'TRIALING'
                   const isCurrent = !isTrialing && effectivePlan === tier
-                  const price = billingPeriod === 'MONTHLY' ? plan.price.monthly : plan.price.annual
+                  const price = subscription?.testAccountPrice ?? (billingPeriod === 'MONTHLY' ? plan.price.monthly : plan.price.annual)
                   const isUpgrade = !isCurrent
                   const planMaxUsers = PLAN_MAX_USERS[tier]
                   const activeUsers = subscription?.usage.activeUsers
