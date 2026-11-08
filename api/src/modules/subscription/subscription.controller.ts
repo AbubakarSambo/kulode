@@ -4,6 +4,7 @@ import {
   Post,
   Body,
   Patch,
+  Delete,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { SubscriptionService } from './subscription.service';
@@ -39,7 +40,34 @@ export class SubscriptionController {
       dto.planTier,
       dto.billingPeriod,
       email,
+      dto.paymentMethod ?? 'CARD',
     );
+  }
+
+  @Get('direct-debit/banks')
+  @ApiOperation({ summary: 'Banks that can be linked for bank-account renewals' })
+  async getDirectDebitBanks() {
+    return this.subscriptionService.getDirectDebitBanks();
+  }
+
+  // Linking a bank account lets us debit it on every renewal, so unlike starting an upgrade it
+  // stays with the account admins.
+  @Post('direct-debit/setup')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'Start linking a bank account for renewals (no payment is taken)' })
+  @ApiResponse({ status: 201, description: 'Paystack page where the bank account is linked' })
+  async setupDirectDebit(
+    @CurrentUser('organizationId') organizationId: string,
+    @CurrentUser('email') email: string,
+  ) {
+    return this.subscriptionService.setupDirectDebit(organizationId, email);
+  }
+
+  @Delete('direct-debit')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'Remove the linked bank account; renewals go back to the card' })
+  async removeDirectDebit(@CurrentUser('organizationId') organizationId: string) {
+    return this.subscriptionService.removeDirectDebit(organizationId);
   }
 
   @Patch('auto-renew')

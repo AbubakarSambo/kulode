@@ -17,6 +17,7 @@ function createMockPrisma() {
     organization: {
       findUnique: jest.fn(),
       findMany: jest.fn().mockResolvedValue([]),
+      findFirst: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
     },
@@ -72,6 +73,10 @@ describe('SubscriptionService', () => {
           provide: PaystackService,
           useValue: {
             chargeAuthorization: jest.fn(),
+            getTransactionStatus: jest.fn(),
+            initializeDirectDebitAuthorization: jest.fn(),
+            listDirectDebitBanks: jest.fn(),
+            deactivateAuthorization: jest.fn(),
           },
         },
         {
@@ -648,6 +653,7 @@ describe('SubscriptionService', () => {
           subscriptionStatus: { in: ['CANCELLED', 'ACTIVE'] },
           subscriptionEndDate: { lt: expect.any(Date) },
           isGrandfathered: false,
+          OR: [{ pendingRenewalReference: null }, { pendingRenewalStartedAt: { lt: expect.any(Date) } }],
         },
         data: {
           planTier: 'FREE',
@@ -657,7 +663,8 @@ describe('SubscriptionService', () => {
     });
 
     it("does not let one org's renewal failure block other orgs or the expiry sweep", async () => {
-      prisma.organization.findMany.mockResolvedValue([{ id: 'org-fail' }, { id: 'org-ok' }]);
+      // First findMany is the pending-bank-debit sweep (none); the second is the renewable orgs.
+      prisma.organization.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'org-fail' }, { id: 'org-ok' }]);
       // First org's renewal blows up on an unrelated DB hiccup; second org simply has nothing to
       // renew (renewSubscription returns false rather than throwing) — both must still be attempted.
       prisma.organization.findUnique
@@ -852,6 +859,392 @@ describe('SubscriptionService', () => {
           data: { planTier: 'FREE', subscriptionStatus: 'EXPIRED' },
         }),
       );
+    });
+  });
+
+  // ─── bank-account (Direct Debit) renewals ─────────────────────────
+
+  describe('bank-account renewals', () => {
+    const charge = () => paystackService.chargeAuthorization as jest.Mock;
+    const baseOrg = {
+      planTier: 'PRO',
+      billingPeriod: 'MONTHLY',
+      paystackAuthorizationCode: 'AUTH_card',
+      paystackBillingEmail: 'owner@example.com',
+      paystackCardType: 'visa',
+      paystackCardLast4: '4081',
+      directDebitStatus: 'ACTIVE',
+      directDebitAuthorizationCode: 'AUTH_bank',
+      directDebitEmail: 'admin@example.com',
+      pendingRenewalReference: null,
+    };
+    let activate: jest.SpyInstance;
+
+    beforeEach(() => {
+      activate = jest.spyOn(service, 'activateSubscription').mockResolvedValue(undefined);
+      prisma.organization.update.mockResolvedValue({});
+    });
+
+    it('charges the bank mandate first and leaves the saved card alone', async () => {
+      prisma.organization.findUnique.mockResolvedValue(baseOrg);
+      charge().mockResolvedValue({ success: true, pending: false, reference: 'R1', status: 'success' });
+
+      await expect(service.renewSubscription(ORG_ID)).resolves.toBe(true);
+
+      expect(charge()).toHaveBeenCalledTimes(1);
+      expect(charge().mock.calls[0].slice(0, 3)).toEqual(['admin@example.com', 3500000, 'AUTH_bank']);
+      expect(activate).toHaveBeenCalledWith(
+        ORG_ID, 'PRO', 'MONTHLY', 'R1', 35000,
+        undefined, undefined, undefined, undefined, { keepPaymentMethod: true },
+      );
+    });
+
+    it('treats a processing debit as in progress: no failure email, no card charge, marked pending', async () => {
+      prisma.user.findMany.mockResolvedValue([{ email: 'a@b.com', firstName: 'A', roles: ['SUPER_ADMIN'], organization: { posMode: 'RESTAURANT' } }]);
+      prisma.organization.findUnique.mockResolvedValue(baseOrg);
+      charge().mockResolvedValue({ success: false, pending: true, reference: 'R2', status: 'processing' });
+
+      await expect(service.renewSubscription(ORG_ID)).resolves.toBe(true);
+
+      expect(charge()).toHaveBeenCalledTimes(1);
+      expect(activate).not.toHaveBeenCalled();
+      expect(emailService.sendRenewalFailedEmail).not.toHaveBeenCalled();
+      expect(prisma.organization.update).toHaveBeenCalledWith({
+        where: { id: ORG_ID },
+        data: { pendingRenewalReference: 'R2', pendingRenewalStartedAt: expect.any(Date) },
+      });
+    });
+
+    it('falls back to the card when the bank debit fails outright', async () => {
+      prisma.organization.findUnique.mockResolvedValue(baseOrg);
+      charge()
+        .mockResolvedValueOnce({ success: false, pending: false, reference: 'R3', status: 'failed' })
+        .mockResolvedValueOnce({ success: true, pending: false, reference: 'R4', status: 'success' });
+
+      await expect(service.renewSubscription(ORG_ID)).resolves.toBe(true);
+
+      expect(charge()).toHaveBeenCalledTimes(2);
+      expect(charge().mock.calls[1][2]).toBe('AUTH_card');
+      expect(activate).toHaveBeenCalledWith(
+        ORG_ID, 'PRO', 'MONTHLY', 'R4', 35000, 'AUTH_card', 'owner@example.com', 'visa', '4081',
+      );
+    });
+
+    it('keeps annual renewals (over the bank-debit cap) on the card', async () => {
+      prisma.organization.findUnique.mockResolvedValue({ ...baseOrg, billingPeriod: 'ANNUAL' });
+      charge().mockResolvedValue({ success: true, pending: false, reference: 'R5', status: 'success' });
+
+      await service.renewSubscription(ORG_ID);
+
+      expect(charge()).toHaveBeenCalledTimes(1);
+      expect(charge().mock.calls[0][2]).toBe('AUTH_card');
+    });
+
+    it('does not charge again while an earlier bank debit is still settling', async () => {
+      prisma.organization.findUnique.mockResolvedValue({ ...baseOrg, pendingRenewalReference: 'R2' });
+
+      await expect(service.renewSubscription(ORG_ID)).resolves.toBe(false);
+
+      expect(charge()).not.toHaveBeenCalled();
+    });
+
+    it('does not use a mandate that is not active yet', async () => {
+      prisma.organization.findUnique.mockResolvedValue({ ...baseOrg, directDebitStatus: 'PENDING' });
+      charge().mockResolvedValue({ success: true, pending: false, reference: 'R6', status: 'success' });
+
+      await service.renewSubscription(ORG_ID);
+
+      expect(charge().mock.calls[0][2]).toBe('AUTH_card');
+    });
+
+    it('emails the admin when there is no usable payment method', async () => {
+      prisma.user.findMany.mockResolvedValue([{ email: 'a@b.com', firstName: 'A', roles: ['SUPER_ADMIN'], organization: { posMode: 'RESTAURANT' } }]);
+      prisma.organization.findUnique.mockResolvedValue({
+        ...baseOrg, paystackAuthorizationCode: null, directDebitStatus: null, directDebitAuthorizationCode: null,
+      });
+
+      await expect(service.renewSubscription(ORG_ID)).resolves.toBe(false);
+
+      expect(charge()).not.toHaveBeenCalled();
+      expect(emailService.sendRenewalFailedEmail).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('reconcilePendingRenewals', () => {
+    const status = () => paystackService.getTransactionStatus as jest.Mock;
+    const pendingOrg = (startedHoursAgo: number) => ({
+      id: ORG_ID,
+      planTier: 'PRO',
+      billingPeriod: 'MONTHLY',
+      pendingRenewalReference: 'R2',
+      pendingRenewalStartedAt: new Date(Date.now() - startedHoursAgo * 3600 * 1000),
+      paystackAuthorizationCode: 'AUTH_card',
+      paystackBillingEmail: 'owner@example.com',
+      paystackCardType: 'visa',
+      paystackCardLast4: '4081',
+    });
+    let activate: jest.SpyInstance;
+
+    beforeEach(() => {
+      activate = jest.spyOn(service, 'activateSubscription').mockResolvedValue(undefined);
+      prisma.organization.update.mockResolvedValue({});
+    });
+
+    it('activates a debit that has settled', async () => {
+      prisma.organization.findMany.mockResolvedValue([pendingOrg(5)]);
+      status().mockResolvedValue({ status: 'success', amount: 3500000 });
+
+      await service.reconcilePendingRenewals();
+
+      expect(activate).toHaveBeenCalledWith(
+        ORG_ID, 'PRO', 'MONTHLY', 'R2', 35000,
+        undefined, undefined, undefined, undefined, { keepPaymentMethod: true },
+      );
+    });
+
+    it('leaves a debit that is still settling alone', async () => {
+      prisma.organization.findMany.mockResolvedValue([pendingOrg(5)]);
+      status().mockResolvedValue({ status: 'processing', amount: 3500000 });
+
+      await service.reconcilePendingRenewals();
+
+      expect(activate).not.toHaveBeenCalled();
+      expect(prisma.organization.update).not.toHaveBeenCalled();
+    });
+
+    it('clears a failed debit and tries the card', async () => {
+      prisma.organization.findMany.mockResolvedValue([pendingOrg(5)]);
+      status().mockResolvedValue({ status: 'failed', amount: 3500000, gatewayResponse: 'Insufficient funds' });
+      (paystackService.chargeAuthorization as jest.Mock).mockResolvedValue({ success: true, pending: false, reference: 'R9', status: 'success' });
+
+      await service.reconcilePendingRenewals();
+
+      expect(prisma.organization.update).toHaveBeenCalledWith({
+        where: { id: ORG_ID },
+        data: { pendingRenewalReference: null, pendingRenewalStartedAt: null },
+      });
+      expect((paystackService.chargeAuthorization as jest.Mock).mock.calls[0][2]).toBe('AUTH_card');
+    });
+
+    it('gives up on a debit that has been settling for more than three days', async () => {
+      prisma.organization.findMany.mockResolvedValue([{ ...pendingOrg(24 * 4), paystackAuthorizationCode: null }]);
+      status().mockResolvedValue({ status: 'processing', amount: 3500000 });
+      prisma.user.findMany.mockResolvedValue([{ email: 'a@b.com', firstName: 'A', roles: ['SUPER_ADMIN'], organization: { posMode: 'RESTAURANT' } }]);
+
+      await service.reconcilePendingRenewals();
+
+      expect(emailService.sendRenewalFailedEmail).toHaveBeenCalledTimes(1);
+    });
+
+    it('does nothing when Paystack cannot be reached', async () => {
+      prisma.organization.findMany.mockResolvedValue([pendingOrg(5)]);
+      status().mockResolvedValue(null);
+
+      await service.reconcilePendingRenewals();
+
+      expect(activate).not.toHaveBeenCalled();
+      expect(prisma.organization.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('direct debit mandate', () => {
+    beforeEach(() => prisma.organization.update.mockResolvedValue({}));
+
+    it('starts a mandate and stores it as pending against the admin email', async () => {
+      prisma.organization.findUnique.mockResolvedValue({ subscriptionStatus: 'ACTIVE', isGrandfathered: false, directDebitStatus: null });
+      (paystackService.initializeDirectDebitAuthorization as jest.Mock).mockResolvedValue({ redirectUrl: 'https://link.paystack.com/x', reference: 'ref1' });
+
+      const result = await service.setupDirectDebit(ORG_ID, 'admin@example.com');
+
+      expect(result).toEqual({ paymentUrl: 'https://link.paystack.com/x', reference: 'ref1' });
+      expect(paystackService.initializeDirectDebitAuthorization).toHaveBeenCalledWith(
+        'admin@example.com',
+        'http://localhost:5173/payment/callback?type=direct_debit',
+      );
+      expect(prisma.organization.update).toHaveBeenCalledWith({
+        where: { id: ORG_ID },
+        data: expect.objectContaining({ directDebitStatus: 'PENDING', directDebitReference: 'ref1', directDebitEmail: 'admin@example.com' }),
+      });
+    });
+
+    it('requires an active paid plan first', async () => {
+      prisma.organization.findUnique.mockResolvedValue({ subscriptionStatus: 'TRIALING', isGrandfathered: false, directDebitStatus: null });
+
+      await expect(service.setupDirectDebit(ORG_ID, 'a@b.com')).rejects.toThrow(BadRequestException);
+      expect(paystackService.initializeDirectDebitAuthorization).not.toHaveBeenCalled();
+    });
+
+    it('will not replace a mandate that is already active', async () => {
+      prisma.organization.findUnique.mockResolvedValue({ subscriptionStatus: 'ACTIVE', isGrandfathered: false, directDebitStatus: 'ACTIVE' });
+
+      await expect(service.setupDirectDebit(ORG_ID, 'a@b.com')).rejects.toThrow(/already linked/);
+    });
+
+    it('marks the mandate active and stores its authorization when Paystack says so', async () => {
+      prisma.organization.findFirst.mockResolvedValue({ id: ORG_ID, directDebitEmail: 'admin@example.com' });
+
+      await service.handleDirectDebitEvent('direct_debit.authorization.active', {
+        reference: 'ref1',
+        authorization: { authorization_code: 'AUTH_bank', bank: 'Zenith Bank', account_number: '0123456789' },
+        customer: { email: 'admin@example.com' },
+      });
+
+      expect(prisma.organization.update).toHaveBeenCalledWith({
+        where: { id: ORG_ID },
+        data: {
+          directDebitStatus: 'ACTIVE',
+          directDebitAuthorizationCode: 'AUTH_bank',
+          directDebitEmail: 'admin@example.com',
+          directDebitBankName: 'Zenith Bank',
+          directDebitAccountLast4: '6789',
+        },
+      });
+    });
+
+    it('ignores a mandate event that matches no organization', async () => {
+      prisma.organization.findFirst.mockResolvedValue(null);
+
+      await service.handleDirectDebitEvent('direct_debit.authorization.active', { reference: 'nope' });
+
+      expect(prisma.organization.update).not.toHaveBeenCalled();
+    });
+
+    it('removes the mandate at Paystack and locally', async () => {
+      prisma.organization.findUnique.mockResolvedValue({ directDebitAuthorizationCode: 'AUTH_bank' });
+
+      await service.removeDirectDebit(ORG_ID);
+
+      expect(paystackService.deactivateAuthorization).toHaveBeenCalledWith('AUTH_bank');
+      expect(prisma.organization.update).toHaveBeenCalledWith({
+        where: { id: ORG_ID },
+        data: expect.objectContaining({ directDebitStatus: null, directDebitAuthorizationCode: null }),
+      });
+    });
+  });
+
+  // ─── first payment by bank account, with a grace period ───────────
+
+  describe('first payment by bank account', () => {
+    const okInit = { status: true, data: { authorization_url: 'https://checkout.paystack.com/x', reference: 'ref-bank', access_code: 'ac' } };
+
+    it('opens bank-only checkout for a monthly plan and records the mandate as pending', async () => {
+      mockFetch.mockResolvedValue({ json: async () => okInit });
+      prisma.user.count.mockResolvedValue(1);
+      prisma.organization.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await service.subscribe(ORG_ID, 'PRO', 'MONTHLY', 'admin@example.com', 'BANK');
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.channels).toEqual(['direct_debit']);
+      expect(body.metadata.payment_method).toBe('BANK');
+      expect(result.paymentUrl).toBe('https://checkout.paystack.com/x');
+      expect(prisma.organization.updateMany).toHaveBeenCalledWith({
+        where: { id: ORG_ID, OR: [{ directDebitStatus: null }, { directDebitStatus: { not: 'ACTIVE' } }] },
+        data: { directDebitStatus: 'PENDING', directDebitEmail: 'admin@example.com', directDebitReference: 'ref-bank' },
+      });
+    });
+
+    it('does not offer bank payment for an annual plan above the cap', async () => {
+      prisma.user.count.mockResolvedValue(1);
+
+      await expect(service.subscribe(ORG_ID, 'PRO', 'ANNUAL', 'a@b.com', 'BANK')).rejects.toThrow(/by card/);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('still pays by card by default', async () => {
+      mockFetch.mockResolvedValue({ json: async () => okInit });
+      prisma.user.count.mockResolvedValue(1);
+
+      await service.subscribe(ORG_ID, 'PRO', 'MONTHLY', 'a@b.com');
+
+      expect(JSON.parse(mockFetch.mock.calls[0][1].body).channels).toEqual(['card']);
+      expect(prisma.organization.updateMany).not.toHaveBeenCalled();
+    });
+
+    const verifyResponse = (status: string, paymentMethod = 'BANK', extra: object = {}) => ({
+      json: async () => ({
+        status: true,
+        data: {
+          status,
+          amount: 3500000,
+          metadata: { type: 'subscription', organization_id: ORG_ID, plan_tier: 'PRO', billing_period: 'MONTHLY', payment_method: paymentMethod },
+          customer: { email: 'admin@example.com' },
+          ...extra,
+        },
+      }),
+    });
+
+    it('turns the plan on for a 24 hour grace while a first bank payment is processing', async () => {
+      mockFetch.mockResolvedValue(verifyResponse('processing'));
+      prisma.organization.findUnique.mockResolvedValue({ pendingRenewalReference: null, subscriptionEndDate: null, subscriptionStatus: 'TRIALING' });
+      prisma.organization.update.mockResolvedValue({});
+
+      const before = Date.now();
+      const result = await service.verifyAndActivatePayment(ORG_ID, 'ref-bank');
+
+      expect(result).toMatchObject({ activated: false, pending: true, graceHours: 24 });
+      const data = prisma.organization.update.mock.calls[0][0].data;
+      expect(data).toMatchObject({ planTier: 'PRO', subscriptionStatus: 'ACTIVE', billingPeriod: 'MONTHLY', pendingRenewalReference: 'ref-bank' });
+      expect(data.subscriptionEndDate.getTime() - before).toBeGreaterThan(23.9 * 3600 * 1000);
+      expect(data.subscriptionEndDate.getTime() - before).toBeLessThan(24.1 * 3600 * 1000);
+    });
+
+    it('does not shorten time an active org has already paid for when upgrading by bank', async () => {
+      const paidUntil = new Date(Date.now() + 20 * 24 * 3600 * 1000);
+      mockFetch.mockResolvedValue(verifyResponse('processing'));
+      prisma.organization.findUnique.mockResolvedValue({ pendingRenewalReference: null, subscriptionEndDate: paidUntil, subscriptionStatus: 'ACTIVE' });
+      prisma.organization.update.mockResolvedValue({});
+
+      await service.verifyAndActivatePayment(ORG_ID, 'ref-bank');
+
+      expect(prisma.organization.update.mock.calls[0][0].data.subscriptionEndDate).toBe(paidUntil);
+    });
+
+    it('does not grant grace twice for the same payment', async () => {
+      mockFetch.mockResolvedValue(verifyResponse('processing'));
+      prisma.organization.findUnique.mockResolvedValue({ pendingRenewalReference: 'ref-bank', subscriptionEndDate: null, subscriptionStatus: 'ACTIVE' });
+
+      await service.verifyAndActivatePayment(ORG_ID, 'ref-bank');
+
+      expect(prisma.organization.update).not.toHaveBeenCalled();
+    });
+
+    it('does not treat a processing card payment as paid', async () => {
+      mockFetch.mockResolvedValue(verifyResponse('processing', 'CARD'));
+
+      await expect(service.verifyAndActivatePayment(ORG_ID, 'ref-card')).rejects.toThrow('Payment verification failed');
+      expect(prisma.organization.update).not.toHaveBeenCalled();
+    });
+
+    it('still rejects a failed payment', async () => {
+      mockFetch.mockResolvedValue(verifyResponse('failed'));
+
+      await expect(service.verifyAndActivatePayment(ORG_ID, 'ref-bank')).rejects.toThrow('Payment verification failed');
+    });
+
+    it('keeps the bank mandate (and not a card) when a first bank payment succeeds', async () => {
+      const activate = jest.spyOn(service, 'activateSubscription').mockResolvedValue(undefined);
+      prisma.organization.update.mockResolvedValue({});
+      mockFetch.mockResolvedValue(
+        verifyResponse('success', 'BANK', { authorization: { authorization_code: 'AUTH_bank', reusable: true, channel: 'direct_debit', bank: 'Zenith Bank', last4: '6789' } }),
+      );
+
+      await service.verifyAndActivatePayment(ORG_ID, 'ref-bank');
+
+      expect(activate).toHaveBeenCalledWith(
+        ORG_ID, 'PRO', 'MONTHLY', 'ref-bank', 35000,
+        undefined, undefined, undefined, undefined, { keepPaymentMethod: true },
+      );
+      expect(prisma.organization.update).toHaveBeenCalledWith({
+        where: { id: ORG_ID },
+        data: {
+          directDebitStatus: 'ACTIVE',
+          directDebitAuthorizationCode: 'AUTH_bank',
+          directDebitEmail: 'admin@example.com',
+          directDebitBankName: 'Zenith Bank',
+          directDebitAccountLast4: '6789',
+        },
+      });
     });
   });
 });

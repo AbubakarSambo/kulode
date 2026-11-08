@@ -101,11 +101,21 @@ export class PaystackController {
 
     const { event, data } = req.body;
     this.logger.log(`Received Paystack webhook: event=${event}, reference=${data?.reference ?? 'unknown'}`);
+
+    // Bank-account (Direct Debit) mandates: created / active / revoked. Not payments, so they
+    // never reach the charge reconciliation below.
+    if (typeof event === 'string' && event.startsWith('direct_debit.')) {
+      await this.subscriptionService.handleDirectDebitEvent(event, data);
+      return { received: true };
+    }
+
     const result = await this.paystackService.handleWebhookEvent(event, data);
 
     // Route subscription webhooks to SubscriptionService
     if (result.type === 'subscription' && result.metadata) {
       const { organization_id, plan_tier, billing_period } = result.metadata;
+      const isBankDebit =
+        result.authorization?.channel === 'direct_debit' || result.authorization?.card_type === 'mandate';
       if (organization_id && plan_tier && billing_period) {
         await this.subscriptionService.activateSubscription(
           organization_id,
@@ -113,11 +123,16 @@ export class PaystackController {
           billing_period,
           result.reference,
           result.amount / 100, // Convert from kobo
-          result.authorization?.reusable ? result.authorization.authorization_code : undefined,
-          result.customerEmail,
-          result.authorization?.card_type,
-          result.authorization?.last4,
+          // A renewal paid by bank debit must not overwrite the saved card with the mandate.
+          isBankDebit ? undefined : result.authorization?.reusable ? result.authorization.authorization_code : undefined,
+          isBankDebit ? undefined : result.customerEmail,
+          isBankDebit ? undefined : result.authorization?.card_type,
+          isBankDebit ? undefined : result.authorization?.last4,
+          { keepPaymentMethod: isBankDebit },
         );
+        if (isBankDebit) {
+          await this.subscriptionService.saveBankMandateFromCharge(organization_id, result.authorization, result.customerEmail);
+        }
       }
     }
 

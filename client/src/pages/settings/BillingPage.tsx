@@ -96,6 +96,7 @@ export function BillingPage() {
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('MONTHLY')
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [subscribingPlan, setSubscribingPlan] = useState<PlanTier | null>(null)
+  const [payWith, setPayWith] = useState<'CARD' | 'BANK'>('CARD')
 
   const { data: paymentHistory } = useQuery({
     queryKey: ['subscription', 'payment-history'],
@@ -103,10 +104,10 @@ export function BillingPage() {
   })
 
   const subscribeMutation = useMutation({
-    mutationFn: ({ planTier, period }: { planTier: PlanTier; period: BillingPeriod }) =>
-      subscriptionApi.subscribe(planTier, period),
+    mutationFn: ({ planTier, period, method }: { planTier: PlanTier; period: BillingPeriod; method: 'CARD' | 'BANK' }) =>
+      subscriptionApi.subscribe(planTier, period, method),
     onSuccess: (data) => {
-      posthog.capture('subscription_plan_change_initiated', { plan: subscribingPlan, period: billingPeriod })
+      posthog.capture('subscription_plan_change_initiated', { plan: subscribingPlan, period: billingPeriod, method: payWith })
       window.location.href = data.paymentUrl
     },
     onError: () => {
@@ -144,8 +145,44 @@ export function BillingPage() {
 
   const handleSubscribe = (planTier: PlanTier) => {
     setSubscribingPlan(planTier)
-    subscribeMutation.mutate({ planTier, period: billingPeriod })
+    subscribeMutation.mutate({ planTier, period: billingPeriod, method: payWith })
   }
+
+  const [showBanks, setShowBanks] = useState(false)
+  const { data: directDebitBanks } = useQuery({
+    queryKey: ['subscription', 'direct-debit-banks'],
+    queryFn: subscriptionApi.getDirectDebitBanks,
+    enabled: showBanks,
+    staleTime: 60 * 60 * 1000,
+  })
+
+  const setupDirectDebitMutation = useMutation({
+    mutationFn: subscriptionApi.setupDirectDebit,
+    onSuccess: (data) => {
+      posthog.capture('direct_debit_setup_started')
+      window.location.href = data.paymentUrl
+    },
+    onError: (error: { response?: { data?: { message?: string } } }) => {
+      toast.error(error?.response?.data?.message || 'Could not start linking your bank account. Please try again.')
+    },
+  })
+
+  const removeDirectDebitMutation = useMutation({
+    mutationFn: subscriptionApi.removeDirectDebit,
+    onSuccess: (data) => {
+      posthog.capture('direct_debit_removed')
+      toast.success(data.message)
+      queryClient.invalidateQueries({ queryKey: ['subscription'] })
+    },
+    onError: () => {
+      toast.error('Could not remove the bank account. Please try again.')
+    },
+  })
+
+  // Bank-account payment is for monthly plans only; switching to annual goes back to card.
+  useEffect(() => {
+    if (billingPeriod === 'ANNUAL' && payWith === 'BANK') setPayWith('CARD')
+  }, [billingPeriod, payWith])
 
   // Track page view once on mount
   useEffect(() => {
@@ -380,6 +417,111 @@ export function BillingPage() {
           </Card>
         )}
 
+        {/* Renewal payment method: card, or a linked bank account (admins only) */}
+        {isAdmin && subscription && subscription.subscriptionStatus === 'ACTIVE' && !isGrandfathered && subscription.paymentMethods && (() => {
+          const pm = subscription.paymentMethods
+          const dd = pm.directDebit
+          const bankLabel = dd?.bankName ? `${dd.bankName}${dd.last4 ? ` •••• ${dd.last4}` : ''}` : 'Your bank account'
+          const annualOnCard = subscription.billingPeriod === 'ANNUAL'
+          return (
+            <Card className="rounded-[24px] border-0 shadow-[0_12px_32px_rgba(0,55,176,0.04)] overflow-hidden">
+              <CardContent className="p-6 space-y-5">
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">Renewal payment method</h4>
+                  <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                    Link a bank account and we will take monthly renewals from it. If a debit ever fails, we fall back to your card.
+                    {' '}Annual plans (over {formatAmount(pm.directDebitMaxAmount)}) always renew from your card.
+                  </p>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-100 dark:border-slate-800 p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Card</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">
+                      {pm.card ? `${pm.card.type ? pm.card.type.charAt(0).toUpperCase() + pm.card.type.slice(1) : 'Card'}${pm.card.last4 ? ` •••• ${pm.card.last4}` : ''}` : 'No card saved'}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-100 dark:border-slate-800 p-4 space-y-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Bank account</p>
+                    {!dd || dd.status === 'REVOKED' ? (
+                      <>
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                          {dd?.status === 'REVOKED' ? 'Your bank account was revoked' : 'Not linked'}
+                        </p>
+                        <button
+                          onClick={() => setupDirectDebitMutation.mutate()}
+                          disabled={setupDirectDebitMutation.isPending}
+                          className="text-xs font-semibold text-[#0037b0] hover:underline cursor-pointer min-h-[36px] disabled:opacity-60"
+                        >
+                          {setupDirectDebitMutation.isPending ? 'Opening Paystack…' : 'Use a bank account for renewals'}
+                        </button>
+                      </>
+                    ) : dd.status === 'PENDING' ? (
+                      <>
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Waiting for your bank to confirm</p>
+                        <p className="text-[11px] text-slate-500 font-medium">This can take a few hours. We will use it once it is confirmed.</p>
+                        <div className="flex gap-4">
+                          <button
+                            onClick={() => setupDirectDebitMutation.mutate()}
+                            disabled={setupDirectDebitMutation.isPending}
+                            className="text-xs font-semibold text-[#0037b0] hover:underline cursor-pointer min-h-[36px] disabled:opacity-60"
+                          >
+                            Start again
+                          </button>
+                          <button
+                            onClick={() => removeDirectDebitMutation.mutate()}
+                            disabled={removeDirectDebitMutation.isPending}
+                            className="text-xs font-semibold text-rose-500 hover:underline cursor-pointer min-h-[36px] disabled:opacity-60"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{bankLabel}</p>
+                        <Badge className="bg-[#6ffbbe] text-[#006c49] text-[9px] font-bold px-2 py-0.5 border-0">
+                          {annualOnCard ? 'Active · annual plan uses card' : 'Active · used for renewals'}
+                        </Badge>
+                        <div>
+                          <button
+                            onClick={() => removeDirectDebitMutation.mutate()}
+                            disabled={removeDirectDebitMutation.isPending}
+                            className="text-xs font-semibold text-rose-500 hover:underline cursor-pointer min-h-[36px] disabled:opacity-60"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {pm.renewalPending && (
+                  <p className="text-xs font-medium text-amber-700 bg-amber-500/10 rounded-xl px-3 py-2">
+                    A renewal payment from your bank is processing. Your plan stays active while it settles.
+                  </p>
+                )}
+
+                <div>
+                  <button
+                    onClick={() => setShowBanks((v) => !v)}
+                    className="text-[11px] font-semibold text-slate-500 hover:text-slate-700 cursor-pointer"
+                  >
+                    {showBanks ? 'Hide supported banks' : 'See supported banks'}
+                  </button>
+                  {showBanks && (
+                    <p className="mt-2 text-[11px] text-slate-500 leading-relaxed font-medium">
+                      {directDebitBanks ? directDebitBanks.map((b) => b.name).join(', ') : 'Loading…'}
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })()}
+
         {/* Plan pricing tables header */}
         {!isGrandfathered && (
           <div className="pt-8 space-y-4">
@@ -419,6 +561,38 @@ export function BillingPage() {
                   </span>
                 </button>
               </div>
+            </div>
+
+            {/* How to pay: card, or a bank account (monthly plans) */}
+            <div className="flex flex-col items-center gap-2 pt-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-slate-500">Pay with</span>
+                <div className="bg-[#eef4ff] dark:bg-slate-900 p-1 rounded-xl flex items-center">
+                  {(['CARD', 'BANK'] as const).map((method) => {
+                    const disabled = method === 'BANK' && billingPeriod === 'ANNUAL'
+                    return (
+                      <button
+                        key={method}
+                        onClick={() => setPayWith(method)}
+                        disabled={disabled}
+                        className={cn(
+                          'py-1.5 px-4 text-xs font-semibold rounded-lg transition-all cursor-pointer min-h-[36px] disabled:opacity-40 disabled:cursor-not-allowed',
+                          payWith === method ? 'bg-[#0037b0] text-white shadow-sm font-bold' : 'text-slate-600 dark:text-slate-400',
+                        )}
+                      >
+                        {method === 'CARD' ? 'Card' : 'Bank account'}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium text-center max-w-md leading-relaxed">
+                {billingPeriod === 'ANNUAL'
+                  ? 'Annual plans are paid by card. Switch to Monthly to pay from a bank account.'
+                  : payWith === 'BANK'
+                    ? 'Your plan switches on right away. Your bank can take a few hours to confirm the payment; if it does not go through within 24 hours, the plan lapses.'
+                    : 'Pay by card, or choose Bank account to be debited from your bank.'}
+              </p>
             </div>
 
             {/* Redesigned Pricing cards grid */}

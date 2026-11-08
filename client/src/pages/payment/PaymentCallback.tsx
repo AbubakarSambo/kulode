@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui'
 import apiClient from '@/api/client'
 import { posthog } from '@/lib/posthog'
 
-type PaymentStatus = 'loading' | 'success' | 'failed'
+type PaymentStatus = 'loading' | 'success' | 'failed' | 'processing'
 
 interface VerificationResult {
   status: string
@@ -22,8 +22,12 @@ export function PaymentCallbackPage() {
 
   const reference = searchParams.get('reference') || searchParams.get('trxref')
   const isSubscription = searchParams.get('type') === 'subscription'
+  // Linking a bank account takes no payment, so there is nothing to verify here: the bank confirms
+  // the mandate in its own time and Paystack tells our server when it is ready.
+  const isDirectDebit = searchParams.get('type') === 'direct_debit'
 
   useEffect(() => {
+    if (isDirectDebit) return
     const verifyPayment = async () => {
       if (!reference) {
         setStatus('failed')
@@ -34,9 +38,16 @@ export function PaymentCallbackPage() {
         if (isSubscription) {
           // For subscription payments, verify and activate via our API
           // This handles the case where the webhook hasn't fired yet (e.g. local dev)
-          await apiClient.post('/subscription/verify-payment', { reference })
-          setStatus('success')
-          posthog.capture('subscription_activated', { reference })
+          const response = await apiClient.post('/subscription/verify-payment', { reference })
+          // A bank-account payment is still settling: the plan is switched on for a short grace
+          // and confirms by itself once the bank completes the debit.
+          if (response?.data?.data?.pending) {
+            setStatus('processing')
+            posthog.capture('subscription_bank_payment_processing', { reference })
+          } else {
+            setStatus('success')
+            posthog.capture('subscription_activated', { reference })
+          }
         } else {
           // Verify the transaction with Paystack via our API
           const response = await apiClient.get(`/paystack/verify/${reference}`)
@@ -59,7 +70,31 @@ export function PaymentCallbackPage() {
     }
 
     verifyPayment()
-  }, [reference, isSubscription])
+  }, [reference, isSubscription, isDirectDebit])
+
+  if (isDirectDebit) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 text-center">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-success/10">
+              <CheckCircle className="h-12 w-12 text-success" />
+            </div>
+            <h1 className="mt-4 text-2xl font-semibold text-success">Bank account submitted</h1>
+            <p className="mt-2 text-muted-foreground">
+              Your bank may take a few hours to confirm it. Once it does, your renewals will be taken from
+              this account. You don't need to do anything else.
+            </p>
+            <p className="mt-6 text-sm">
+              <a href="/settings/billing" className="font-medium text-primary hover:underline">
+                Back to Billing
+              </a>
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
@@ -71,6 +106,24 @@ export function PaymentCallbackPage() {
               <h1 className="mt-4 text-xl font-semibold">Verifying Payment</h1>
               <p className="mt-2 text-muted-foreground">
                 Please wait while we confirm your payment...
+              </p>
+            </div>
+          )}
+
+          {status === 'processing' && (
+            <div className="text-center">
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-success/10">
+                <CheckCircle className="h-12 w-12 text-success" />
+              </div>
+              <h1 className="mt-4 text-2xl font-semibold text-success">Your plan is active</h1>
+              <p className="mt-2 text-muted-foreground">
+                Your bank is still processing the payment, which can take a few hours. You can use your plan
+                now. If the payment has not gone through within 24 hours, your plan will lapse.
+              </p>
+              <p className="mt-6 text-sm">
+                <a href="/dashboard" className="font-medium text-primary hover:underline">
+                  Go to Dashboard
+                </a>
               </p>
             </div>
           )}
