@@ -5,7 +5,19 @@ import { Card, CardContent } from '@/components/ui'
 import apiClient from '@/api/client'
 import { posthog } from '@/lib/posthog'
 
-type PaymentStatus = 'loading' | 'success' | 'failed' | 'processing'
+type PaymentStatus = 'loading' | 'success' | 'failed' | 'processing' | 'unconfirmed'
+
+// Verification can fail for reasons that say nothing about the payment (network blip, expired
+// session, server error). Retry a few times, then say plainly that we could not confirm it —
+// never show a success screen for a payment we have not confirmed.
+const VERIFY_ATTEMPTS = 3
+const VERIFY_RETRY_DELAY_MS = 2000
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// A 400 is the API saying the payment itself did not verify, which is a real answer, not an outage.
+const isDefinitiveFailure = (error: unknown) =>
+  (error as { response?: { status?: number } })?.response?.status === 400
 
 interface VerificationResult {
   status: string
@@ -34,38 +46,49 @@ export function PaymentCallbackPage() {
         return
       }
 
-      try {
-        if (isSubscription) {
-          // For subscription payments, verify and activate via our API
-          // This handles the case where the webhook hasn't fired yet (e.g. local dev)
-          const response = await apiClient.post('/subscription/verify-payment', { reference })
-          // A bank-account payment is still settling: the plan is switched on for a short grace
-          // and confirms by itself once the bank completes the debit.
-          if (response?.data?.data?.pending) {
-            setStatus('processing')
-            posthog.capture('subscription_bank_payment_processing', { reference })
+      for (let attempt = 1; attempt <= VERIFY_ATTEMPTS; attempt++) {
+        try {
+          if (isSubscription) {
+            // Verify and activate via our API. This is the path that records the payment when the
+            // Paystack webhook has not (or cannot) reach us.
+            const response = await apiClient.post('/subscription/verify-payment', { reference })
+            // A bank-account payment is still settling: the plan is switched on for a short grace
+            // and confirms by itself once the bank completes the debit.
+            if (response?.data?.data?.pending) {
+              setStatus('processing')
+              posthog.capture('subscription_bank_payment_processing', { reference })
+            } else {
+              setStatus('success')
+              posthog.capture('subscription_activated', { reference })
+            }
           } else {
-            setStatus('success')
-            posthog.capture('subscription_activated', { reference })
-          }
-        } else {
-          // Verify the transaction with Paystack via our API
-          const response = await apiClient.get(`/paystack/verify/${reference}`)
-          const data = response.data.data
+            // Verify the transaction with Paystack via our API
+            const response = await apiClient.get(`/paystack/verify/${reference}`)
+            const data = response.data.data
 
-          if (data.status === 'success') {
-            setStatus('success')
-            setDetails(data)
-            posthog.capture('payment_callback_received', { status: 'success', reference })
-          } else {
+            if (data.status === 'success') {
+              setStatus('success')
+              setDetails(data)
+              posthog.capture('payment_callback_received', { status: 'success', reference })
+            } else {
+              setStatus('failed')
+              posthog.capture('payment_callback_received', { status: 'failed', reference })
+            }
+          }
+          return
+        } catch (error) {
+          if (isDefinitiveFailure(error)) {
             setStatus('failed')
             posthog.capture('payment_callback_received', { status: 'failed', reference })
+            return
+          }
+          if (attempt < VERIFY_ATTEMPTS) {
+            await sleep(VERIFY_RETRY_DELAY_MS)
+          } else {
+            setStatus('unconfirmed')
+            posthog.capture('payment_callback_unconfirmed', { reference, subscription: isSubscription })
           }
         }
-      } catch (error) {
-        // Even if verification fails, the webhook will handle recording
-        // Show success if we have a reference (payment likely went through)
-        setStatus('success')
       }
     }
 
@@ -167,6 +190,28 @@ export function PaymentCallbackPage() {
                 ) : (
                   'You can close this window now.'
                 )}
+              </p>
+            </div>
+          )}
+
+          {status === 'unconfirmed' && (
+            <div className="text-center">
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-warning/10">
+                <Loader2 className="h-12 w-12 text-warning" />
+              </div>
+              <h1 className="mt-4 text-2xl font-semibold">We're still confirming your payment</h1>
+              <p className="mt-2 text-muted-foreground">
+                We couldn't confirm your payment just now, so it isn't showing on your account yet. If money
+                was deducted, please{' '}
+                <a href="mailto:abubakar.sambo@tarione.com" className="underline hover:text-foreground">
+                  contact support
+                </a>{' '}
+                with reference: <span className="font-mono">{reference || 'N/A'}</span>
+              </p>
+              <p className="mt-6 text-sm">
+                <button type="button" onClick={() => window.location.reload()} className="font-medium text-primary hover:underline">
+                  Try again
+                </button>
               </p>
             </div>
           )}
