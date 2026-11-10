@@ -1,0 +1,70 @@
+name: Print agent
+
+# Builds the Windows print agent installer, then installs it on the runner and proves a print
+# end to end against a stand-in API and printer. On main, publishes the installer to the
+# "print-agent-latest" release — the file Settings > Printers links to.
+
+on:
+  push:
+    branches: [main, staging]
+    paths: ['print-agent/**', '.github/workflows/print-agent.yml']
+  pull_request:
+    paths: ['print-agent/**', '.github/workflows/print-agent.yml']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: print-agent
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Package the agent
+        run: node build/build.js
+
+      - name: Test the packaged agent
+        run: node build/smoke-test.js --exe dist/TarionePrintAgent.exe
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup --no-progress -y }
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          & $iscc "/DAppVersion=$version" installer\TarionePrintAgent.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Install it and test a print
+        run: node build/smoke-test.js --installer dist/TarionePrintAgentSetup.exe
+
+      - name: Show the installer log if anything failed
+        if: failure()
+        shell: pwsh
+        run: |
+          Get-Content "$env:TEMP\tarione-agent-install.log" -ErrorAction SilentlyContinue | Select-Object -Last 80
+          Get-Content "$env:LOCALAPPDATA\Programs\Tarione Print Agent\agent.log" -ErrorAction SilentlyContinue
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TarionePrintAgentSetup
+          path: print-agent/dist/TarionePrintAgentSetup.exe
+
+      - name: Publish the installer
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view print-agent-latest 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create print-agent-latest --latest=false --title "Tarione Print Agent" --notes "Windows installer for the Tarione print agent. Download it from Settings > Printers in Tarione."
+          }
+          gh release upload print-agent-latest dist/TarionePrintAgentSetup.exe --clobber

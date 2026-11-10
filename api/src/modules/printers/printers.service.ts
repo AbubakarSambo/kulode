@@ -1,7 +1,29 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { AGENT_ONLINE_WINDOW_MS } from './print-agent.guard';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePrinterDto, UpdatePrinterDto, SetPrinterCategoriesDto } from './dto';
+
+const PAIRING_CODE_TTL_MS = 15 * 60 * 1000;
+// No 0/O, 1/I/L — the code is read off one screen and typed into another.
+const PAIRING_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const PAIRING_CODE_LENGTH = 8;
+
+function generatePairingCode(): string {
+  const bytes = randomBytes(PAIRING_CODE_LENGTH);
+  let code = '';
+  for (let i = 0; i < PAIRING_CODE_LENGTH; i++) code += PAIRING_ALPHABET[bytes[i] % PAIRING_ALPHABET.length];
+  return code;
+}
+
+/** Shown as XXXX-XXXX; the dash, spaces and letter case are ignored when it's typed back. */
+function formatPairingCode(code: string): string {
+  return `${code.slice(0, 4)}-${code.slice(4)}`;
+}
+
+export function normalizePairingCode(raw: string): string {
+  return (raw ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
 
 @Injectable()
 export class PrintersService {
@@ -108,9 +130,56 @@ export class PrintersService {
   async getAgentStatus(organizationId: string) {
     const organization = await this.prisma.organization.findUniqueOrThrow({
       where: { id: organizationId },
-      select: { printAgentToken: true },
+      select: { printAgentToken: true, printAgentLastSeenAt: true },
     });
-    return { hasToken: !!organization.printAgentToken };
+    const lastSeenAt = organization.printAgentLastSeenAt;
+    return {
+      hasToken: !!organization.printAgentToken,
+      lastSeenAt,
+      online: !!lastSeenAt && Date.now() - lastSeenAt.getTime() < AGENT_ONLINE_WINDOW_MS,
+    };
+  }
+
+  // A code the admin types into the print agent installer. Short-lived and single-use; asking
+  // for a new one replaces any code still outstanding.
+  async createPairingCode(organizationId: string): Promise<{ code: string; expiresAt: Date }> {
+    const expiresAt = new Date(Date.now() + PAIRING_CODE_TTL_MS);
+    // A collision with another org's live code is vanishingly unlikely, but the column is
+    // unique, so retry rather than fail.
+    for (let attempt = 0; ; attempt++) {
+      const code = generatePairingCode();
+      try {
+        await this.prisma.organization.update({
+          where: { id: organizationId },
+          data: { printAgentPairingCode: code, printAgentPairingExpiresAt: expiresAt },
+        });
+        return { code: formatPairingCode(code), expiresAt };
+      } catch (err) {
+        if (attempt >= 3 || (err as { code?: string }).code !== 'P2002') throw err;
+      }
+    }
+  }
+
+  // Called by the agent itself (no user session). Hands back the org's existing token when it
+  // has one — a second PC pairing, or a reinstall, must not disconnect agents already running.
+  async redeemPairingCode(rawCode: string): Promise<{ token: string; organizationName: string }> {
+    const code = normalizePairingCode(rawCode);
+    const organization = code
+      ? await this.prisma.organization.findFirst({
+          where: { printAgentPairingCode: code, printAgentPairingExpiresAt: { gt: new Date() } },
+          select: { id: true, name: true, printAgentToken: true },
+        })
+      : null;
+    if (!organization) {
+      throw new NotFoundException('That pairing code is not valid or has expired. Get a new one from Settings > Printers.');
+    }
+
+    const token = organization.printAgentToken ?? randomBytes(32).toString('hex');
+    await this.prisma.organization.update({
+      where: { id: organization.id },
+      data: { printAgentToken: token, printAgentPairingCode: null, printAgentPairingExpiresAt: null },
+    });
+    return { token, organizationName: organization.name };
   }
 
   // Returns the plaintext token exactly once — the caller (settings UI) must show/copy it

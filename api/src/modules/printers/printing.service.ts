@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface DocketOrderContext {
@@ -150,6 +150,51 @@ export class PrintingService {
           `${items.length} item(s) on order ${order.id} — check printer category routing`,
       );
     }
+  }
+
+  // Queues a small test page for one printer, so whoever is setting up can prove the whole
+  // chain (Tarione > agent > printer) without placing an order. Returns the job id so the
+  // settings page can watch for the agent's result.
+  async queueTestPrint(organizationId: string, printerId: string): Promise<{ jobId: string }> {
+    const printer = await this.prisma.printer.findFirst({ where: { id: printerId, organizationId } });
+    if (!printer) throw new NotFoundException('Printer not found');
+
+    const text = [
+      INIT,
+      CENTER, BOLD_ON, DOUBLE_HEIGHT_ON, 'TEST PRINT\n', DOUBLE_HEIGHT_OFF, BOLD_OFF,
+      '\n',
+      `${printer.name}\n`,
+      `${printer.station}\n`,
+      `${new Date().toLocaleString('en-GB', { timeZone: 'Africa/Lagos' })}\n`,
+      '\n',
+      'If you can read this, the printer\n',
+      'is set up correctly.\n',
+      LEFT,
+      FEED_LINES,
+      CUT,
+    ].join('');
+
+    const job = await this.prisma.printJob.create({
+      data: {
+        printerId: printer.id,
+        payload: {
+          type: 'TEST',
+          station: printer.station,
+          printedAt: new Date().toISOString(),
+          escposText: Buffer.from(text, 'binary').toString('base64'),
+        },
+      },
+    });
+    return { jobId: job.id };
+  }
+
+  async getJobStatus(organizationId: string, jobId: string) {
+    const job = await this.prisma.printJob.findFirst({
+      where: { id: jobId, printer: { organizationId } },
+      select: { id: true, status: true, error: true },
+    });
+    if (!job) throw new NotFoundException('Print job not found');
+    return job;
   }
 
   // Re-queues a previously failed job so the agent picks it up on its next poll — used by the

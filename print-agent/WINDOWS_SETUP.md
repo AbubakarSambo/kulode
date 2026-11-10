@@ -1,5 +1,9 @@
 # Running the Print Agent on Windows (Scheduled Task method)
 
+> **Use the installer instead** — see "Windows: use the installer" in [README.md](./README.md).
+> It replaces every step on this page. This page is kept as the fallback for a PC where the
+> installer can't be used.
+
 This is the method that ended up working reliably for keeping `agent.js` running on a
 Windows PC, after `pnpm`-based approaches didn't pan out (PATH/permission issues when run
 outside an interactive shell). It uses a native Windows Scheduled Task that launches the
