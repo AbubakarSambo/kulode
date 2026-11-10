@@ -8,7 +8,7 @@ import type { User } from '@/types'
  * org's modules.
  *
  * A user can hold multiple roles at once — precedence goes broadest-first: any role outside
- * {WAITER, PASS, RUNNER, KITCHEN, CASHIER, SUPERVISOR} means this account isn't floor-restricted
+ * {WAITER, PASS, RUNNER, KITCHEN, CASHIER, SUPERVISOR, STOREKEEPER} means this account isn't floor-restricted
  * at all, so it uses the normal module-based default. Among the restricted roles, Waiter (Sell)
  * outranks Cashier/Supervisor (Orders) outranks Pass/Runner/Kitchen (Kitchen) — each landing page
  * must match a page that role's own Sidebar allowlist actually shows, so the destination is never
@@ -18,7 +18,7 @@ export function getPostAuthRoute(user: User | null | undefined): string {
   if (!user) return '/login'
   const roles = user.roles ?? []
   const hasUnrestrictedRole = roles.some(
-    (r) => r !== 'PASS' && r !== 'RUNNER' && r !== 'KITCHEN' && r !== 'WAITER' && r !== 'CASHIER' && r !== 'SUPERVISOR',
+    (r) => r !== 'PASS' && r !== 'RUNNER' && r !== 'KITCHEN' && r !== 'WAITER' && r !== 'CASHIER' && r !== 'SUPERVISOR' && r !== 'STOREKEEPER',
   )
   if (hasUnrestrictedRole) {
     // A Manager runs the business from the numbers, not the till — unless they're also an admin
@@ -33,5 +33,7 @@ export function getPostAuthRoute(user: User | null | undefined): string {
   if (roles.includes('WAITER')) return '/pos/order/new'
   if (roles.includes('CASHIER') || roles.includes('SUPERVISOR')) return '/pos/orders'
   if (roles.includes('PASS') || roles.includes('RUNNER') || roles.includes('KITCHEN')) return '/pos/kitchen'
+  // Last, so a storekeeper who also sells or works the kitchen lands on that page instead
+  if (roles.includes('STOREKEEPER')) return '/inventory'
   return (user.organization?.enabledModules ?? 'POS') === 'POS' ? '/pos/order/new' : '/dashboard'
 }

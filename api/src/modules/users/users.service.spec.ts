@@ -535,5 +535,43 @@ describe('UsersService — user limit enforcement', () => {
         service.create(ORG_ID, { ...createDto, roles: [Role.ACCOUNTANT] }, [Role.SUPER_ADMIN]),
       ).rejects.toThrow(ForbiddenException);
     });
+
+    it('lets a retail org assign STOREKEEPER, and a PIN-only one needs no email', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.user.findFirst.mockResolvedValue(null);
+      prisma.user.count.mockResolvedValue(0);
+      prisma.organization.findUnique.mockResolvedValue(orgWith({ enabledModules: 'POS', posMode: 'RETAIL', slug: 'shop' }));
+      setupTransactionMock(prisma);
+
+      await expect(
+        service.create(ORG_ID, { ...createDto, roles: [Role.STOREKEEPER] }, [Role.SUPER_ADMIN]),
+      ).resolves.toBeDefined();
+      await expect(
+        service.create(ORG_ID, { ...createDto, email: undefined, roles: [Role.STOREKEEPER] }, [Role.SUPER_ADMIN]),
+      ).resolves.toBeDefined();
+    });
+
+    it('rejects STOREKEEPER on a restaurant org (retail only)', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.organization.findUnique.mockResolvedValue(orgWith({ enabledModules: 'POS', posMode: 'RESTAURANT' }));
+
+      await expect(
+        service.create(ORG_ID, { ...createDto, roles: [Role.STOREKEEPER] }, [Role.SUPER_ADMIN]),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('lets a manager create a storekeeper (floor staff), but not a second manager', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.organization.findUnique.mockResolvedValue(orgWith({ enabledModules: 'POS', posMode: 'RETAIL' }));
+
+      await expect(
+        service.create(ORG_ID, { ...createDto, roles: [Role.MANAGER] }, [Role.MANAGER]),
+      ).rejects.toThrow(ForbiddenException);
+      prisma.user.count.mockResolvedValue(0);
+      setupTransactionMock(prisma);
+      await expect(
+        service.create(ORG_ID, { ...createDto, roles: [Role.STOREKEEPER] }, [Role.MANAGER]),
+      ).resolves.toBeDefined();
+    });
   });
 });
