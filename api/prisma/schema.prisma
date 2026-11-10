@@ -26,7 +26,7 @@ enum UserRole {
   // The person actually making the food/drink — assignable to an order item once it's picked
   // up, distinct from PASS/RUNNER (who ferry tickets/food, not necessarily the maker).
   KITCHEN
-  // Retail-only: counts, receives and writes off stock in the back room — no selling, no till.
+  // Counts, receives and writes off stock in the back room — no selling, no till. Retail and restaurant.
   STOREKEEPER
 }
 

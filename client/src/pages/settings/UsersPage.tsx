@@ -76,9 +76,6 @@ const DEFAULT_CREATABLE_ROLES: { value: UserRole; label: string }[] = [
 // Dine-in/kitchen-prep roles that don't apply to a retail (scan-and-sell) org.
 const RESTAURANT_ONLY_ROLES: UserRole[] = ['WAITER', 'PASS', 'RUNNER', 'KITCHEN']
 
-// …and the reverse: the stock-room role only a retail org has.
-const RETAIL_ONLY_ROLES: UserRole[] = ['STOREKEEPER']
-
 const pinSchema = z.object({
   pin: z.string().regex(/^\d{4}$/, 'PIN must be exactly 4 digits'),
 })
@@ -106,7 +103,7 @@ export function UsersPage() {
   }
   const roleOptions = (usesPosRoles ? POS_CREATABLE_ROLES : DEFAULT_CREATABLE_ROLES)
     .filter((opt) => canManageAccount([opt.value]))
-    .filter((opt) => !(isRetail ? RESTAURANT_ONLY_ROLES : RETAIL_ONLY_ROLES).includes(opt.value))
+    .filter((opt) => !isRetail || !RESTAURANT_ONLY_ROLES.includes(opt.value))
 
   const [page, setPage] = useState(1)
   const limit = 20

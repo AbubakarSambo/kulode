@@ -43,7 +43,7 @@ export const SUPERVISOR_ALLOWED_HREFS = [
   '/pos/dashboard',
 ] as const
 
-// Storekeepers (retail only) look after stock — the catalogue page is all they need, and all they see
+// Storekeepers look after stock — the inventory/catalogue page is all they need, and all they see
 export const STOREKEEPER_ALLOWED_HREFS = ['/inventory'] as const
 
 // Every href any of the arrays above can produce — AppLayout's icon lookup is typed as
