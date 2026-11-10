@@ -34,7 +34,7 @@ const os = require('os');
 const path = require('path');
 const { execFile } = require('child_process');
 
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const DEFAULT_API_URL = 'https://api.tarione.com/api/v1';
 
 // True when running as the packaged Windows program (TarionePrintAgent.exe) rather than
@@ -76,6 +76,14 @@ const API_URL = (argValue('--api') || process.env.KULODE_API_URL || DEFAULT_API_
 const TOKEN = process.env.KULODE_PRINT_AGENT_TOKEN || '';
 const POLL_INTERVAL_MS = Number(process.env.KULODE_POLL_INTERVAL_MS || 2000);
 const SOCKET_TIMEOUT_MS = Number(process.env.KULODE_PRINT_TIMEOUT_MS || 5000);
+// Printer discovery: receipt printers listen for raw jobs on this port.
+const DISCOVERY_PORT = Number(process.env.KULODE_DISCOVERY_PORT || 9100);
+const DISCOVERY_INTERVAL_MS = Number(process.env.KULODE_DISCOVERY_INTERVAL_MS || 10 * 60 * 1000);
+// Normally the agent works out which addresses to try from this computer's network settings;
+// set this (comma-separated IPs) to check only specific ones.
+const DISCOVERY_HOSTS = (process.env.KULODE_DISCOVERY_HOSTS || '').split(',').map((h) => h.trim()).filter(Boolean);
+const DISCOVERY_CONNECT_TIMEOUT_MS = 700;
+const DISCOVERY_CONCURRENCY = 48;
 
 function log(...args) {
   const line = `[${new Date().toISOString()}] ${args.join(' ')}`;
@@ -227,6 +235,135 @@ function writeToUsbPrinter(devicePath, buffer) {
   });
 }
 
+// ─── Printer discovery ──────────────────────────────────────────────────────
+// Finds printers so nobody has to hunt for an IP address: try every address on this
+// computer's local network(s) for something listening on the raw-print port, look up each
+// hit's hardware (MAC) address, and report the list to Tarione. Nothing is ever sent to a
+// device — the connection is opened and closed — so a non-receipt printer can't be made to
+// print rubbish. Tarione uses the hardware address to notice when a saved printer's IP has
+// changed and correct it.
+
+function ipToInt(ip) {
+  return ip.split('.').reduce((acc, part) => acc * 256 + Number(part), 0);
+}
+
+function intToIp(n) {
+  return [n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.');
+}
+
+/**
+ * Every other address on the same network as each of this computer's connections. A network
+ * bigger than 254 addresses is narrowed to the 254 around this computer, which is where a
+ * shop's printers are and keeps a scan to a few seconds.
+ */
+function hostsToScan(interfaces) {
+  const hosts = new Set();
+  for (const addresses of Object.values(interfaces)) {
+    for (const a of addresses || []) {
+      const isV4 = a.family === 'IPv4' || a.family === 4;
+      if (!isV4 || a.internal || a.address.startsWith('169.254.')) continue;
+      const self = ipToInt(a.address);
+      let mask = ipToInt(a.netmask);
+      if (mask < 0xffffff00) mask = 0xffffff00;
+      const network = (self & mask) >>> 0;
+      const size = (~mask >>> 0) + 1;
+      // Skip the network and broadcast addresses, and this computer itself.
+      for (let i = 1; i < size - 1; i++) {
+        const candidate = (network + i) >>> 0;
+        if (candidate !== self) hosts.add(intToIp(candidate));
+      }
+    }
+  }
+  return [...hosts];
+}
+
+function isPortOpen(ip, port) {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let settled = false;
+    const finish = (open) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(open);
+    };
+    socket.setTimeout(DISCOVERY_CONNECT_TIMEOUT_MS, () => finish(false));
+    socket.once('error', () => finish(false));
+    socket.connect(port, ip, () => finish(true));
+  });
+}
+
+/** Reads `arp -a` output (Windows, macOS or Linux layout) into { ip: 'aa:bb:cc:dd:ee:ff' }. */
+function parseArpTable(output) {
+  const table = {};
+  for (const line of output.split(/\r?\n/)) {
+    const ip = line.match(/\b(\d{1,3}(?:\.\d{1,3}){3})\b/);
+    const mac = line.match(/\b([0-9a-fA-F]{1,2}(?:[:-][0-9a-fA-F]{1,2}){5})\b/);
+    if (!ip || !mac) continue;
+    const normalised = mac[1].split(/[:-]/).map((part) => part.padStart(2, '0').toLowerCase()).join(':');
+    // Broadcast and "not resolved" entries aren't a device.
+    if (normalised === 'ff:ff:ff:ff:ff:ff' || normalised === '00:00:00:00:00:00') continue;
+    table[ip[1]] = normalised;
+  }
+  return table;
+}
+
+function readArpTable() {
+  return new Promise((resolve) => {
+    execFile('arp', ['-a'], { windowsHide: true, timeout: 10000 }, (err, stdout) => {
+      resolve(err ? {} : parseArpTable(String(stdout)));
+    });
+  });
+}
+
+async function discoverPrinters() {
+  const hosts = DISCOVERY_HOSTS.length ? DISCOVERY_HOSTS : hostsToScan(os.networkInterfaces());
+  const open = [];
+  let next = 0;
+  const worker = async () => {
+    while (next < hosts.length) {
+      const ip = hosts[next++];
+      if (await isPortOpen(ip, DISCOVERY_PORT)) open.push(ip);
+    }
+  };
+  await Promise.all(Array.from({ length: DISCOVERY_CONCURRENCY }, worker));
+
+  // Having just talked to each device, the computer's network table now holds its address.
+  const arp = open.length ? await readArpTable() : {};
+  return open
+    .sort((a, b) => ipToInt(a) - ipToInt(b))
+    .map((ip) => ({ ipAddress: ip, port: DISCOVERY_PORT, ...(arp[ip] ? { macAddress: arp[ip] } : {}) }));
+}
+
+let scanning = false;
+let lastScanAt = 0;
+
+async function scanAndReport(reason) {
+  if (scanning) return;
+  scanning = true;
+  lastScanAt = Date.now();
+  try {
+    const devices = await discoverPrinters();
+    const response = await fetch(`${API_URL}/print-agent/discovered`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({ devices }),
+      signal: AbortSignal.timeout(SOCKET_TIMEOUT_MS),
+    });
+    if (!response.ok) throw new Error(`Tarione answered ${response.status}`);
+    const result = await response.json().catch(() => ({}));
+    const corrected = (result.data || result).corrected || 0;
+    log(
+      `Network scan (${reason}): found ${devices.length} printer(s)${devices.length ? ` at ${devices.map((d) => d.ipAddress).join(', ')}` : ''}` +
+        (corrected ? `; ${corrected} saved printer address(es) corrected` : ''),
+    );
+  } catch (err) {
+    log(`Network scan (${reason}) failed:`, err.message);
+  } finally {
+    scanning = false;
+  }
+}
+
 async function reportResult(jobId, status, error) {
   try {
     const response = await fetch(`${API_URL}/print-agent/jobs/${jobId}`, {
@@ -245,7 +382,7 @@ async function reportResult(jobId, status, error) {
 }
 
 async function pollOnce() {
-  const response = await fetch(`${API_URL}/print-agent/jobs`, {
+  const response = await fetch(`${API_URL}/print-agent/jobs?v=2`, {
     headers: { Authorization: `Bearer ${TOKEN}` },
     signal: AbortSignal.timeout(SOCKET_TIMEOUT_MS),
   });
@@ -260,7 +397,13 @@ async function pollOnce() {
   }
 
   const body = await response.json();
-  const jobs = Array.isArray(body) ? body : body.data || [];
+  const payload = Array.isArray(body) ? body : body.data || [];
+  const jobs = Array.isArray(payload) ? payload : payload.jobs || [];
+
+  // Someone pressed "Find printers" in Settings, or the regular re-check is due. Not awaited:
+  // a scan takes a few seconds and printing must not wait for it.
+  if (payload.scanRequested) scanAndReport('requested from Settings');
+  else if (Date.now() - lastScanAt > DISCOVERY_INTERVAL_MS) scanAndReport('regular check');
 
   for (const job of jobs) {
     const { printer } = job;
@@ -288,6 +431,9 @@ async function pollOnce() {
     } catch (err) {
       log(`Failed to print job ${job.id} on "${printer.name}":`, err.message);
       await reportResult(job.id, 'FAILED', err.message);
+      // A network printer that can't be reached has often just been given a new IP by the
+      // router. Look for it now so Tarione can correct the address before the next docket.
+      if (!isUsbLike && Date.now() - lastScanAt > 60000) scanAndReport('a printer could not be reached');
     }
   }
 }
@@ -330,4 +476,7 @@ async function main() {
 process.on('uncaughtException', (err) => log('Unexpected error:', (err && err.stack) || err));
 process.on('unhandledRejection', (err) => log('Unexpected error:', (err && err.stack) || err));
 
-main();
+// Started as a program (packaged, or `node agent.js`) — as opposed to loaded by the tests.
+if (PACKAGED || require.main === module) main();
+
+module.exports = { hostsToScan, parseArpTable };

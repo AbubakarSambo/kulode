@@ -5,6 +5,9 @@ export const AGENT_HEARTBEAT_WRITE_MS = 30_000;
 // An agent that hasn't polled for this long is shown as offline (three missed heartbeats).
 export const AGENT_ONLINE_WINDOW_MS = 90_000;
 
+// A scan request nobody picked up (agent offline, or too old to scan) lapses after this long.
+export const SCAN_REQUEST_TTL_MS = 60_000;
+
 // Authenticates the on-premise print agent (not a logged-in user) via a bearer token scoped to
 // one organization. Used instead of the normal JWT guard on the /print-agent/* routes — see
 // PrintAgentController — since the agent is an unattended background process with no user
@@ -24,7 +27,7 @@ export class PrintAgentGuard implements CanActivate {
 
     const organization = await this.prisma.organization.findUnique({
       where: { printAgentToken: token },
-      select: { id: true, name: true, printAgentLastSeenAt: true },
+      select: { id: true, name: true, printAgentLastSeenAt: true, printAgentScanRequestedAt: true },
     });
     if (!organization) {
       throw new UnauthorizedException('Invalid print agent token');
@@ -39,6 +42,8 @@ export class PrintAgentGuard implements CanActivate {
         .catch(() => undefined);
     }
 
+    const scanRequestedAt = organization.printAgentScanRequestedAt?.getTime() ?? 0;
+    request.printAgentScanRequested = Date.now() - scanRequestedAt < SCAN_REQUEST_TTL_MS;
     request.organizationId = organization.id;
     // Consumed by LoggingInterceptor so Railway logs show which org's agent is polling.
     request.organizationName = organization.name;

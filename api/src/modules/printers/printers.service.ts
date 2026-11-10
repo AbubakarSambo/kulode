@@ -1,5 +1,5 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { AGENT_ONLINE_WINDOW_MS } from './print-agent.guard';
+import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { AGENT_ONLINE_WINDOW_MS, SCAN_REQUEST_TTL_MS } from './print-agent.guard';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePrinterDto, UpdatePrinterDto, SetPrinterCategoriesDto } from './dto';
@@ -27,6 +27,8 @@ export function normalizePairingCode(raw: string): string {
 
 @Injectable()
 export class PrintersService {
+  private readonly logger = new Logger(PrintersService.name);
+
   constructor(private prisma: PrismaService) {}
 
   async findAll(organizationId: string) {
@@ -63,6 +65,7 @@ export class PrintersService {
         ipAddress: dto.ipAddress,
         port: dto.port,
         devicePath: dto.devicePath,
+        macAddress: dto.macAddress,
       },
     });
   }
@@ -80,9 +83,17 @@ export class PrintersService {
       }
     }
 
+    // A hand-typed IP points at whichever device the admin means now, so drop the hardware
+    // address learned for the old one — otherwise the next scan would "correct" the IP back.
+    // The next scan learns the new device's address.
+    const ipChangedByHand =
+      dto.ipAddress !== undefined && dto.ipAddress !== printer.ipAddress && dto.macAddress === undefined;
+
     return this.prisma.printer.update({
       where: { id },
       data: {
+        ...(dto.macAddress !== undefined && { macAddress: dto.macAddress }),
+        ...(ipChangedByHand && { macAddress: null }),
         ...(dto.name && { name: dto.name }),
         ...(dto.station && { station: dto.station }),
         ...(dto.connectionType && { connectionType: dto.connectionType }),
@@ -193,4 +204,97 @@ export class PrintersService {
     });
     return { token };
   }
+
+  // ─── Printer discovery ──────────────────────────────────────────────────────
+
+  // Flags the organization so the agent's next poll (within a couple of seconds) starts a scan.
+  async requestScan(organizationId: string) {
+    const requestedAt = new Date();
+    await this.prisma.organization.update({
+      where: { id: organizationId },
+      data: { printAgentScanRequestedAt: requestedAt },
+    });
+    return { requestedAt };
+  }
+
+  // What the agent last found on the local network, each marked with the printer it already
+  // belongs to (if any) so the settings page only offers to add the new ones.
+  async getDiscovery(organizationId: string) {
+    const [organization, printers] = await Promise.all([
+      this.prisma.organization.findUniqueOrThrow({
+        where: { id: organizationId },
+        select: { printAgentScanRequestedAt: true, printAgentDiscovered: true, printAgentDiscoveredAt: true },
+      }),
+      this.prisma.printer.findMany({
+        where: { organizationId, isActive: true, connectionType: 'NETWORK' },
+        select: { id: true, name: true, ipAddress: true, port: true, macAddress: true },
+      }),
+    ]);
+
+    const requestedAt = organization.printAgentScanRequestedAt;
+    const devices = ((organization.printAgentDiscovered as DiscoveredDevice[] | null) ?? []).map((device) => {
+      const printer = printers.find((p) => matchesDevice(p, device));
+      return { ...device, printerId: printer?.id ?? null, printerName: printer?.name ?? null };
+    });
+    return {
+      scanning: !!requestedAt && Date.now() - requestedAt.getTime() < SCAN_REQUEST_TTL_MS,
+      scannedAt: organization.printAgentDiscoveredAt,
+      devices,
+    };
+  }
+
+  // Called by the agent after every scan. Stores the results, and keeps saved printers pointing
+  // at the right device: a printer whose hardware address shows up at a new IP has its IP
+  // corrected, and a printer with no hardware address yet learns it from the device at its IP.
+  async recordDiscovery(organizationId: string, devices: DiscoveredDevice[]) {
+    await this.prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        printAgentDiscovered: devices.map((d) => ({ ipAddress: d.ipAddress, port: d.port, macAddress: d.macAddress ?? null })),
+        printAgentDiscoveredAt: new Date(),
+        printAgentScanRequestedAt: null,
+      },
+    });
+
+    const printers = await this.prisma.printer.findMany({
+      where: { organizationId, isActive: true, connectionType: 'NETWORK' },
+      select: { id: true, name: true, ipAddress: true, port: true, macAddress: true },
+    });
+
+    let corrected = 0;
+    for (const printer of printers) {
+      if (printer.macAddress) {
+        // Two devices answering with one hardware address means something odd on the network
+        // (or two ports on one device) — don't guess which is the printer.
+        const sameMac = devices.filter((d) => d.macAddress === printer.macAddress);
+        if (sameMac.length !== 1 || sameMac[0].ipAddress === printer.ipAddress) continue;
+        await this.prisma.printer.update({ where: { id: printer.id }, data: { ipAddress: sameMac[0].ipAddress } });
+        this.logger.log(
+          `Printer "${printer.name}" (org ${organizationId}) moved from ${printer.ipAddress} to ${sameMac[0].ipAddress}; address corrected`,
+        );
+        corrected++;
+      } else {
+        const atSameAddress = devices.find(
+          (d) => d.macAddress && d.ipAddress === printer.ipAddress && d.port === (printer.port ?? 9100),
+        );
+        if (!atSameAddress) continue;
+        await this.prisma.printer.update({ where: { id: printer.id }, data: { macAddress: atSameAddress.macAddress } });
+      }
+    }
+    return { received: devices.length, corrected };
+  }
+}
+
+interface DiscoveredDevice {
+  ipAddress: string;
+  port: number;
+  macAddress?: string | null;
+}
+
+function matchesDevice(
+  printer: { ipAddress: string | null; port: number | null; macAddress: string | null },
+  device: DiscoveredDevice,
+): boolean {
+  if (printer.macAddress && device.macAddress) return printer.macAddress === device.macAddress;
+  return printer.ipAddress === device.ipAddress && (printer.port ?? 9100) === device.port;
 }

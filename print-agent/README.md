@@ -48,6 +48,26 @@ Windows machine and runs a print end to end against a stand-in API and printer
 (`build/smoke-test.js`). Merging to `main` publishes it to the `print-agent-latest` release,
 which is what the Download button points at.
 
+## Finding printers automatically
+
+The agent searches its local network for printers, so nobody has to find or type an IP
+address. It does this when it starts, every 10 minutes, whenever someone presses **Find
+printers** in Settings > Printers, and right after a network printer can't be reached.
+
+- It tries every address on the same network as the computer for something listening on the
+  raw-print port (9100), and reports the hits to Tarione. Each one appears under **Printers on
+  your network** with an **Add** button — only a name and a station are left to fill in.
+- It only opens and closes a connection. It never sends anything, so an office printer that
+  also listens on 9100 will be listed but can't be made to print rubbish.
+- It also reports each printer's hardware (MAC) address. If the router later gives a printer a
+  different IP, the next search recognises it and Tarione corrects the saved address by itself.
+- The search covers at most the 254 addresses around the computer on each network. A printer
+  on a different network (another VLAN, or a guest Wi-Fi) won't be found and can still be
+  added by typing its IP.
+- Optional `.env` settings: `KULODE_DISCOVERY_PORT` (default 9100),
+  `KULODE_DISCOVERY_INTERVAL_MS` (default 600000), `KULODE_DISCOVERY_HOSTS` (comma-separated
+  IPs to check instead of searching).
+
 ## Manual setup (any OS, or if the installer can't be used)
 
 Requirements:
