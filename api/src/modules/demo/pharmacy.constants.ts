@@ -304,12 +304,13 @@ export const PHARMACY_PAYMENT_MIX: { kind: 'AUTO_TRANSFER' | 'AUTO_POS' | 'MANUA
   { kind: 'BANK_TRANSFER', weight: 6 },
 ];
 
-export const PHARMACY_STAFF: { firstName: string; lastName: string; roles: ('CASHIER' | 'MANAGER' | 'SUPERVISOR')[] }[] = [
+export const PHARMACY_STAFF: { firstName: string; lastName: string; roles: ('CASHIER' | 'MANAGER' | 'SUPERVISOR' | 'STOREKEEPER')[] }[] = [
   { firstName: 'Kemi', lastName: 'Adeleke', roles: ['MANAGER'] },
   { firstName: 'Danjuma', lastName: 'Pam', roles: ['SUPERVISOR'] },
   { firstName: 'Obiora', lastName: 'Nwankwo', roles: ['CASHIER'] },
   { firstName: 'Salamatu', lastName: 'Yusuf', roles: ['CASHIER'] },
   { firstName: 'Funke', lastName: 'Balogun', roles: ['CASHIER'] },
+  { firstName: 'Hauwa', lastName: 'Ibrahim', roles: ['STOREKEEPER'] },
 ];
 
 // Most customers are walk-ins with no record. The rest are repeat patients; the first few on

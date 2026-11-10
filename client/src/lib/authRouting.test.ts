@@ -114,6 +114,21 @@ describe('getPostAuthRoute', () => {
     })
   })
 
+  describe('storekeeper', () => {
+    it('lands on the catalogue', () => {
+      expect(getPostAuthRoute(makeUser({ roles: ['STOREKEEPER'] }))).toBe('/inventory')
+    })
+
+    it('lands on the other role’s page when they also sell or work the kitchen', () => {
+      expect(getPostAuthRoute(makeUser({ roles: ['STOREKEEPER', 'CASHIER'] }))).toBe('/pos/orders')
+      expect(getPostAuthRoute(makeUser({ roles: ['STOREKEEPER', 'KITCHEN'] }))).toBe('/pos/kitchen')
+    })
+
+    it('is still unrestricted-by-default when mixed with a manager', () => {
+      expect(getPostAuthRoute(makeUser({ roles: ['STOREKEEPER', 'MANAGER'] }))).toBe('/pos/dashboard')
+    })
+  })
+
   describe('mixing a restricted role with an unrestricted one', () => {
     it('WAITER + MANAGER uses the unrestricted module-based route, not /pos/order/new via the waiter branch', () => {
       const user = makeUser({

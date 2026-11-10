@@ -18,8 +18,11 @@ export type RoleName =
   | 'PASS'
   | 'RUNNER'
   | 'KITCHEN'
+  | 'STOREKEEPER'
 
 const KITCHEN_TRACK: RoleName[] = ['PASS', 'RUNNER', 'KITCHEN']
+// Retail-only, off the floor ladder: looks after stock, never sells.
+const STOREKEEPER: RoleName[] = ['STOREKEEPER']
 const LEGACY: RoleName[] = ['STAFF', 'ACCOUNTANT']
 const ADMINS: RoleName[] = ['ADMIN', 'SUPER_ADMIN']
 const MANAGER_UP: RoleName[] = ['MANAGER', ...ADMINS]
@@ -78,7 +81,8 @@ export const PERMISSIONS = {
   // Today's running takings (paid + still-open) for the branch — the strip above the POS pages
   TODAY_TAKINGS_VIEW: WAITER_UP,
   // Stock counts/restocks vs. creating/editing/deleting/importing inventory items
-  INVENTORY_ADJUST: MANAGER_UP,
+  // The storekeeper counts and receives stock but can't create, reprice or delete items.
+  INVENTORY_ADJUST: [...STOREKEEPER, ...MANAGER_UP],
   INVENTORY_MANAGE: ADMINS,
   // Staff roster. MANAGER may only touch FLOOR_STAFF_ROLES accounts (enforced in UsersService)
   // ADMIN may touch anyone but admins; SUPER_ADMIN anyone.
@@ -88,11 +92,11 @@ export const PERMISSIONS = {
 export type Permission = keyof typeof PERMISSIONS
 
 // Accounts a MANAGER may create, edit, remove, or set a PIN for.
-export const FLOOR_STAFF_ROLES: RoleName[] = ['WAITER', 'CASHIER', 'SUPERVISOR', ...KITCHEN_TRACK]
+export const FLOOR_STAFF_ROLES: RoleName[] = ['WAITER', 'CASHIER', 'SUPERVISOR', ...KITCHEN_TRACK, ...STOREKEEPER]
 
 // Roles that can sign in with a shared-terminal PIN instead of email+password. MANAGER and above
 // keep email+password only (they have remote access and touch sensitive settings).
-export const PIN_LOGIN_ROLES: RoleName[] = ['WAITER', 'CASHIER', 'SUPERVISOR', ...KITCHEN_TRACK]
+export const PIN_LOGIN_ROLES: RoleName[] = ['WAITER', 'CASHIER', 'SUPERVISOR', ...KITCHEN_TRACK, ...STOREKEEPER]
 
 // Roles whose PIN can approve a cashier's void/discount at the till. MANAGER/ADMIN/SUPER_ADMIN
 // can hold an approval-only PIN — it never works for sign-in (see PIN_LOGIN_ROLES).

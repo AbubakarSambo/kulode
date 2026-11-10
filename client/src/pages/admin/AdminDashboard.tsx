@@ -1714,6 +1714,7 @@ const GRANTABLE_ROLES: UserRole[] = [
   'PASS',
   'RUNNER',
   'KITCHEN',
+  'STOREKEEPER',
 ]
 
 // One org in the user's membership list: shows the roles, and "Edit roles" turns them into toggles.

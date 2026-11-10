@@ -138,6 +138,7 @@ export function AppLayout() {
     '/pos/menu': { name: 'Menu', icon: ChefHat },
     '/pos/categories': { name: 'Categories', icon: Tag },
     '/pos/dashboard': { name: 'Dashboard', icon: LayoutDashboard },
+    '/inventory': { name: 'Inventory', icon: Package },
   }
 
   const navItems = restrictedHrefsUnion

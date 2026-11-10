@@ -43,6 +43,9 @@ export const SUPERVISOR_ALLOWED_HREFS = [
   '/pos/dashboard',
 ] as const
 
+// Storekeepers (retail only) look after stock — the catalogue page is all they need, and all they see
+export const STOREKEEPER_ALLOWED_HREFS = ['/inventory'] as const
+
 // Every href any of the arrays above can produce — AppLayout's icon lookup is typed as
 // `Record<AllowedHref, ...>`, so adding a new href to any array above without also adding an icon
 // for it there is a compile error, not a silent `undefined` icon at runtime.
@@ -51,6 +54,7 @@ export type AllowedHref =
   | (typeof KITCHEN_ALLOWED_HREFS)[number]
   | (typeof CASHIER_ALLOWED_HREFS)[number]
   | (typeof SUPERVISOR_ALLOWED_HREFS)[number]
+  | (typeof STOREKEEPER_ALLOWED_HREFS)[number]
 
 // Roles that get a tight nav allowlist rather than the broader access every other role has.
 // A user with multiple roles sees the UNION of what each individually unlocks — e.g. a
@@ -64,6 +68,7 @@ export const RESTRICTED_ROLE_HREFS: Partial<Record<UserRole, readonly AllowedHre
   KITCHEN: KITCHEN_ALLOWED_HREFS,
   CASHIER: CASHIER_ALLOWED_HREFS,
   SUPERVISOR: SUPERVISOR_ALLOWED_HREFS,
+  STOREKEEPER: STOREKEEPER_ALLOWED_HREFS,
 }
 
 /** Null means "unrestricted" — at least one of the user's roles isn't in RESTRICTED_ROLE_HREFS. */
