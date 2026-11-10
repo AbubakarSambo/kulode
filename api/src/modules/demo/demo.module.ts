@@ -3,12 +3,15 @@ import { OrdersModule } from '../orders';
 import { WalletModule } from '../wallet/wallet.module';
 import { DemoSeedService } from './demo-seed.service';
 import { DemoLiveService } from './demo-live.service';
+import { PharmacySeedService } from './pharmacy-seed.service';
+import { PharmacyLiveService } from './pharmacy-live.service';
 import { DemoController } from './demo.controller';
+import { PharmacyDemoController } from './pharmacy.controller';
 import { DemoCron } from './demo.cron';
 
 @Module({
   imports: [OrdersModule, WalletModule],
-  controllers: [DemoController],
-  providers: [DemoSeedService, DemoLiveService, DemoCron],
+  controllers: [DemoController, PharmacyDemoController],
+  providers: [DemoSeedService, DemoLiveService, PharmacySeedService, PharmacyLiveService, DemoCron],
 })
 export class DemoModule {}
