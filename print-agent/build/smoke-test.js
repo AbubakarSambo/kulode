@@ -29,7 +29,12 @@ function arg(name) {
   return i !== -1 ? process.argv[i + 1] : undefined;
 }
 
-const state = { polls: 0, jobHandedOut: false, reported: null, printed: Buffer.alloc(0) };
+const state = { polls: 0, jobHandedOut: false, reported: null, printed: Buffer.alloc(0), scanAsked: false, startupScan: null, discovered: null };
+
+// The agent is pointed at the stand-in printer only, so the test never probes the network
+// it happens to run on. (Working out which addresses to try is covered by discovery.test.js.)
+process.env.KULODE_DISCOVERY_HOSTS = '127.0.0.1';
+process.env.KULODE_DISCOVERY_PORT = String(PRINTER_PORT);
 
 const api = http.createServer((req, res) => {
   let body = '';
@@ -47,18 +52,30 @@ const api = http.createServer((req, res) => {
       return send(200, { data: { token: TOKEN, organizationName: 'Smoke Test Org' } });
     }
     if (!authed) return send(401, { message: 'Invalid print agent token' });
-    if (req.method === 'GET' && req.url === '/api/v1/print-agent/jobs') {
+    if (req.method === 'POST' && req.url === '/api/v1/print-agent/discovered') {
+      // The agent scans once by itself on start-up, then again when asked.
+      const devices = JSON.parse(body).devices;
+      if (state.scanAsked) state.discovered = devices;
+      else state.startupScan = devices;
+      return send(200, { data: { received: devices.length, corrected: 0 } });
+    }
+    if (req.method === 'GET' && req.url === '/api/v1/print-agent/jobs?v=2') {
       state.polls++;
-      if (state.jobHandedOut) return send(200, { data: [] });
+      if (state.jobHandedOut) {
+        // Once the docket is done, ask for a network scan exactly once.
+        const scanRequested = state.reported !== null && !state.scanAsked;
+        if (scanRequested) state.scanAsked = true;
+        return send(200, { data: { jobs: [], scanRequested } });
+      }
       state.jobHandedOut = true;
       return send(200, {
-        data: [
+        data: { scanRequested: false, jobs: [
           {
             id: 'job-1',
             printer: { id: 'p1', name: 'Smoke Printer', station: 'Kitchen', connectionType: 'NETWORK', ipAddress: '127.0.0.1', port: PRINTER_PORT, devicePath: null },
             escposText: DOCKET.toString('base64'),
           },
-        ],
+        ] },
       });
     }
     if (req.method === 'PATCH' && req.url === '/api/v1/print-agent/jobs/job-1') {
@@ -102,6 +119,15 @@ async function checkPrinted() {
   await waitFor(() => state.reported !== null, 30, 'agent reports the job result');
   check(state.reported.status === 'SENT', `job reported as SENT (got ${JSON.stringify(state.reported)})`);
   check(state.printed.equals(DOCKET), 'printer received the exact docket bytes');
+
+  const printedBeforeScan = state.printed.length;
+  await waitFor(() => state.startupScan !== null, 30, 'agent scanned by itself on start-up');
+  await waitFor(() => state.discovered !== null, 30, 'agent scans again when asked from Settings');
+  check(
+    state.discovered.length === 1 && state.discovered[0].ipAddress === '127.0.0.1' && state.discovered[0].port === PRINTER_PORT,
+    `the scan found the printer (got ${JSON.stringify(state.discovered)})`,
+  );
+  check(state.printed.length === printedBeforeScan, 'scanning sent nothing to the printer');
 }
 
 async function testProgram(command, baseArgs, installDir) {
