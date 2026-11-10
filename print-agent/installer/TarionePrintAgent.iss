@@ -56,6 +56,7 @@ FinishedLabel=Go back to Tarione and open Settings > Printers. It should say "Ag
 [Code]
 var
   PairPage: TInputQueryWizardPage;
+  PairedCode: String;
 
 function AlreadyConnected(): Boolean;
 begin
@@ -81,78 +82,88 @@ begin
   PairPage.Values[0] := ExpandConstant('{param:PAIR|}');
 end;
 
+// Checks the code with Tarione before anything is installed, by running the agent's own
+// pairing step from a temporary copy. On success the connection details are left in
+// {tmp}\.env for the install step to put in place. Returns '' or the reason it failed.
+function Pair(Code: String): String;
+var
+  ResultCode: Integer;
+  Params: String;
+  Reason: AnsiString;
+begin
+  Result := '';
+  Code := Trim(Code);
+  if Code = PairedCode then
+    Exit;
+
+  ExtractTemporaryFile('{#AppExe}');
+  DeleteFile(ExpandConstant('{tmp}\pair-error.txt'));
+  Params := '--pair "' + Code + '"';
+  if ExpandConstant('{param:API|}') <> '' then
+    Params := Params + ' --api "' + ExpandConstant('{param:API|}') + '"';
+
+  if Exec(ExpandConstant('{tmp}\{#AppExe}'), Params, ExpandConstant('{tmp}'), SW_HIDE, ewWaitUntilTerminated, ResultCode)
+    and (ResultCode = 0) and FileExists(ExpandConstant('{tmp}\.env')) then
+  begin
+    PairedCode := Code;
+    Exit;
+  end;
+
+  Result := 'The agent could not connect to Tarione.';
+  if LoadStringFromFile(ExpandConstant('{tmp}\pair-error.txt'), Reason) and (Trim(String(Reason)) <> '') then
+    Result := Trim(String(Reason));
+end;
+
 function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  Problem: String;
 begin
   Result := True;
-  if (CurPageID = PairPage.ID) and (Trim(PairPage.Values[0]) = '') and (not AlreadyConnected()) then
+  if (CurPageID <> PairPage.ID) or WizardSilent() then
+    Exit;
+
+  if Trim(PairPage.Values[0]) = '' then
   begin
-    MsgBox('Please type the pairing code from Settings > Printers in Tarione.', mbError, MB_OK);
+    if not AlreadyConnected() then
+    begin
+      MsgBox('Please type the pairing code from Settings > Printers in Tarione.', mbError, MB_OK);
+      Result := False;
+    end;
+    Exit;
+  end;
+
+  Problem := Pair(PairPage.Values[0]);
+  if Problem <> '' then
+  begin
+    MsgBox(Problem + #13#10#13#10 + 'Check the code and try again, or get a new one from Settings > Printers.', mbError, MB_OK);
     Result := False;
   end;
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
-  // An agent from an earlier install would hold the program file open.
-  StopAgent();
   Result := '';
-end;
+  // Unattended installs skip the wizard pages, so the code is checked here instead. A
+  // returned message stops the install before anything is copied.
+  if Trim(PairPage.Values[0]) <> '' then
+    Result := Pair(PairPage.Values[0])
+  else if not AlreadyConnected() then
+    Result := 'A pairing code is required. Get one from Settings > Printers in Tarione.';
 
-function PairErrorMessage(): String;
-var
-  Contents: AnsiString;
-begin
-  Result := 'The agent could not connect to Tarione.';
-  if LoadStringFromFile(ExpandConstant('{app}\pair-error.txt'), Contents) and (Trim(String(Contents)) <> '') then
-    Result := Trim(String(Contents));
-end;
-
-// Runs the agent's own pairing step, asking again for as long as the code is rejected.
-function Pair(Code: String): Boolean;
-var
-  ResultCode: Integer;
-  Params: String;
-begin
-  Result := False;
-  while True do
-  begin
-    Params := '--pair "' + Trim(Code) + '"';
-    if ExpandConstant('{param:API|}') <> '' then
-      Params := Params + ' --api "' + ExpandConstant('{param:API|}') + '"';
-
-    if Exec(ExpandConstant('{app}\{#AppExe}'), Params, ExpandConstant('{app}'), SW_HIDE, ewWaitUntilTerminated, ResultCode)
-      and (ResultCode = 0) then
-    begin
-      Result := True;
-      Exit;
-    end;
-
-    if WizardSilent() then
-    begin
-      Log('Pairing failed: ' + PairErrorMessage());
-      Exit;
-    end;
-
-    Code := '';
-    if not InputQuery('Could not connect', PairErrorMessage() + #13#10#13#10 + 'Type the pairing code again (or get a new one from Settings > Printers):', Code) then
-      Exit;
-  end;
+  // An agent from an earlier install would hold the program file open.
+  if Result = '' then
+    StopAgent();
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
-  Connected: Boolean;
 begin
   if CurStep <> ssPostInstall then
     Exit;
 
-  Connected := AlreadyConnected();
-  if Trim(PairPage.Values[0]) <> '' then
-    Connected := Pair(PairPage.Values[0]) or Connected;
+  if PairedCode <> '' then
+    FileCopy(ExpandConstant('{tmp}\.env'), ExpandConstant('{app}\.env'), False);
 
-  if Connected then
-    Exec(ExpandConstant('{app}\{#AppExe}'), '', ExpandConstant('{app}'), SW_HIDE, ewNoWait, ResultCode)
-  else if not WizardSilent() then
-    MsgBox('The print agent is installed but not connected to Tarione, so it will not print yet.' + #13#10#13#10 + 'Run this installer again with a pairing code from Settings > Printers.', mbError, MB_OK);
+  Exec(ExpandConstant('{app}\{#AppExe}'), '', ExpandConstant('{app}'), SW_HIDE, ewNoWait, ResultCode);
 end;

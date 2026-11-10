@@ -130,6 +130,10 @@ async function testInstaller(installer) {
   const exe = path.join(installDir, 'TarionePrintAgent.exe');
   const isRunning = () => execFileSync('tasklist', ['/FI', 'IMAGENAME eq TarionePrintAgent.exe'], { encoding: 'utf8' }).includes('TarionePrintAgent.exe');
 
+  const refused = await runToExit(installer, ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/PAIR=WRONG-CODE', `/API=${API_URL}`]);
+  check(refused.status !== 0, `installer stops when the pairing code is wrong (exit ${refused.status})`);
+  check(!fs.existsSync(exe) && !isRunning(), 'nothing is installed or left running after a wrong code');
+
   const install = await runToExit(installer, ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', `/PAIR=${GOOD_CODE}`, `/API=${API_URL}`, `/LOG=${path.join(os.tmpdir(), 'tarione-agent-install.log')}`]);
   check(install.status === 0, `installer runs unattended (exit ${install.status})`);
   check(fs.existsSync(exe), 'program is installed for the current user');
