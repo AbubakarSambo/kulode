@@ -318,6 +318,9 @@ model Organization {
   printAgentScanRequestedAt DateTime? @map("print_agent_scan_requested_at")
   printAgentDiscovered      Json?     @map("print_agent_discovered")
   printAgentDiscoveredAt    DateTime? @map("print_agent_discovered_at")
+  // Reported by the agent on each poll, for support: which build is installed and on which PC.
+  printAgentVersion  String? @map("print_agent_version")
+  printAgentHostname String? @map("print_agent_hostname")
 
   // Subscription
   planTier                     PlanTier           @default(FREE) @map("plan_tier")
@@ -392,6 +395,7 @@ model Organization {
   walletTransactions              WalletTransaction[]
   sheetSyncQueue                  SheetSyncQueueEntry[]
   printers                        Printer[]
+  printAgentLogs                  PrintAgentLog[]
   moniepointUnreconciledTransfers MoniepointUnreconciledTransfer[]
   userMemberships                 UserOrganization[]
   impersonationSessions           ImpersonationSession[]
@@ -1420,6 +1424,23 @@ model MenuCategoryPrinter {
   @@id([categoryId, printerId])
   @@index([printerId])
   @@map("menu_category_printers")
+}
+
+// Lines from the on-site print agent's own log, uploaded so support can read them without
+// anyone at the location finding a file. Kept for a week (see PrintDiagnosticsService).
+model PrintAgentLog {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  // When the agent wrote the line, by the PC's clock.
+  loggedAt       DateTime @map("logged_at")
+  message        String
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, loggedAt])
+  @@map("print_agent_logs")
 }
 
 // One row per (order, printer) docket dispatch, so a printer being offline never blocks
