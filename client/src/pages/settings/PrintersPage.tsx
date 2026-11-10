@@ -1,15 +1,15 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, Edit, Trash2, Printer as PrinterIcon, Copy, RefreshCw, Download, Link2 } from 'lucide-react'
+import { Plus, Edit, Trash2, Printer as PrinterIcon, Copy, RefreshCw, Download, Link2, Search, Check } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Select, Card, CardContent, Badge } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { printersApi, menuCategoriesApi } from '@/api'
-import type { Printer } from '@/api'
+import type { Printer, DiscoveredDevice } from '@/api'
 
 // ipAddress is intentionally optional, even for NETWORK printers — finding a printer's LAN IP
 // is its own separate task (self-test page, router lookup, etc.), so admins can register the
@@ -22,6 +22,8 @@ const printerSchema = z.object({
   ipAddress: z.string().optional(),
   port: z.coerce.number().int().min(1).max(65535).optional(),
   devicePath: z.string().optional(),
+  // Carried along when a printer is added from the agent's scan; never shown or typed.
+  macAddress: z.string().optional(),
 })
 
 type PrinterFormInput = z.input<typeof printerSchema>
@@ -190,6 +192,117 @@ function PrintAgentSection() {
   )
 }
 
+const SCAN_WAIT_MS = 30_000
+
+// What the on-site agent has found on the local network. It scans by itself when it starts
+// and every few minutes after, so results usually show up here without pressing anything.
+function FoundPrintersSection({ onAdd }: { onAdd: (device: DiscoveredDevice) => void }) {
+  const queryClient = useQueryClient()
+  // Server time of the scan we asked for; the scan is done once results newer than it arrive.
+  const [waitingSince, setWaitingSince] = useState<string | null>(null)
+  const [timedOut, setTimedOut] = useState(false)
+  const giveUpTimer = useRef<number | undefined>(undefined)
+
+  const { data: status } = useQuery({
+    queryKey: ['printers', 'agent-status'],
+    queryFn: () => printersApi.getAgentStatus(),
+    refetchInterval: 5000,
+  })
+
+  const { data: discovery } = useQuery({
+    queryKey: ['printers', 'discovery'],
+    queryFn: () => printersApi.getDiscovery(),
+    refetchInterval: (query) => (waitingSince && !timedOut && !(query.state.data?.scannedAt && new Date(query.state.data.scannedAt) >= new Date(waitingSince)) ? 1500 : 15000),
+  })
+
+  const finished = !!waitingSince && !!discovery?.scannedAt && new Date(discovery.scannedAt) >= new Date(waitingSince)
+  const isScanning = !!waitingSince && !finished && !timedOut
+  const gaveUp = timedOut && !finished
+
+  const scanMutation = useMutation({
+    mutationFn: () => printersApi.requestScan(),
+    onSuccess: ({ requestedAt }) => {
+      setWaitingSince(requestedAt)
+      setTimedOut(false)
+      // A second search must not be cut short by the first one's timer.
+      window.clearTimeout(giveUpTimer.current)
+      giveUpTimer.current = window.setTimeout(() => setTimedOut(true), SCAN_WAIT_MS)
+      queryClient.invalidateQueries({ queryKey: ['printers', 'discovery'] })
+    },
+    onError: (error: any) => {
+      toast.error('Could not start the search', { description: error.response?.data?.message })
+    },
+  })
+
+  // Nothing to search with until a computer on site is connected.
+  if (!status?.lastSeenAt) return null
+
+  const devices = discovery?.devices ?? []
+  const newDevices = devices.filter((d) => !d.printerId)
+
+  return (
+    <Card className="mb-4">
+      <CardContent className="p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex-1">
+            <h3 className="font-medium">Printers on your network</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {isScanning
+                ? 'Searching your network…'
+                : gaveUp
+                  ? 'The computer on site did not answer. Check it shows as online above. If the agent was installed before printer search existed, download and run the installer again.'
+                  : !discovery?.scannedAt
+                    ? 'The computer on site can search your network for printers, so you don\'t have to type an IP address.'
+                    : devices.length === 0
+                      ? 'No printers found. Check the printer is switched on and plugged into the same network as the computer, then search again.'
+                      : newDevices.length === 0
+                        ? 'Every printer found is already added.'
+                        : `Found ${newDevices.length} printer${newDevices.length === 1 ? '' : 's'} not added yet.`}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            isLoading={scanMutation.isPending || isScanning}
+            disabled={!status.online}
+            onClick={() => scanMutation.mutate()}
+          >
+            <Search className="mr-2 h-4 w-4" />
+            Find printers
+          </Button>
+        </div>
+
+        {devices.length > 0 && (
+          <ul className="mt-3 divide-y divide-[rgba(196,197,215,0.4)] rounded-lg border border-[rgba(196,197,215,0.4)]">
+            {devices.map((device) => (
+              <li key={`${device.ipAddress}:${device.port}`} className="flex items-center justify-between gap-3 px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{device.printerName ?? 'New printer'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {device.ipAddress}
+                    {device.port !== 9100 ? `:${device.port}` : ''}
+                  </p>
+                </div>
+                {device.printerId ? (
+                  <span className="flex items-center text-xs text-muted-foreground">
+                    <Check className="mr-1 h-3.5 w-3.5" />
+                    Added
+                  </span>
+                ) : (
+                  <Button size="sm" onClick={() => onAdd(device)}>
+                    <Plus className="mr-1 h-4 w-4" />
+                    Add
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 const TEST_PRINT_WAIT_MS = 20_000
 
 // Queues a test page, then watches the job until the on-site agent says it printed or failed.
@@ -231,7 +344,7 @@ export function PrintersPage() {
     formState: { errors },
   } = useForm<PrinterFormInput, unknown, PrinterFormData>({
     resolver: zodResolver(printerSchema),
-    defaultValues: { name: '', station: '', connectionType: 'NETWORK', ipAddress: '', port: 9100, devicePath: '' },
+    defaultValues: { name: '', station: '', connectionType: 'NETWORK', ipAddress: '', port: 9100, devicePath: '', macAddress: '' },
   })
 
   const connectionType = watch('connectionType')
@@ -240,7 +353,7 @@ export function PrintersPage() {
     mutationFn: (data: PrinterFormData) => printersApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['printers'] })
-      toast.success('Printer added')
+      toast.success('Printer added', { description: 'Press Test print on it to check it works.' })
       closeModal()
     },
     onError: (error: any) => {
@@ -298,7 +411,7 @@ export function PrintersPage() {
 
   const openCreateModal = () => {
     setEditingPrinter(null)
-    reset({ name: '', station: '', connectionType: 'NETWORK', ipAddress: '', port: 9100, devicePath: '' })
+    reset({ name: '', station: '', connectionType: 'NETWORK', ipAddress: '', port: 9100, devicePath: '', macAddress: '' })
     setIsModalOpen(true)
   }
 
@@ -311,6 +424,7 @@ export function PrintersPage() {
       ipAddress: printer.ipAddress ?? '',
       port: printer.port ?? 9100,
       devicePath: printer.devicePath ?? '',
+      macAddress: '',
     })
     setIsModalOpen(true)
   }
@@ -320,11 +434,27 @@ export function PrintersPage() {
     setEditingPrinter(null)
   }
 
-  const onSubmit = (data: PrinterFormData) => {
+  // Opens the "new printer" form with the address already filled in from the agent's scan —
+  // all that's left to type is a name and a station.
+  const openCreateFromDevice = (device: DiscoveredDevice) => {
+    setEditingPrinter(null)
+    reset({
+      name: '',
+      station: '',
+      connectionType: 'NETWORK',
+      ipAddress: device.ipAddress,
+      port: device.port,
+      devicePath: '',
+      macAddress: device.macAddress ?? '',
+    })
+    setIsModalOpen(true)
+  }
+
+  const onSubmit = ({ macAddress, ...data }: PrinterFormData) => {
     if (editingPrinter) {
       updateMutation.mutate(data)
     } else {
-      createMutation.mutate(data)
+      createMutation.mutate(macAddress ? { ...data, macAddress } : data)
     }
   }
 
@@ -360,6 +490,7 @@ export function PrintersPage() {
 
       <div className="flex-1 overflow-auto p-4 sm:p-6">
         <PrintAgentSection />
+        <FoundPrintersSection onAdd={openCreateFromDevice} />
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
