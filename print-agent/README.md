@@ -18,41 +18,71 @@ Two ways it reaches a printer, depending on how that printer is connected:
   This only works if the agent runs on the **same Windows machine** the printer is plugged into
   — it can't reach a USB printer attached to a different computer.
 
-## Requirements
+## Windows: use the installer
+
+This is the normal way to set it up, and needs no technical knowledge:
+
+1. On the Windows PC that will stay on at the location, open Tarione and go to
+   **Settings > Printers**.
+2. Click **Download for Windows** and open the file. If Windows shows "Windows protected your
+   PC", click **More info**, then **Run anyway** (the installer isn't code-signed yet).
+3. Click **Connect a computer** on the Printers page and type the code it shows into the
+   installer.
+4. The Printers page changes to **Agent online** within a minute. Press **Test print** on a
+   printer to check it.
+
+That's all. The installer needs no administrator password, installs nothing else (Node is
+built in), and sets the agent to start by itself, with no window, whenever that Windows user
+signs in. To remove it, use **Add or remove programs > Tarione Print Agent**.
+
+Where things are, if you ever need to look:
+
+- Program, settings and log: `%LOCALAPPDATA%\Programs\Tarione Print Agent\` (`agent.log` is
+  the place to look when something isn't printing)
+- Check it's running: Task Manager > Details > `TarionePrintAgent.exe`
+- Moving from the older hand-made Scheduled Task setup: disable that task first, so two agents
+  aren't running on the same PC.
+
+The installer is built by `.github/workflows/print-agent.yml`, which also installs it on a
+Windows machine and runs a print end to end against a stand-in API and printer
+(`build/smoke-test.js`). Merging to `main` publishes it to the `print-agent-latest` release,
+which is what the Download button points at.
+
+## Manual setup (any OS, or if the installer can't be used)
+
+Requirements:
 
 - Node.js 18 or later
 - Network printers: run the agent on any always-on machine on the same local network as your
-  printers, and configure each with a static IP in Kulode's Settings > Printers page
+  printers, and configure each with a static IP in Settings > Printers
 - USB/Bluetooth printers: run the agent **on the Windows PC each printer is physically plugged
-  into** (if you have printers plugged into different PCs, you need an agent running on each
-  one), with the printer shared in Windows, and its share name entered in Settings > Printers
+  into**, with the printer shared in Windows, and its share name entered in Settings > Printers
 
-## Setup
+Steps:
 
-1. In Kulode, go to **Settings > Printers > Print Agent** and click **Generate Token**. Copy it
-   — it's only shown once.
-2. Copy `.env.example` to `.env` and fill in:
-   - `KULODE_API_URL` — your Kulode API base URL (ends in `/api/v1`)
-   - `KULODE_PRINT_AGENT_TOKEN` — the token from step 1
+1. In **Settings > Printers**, click **Connect a computer** to get a pairing code.
+2. In this folder, run:
+   ```
+   node agent.js --pair YOUR-CODE
+   ```
+   This saves the connection details to `.env`. (The older way still works too: under
+   **Manual setup (advanced)** generate a token, copy `.env.example` to `.env` and paste it in
+   as `KULODE_PRINT_AGENT_TOKEN`.)
 3. Run it:
    ```
    node agent.js
    ```
-   or
-   ```
-   npm start
-   ```
 
-You should see it log `Kulode print agent starting...` and then, once an order is placed,
+You should see it log `Tarione print agent ... starting` and then, once an order is placed,
 `Printed job ... on "Kitchen Printer" (192.168.1.50:9100)`.
 
-## Keeping it running
+## Keeping a manual setup running
 
 This script needs to keep running in the background on the machine you chose. A few options,
 pick whichever fits your setup:
 
 - **pm2** (simplest, cross-platform): `npm install -g pm2 && pm2 start agent.js --name kulode-print-agent && pm2 save && pm2 startup`
-- **Windows**: run it as a Scheduled Task set to start at login, or wrap it as a Windows service with [node-windows](https://github.com/coreybutler/node-windows)
+- **Windows**: use the installer above instead; failing that, a Scheduled Task (see [WINDOWS_SETUP.md](./WINDOWS_SETUP.md))
 - **macOS**: a `launchd` agent (`~/Library/LaunchAgents/`) that runs `node agent.js` at login
 - **Linux**: a `systemd` user service
 
