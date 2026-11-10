@@ -1,0 +1,2 @@
+Restaurants pick their POS on the accountant's say-so, so we built Tari1 for the person who has to make the numbers tie: a counted-cash variance on every shift, a WhatsApp shift report the moment it closes, Moniepoint payments that match their orders, VAT, entertainment tax and service charge split per order, and a dashboard and sales report that export to CSV.
+Reconciled before you open the laptop.

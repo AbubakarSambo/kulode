@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Tari1 for accountants</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @font-face {
+        font-family: "Plus Jakarta Sans";
+        src: url("assets/fonts/PlusJakartaSans-latin.woff2") format("woff2");
+        font-weight: 200 800;
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: "Plus Jakarta Sans";
+        src: url("assets/fonts/PlusJakartaSans-latinext.woff2") format("woff2");
+        font-weight: 200 800;
+        unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+      }
+      :root {
+        --primary: #0037b0;
+        --primary-2: #1d4ed8;
+        --surface: #f8f9ff;
+        --well: #eef4ff;
+        --ink: #121c28;
+        --body: #434655;
+        --ok: #006c49;
+        --ok-bg: #c9f6e2;
+        --warn-bg: #ffddb8;
+        --warn-ink: #4c2205;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--surface);
+        color: var(--ink);
+        font-family: "Plus Jakarta Sans", sans-serif;
+        font-variant-numeric: tabular-nums;
+      }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--surface); }
+      .bg {
+        position: absolute; inset: 0;
+        background:
+          radial-gradient(900px 700px at 88% 8%, rgba(29, 78, 216, 0.10), transparent 70%),
+          radial-gradient(700px 600px at 4% 100%, rgba(0, 55, 176, 0.07), transparent 70%),
+          radial-gradient(circle, rgba(0, 55, 176, 0.10) 2px, transparent 2.5px) 0 0 / 44px 44px;
+      }
+      #logo { position: absolute; left: 96px; top: 56px; width: 180px; height: 78px; overflow: hidden; }
+      #logo img { position: absolute; left: -20px; top: -24px; width: 200px; }
+
+      .scene { position: absolute; inset: 0; display: flex; align-items: center; padding: 0 96px; }
+      .capcol { width: 640px; position: relative; z-index: 2; }
+      .eyebrow {
+        font-size: 28px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+        color: var(--body); margin-bottom: 22px; display: flex; align-items: center; gap: 14px;
+      }
+      .eyebrow::before { content: ""; width: 36px; height: 4px; border-radius: 2px; background: var(--primary); }
+      .cap { margin: 0; font-size: 62px; line-height: 1.1; font-weight: 700; letter-spacing: -0.025em; }
+      .cap em { font-style: normal; color: var(--primary); }
+
+      .card {
+        position: absolute; left: 820px; top: 150px; width: 1004px; height: 780px;
+        background: #fff; border-radius: 28px; padding: 48px;
+        box-shadow: 0 24px 60px rgba(0, 55, 176, 0.12);
+      }
+      #s2 .card { top: 230px; height: 620px; }
+      #s3 .card { top: 170px; height: 760px; }
+      #s4 .card { top: 190px; height: 700px; }
+      .card-h { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+      .card-t { font-size: 40px; font-weight: 700; letter-spacing: -0.02em; }
+      .card-s { font-size: 28px; color: var(--body); font-weight: 500; margin-top: 6px; }
+
+      .chip {
+        display: inline-flex; align-items: center; gap: 10px; padding: 8px 20px; border-radius: 999px;
+        font-size: 28px; font-weight: 700; white-space: nowrap;
+      }
+      .chip.ok { background: var(--ok-bg); color: var(--ok); }
+      .chip.warn { background: var(--warn-bg); color: var(--warn-ink); }
+      .chip.grey { background: #e5eeff; color: var(--body); }
+
+      .ring {
+        position: absolute; inset: -16px; border: 6px solid var(--primary); border-radius: 20px;
+        box-shadow: 0 0 0 10px rgba(0, 55, 176, 0.14); pointer-events: none;
+      }
+      .tgt { position: relative; display: inline-block; }
+
+      /* hook */
+      #s1 .hook { display: flex; flex-direction: column; gap: 8px; width: 1060px; padding-top: 40px; }
+      #s1 .a { font-size: 100px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
+      #s1 .b { font-size: 100px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; color: var(--body); }
+      #s1 .c { font-size: 140px; font-weight: 700; letter-spacing: -0.035em; line-height: 1.05; color: var(--primary); margin-top: 18px; }
+      #s1 .checks { position: absolute; left: 1180px; top: 330px; width: 644px; padding: 40px 44px; height: auto; }
+      .chk { display: flex; align-items: center; gap: 22px; padding: 22px 0; font-size: 34px; font-weight: 700; }
+      .chk .dot { width: 52px; height: 52px; border-radius: 50%; background: var(--ok-bg); display: grid; place-items: center; }
+
+      /* shift */
+      .rowv { display: flex; align-items: center; justify-content: space-between; padding: 34px 0 0; }
+      .rowv .l { font-size: 30px; font-weight: 600; color: var(--body); }
+      .rowv .v { font-size: 72px; font-weight: 700; letter-spacing: -0.03em; }
+      .variance { margin-top: 56px; background: var(--well); border-radius: 22px; padding: 36px 40px; display: flex; align-items: center; justify-content: space-between; }
+      .variance .l { font-size: 30px; font-weight: 600; color: var(--body); }
+      .variance .chip { font-size: 56px; padding: 14px 36px; letter-spacing: -0.02em; }
+
+      /* payments */
+      .pay { margin-top: 26px; display: flex; align-items: center; gap: 24px; background: var(--well); border-radius: 22px; padding: 26px 30px; }
+      .pay .ico { width: 64px; height: 64px; border-radius: 50%; background: #fff; display: grid; place-items: center; flex: none; }
+      .pay .t { font-size: 30px; font-weight: 700; }
+      .pay .s { font-size: 28px; color: var(--body); font-weight: 500; margin-top: 4px; }
+      .pay .grow { flex: 1; }
+      .pay .amt { font-size: 40px; font-weight: 700; letter-spacing: -0.02em; }
+      .chipwrap { position: relative; width: 230px; height: 46px; flex: none; }
+      .chipwrap .chip { position: absolute; right: 0; top: 0; }
+      .actions { display: flex; gap: 14px; margin-top: 18px; padding-left: 88px; }
+      .btn { padding: 14px 26px; border-radius: 12px; font-size: 28px; font-weight: 700; background: #fff; color: var(--primary); box-shadow: 0 4px 14px rgba(0, 55, 176, 0.10); }
+      .btn.pri { background: linear-gradient(135deg, #0037b0, #1d4ed8); color: #fff; }
+
+      /* tax */
+      .ord { margin-top: 30px; }
+      .tl { display: flex; align-items: center; justify-content: space-between; padding: 24px 28px; border-radius: 18px; font-size: 32px; font-weight: 600; }
+      .tl .rate { margin-left: 14px; font-size: 28px; font-weight: 700; color: var(--primary); background: var(--well); padding: 6px 16px; border-radius: 999px; }
+      .tl .n { font-weight: 700; font-size: 38px; letter-spacing: -0.02em; }
+      .tl.alt { background: var(--well); }
+      .tl.sub { margin-bottom: 8px; }
+      .tl.tot { margin-top: 16px; padding: 30px 28px; }
+      .tl.tot .l2 { font-size: 36px; font-weight: 700; }
+      .tl.tot .n { font-size: 64px; }
+
+      /* report */
+      .btn-csv { display: inline-flex; align-items: center; gap: 12px; padding: 16px 30px; border-radius: 14px; font-size: 26px; font-weight: 700; color: #fff; background: linear-gradient(135deg, #0037b0, #1d4ed8); box-shadow: 0 10px 24px rgba(0, 55, 176, 0.25); }
+      .filechip { display: inline-flex; align-items: center; gap: 12px; padding: 12px 20px; border-radius: 14px; background: var(--ok-bg); color: var(--ok); font-size: 26px; font-weight: 700; margin-right: 18px; white-space: nowrap; }
+      .hr { display: flex; align-items: center; }
+      .tiles { display: flex; gap: 18px; margin-top: 34px; }
+      .tile { flex: 1; background: var(--well); border-radius: 20px; padding: 24px 26px; }
+      .tile .k { font-size: 28px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--body); }
+      .tile .v { font-size: 44px; font-weight: 700; letter-spacing: -0.03em; margin-top: 8px; white-space: nowrap; }
+      .sec { font-size: 28px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--body); margin: 38px 0 16px; }
+      .bar { display: flex; height: 26px; border-radius: 13px; overflow: hidden; gap: 4px; }
+      .bar i { display: block; height: 100%; }
+      .legend { display: flex; justify-content: space-between; margin-top: 16px; }
+      .lg { font-size: 28px; font-weight: 600; color: var(--body); }
+      .lg b { display: block; font-size: 32px; color: var(--ink); letter-spacing: -0.02em; margin-top: 2px; }
+      .ctrls { display: flex; gap: 18px; }
+      .ctrl { flex: 1; border-radius: 20px; padding: 22px 24px; background: var(--warn-bg); color: var(--warn-ink); display: flex; align-items: center; justify-content: space-between; font-size: 26px; font-weight: 700; }
+      .ctrl small { font-size: 28px; font-weight: 600; }
+      #cursor { position: absolute; left: 0; top: 0; width: 44px; height: 44px; z-index: 10; }
+      .pill { display: inline-flex; align-items: center; gap: 12px; margin-top: 34px; padding: 12px 24px; border-radius: 999px; background: #fff; color: var(--primary); font-size: 24px; font-weight: 700; box-shadow: 0 8px 24px rgba(0, 55, 176, 0.10); }
+
+      /* outro */
+      #s6 { flex-direction: column; justify-content: center; align-items: center; padding: 0; text-align: center; }
+      #s6 .biglogo { width: 600px; height: 262px; overflow: hidden; position: relative; margin-bottom: 20px; }
+      #s6 .biglogo img { position: absolute; left: -66px; top: -80px; width: 670px; }
+      #s6 .l1 { font-size: 92px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.08; max-width: 1500px; }
+      #s6 .l1 em { font-style: normal; color: var(--primary); }
+      #s6 .l2 { margin-top: 44px; font-size: 36px; font-weight: 600; color: var(--body); letter-spacing: -0.005em; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-width="1920" data-height="1080" data-duration="25">
+      <div class="bg"></div>
+      <div id="logo" data-layout-allow-overflow><img src="assets/tari1-logo.png" alt="Tari1" /></div>
+
+      <!-- 1 · Hook -->
+      <section id="s1" class="clip scene" data-start="0" data-duration="3.5">
+        <div class="hook">
+          <div class="a" id="s1a">Who picks the POS?</div>
+          <div class="b" id="s1b">Whoever reconciles it.</div>
+          <div class="c" id="s1c">That's you.</div>
+        </div>
+        <div class="card checks" id="s1card">
+          <div class="chk" id="k1"><span class="dot"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#006C49" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>Cash counted</div>
+          <div class="chk" id="k2"><span class="dot"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#006C49" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>Payments matched</div>
+          <div class="chk" id="k3"><span class="dot"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#006C49" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>Tax split</div>
+        </div>
+      </section>
+
+      <!-- 2 · Shift ties out -->
+      <section id="s2" class="clip scene" data-start="3.5" data-duration="4.5">
+        <div class="capcol">
+          <div class="eyebrow">The cash doesn't tie</div>
+          <h2 class="cap">Every shift closes with a <em>counted-cash variance.</em></h2>
+        </div>
+        <div class="card">
+          <div class="card-h"><div><div class="card-t">Close shift</div><div class="card-s">Evening shift · The Courtyard Maitama</div></div></div>
+          <div class="rowv" id="s2e"><span class="l">Expected cash</span><span class="v">₦50,000</span></div>
+          <div class="rowv" id="s2c"><span class="l">Counted cash in till</span><span class="v" id="counted">₦0</span></div>
+          <div class="variance" id="s2v">
+            <span class="l">Variance</span>
+            <span class="tgt"><span class="chip warn">−₦2,000</span><span class="ring" id="s2ring"></span></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3 · Every naira finds its order -->
+      <section id="s3" class="clip scene" data-start="8" data-duration="4.5">
+        <div class="capcol">
+          <div class="eyebrow">The transfers don't match</div>
+          <h2 class="cap">Payments <em>match themselves.</em> Strays wait in a queue.</h2>
+        </div>
+        <div class="card">
+          <div class="card-h"><div><div class="card-t">Moniepoint payments</div><div class="card-s">Live from card swipes and bank transfers</div></div></div>
+
+          <div class="pay" id="p1" style="margin-top:34px">
+            <span class="ico"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#0037B0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M2.5 10h19"/></svg></span>
+            <div class="grow"><div class="t">Card · POS terminal</div><div class="s">Table 4</div></div>
+            <div class="amt">₦18,500</div>
+            <div class="chipwrap"><span class="chip grey" id="p1a" data-layout-ignore>Matching…</span><span class="chip ok" id="p1b">Paid · auto</span></div>
+          </div>
+          <div class="pay" id="p2">
+            <span class="ico"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#0037B0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10l9-6 9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18"/></svg></span>
+            <div class="grow"><div class="t">Bank transfer</div><div class="s">Table 7</div></div>
+            <div class="amt">₦12,000</div>
+            <div class="chipwrap"><span class="chip grey" id="p2a" data-layout-ignore>Matching…</span><span class="chip ok" id="p2b">Paid · auto</span></div>
+          </div>
+          <div class="pay" id="p3">
+            <span class="ico"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#0037B0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10l9-6 9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18"/></svg></span>
+            <div class="grow"><div class="t">Bank transfer</div><div class="s">No single matching order</div></div>
+            <div class="amt">₦6,200</div>
+            <div class="chipwrap"><span class="chip grey" id="p3a" data-layout-ignore>Matching…</span><span class="chip warn" id="p3b">Unreconciled</span></div>
+          </div>
+          <div class="actions" id="acts"><span class="btn pri">Assign to order</span><span class="btn">Credit wallet</span><span class="btn">Ignore</span></div>
+        </div>
+      </section>
+
+      <!-- 4 · Tax is already split -->
+      <section id="s4" class="clip scene" data-start="12.5" data-duration="4.5">
+        <div class="capcol">
+          <div class="eyebrow">The tax is a guess</div>
+          <h2 class="cap"><em>VAT, entertainment tax and service charge,</em> split on every order.</h2>
+        </div>
+        <div class="card">
+          <div class="card-h"><div><div class="card-t">Order · Table 4</div><div class="card-s">Closed and paid</div></div></div>
+          <div class="ord">
+            <div class="tl sub" id="t0"><span>Subtotal</span><span class="n">₦20,000</span></div>
+            <div class="tl alt" id="t1"><span>VAT<span class="rate">7.5%</span></span><span class="n">₦1,500</span></div>
+            <div class="tl" id="t2"><span>Entertainment tax<span class="rate">5%</span></span><span class="n">₦1,000</span></div>
+            <div class="tl alt" id="t3"><span>Service charge<span class="rate">5%</span></span><span class="n">₦1,000</span></div>
+            <div class="tl tot" id="t4"><span class="l2">Total</span><span class="tgt"><span class="n">₦23,500</span><span class="ring" id="s4ring"></span></span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5 · Export, don't retype -->
+      <section id="s5" class="clip scene" data-start="17" data-duration="4.5">
+        <div class="capcol">
+          <div class="eyebrow">Then you retype it</div>
+          <h2 class="cap">One CSV: <em>payments by method,</em> voids and discounts.</h2>
+        </div>
+        <div class="card">
+          <div class="card-h">
+            <div><div class="card-t">Sales report</div><div class="card-s">This week</div></div>
+            <div class="hr"><span class="filechip" id="file"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#006C49" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5"/></svg>courtyard-sales-report.csv</span><span class="btn-csv" id="csvbtn"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>CSV</span></div>
+          </div>
+          <div class="tiles" id="tiles">
+            <div class="tile" id="tl1"><div class="k">Gross sales</div><div class="v">₦1,240,000</div></div>
+            <div class="tile" id="tl2"><div class="k">Discounts</div><div class="v">₦38,000</div></div>
+            <div class="tile" id="tl3"><div class="k">Net sales</div><div class="v">₦1,202,000</div></div>
+          </div>
+          <div id="pcol">
+            <div class="sec">Payments collected</div>
+            <div class="bar"><i style="width:38%;background:#0037b0"></i><i style="width:35%;background:#1d4ed8"></i><i style="width:24%;background:#6ffbbe"></i><i style="width:3%;background:#ffddb8"></i></div>
+            <div class="legend">
+              <span class="lg">Cash<b>₦456,000</b></span>
+              <span class="lg">Card<b>₦420,000</b></span>
+              <span class="lg">Transfer<b>₦290,000</b></span>
+              <span class="lg">Wallet<b>₦36,000</b></span>
+            </div>
+          </div>
+          <div id="ccol">
+            <div class="sec">Controls</div>
+            <div class="ctrls">
+              <div class="ctrl"><span>Voids</span><small>3 · ₦14,500</small></div>
+              <div class="ctrl"><span>Discounts</span><small>5 · ₦38,000</small></div>
+            </div>
+          </div>
+        </div>
+        <svg id="cursor" viewBox="0 0 40 44"><path d="M3 3 L3 33 L11 26 L17 40 L23 37 L17 24 L28 24 Z" fill="#121c28" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/></svg>
+      </section>
+
+      <!-- 6 · Outro -->
+      <section id="s6" class="clip scene" data-start="21.5" data-duration="3.5">
+        <div class="biglogo" id="s6logo" data-layout-allow-overflow><img src="assets/tari1-logo.png" alt="Tari1" /></div>
+        <div class="l1" id="s6l1">Reconciled before you <em>open the laptop.</em></div>
+        <div class="l2" id="s6l2">30-day free trial · Live in a week · 09053018005</div>
+      </section>
+
+      <!-- audio -->
+      <audio id="bed" src="assets/music/bed.mp3" data-start="0" data-duration="25" data-track-index="1"
+        data-automation='{"version":1,"lanes":[{"target":"volume","points":[{"t":0,"v":0},{"t":0.6,"v":0.42},{"t":22.2,"v":0.42},{"t":25,"v":0}]}]}'></audio>
+      <audio id="x02" src="assets/sfx/switch_002.ogg" data-start="1.0" data-duration="0.63" data-track-index="2" data-volume="0.35"></audio>
+      <audio id="x03" src="assets/sfx/impactSoft_medium_001.ogg" data-start="2.0" data-duration="0.2" data-track-index="2" data-volume="0.5"></audio>
+      <audio id="x04" src="assets/sfx/click_003.ogg" data-start="2.3" data-duration="0.03" data-track-index="2" data-volume="0.5"></audio>
+      <audio id="x05" src="assets/sfx/click_003.ogg" data-start="2.65" data-duration="0.03" data-track-index="2" data-volume="0.5"></audio>
+      <audio id="x06" src="assets/sfx/click_003.ogg" data-start="3.0" data-duration="0.03" data-track-index="2" data-volume="0.5"></audio>
+
+      <audio id="x07" src="assets/sfx/select_008.ogg" data-start="4.5" data-duration="0.07" data-track-index="2" data-volume="0.4"></audio>
+      <audio id="x08" src="assets/sfx/bong_001.ogg" data-start="5.5" data-duration="0.14" data-track-index="2" data-volume="0.45"></audio>
+
+      <audio id="x09" src="assets/sfx/switch_002.ogg" data-start="8.5" data-duration="0.63" data-track-index="2" data-volume="0.3"></audio>
+      <audio id="x10" src="assets/sfx/bong_001.ogg" data-start="9.0" data-duration="0.14" data-track-index="3" data-volume="0.4"></audio>
+      <audio id="x11" src="assets/sfx/switch_002.ogg" data-start="9.25" data-duration="0.63" data-track-index="2" data-volume="0.3"></audio>
+      <audio id="x12" src="assets/sfx/bong_001.ogg" data-start="9.75" data-duration="0.14" data-track-index="3" data-volume="0.4"></audio>
+      <audio id="x13" src="assets/sfx/switch_002.ogg" data-start="10.0" data-duration="0.63" data-track-index="2" data-volume="0.3"></audio>
+      <audio id="x14" src="assets/sfx/select_008.ogg" data-start="10.5" data-duration="0.07" data-track-index="3" data-volume="0.4"></audio>
+
+      <audio id="x15" src="assets/sfx/click_003.ogg" data-start="13.0" data-duration="0.03" data-track-index="2" data-volume="0.5"></audio>
+      <audio id="x16" src="assets/sfx/click_003.ogg" data-start="13.5" data-duration="0.03" data-track-index="2" data-volume="0.5"></audio>
+      <audio id="x17" src="assets/sfx/click_003.ogg" data-start="14.0" data-duration="0.03" data-track-index="2" data-volume="0.5"></audio>
+      <audio id="x18" src="assets/sfx/click_003.ogg" data-start="14.5" data-duration="0.03" data-track-index="2" data-volume="0.5"></audio>
+      <audio id="x19" src="assets/sfx/bong_001.ogg" data-start="15.1" data-duration="0.14" data-track-index="2" data-volume="0.45"></audio>
+
+      <audio id="x20" src="assets/sfx/switch_002.ogg" data-start="17.5" data-duration="0.63" data-track-index="2" data-volume="0.3"></audio>
+      <audio id="x21" src="assets/sfx/click_003.ogg" data-start="19.5" data-duration="0.03" data-track-index="2" data-volume="0.7"></audio>
+      <audio id="x22" src="assets/sfx/bong_001.ogg" data-start="19.62" data-duration="0.14" data-track-index="2" data-volume="0.45"></audio>
+
+      <audio id="x23" src="assets/sfx/impactSoft_medium_001.ogg" data-start="21.52" data-duration="0.2" data-track-index="2" data-volume="0.5"></audio>
+    </div>
+
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      const E = "power3.out";
+
+      // persistent logo
+      tl.fromTo("#logo", { opacity: 0, y: -12 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, 0.1);
+      tl.to("#logo", { opacity: 0, duration: 0.3 }, 21.2);
+
+      const capIn = (id, t) => tl.fromTo(`#${id} .capcol`, { opacity: 0, x: -48 }, { opacity: 1, x: 0, duration: 0.6, ease: E }, t);
+      const cardIn = (id, t) => tl.fromTo(`#${id} .card`, { opacity: 0, x: 64, scale: 0.97 }, { opacity: 1, x: 0, scale: 1, duration: 0.7, ease: E }, t + 0.1);
+      const sceneOut = (id, end) => tl.to(`#${id} .capcol, #${id} .card, #${id} .hook`, { opacity: 0, duration: 0.3, ease: "power1.in" }, end - 0.3);
+      const ring = (sel, t) => tl.fromTo(sel, { opacity: 0, scale: 1.18 }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.6)" }, t);
+      const rise = (sel, t, d = 0.5) => tl.fromTo(sel, { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: d, ease: E }, t);
+
+      // 1 · hook (0–3.5)
+      /* hook line A is on screen from frame 0 (thumbnail) */
+      rise("#s1b", 1.0, 0.55);
+      tl.fromTo("#s1c", { opacity: 0, scale: 0.9, y: 16 }, { opacity: 1, scale: 1, y: 0, duration: 0.5, ease: "back.out(1.5)" }, 2.0);
+      tl.fromTo("#s1card", { opacity: 0, x: 60 }, { opacity: 1, x: 0, duration: 0.6, ease: E }, 1.9);
+      [["#k1", 2.3], ["#k2", 2.65], ["#k3", 3.0]].forEach(([s, t]) => {
+        tl.fromTo(`${s} .dot`, { scale: 0.2, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.3, ease: "back.out(2)" }, t);
+        tl.fromTo(s, { opacity: 0.25 }, { opacity: 1, duration: 0.25 }, t);
+      });
+      tl.to("#s1 .hook, #s1card", { opacity: 0, duration: 0.25, ease: "power1.in" }, 3.25);
+
+      // 2 · shift (3.5–8)
+      capIn("s2", 3.5); cardIn("s2", 3.5);
+      rise("#s2e", 4.0);
+      rise("#s2c", 4.5);
+      const cnt = { v: 0 };
+      tl.to(cnt, { v: 48000, duration: 0.9, ease: "power2.out", onUpdate: () => { document.getElementById("counted").textContent = "₦" + Math.round(cnt.v).toLocaleString("en-US"); } }, 4.5);
+      tl.fromTo("#s2v", { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, 5.5); // beat-locked: 5.52s
+      tl.fromTo("#s2v .chip", { scale: 0.7 }, { scale: 1, duration: 0.45, ease: "back.out(2)" }, 5.5);
+      ring("#s2ring", 6.0);
+      sceneOut("s2", 8);
+
+      // 3 · payments (8–12.5)
+      capIn("s3", 8.0); cardIn("s3", 8.0);
+      // beat-grid: rows at 8.5 / 9.25 / 10.0
+      [["#p1", 8.5, "#p1a", "#p1b", 9.0], ["#p2", 9.25, "#p2a", "#p2b", 9.75], ["#p3", 10.0, "#p3a", "#p3b", 10.5]].forEach(([row, t, a, b, tm]) => {
+        rise(row, t, 0.45);
+        tl.fromTo(b, { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2)" }, tm);
+        tl.to(a, { opacity: 0, duration: 0.2 }, tm);
+        tl.set(a, { opacity: 1 }, 0);
+      });
+      rise("#acts", 10.9, 0.45);
+      sceneOut("s3", 12.5);
+
+      // 4 · tax (12.5–17)
+      capIn("s4", 12.5); cardIn("s4", 12.5);
+      // beat-grid: 13.0 / 13.5 / 14.0 / 14.5
+      [["#t0", 13.0], ["#t1", 13.5], ["#t2", 14.0], ["#t3", 14.5]].forEach(([s, t]) => rise(s, t, 0.4));
+      rise("#t4", 15.1, 0.45);
+      ring("#s4ring", 15.4);
+      sceneOut("s4", 17);
+
+      // 5 · report (17–21.5)
+      capIn("s5", 17.0); cardIn("s5", 17.0); // beat-locked: 17.02s
+      tl.fromTo("#file", { opacity: 0, x: 24 }, { opacity: 0, x: 24, duration: 0.01 }, 0);
+      [["#tl1", 17.5], ["#tl2", 17.65], ["#tl3", 17.8]].forEach(([s, t]) => rise(s, t, 0.45));
+      rise("#pcol", 18.2, 0.5);
+      rise("#ccol", 18.7, 0.5);
+      // cursor travels to the CSV button and clicks on the 19.52 beat
+      tl.fromTo("#cursor", { x: 1560, y: 700, opacity: 0 }, { x: 1700, y: 232, opacity: 1, duration: 0.7, ease: "power2.inOut" }, 18.8);
+      tl.to("#cursor", { scale: 0.88, duration: 0.08 }, 19.5).to("#cursor", { scale: 1, duration: 0.12 }, 19.58);
+      tl.to("#csvbtn", { scale: 0.94, duration: 0.08 }, 19.5).to("#csvbtn", { scale: 1, duration: 0.14 }, 19.58);
+      tl.fromTo("#file", { opacity: 0, x: 28 }, { opacity: 1, x: 0, duration: 0.4, ease: E }, 19.6);
+      tl.to("#cursor", { opacity: 0, duration: 0.3 }, 19.9);
+      sceneOut("s5", 21.5);
+
+      // 6 · outro (21.5–25)
+      tl.fromTo("#s6logo", { opacity: 0, scale: 0.92 }, { opacity: 1, scale: 1, duration: 0.6, ease: E }, 21.5);
+      rise("#s6l1", 21.9, 0.6);
+      rise("#s6l2", 22.4, 0.5);
+      tl.to("#s6 > *", { opacity: 0, duration: 0.4, ease: "power1.in" }, 24.6);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

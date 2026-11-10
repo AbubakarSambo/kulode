@@ -182,9 +182,14 @@ async function testInstaller(installer) {
   await checkPrinted();
   check(fs.readFileSync(path.join(installDir, 'agent.log'), 'utf8').includes('Printed job job-1'), 'agent writes its log file');
 
-  const uninstall = await runToExit(path.join(installDir, 'unins000.exe'), ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART']);
+  const uninstall = await runToExit(path.join(installDir, 'unins000.exe'), ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', `/LOG=${path.join(os.tmpdir(), 'tarione-agent-uninstall.log')}`]);
   check(uninstall.status === 0, 'uninstaller runs');
-  await waitFor(() => !isRunning() && !fs.existsSync(exe), 30, 'uninstall stops and removes the agent');
+  try {
+    await waitFor(() => !isRunning() && !fs.existsSync(exe), 30, 'uninstall stops and removes the agent');
+  } catch (err) {
+    console.error(`still running: ${isRunning()}; program file still there: ${fs.existsSync(exe)}; folder: ${fs.existsSync(installDir) ? fs.readdirSync(installDir).join(', ') : '(gone)'}`);
+    throw err;
+  }
 }
 
 async function main() {
