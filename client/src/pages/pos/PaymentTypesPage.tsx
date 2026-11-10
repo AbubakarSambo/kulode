@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import { Plus, Pencil, Trash2, Wallet } from 'lucide-react'
+import { Wallet01Icon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Card, CardContent, Badge, ConfirmDialog, EmptyState } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
@@ -92,7 +93,7 @@ export function PaymentTypesPage() {
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {!isLoading && (!paymentTypes || paymentTypes.length === 0) ? (
           <EmptyState
-            icon={Wallet}
+            icon={Wallet01Icon}
             title="No payment types yet"
             description="Add your first payment type — Cash, Bank Transfer, Card, or something specific to your business"
             actionLabel="Add Payment Type"
