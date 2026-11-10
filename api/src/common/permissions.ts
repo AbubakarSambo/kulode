@@ -23,7 +23,7 @@ export type RoleName =
   | 'STOREKEEPER';
 
 const KITCHEN_TRACK: RoleName[] = ['PASS', 'RUNNER', 'KITCHEN'];
-// Retail-only, off the floor ladder: looks after stock, never sells.
+// Off the floor ladder: looks after stock (a shop's shelves or a restaurant's store), never sells.
 const STOREKEEPER: RoleName[] = ['STOREKEEPER'];
 const LEGACY: RoleName[] = ['STAFF', 'ACCOUNTANT'];
 const ADMINS: RoleName[] = ['ADMIN', 'SUPER_ADMIN'];

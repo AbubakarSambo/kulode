@@ -14,7 +14,7 @@ export enum Role {
   PASS = 'PASS',
   RUNNER = 'RUNNER',
   KITCHEN = 'KITCHEN',
-  // Retail-only stock-room role (off the floor ladder).
+  // Stock-room role (off the floor ladder) — retail and restaurant orgs alike.
   STOREKEEPER = 'STOREKEEPER',
 }
 

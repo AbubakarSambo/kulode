@@ -551,13 +551,16 @@ describe('UsersService — user limit enforcement', () => {
       ).resolves.toBeDefined();
     });
 
-    it('rejects STOREKEEPER on a restaurant org (retail only)', async () => {
+    it('lets a restaurant org assign STOREKEEPER too (its store counts the ingredients)', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
-      prisma.organization.findUnique.mockResolvedValue(orgWith({ enabledModules: 'POS', posMode: 'RESTAURANT' }));
+      prisma.user.findFirst.mockResolvedValue(null);
+      prisma.user.count.mockResolvedValue(0);
+      prisma.organization.findUnique.mockResolvedValue(orgWith({ enabledModules: 'POS', posMode: 'RESTAURANT', slug: 'cafe' }));
+      setupTransactionMock(prisma);
 
       await expect(
         service.create(ORG_ID, { ...createDto, roles: [Role.STOREKEEPER] }, [Role.SUPER_ADMIN]),
-      ).rejects.toThrow(ForbiddenException);
+      ).resolves.toBeDefined();
     });
 
     it('lets a manager create a storekeeper (floor staff), but not a second manager', async () => {

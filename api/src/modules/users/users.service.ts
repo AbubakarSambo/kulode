@@ -36,9 +36,6 @@ const NON_POS_ROLES = [Role.STAFF, Role.ACCOUNTANT, Role.ADMIN, Role.SUPER_ADMIN
 // Dine-in/kitchen-prep roles that don't apply to a retail (scan-and-sell) org.
 const RESTAURANT_ONLY_ROLES = [Role.WAITER, Role.PASS, Role.RUNNER, Role.KITCHEN];
 
-// The reverse: a stock-room role only a retail org has (a restaurant's store is run by its kitchen).
-const RETAIL_ONLY_ROLES = [Role.STOREKEEPER];
-
 function usesPosRoles(enabledModules: OrgModule): boolean {
   return enabledModules === 'POS' || enabledModules === 'BOTH';
 }
@@ -57,7 +54,7 @@ function assertRoleMatchesModule(roles: string[] | undefined, enabledModules: Or
   const allowed = usesPosRoles(enabledModules)
     ? posMode === 'RETAIL'
       ? POS_ROLES.filter((role) => !RESTAURANT_ONLY_ROLES.includes(role))
-      : POS_ROLES.filter((role) => !RETAIL_ONLY_ROLES.includes(role))
+      : POS_ROLES
     : NON_POS_ROLES;
   const invalid = roles.find((role) => !allowed.includes(role as Role));
   if (invalid) {
