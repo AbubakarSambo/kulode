@@ -17,7 +17,72 @@ import type {
   GoLiveSummary,
 } from '@/types'
 
+export interface PrintDiagnostics {
+  organization: { id: string; name: string }
+  agent: {
+    hasToken: boolean
+    lastSeenAt: string | null
+    online: boolean
+    /** Null for agents older than 1.3.0, which don't say. */
+    version: string | null
+    hostname: string | null
+  }
+  discovery: {
+    scanning: boolean
+    scannedAt: string | null
+    devices: Array<{ ipAddress: string; port: number; macAddress: string | null; printerId: string | null; printerName: string | null }>
+  }
+  printers: Array<{
+    id: string
+    name: string
+    station: string
+    connectionType: 'NETWORK' | 'USB' | 'BLUETOOTH'
+    ipAddress: string | null
+    port: number | null
+    devicePath: string | null
+    macAddress: string | null
+    isActive: boolean
+    routes: string[]
+    lastPrintedAt: string | null
+  }>
+  jobs: Array<{
+    id: string
+    orderId: string | null
+    printerId: string
+    printerName: string
+    type: string
+    tableName: string | null
+    status: 'PENDING' | 'DISPATCHED' | 'SENT' | 'FAILED'
+    error: string | null
+    attempts: number
+    createdAt: string
+    printedAt: string | null
+  }>
+  logs: Array<{ id: string; loggedAt: string; message: string }>
+}
+
 export const platformApi = {
+  // Printer support — see PrinterDiagnosticsModal.
+  getPrintDiagnostics: async (organizationId: string): Promise<PrintDiagnostics> => {
+    const response = await apiClient.get<ApiResponse<PrintDiagnostics>>(`/platform/organizations/${organizationId}/printing`)
+    return response.data.data
+  },
+  requestPrinterScan: async (organizationId: string): Promise<void> => {
+    await apiClient.post(`/platform/organizations/${organizationId}/printing/scan`)
+  },
+  testPrint: async (organizationId: string, printerId: string): Promise<{ jobId: string }> => {
+    const response = await apiClient.post<ApiResponse<{ jobId: string }>>(
+      `/platform/organizations/${organizationId}/printing/printers/${printerId}/test-print`,
+    )
+    return response.data.data
+  },
+  getPrintJob: async (organizationId: string, jobId: string): Promise<{ id: string; status: string; error: string | null }> => {
+    const response = await apiClient.get<ApiResponse<{ id: string; status: string; error: string | null }>>(
+      `/platform/organizations/${organizationId}/printing/jobs/${jobId}`,
+    )
+    return response.data.data
+  },
+
   // Read-only "View as Super Admin" — see api/src/modules/auth/impersonation.controller.ts
   startImpersonation: async (organizationId: string, reason?: string): Promise<AuthResponse> => {
     const response = await apiClient.post<ApiResponse<AuthResponse>>('/impersonation/start', { organizationId, reason })

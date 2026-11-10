@@ -54,6 +54,7 @@ jobs:
         run: |
           Get-Content "$env:TEMP\tarione-agent-install.log" -ErrorAction SilentlyContinue | Select-Object -Last 80
           Get-Content "$env:LOCALAPPDATA\Programs\Tarione Print Agent\agent.log" -ErrorAction SilentlyContinue
+          Get-Content "$env:TEMP\tarione-agent-uninstall.log" -ErrorAction SilentlyContinue | Select-Object -Last 60
 
       - uses: actions/upload-artifact@v4
         with:

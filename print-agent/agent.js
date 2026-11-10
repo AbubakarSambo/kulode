@@ -34,7 +34,7 @@ const os = require('os');
 const path = require('path');
 const { execFile } = require('child_process');
 
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 const DEFAULT_API_URL = 'https://api.tarione.com/api/v1';
 
 // True when running as the packaged Windows program (TarionePrintAgent.exe) rather than
@@ -85,6 +85,53 @@ const DISCOVERY_HOSTS = (process.env.KULODE_DISCOVERY_HOSTS || '').split(',').ma
 const DISCOVERY_CONNECT_TIMEOUT_MS = 700;
 const DISCOVERY_CONCURRENCY = 48;
 
+// ─── Log upload ─────────────────────────────────────────────────────────────
+// Tarione support can read this agent's recent log from their side, so nobody on site has to
+// find and send a file. New lines wait here and are sent about once a minute.
+const LOG_UPLOAD_INTERVAL_MS = 60 * 1000;
+const MAX_WAITING_LOG_LINES = 300;
+const waitingLogLines = [];
+let lastLogUploadAt = 0;
+let uploadingLogs = false;
+
+function rememberForUpload(line) {
+  const match = line.match(/^\[([^\]]+)\] (.*)$/s);
+  if (!match) return;
+  waitingLogLines.push({ at: match[1], message: match[2].slice(0, 2000) });
+  // Offline for a long time: keep the most recent lines, drop the oldest.
+  if (waitingLogLines.length > MAX_WAITING_LOG_LINES) waitingLogLines.shift();
+}
+
+// Identifies this agent to Tarione on every request: which build, on which computer.
+function agentHeaders(extra) {
+  return { Authorization: `Bearer ${TOKEN}`, 'X-Agent-Version': VERSION, 'X-Agent-Host': os.hostname(), ...extra };
+}
+
+async function uploadLogs() {
+  if (uploadingLogs || waitingLogLines.length === 0) return;
+  if (Date.now() - lastLogUploadAt < LOG_UPLOAD_INTERVAL_MS) return;
+  uploadingLogs = true;
+  lastLogUploadAt = Date.now();
+  const batch = waitingLogLines.slice(0, 200);
+  try {
+    const response = await fetch(`${API_URL}/print-agent/logs`, {
+      method: 'POST',
+      headers: agentHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ lines: batch }),
+      signal: AbortSignal.timeout(SOCKET_TIMEOUT_MS),
+    });
+    // Sent (or refused outright, which retrying won't fix) — either way, don't send it again.
+    if (response.ok || (response.status >= 400 && response.status < 500 && response.status !== 429)) {
+      waitingLogLines.splice(0, batch.length);
+    }
+  } catch {
+    // Deliberately not logged: a failed upload must not create more lines to upload. The
+    // lines stay queued and go with the next attempt.
+  } finally {
+    uploadingLogs = false;
+  }
+}
+
 function log(...args) {
   const line = `[${new Date().toISOString()}] ${args.join(' ')}`;
   try {
@@ -92,6 +139,7 @@ function log(...args) {
   } catch {
     // No console attached (packaged program) — the log file below is the record.
   }
+  rememberForUpload(line);
   if (!PACKAGED) return;
   try {
     // One generation of history is plenty for "what happened this week".
@@ -310,7 +358,9 @@ function parseArpTable(output) {
 
 function readArpTable() {
   return new Promise((resolve) => {
-    execFile('arp', ['-a'], { windowsHide: true, timeout: 10000 }, (err, stdout) => {
+    // -n (not on Windows, where it means something else) skips looking up a name for every
+    // entry, which can otherwise take many seconds.
+    execFile('arp', [process.platform === 'win32' ? '-a' : '-an'], { windowsHide: true, timeout: 10000 }, (err, stdout) => {
       resolve(err ? {} : parseArpTable(String(stdout)));
     });
   });
@@ -346,7 +396,7 @@ async function scanAndReport(reason) {
     const devices = await discoverPrinters();
     const response = await fetch(`${API_URL}/print-agent/discovered`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+      headers: agentHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ devices }),
       signal: AbortSignal.timeout(SOCKET_TIMEOUT_MS),
     });
@@ -368,7 +418,7 @@ async function reportResult(jobId, status, error) {
   try {
     const response = await fetch(`${API_URL}/print-agent/jobs/${jobId}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+      headers: agentHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ status, error }),
       signal: AbortSignal.timeout(SOCKET_TIMEOUT_MS),
     });
@@ -383,7 +433,7 @@ async function reportResult(jobId, status, error) {
 
 async function pollOnce() {
   const response = await fetch(`${API_URL}/print-agent/jobs?v=2`, {
-    headers: { Authorization: `Bearer ${TOKEN}` },
+    headers: agentHeaders(),
     signal: AbortSignal.timeout(SOCKET_TIMEOUT_MS),
   });
 
@@ -462,6 +512,8 @@ async function main() {
       await pollOnce();
       if (lastError) log('Connection to Tarione restored.');
       lastError = '';
+      // Not awaited — printing never waits on this.
+      uploadLogs();
     } catch (err) {
       // An outage would otherwise write the same line every two seconds and bury everything
       // else in the log — say it once, then again only if the reason changes.

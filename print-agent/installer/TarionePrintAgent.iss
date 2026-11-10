@@ -39,9 +39,6 @@ Source: "..\dist\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
 ; Start with Windows, for this user. No Task Scheduler entry and no administrator rights needed.
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "TarionePrintAgent"; ValueData: """{app}\{#AppExe}"""; Flags: uninsdeletevalue
 
-[UninstallRun]
-Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM {#AppExe}"; Flags: runhidden; RunOnceId: "StopAgent"
-
 [UninstallDelete]
 Type: files; Name: "{app}\.env"
 Type: files; Name: "{app}\agent.log"
@@ -63,11 +60,34 @@ begin
   Result := FileExists(ExpandConstant('{localappdata}\Programs\Tarione Print Agent\.env'));
 end;
 
+// Stops a running agent. Windows keeps the program file locked for a moment after the
+// process is told to end, so callers that go on to replace or delete the file wait briefly.
 procedure StopAgent();
 var
   ResultCode: Integer;
 begin
-  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM {#AppExe}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  if Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM {#AppExe}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode)
+    and (ResultCode = 0) then
+    Sleep(1500);
+end;
+
+// Uninstall: stop the agent, then remove the program file ourselves, retrying until Windows
+// lets go of it — otherwise the file (and the folder) would be left behind.
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  Attempt: Integer;
+  ExePath: String;
+begin
+  if CurUninstallStep <> usUninstall then
+    Exit;
+  StopAgent();
+  ExePath := ExpandConstant('{app}\{#AppExe}');
+  for Attempt := 1 to 20 do
+  begin
+    if (not FileExists(ExePath)) or DeleteFile(ExePath) then
+      Break;
+    Sleep(500);
+  end;
 end;
 
 procedure InitializeWizard();

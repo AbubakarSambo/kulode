@@ -29,7 +29,7 @@ function arg(name) {
   return i !== -1 ? process.argv[i + 1] : undefined;
 }
 
-const state = { polls: 0, jobHandedOut: false, reported: null, printed: Buffer.alloc(0), scanAsked: false, startupScan: null, discovered: null };
+const state = { polls: 0, jobHandedOut: false, reported: null, printed: Buffer.alloc(0), scanAsked: false, startupScan: null, discovered: null, agentVersion: null, agentHost: null, logs: [] };
 
 // The agent is pointed at the stand-in printer only, so the test never probes the network
 // it happens to run on. (Working out which addresses to try is covered by discovery.test.js.)
@@ -52,6 +52,12 @@ const api = http.createServer((req, res) => {
       return send(200, { data: { token: TOKEN, organizationName: 'Smoke Test Org' } });
     }
     if (!authed) return send(401, { message: 'Invalid print agent token' });
+    state.agentVersion = req.headers['x-agent-version'] || state.agentVersion;
+    state.agentHost = req.headers['x-agent-host'] || state.agentHost;
+    if (req.method === 'POST' && req.url === '/api/v1/print-agent/logs') {
+      state.logs.push(...JSON.parse(body).lines);
+      return send(200, { data: { received: 1 } });
+    }
     if (req.method === 'POST' && req.url === '/api/v1/print-agent/discovered') {
       // The agent scans once by itself on start-up, then again when asked.
       const devices = JSON.parse(body).devices;
@@ -62,8 +68,8 @@ const api = http.createServer((req, res) => {
     if (req.method === 'GET' && req.url === '/api/v1/print-agent/jobs?v=2') {
       state.polls++;
       if (state.jobHandedOut) {
-        // Once the docket is done, ask for a network scan exactly once.
-        const scanRequested = state.reported !== null && !state.scanAsked;
+        // Once the docket and the agent's own start-up scan are done, ask for a scan exactly once.
+        const scanRequested = state.reported !== null && state.startupScan !== null && !state.scanAsked;
         if (scanRequested) state.scanAsked = true;
         return send(200, { data: { jobs: [], scanRequested } });
       }
@@ -120,6 +126,10 @@ async function checkPrinted() {
   check(state.reported.status === 'SENT', `job reported as SENT (got ${JSON.stringify(state.reported)})`);
   check(state.printed.equals(DOCKET), 'printer received the exact docket bytes');
 
+  check(/^\d+\.\d+\.\d+$/.test(state.agentVersion || '') && state.agentHost === os.hostname(), `agent says which version it is and which computer it is on (${state.agentVersion}, ${state.agentHost})`);
+  await waitFor(() => state.logs.some((l) => l.message.includes('starting')), 30, 'agent uploads its log for support to read');
+  check(state.logs.every((l) => !Number.isNaN(Date.parse(l.at)) && !l.message.includes(TOKEN)), 'uploaded log lines are timestamped and never contain the token');
+
   const printedBeforeScan = state.printed.length;
   await waitFor(() => state.startupScan !== null, 30, 'agent scanned by itself on start-up');
   await waitFor(() => state.discovered !== null, 30, 'agent scans again when asked from Settings');
@@ -172,9 +182,14 @@ async function testInstaller(installer) {
   await checkPrinted();
   check(fs.readFileSync(path.join(installDir, 'agent.log'), 'utf8').includes('Printed job job-1'), 'agent writes its log file');
 
-  const uninstall = await runToExit(path.join(installDir, 'unins000.exe'), ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART']);
+  const uninstall = await runToExit(path.join(installDir, 'unins000.exe'), ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', `/LOG=${path.join(os.tmpdir(), 'tarione-agent-uninstall.log')}`]);
   check(uninstall.status === 0, 'uninstaller runs');
-  await waitFor(() => !isRunning() && !fs.existsSync(exe), 30, 'uninstall stops and removes the agent');
+  try {
+    await waitFor(() => !isRunning() && !fs.existsSync(exe), 30, 'uninstall stops and removes the agent');
+  } catch (err) {
+    console.error(`still running: ${isRunning()}; program file still there: ${fs.existsSync(exe)}; folder: ${fs.existsSync(installDir) ? fs.readdirSync(installDir).join(', ') : '(gone)'}`);
+    throw err;
+  }
 }
 
 async function main() {
