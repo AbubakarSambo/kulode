@@ -719,15 +719,6 @@ export function AdminDashboardPage() {
                                 </div>
                                 <Button
                                   variant="outline"
-                                  onClick={() => setPrintingOrg({ id: org.id, name: org.name })}
-                                  title="Print agent status, printers, failed jobs and the agent's log"
-                                  className="px-4 py-2.5 rounded-xl border border-[rgba(196,197,215,0.4)] hover:bg-[#eef4ff] hover:border-[#0037b0]/20 text-xs font-semibold flex items-center gap-1.5 min-h-[44px] text-[#434655] hover:text-[#0037b0] transition-colors"
-                                >
-                                  <HugeiconsIcon icon={PrinterIcon} size={14} strokeWidth={1.5} />
-                                  Printers
-                                </Button>
-                                <Button
-                                  variant="outline"
                                   onClick={() => setEditingOrgId(org.id)}
                                   className="px-3.5 py-2.5 rounded-xl border border-[rgba(196,197,215,0.4)] hover:bg-[#eef4ff] text-xs font-semibold flex items-center gap-1.5 cursor-pointer min-h-[44px] text-[#434655] hover:text-[#0037b0] transition-colors"
                                 >
@@ -1286,6 +1277,15 @@ export function AdminDashboardPage() {
                                 >
                                   <HugeiconsIcon icon={ViewIcon} size={14} strokeWidth={1.5} />
                                   View as
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  onClick={() => setPrintingOrg({ id: org.id, name: org.name })}
+                                  title="Print agent status, printers, failed jobs and the agent's log"
+                                  className="px-4 py-2.5 rounded-xl border border-[rgba(196,197,215,0.4)] hover:bg-[#eef4ff] hover:border-[#0037b0]/20 text-xs font-semibold flex items-center gap-1.5 min-h-[44px] text-[#434655] hover:text-[#0037b0] transition-colors"
+                                >
+                                  <HugeiconsIcon icon={PrinterIcon} size={14} strokeWidth={1.5} />
+                                  Printers
                                 </Button>
                                 <Button
                                   variant="outline"
