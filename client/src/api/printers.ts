@@ -11,6 +11,7 @@ export interface Printer {
   ipAddress: string | null
   port: number | null
   devicePath: string | null
+  macAddress: string | null
   isActive: boolean
   categories: Array<{ categoryId: string; category: { id: string; name: string } }>
 }
@@ -35,6 +36,23 @@ export interface CreatePrinterData {
   ipAddress?: string
   port?: number
   devicePath?: string
+  macAddress?: string
+}
+
+/** Something the on-site agent found listening for print jobs on the local network. */
+export interface DiscoveredDevice {
+  ipAddress: string
+  port: number
+  macAddress: string | null
+  /** Set when this device is already saved as a printer. */
+  printerId: string | null
+  printerName: string | null
+}
+
+export interface PrinterDiscovery {
+  scanning: boolean
+  scannedAt: string | null
+  devices: DiscoveredDevice[]
 }
 
 export interface UpdatePrinterData {
@@ -76,6 +94,14 @@ export const printersApi = {
   },
   createPairingCode: async (): Promise<{ code: string; expiresAt: string }> => {
     const response = await apiClient.post<ApiResponse<{ code: string; expiresAt: string }>>('/printers/agent-pairing-code')
+    return response.data.data
+  },
+  getDiscovery: async (): Promise<PrinterDiscovery> => {
+    const response = await apiClient.get<ApiResponse<PrinterDiscovery>>('/printers/discovery')
+    return response.data.data
+  },
+  requestScan: async (): Promise<{ requestedAt: string }> => {
+    const response = await apiClient.post<ApiResponse<{ requestedAt: string }>>('/printers/discovery/scan')
     return response.data.data
   },
   testPrint: async (id: string): Promise<{ jobId: string }> => {

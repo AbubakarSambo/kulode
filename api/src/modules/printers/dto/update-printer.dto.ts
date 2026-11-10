@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PrinterConnectionType } from '@prisma/client';
-import { IsBoolean, IsEnum, IsIP, IsInt, IsOptional, IsString, Max, MaxLength, Min, ValidateIf } from 'class-validator';
+import { IsBoolean, IsEnum, IsIP, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 
 export class UpdatePrinterDto {
   @ApiPropertyOptional()
@@ -43,4 +43,10 @@ export class UpdatePrinterDto {
   @IsString()
   @MaxLength(255)
   devicePath?: string;
+
+  // Set when a printer is added from the agent's scan results; never typed by hand.
+  @ApiPropertyOptional({ example: 'a4:5e:60:c1:22:9b' })
+  @IsOptional()
+  @Matches(/^([0-9a-f]{2}:){5}[0-9a-f]{2}$/)
+  macAddress?: string;
 }

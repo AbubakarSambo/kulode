@@ -38,6 +38,18 @@ export class PrintersController {
     return this.printersService.createPairingCode(organizationId);
   }
 
+  @Get('discovery')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  getDiscovery(@CurrentUser('organizationId') organizationId: string) {
+    return this.printersService.getDiscovery(organizationId);
+  }
+
+  @Post('discovery/scan')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  requestScan(@CurrentUser('organizationId') organizationId: string) {
+    return this.printersService.requestScan(organizationId);
+  }
+
   @Get('print-jobs/:jobId')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   getJobStatus(
