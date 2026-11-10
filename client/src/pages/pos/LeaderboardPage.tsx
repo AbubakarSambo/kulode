@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, Settings2, Trophy } from 'lucide-react'
+import { Award01Icon } from '@hugeicons/core-free-icons'
 import { toast } from 'sonner'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, DropdownPanel, EmptyState, Input, Label } from '@/components/ui'
@@ -210,7 +211,7 @@ export function LeaderboardPage() {
         <div className="mx-auto max-w-2xl space-y-4">
           {!isLoading && data && data.entries.length === 0 && (
             <EmptyState
-              icon={Trophy}
+              icon={Award01Icon}
               title="Nobody on the board yet"
               description={
                 activeMetric === 'AVG_CHECK'
