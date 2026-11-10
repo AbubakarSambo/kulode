@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import { Plus, Pencil, Trash2, ListOrdered } from 'lucide-react'
+import { LeftToRightListNumberIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Card, CardContent, Badge, ConfirmDialog, EmptyState } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
@@ -92,7 +93,7 @@ export function OrderTypesPage() {
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {!isLoading && (!orderTypes || orderTypes.length === 0) ? (
           <EmptyState
-            icon={ListOrdered}
+            icon={LeftToRightListNumberIcon}
             title="No order types yet"
             description="Add your first order type — Dine In, Takeaway, or something specific to your business"
             actionLabel="Add Order Type"

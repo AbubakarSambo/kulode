@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom'
-import { HugeiconsIcon } from '@hugeicons/react'
+import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
 import { Button } from './button'
 
 interface EmptyStateProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  icon: any
+  // A Hugeicons icon (from @hugeicons/core-free-icons), NOT a lucide-react component — passing one
+  // of those crashes the page at render ("... is not iterable").
+  icon: IconSvgElement
   title: string
   description?: string
   actionLabel?: string
