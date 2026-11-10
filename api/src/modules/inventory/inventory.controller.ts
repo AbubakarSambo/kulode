@@ -16,7 +16,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { InventoryService } from './inventory.service';
 import { CreateInventoryItemDto, UpdateInventoryItemDto, AdjustStockDto, AssignBarcodesDto } from './dto';
-import { CurrentUser, Roles, Role, Can } from '../../common';
+import { CurrentUser, Can } from '../../common';
 
 @ApiTags('Inventory')
 @ApiBearerAuth()
@@ -39,7 +39,7 @@ export class InventoryController {
   }
 
   @Post()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Can('INVENTORY_MANAGE')
   create(
     @CurrentUser('organizationId') organizationId: string,
     @CurrentUser('id') userId: string,
@@ -49,7 +49,7 @@ export class InventoryController {
   }
 
   @Patch(':id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Can('INVENTORY_MANAGE')
   update(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -59,7 +59,7 @@ export class InventoryController {
   }
 
   @Delete(':id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Can('INVENTORY_MANAGE')
   remove(
     @CurrentUser('organizationId') organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -79,7 +79,7 @@ export class InventoryController {
   }
 
   @Post('assign-barcodes')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Can('INVENTORY_MANAGE')
   assignBarcodes(
     @CurrentUser('organizationId') organizationId: string,
     @Body() dto: AssignBarcodesDto,
@@ -88,7 +88,7 @@ export class InventoryController {
   }
 
   @Post('import')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Can('INVENTORY_MANAGE')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
   @ApiConsumes('multipart/form-data')
   importCsv(

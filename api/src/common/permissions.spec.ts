@@ -18,11 +18,15 @@ describe('POS permission matrix', () => {
     expect(kitchenCan).toEqual(['PRINT_RETRY']);
   });
 
-  it('lets a storekeeper count and receive stock — and nothing else', () => {
+  it('lets a storekeeper run the stock room — count, receive and manage items — and nothing else', () => {
     const storekeeperCan = permissions.filter((p) => hasPermission(['STOREKEEPER'], p));
-    expect(storekeeperCan).toEqual(['INVENTORY_ADJUST']);
-    // Item set-up (create, reprice, delete, import) stays with admins.
-    expect(hasPermission(['STOREKEEPER'], 'INVENTORY_MANAGE')).toBe(false);
+    expect(storekeeperCan).toEqual(['INVENTORY_ADJUST', 'INVENTORY_MANAGE']);
+  });
+
+  it('keeps item set-up (create, reprice, delete, import) away from the floor ladder', () => {
+    for (const role of ['WAITER', 'CASHIER', 'SUPERVISOR', 'MANAGER'] as RoleName[]) {
+      expect(hasPermission([role], 'INVENTORY_MANAGE')).toBe(false);
+    }
   });
 
   it('makes a cashier get approval for voids and discounts', () => {
