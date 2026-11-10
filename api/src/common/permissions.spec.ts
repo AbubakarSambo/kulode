@@ -18,6 +18,13 @@ describe('POS permission matrix', () => {
     expect(kitchenCan).toEqual(['PRINT_RETRY']);
   });
 
+  it('lets a storekeeper count and receive stock — and nothing else', () => {
+    const storekeeperCan = permissions.filter((p) => hasPermission(['STOREKEEPER'], p));
+    expect(storekeeperCan).toEqual(['INVENTORY_ADJUST']);
+    // Item set-up (create, reprice, delete, import) stays with admins.
+    expect(hasPermission(['STOREKEEPER'], 'INVENTORY_MANAGE')).toBe(false);
+  });
+
   it('makes a cashier get approval for voids and discounts', () => {
     expect(hasPermission(['CASHIER'], 'ORDER_VOID_DISCOUNT')).toBe(true);
     expect(hasPermission(['CASHIER'], 'ORDER_APPROVE')).toBe(false);

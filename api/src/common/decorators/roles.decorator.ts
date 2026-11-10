@@ -14,6 +14,8 @@ export enum Role {
   PASS = 'PASS',
   RUNNER = 'RUNNER',
   KITCHEN = 'KITCHEN',
+  // Retail-only stock-room role (off the floor ladder).
+  STOREKEEPER = 'STOREKEEPER',
 }
 
 export const ROLES_KEY = 'roles';

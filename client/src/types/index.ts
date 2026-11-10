@@ -126,6 +126,7 @@ export type UserRole =
   | 'WAITER'
   | 'PASS'
   | 'RUNNER'
+  | 'STOREKEEPER'
   | 'KITCHEN'
 
 export interface AuthResponse {

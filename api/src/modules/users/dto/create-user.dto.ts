@@ -14,7 +14,7 @@ import { Role } from '../../../common';
 export class CreateUserDto {
   @ApiPropertyOptional({
     example: 'user@cleantex.com',
-    description: 'Required unless role is PIN-eligible (WAITER/PASS/RUNNER/CASHIER) — those get an auto-generated internal placeholder if omitted',
+    description: 'Required unless role is PIN-eligible (WAITER/PASS/RUNNER/CASHIER/STOREKEEPER) — those get an auto-generated internal placeholder if omitted',
   })
   @IsOptional()
   @IsEmail()
