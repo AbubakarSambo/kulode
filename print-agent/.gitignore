@@ -1,0 +1,4 @@
+dist/
+.env
+agent.log*
+pair-error.txt

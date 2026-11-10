@@ -32,6 +32,21 @@ export class PrintersController {
     return this.printersService.rotateAgentToken(organizationId);
   }
 
+  @Post('agent-pairing-code')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  createPairingCode(@CurrentUser('organizationId') organizationId: string) {
+    return this.printersService.createPairingCode(organizationId);
+  }
+
+  @Get('print-jobs/:jobId')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  getJobStatus(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('jobId', ParseUUIDPipe) jobId: string,
+  ) {
+    return this.printingService.getJobStatus(organizationId, jobId);
+  }
+
   @Post('print-jobs/:jobId/retry')
   @Can('PRINT_RETRY')
   async retryJob(
@@ -67,6 +82,15 @@ export class PrintersController {
     @Body() dto: UpdatePrinterDto,
   ) {
     return this.printersService.update(organizationId, id, dto);
+  }
+
+  @Post(':id/test-print')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  testPrint(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.printingService.queueTestPrint(organizationId, id);
   }
 
   @Put(':id/categories')

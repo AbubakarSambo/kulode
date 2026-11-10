@@ -17,10 +17,13 @@
  *   them to the printer untouched, regardless of whether it's plugged in via USB or Bluetooth.
  *   This only works when the agent runs on the same Windows machine the printer is attached to.
  *
- * Setup:
- *   1. In Kulode, go to Settings > Printers > Print Agent and generate a token.
- *   2. Copy .env.example to .env and fill in KULODE_API_URL and KULODE_PRINT_AGENT_TOKEN.
- *   3. Run: node agent.js   (or `npm start`)
+ * Setup, the easy way (Windows): run TarionePrintAgentSetup.exe and type in the pairing code
+ * from Settings > Printers. See README.md.
+ *
+ * Setup by hand (any OS):
+ *   1. In Settings > Printers, get a pairing code and run `node agent.js --pair CODE`
+ *      — or generate a token there and put it in .env as KULODE_PRINT_AGENT_TOKEN.
+ *   2. Run: node agent.js   (or `npm start`)
  *
  * Requires Node.js 18+ (uses the built-in fetch API). No dependencies.
  */
@@ -31,10 +34,28 @@ const os = require('os');
 const path = require('path');
 const { execFile } = require('child_process');
 
+const VERSION = '1.1.0';
+const DEFAULT_API_URL = 'https://api.tarione.com/api/v1';
+
+// True when running as the packaged Windows program (TarionePrintAgent.exe) rather than
+// `node agent.js`. The packaged program has no console window, so it logs to a file instead.
+let PACKAGED = false;
+try {
+  PACKAGED = require('node:sea').isSea();
+} catch {
+  PACKAGED = false;
+}
+
+// Config and logs live next to the program: the folder holding agent.js, or the install folder.
+const BASE_DIR = PACKAGED ? path.dirname(process.execPath) : __dirname;
+const ENV_PATH = path.join(BASE_DIR, '.env');
+const LOG_PATH = path.join(BASE_DIR, 'agent.log');
+const PAIR_ERROR_PATH = path.join(BASE_DIR, 'pair-error.txt');
+const MAX_LOG_BYTES = 1024 * 1024;
+
 function loadEnvFile() {
-  const envPath = path.join(__dirname, '.env');
-  if (!fs.existsSync(envPath)) return;
-  for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {
+  if (!fs.existsSync(ENV_PATH)) return;
+  for (const line of fs.readFileSync(ENV_PATH, 'utf8').split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
     const eq = trimmed.indexOf('=');
@@ -46,20 +67,95 @@ function loadEnvFile() {
 }
 loadEnvFile();
 
-const API_URL = (process.env.KULODE_API_URL || '').replace(/\/+$/, '');
+function argValue(name) {
+  const i = process.argv.indexOf(name);
+  return i !== -1 ? process.argv[i + 1] : undefined;
+}
+
+const API_URL = (argValue('--api') || process.env.KULODE_API_URL || DEFAULT_API_URL).replace(/\/+$/, '');
 const TOKEN = process.env.KULODE_PRINT_AGENT_TOKEN || '';
 const POLL_INTERVAL_MS = Number(process.env.KULODE_POLL_INTERVAL_MS || 2000);
 const SOCKET_TIMEOUT_MS = Number(process.env.KULODE_PRINT_TIMEOUT_MS || 5000);
 
-if (!API_URL || !TOKEN) {
-  console.error(
-    'Missing config. Set KULODE_API_URL and KULODE_PRINT_AGENT_TOKEN in print-agent/.env (see .env.example).',
-  );
-  process.exit(1);
+function log(...args) {
+  const line = `[${new Date().toISOString()}] ${args.join(' ')}`;
+  try {
+    console.log(line);
+  } catch {
+    // No console attached (packaged program) — the log file below is the record.
+  }
+  if (!PACKAGED) return;
+  try {
+    // One generation of history is plenty for "what happened this week".
+    if (fs.existsSync(LOG_PATH) && fs.statSync(LOG_PATH).size > MAX_LOG_BYTES) {
+      fs.renameSync(LOG_PATH, `${LOG_PATH}.1`);
+    }
+    fs.appendFileSync(LOG_PATH, `${line}${os.EOL}`);
+  } catch {
+    // Logging must never take the agent down.
+  }
 }
 
-function log(...args) {
-  console.log(`[${new Date().toISOString()}]`, ...args);
+// ─── Pairing ────────────────────────────────────────────────────────────────
+// `--pair CODE` swaps the short code shown in Settings > Printers for this organization's
+// agent token and saves it to .env, so nobody has to copy a token into a file by hand. The
+// Windows installer runs this for you; it also works with plain `node agent.js --pair CODE`.
+
+function saveEnv(values) {
+  const lines = fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, 'utf8').split(/\r?\n/) : [];
+  for (const [key, value] of Object.entries(values)) {
+    const index = lines.findIndex((l) => l.trim().startsWith(`${key}=`));
+    if (index === -1) lines.push(`${key}=${value}`);
+    else lines[index] = `${key}=${value}`;
+  }
+  fs.writeFileSync(ENV_PATH, `${lines.filter((l, i) => l !== '' || i < lines.length - 1).join(os.EOL)}${os.EOL}`);
+}
+
+async function pair(code) {
+  const fail = (exitCode, message) => {
+    log(`Pairing failed: ${message}`);
+    // The installer has no console to read — it shows this file's contents to the user.
+    try {
+      fs.writeFileSync(PAIR_ERROR_PATH, message);
+    } catch {
+      // Nothing more we can do; the exit code still tells the installer it failed.
+    }
+    process.exit(exitCode);
+  };
+
+  if (!code) fail(2, 'No pairing code given.');
+
+  let response;
+  try {
+    response = await fetch(`${API_URL}/print-agent/pair`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch (err) {
+    fail(3, `Could not reach Tarione (${(err.cause && err.cause.code) || err.message}). Check this computer's internet connection and try again.`);
+  }
+
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = Array.isArray(body.message) ? body.message.join(', ') : body.message;
+    fail(response.status === 429 ? 4 : 2, response.status === 429
+      ? 'Too many attempts. Wait a minute, then try again.'
+      : message || `Tarione rejected the code (${response.status}).`);
+  }
+
+  const token = (body.data || body).token;
+  if (!token) fail(2, 'Tarione did not return a token.');
+
+  saveEnv({ KULODE_API_URL: API_URL, KULODE_PRINT_AGENT_TOKEN: token });
+  try {
+    fs.unlinkSync(PAIR_ERROR_PATH);
+  } catch {
+    // No earlier failure to clear.
+  }
+  log(`Paired with ${(body.data || body).organizationName || 'Tarione'}.`);
+  process.exit(0);
 }
 
 function writeToPrinter(ipAddress, port, buffer) {
@@ -114,7 +210,9 @@ function writeToUsbPrinter(devicePath, buffer) {
     fs.writeFile(tempFile, buffer, (writeErr) => {
       if (writeErr) return reject(writeErr);
 
-      execFile('cmd.exe', ['/c', 'copy', '/b', tempFile, `\\\\localhost\\${shareName}`], (execErr, _stdout, stderr) => {
+      // windowsHide: the packaged agent has no console, and without this every USB print
+      // would flash a command window on screen.
+      execFile('cmd.exe', ['/c', 'copy', '/b', tempFile, `\\\\localhost\\${shareName}`], { windowsHide: true }, (execErr, _stdout, stderr) => {
         fs.unlink(tempFile, () => {});
         if (execErr) {
           return reject(
@@ -152,6 +250,11 @@ async function pollOnce() {
     signal: AbortSignal.timeout(SOCKET_TIMEOUT_MS),
   });
 
+  if (response.status === 401) {
+    throw new Error(
+      'Tarione rejected this agent\'s token. It was probably regenerated — connect this computer again from Settings > Printers.',
+    );
+  }
   if (!response.ok) {
     throw new Error(`Failed to fetch jobs: ${response.status} ${response.statusText}`);
   }
@@ -190,15 +293,41 @@ async function pollOnce() {
 }
 
 async function main() {
-  log(`Kulode print agent starting. Polling ${API_URL} every ${POLL_INTERVAL_MS}ms.`);
+  if (process.argv.includes('--version')) {
+    console.log(VERSION);
+    return;
+  }
+  if (process.argv.includes('--pair')) {
+    await pair(argValue('--pair'));
+    return;
+  }
+
+  if (!TOKEN) {
+    log(
+      `Not connected to Tarione yet. Get a pairing code from Settings > Printers and run this with --pair CODE (or set KULODE_PRINT_AGENT_TOKEN in ${ENV_PATH}).`,
+    );
+    process.exit(1);
+  }
+
+  log(`Tarione print agent ${VERSION} starting. Polling ${API_URL} every ${POLL_INTERVAL_MS}ms.`);
+  let lastError = '';
   for (;;) {
     try {
       await pollOnce();
+      if (lastError) log('Connection to Tarione restored.');
+      lastError = '';
     } catch (err) {
-      log('Poll failed:', err.message);
+      // An outage would otherwise write the same line every two seconds and bury everything
+      // else in the log — say it once, then again only if the reason changes.
+      if (err.message !== lastError) log('Poll failed:', err.message);
+      lastError = err.message;
     }
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
   }
 }
+
+// This runs unattended for months; one unexpected error must not end it.
+process.on('uncaughtException', (err) => log('Unexpected error:', (err && err.stack) || err));
+process.on('unhandledRejection', (err) => log('Unexpected error:', (err && err.stack) || err));
 
 main();
