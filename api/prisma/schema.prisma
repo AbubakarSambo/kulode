@@ -305,6 +305,13 @@ model Organization {
   // and does the actual local socket write. Null until an admin generates one from settings;
   // regenerating invalidates whatever agent instance is running with the old value.
   printAgentToken String? @unique @map("print_agent_token")
+  // Stamped (at most every 30s) whenever the agent polls — drives the online/offline badge on
+  // the Printers settings page.
+  printAgentLastSeenAt DateTime? @map("print_agent_last_seen_at")
+  // Short-lived code an admin reads off the Printers page and types into the print agent
+  // installer, which swaps it for printAgentToken — so nobody has to paste a token into a file.
+  printAgentPairingCode      String?   @unique @map("print_agent_pairing_code")
+  printAgentPairingExpiresAt DateTime? @map("print_agent_pairing_expires_at")
 
   // Subscription
   planTier                     PlanTier           @default(FREE) @map("plan_tier")
@@ -1409,7 +1416,8 @@ model MenuCategoryPrinter {
 // the others and staff can see/reprint failures from the order screen.
 model PrintJob {
   id        String         @id @default(uuid())
-  orderId   String         @map("order_id")
+  // Null for a test print sent from the Printers settings page — every other job is a docket.
+  orderId   String?        @map("order_id")
   printerId String         @map("printer_id")
   status    PrintJobStatus @default(PENDING)
   payload   Json
@@ -1421,7 +1429,7 @@ model PrintJob {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order   Order?  @relation(fields: [orderId], references: [id], onDelete: Cascade)
   printer Printer @relation(fields: [printerId], references: [id], onDelete: Cascade)
 
   @@index([orderId])

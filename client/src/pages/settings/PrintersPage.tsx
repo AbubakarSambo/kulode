@@ -4,7 +4,7 @@ import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, Edit, Trash2, Printer as PrinterIcon, Copy, RefreshCw } from 'lucide-react'
+import { Plus, Edit, Trash2, Printer as PrinterIcon, Copy, RefreshCw, Download, Link2 } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Select, Card, CardContent, Badge } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
@@ -27,13 +27,36 @@ const printerSchema = z.object({
 type PrinterFormInput = z.input<typeof printerSchema>
 type PrinterFormData = z.output<typeof printerSchema>
 
+// The Windows installer is built and published by .github/workflows/print-agent.yml.
+const AGENT_DOWNLOAD_URL =
+  import.meta.env.VITE_PRINT_AGENT_DOWNLOAD_URL ||
+  'https://github.com/AbubakarSambo/kulode/releases/download/print-agent-latest/TarionePrintAgentSetup.exe'
+
+function lastSeenLabel(lastSeenAt: string | null): string {
+  if (!lastSeenAt) return 'No computer has connected yet.'
+  return `Last seen ${new Date(lastSeenAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}.`
+}
+
 function PrintAgentSection() {
   const queryClient = useQueryClient()
+  const [pairing, setPairing] = useState<{ code: string; expiresAt: string } | null>(null)
+  const [showManual, setShowManual] = useState(false)
   const [newToken, setNewToken] = useState<string | null>(null)
 
+  // Refetched every few seconds so the badge flips to "online" on its own while someone is
+  // sitting here running the installer.
   const { data: status } = useQuery({
     queryKey: ['printers', 'agent-status'],
     queryFn: () => printersApi.getAgentStatus(),
+    refetchInterval: 5000,
+  })
+
+  const pairMutation = useMutation({
+    mutationFn: () => printersApi.createPairingCode(),
+    onSuccess: setPairing,
+    onError: (error: any) => {
+      toast.error('Could not get a pairing code', { description: error.response?.data?.message })
+    },
   })
 
   const rotateMutation = useMutation({
@@ -56,49 +79,130 @@ function PrintAgentSection() {
   return (
     <Card className="mb-4">
       <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h3 className="font-medium">Print Agent</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Kulode's server can't reach printers directly over your restaurant's network — a small
-              agent installed on a machine on-site relays print jobs to them. {status?.hasToken
-                ? 'A token has already been generated.'
-                : 'Generate a token to set it up.'}
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="font-medium">Print Agent</h3>
+          {status?.online ? (
+            <Badge variant="success">Agent online</Badge>
+          ) : status?.lastSeenAt ? (
+            <Badge variant="warning">Agent offline</Badge>
+          ) : (
+            <Badge variant="secondary">Not set up</Badge>
+          )}
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {status?.online
+            ? 'A computer on site is connected and sending orders to your printers.'
+            : status?.lastSeenAt
+              ? `${lastSeenLabel(status.lastSeenAt)} Nothing will print until that computer is switched on, signed in and connected to the internet.`
+              : 'Tarione sends orders to your printers through a small program on one Windows computer at your location. That computer must be on the same network as the printers and stay switched on.'}
+        </p>
+
+        <ol className="mt-4 space-y-3 text-sm">
+          <li className="flex flex-wrap items-center gap-3">
+            <span className="font-medium">1.</span>
+            <span className="flex-1">On that computer, download and open the installer.</span>
+            <a href={AGENT_DOWNLOAD_URL}>
+              <Button variant="outline" size="sm">
+                <Download className="mr-2 h-4 w-4" />
+                Download for Windows
+              </Button>
+            </a>
+          </li>
+          <li className="flex flex-wrap items-center gap-3">
+            <span className="font-medium">2.</span>
+            <span className="flex-1">When it asks for a pairing code, get one here and type it in.</span>
+            <Button variant="outline" size="sm" isLoading={pairMutation.isPending} onClick={() => pairMutation.mutate()}>
+              <Link2 className="mr-2 h-4 w-4" />
+              {pairing ? 'Get a new code' : 'Connect a computer'}
+            </Button>
+          </li>
+          <li className="flex gap-3">
+            <span className="font-medium">3.</span>
+            <span>
+              This page shows <strong>Agent online</strong> within a minute. Then press <strong>Test print</strong> on a
+              printer below.
+            </span>
+          </li>
+        </ol>
+
+        {pairing && (
+          <div className="mt-4 rounded-lg border border-[rgba(196,197,215,0.4)] bg-muted/30 p-4 text-center">
+            <p className="text-xs text-muted-foreground">Type this code into the installer</p>
+            <p className="mt-1 font-mono text-3xl font-semibold tracking-widest">{pairing.code}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Works once, until{' '}
+              {new Date(pairing.expiresAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}.
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            isLoading={rotateMutation.isPending}
-            onClick={() => {
-              if (status?.hasToken && !window.confirm('Regenerating will disconnect any agent currently running with the old token until it is reconfigured. Continue?')) {
-                return
-              }
-              rotateMutation.mutate()
-            }}
-          >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            {status?.hasToken ? 'Regenerate Token' : 'Generate Token'}
-          </Button>
-        </div>
+        )}
 
-        {newToken && (
-          <div className="mt-4 rounded-lg border border-[rgba(196,197,215,0.4)] bg-muted/30 p-3">
-            <p className="text-xs text-muted-foreground">
-              Copy this now — it won't be shown again. Put it in the print agent's <code>.env</code> file as{' '}
-              <code>KULODE_PRINT_AGENT_TOKEN</code>.
-            </p>
-            <div className="mt-2 flex items-center gap-2">
-              <code className="flex-1 overflow-x-auto rounded bg-background px-2 py-1.5 text-xs">{newToken}</code>
-              <Button variant="ghost" size="icon" onClick={copyToken}>
-                <Copy className="h-4 w-4" />
+        <button
+          type="button"
+          className="mt-4 text-xs text-muted-foreground underline"
+          onClick={() => setShowManual((v) => !v)}
+        >
+          {showManual ? 'Hide manual setup' : 'Manual setup (advanced)'}
+        </button>
+
+        {showManual && (
+          <div className="mt-3 rounded-lg border border-[rgba(196,197,215,0.4)] p-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <p className="flex-1 text-xs text-muted-foreground">
+                For running the agent script by hand (<code>node agent.js</code>) instead of the installer.{' '}
+                {status?.hasToken
+                  ? 'A token already exists. Regenerating it disconnects every computer using the current one, including any set up with the installer.'
+                  : 'Generate a token and put it in the agent\'s .env file.'}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                isLoading={rotateMutation.isPending}
+                onClick={() => {
+                  if (status?.hasToken && !window.confirm('Regenerating will disconnect every computer running the agent with the old token until each is connected again. Continue?')) {
+                    return
+                  }
+                  rotateMutation.mutate()
+                }}
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                {status?.hasToken ? 'Regenerate Token' : 'Generate Token'}
               </Button>
             </div>
+
+            {newToken && (
+              <div className="mt-3 rounded-lg bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">
+                  Copy this now — it won't be shown again. Put it in the print agent's <code>.env</code> file as{' '}
+                  <code>KULODE_PRINT_AGENT_TOKEN</code>.
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <code className="flex-1 overflow-x-auto rounded bg-background px-2 py-1.5 text-xs">{newToken}</code>
+                  <Button variant="ghost" size="icon" onClick={copyToken}>
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </CardContent>
     </Card>
   )
+}
+
+const TEST_PRINT_WAIT_MS = 20_000
+
+// Queues a test page, then watches the job until the on-site agent says it printed or failed.
+async function runTestPrint(printerId: string): Promise<void> {
+  const { jobId } = await printersApi.testPrint(printerId)
+  const deadline = Date.now() + TEST_PRINT_WAIT_MS
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+    const job = await printersApi.getPrintJob(jobId)
+    if (job.status === 'SENT') return
+    if (job.status === 'FAILED') throw new Error(job.error || 'The printer did not accept the test page.')
+  }
+  throw new Error('The print agent did not pick up the test page. Check the agent shows as online above.')
 }
 
 export function PrintersPage() {
@@ -164,6 +268,18 @@ export function PrintersPage() {
     },
     onError: (error: any) => {
       toast.error('Failed to remove printer', { description: error.response?.data?.message })
+    },
+  })
+
+  const testPrintMutation = useMutation({
+    mutationFn: (printer: Printer) => runTestPrint(printer.id),
+    onSuccess: (_data, printer) => {
+      toast.success(`Test page sent to ${printer.name}`, { description: 'Check the printer.' })
+    },
+    onError: (error: any, printer) => {
+      toast.error(`Test print failed on ${printer.name}`, {
+        description: error.response?.data?.message ?? error.message,
+      })
     },
   })
 
@@ -292,14 +408,21 @@ export function PrintersPage() {
                       </Button>
                     </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-3 w-full"
-                    onClick={() => openCategoriesModal(printer)}
-                  >
-                    Manage routing
-                  </Button>
+                  <div className="mt-3 flex gap-2">
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => openCategoriesModal(printer)}>
+                      Manage routing
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      isLoading={testPrintMutation.isPending && testPrintMutation.variables?.id === printer.id}
+                      disabled={testPrintMutation.isPending}
+                      onClick={() => testPrintMutation.mutate(printer)}
+                    >
+                      Test print
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
