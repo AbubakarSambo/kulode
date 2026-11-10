@@ -4,3 +4,4 @@ export { SetPrinterCategoriesDto } from './set-printer-categories.dto';
 export { ReportJobResultDto } from './report-job-result.dto';
 export { PairAgentDto } from './pair-agent.dto';
 export { ReportDiscoveryDto, DiscoveredDeviceDto } from './report-discovery.dto';
+export { UploadAgentLogsDto, AgentLogLineDto } from './upload-agent-logs.dto';

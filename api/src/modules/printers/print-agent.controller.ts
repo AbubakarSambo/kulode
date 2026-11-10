@@ -5,7 +5,8 @@ import { PrintingService } from './printing.service';
 import { PrintAgentGuard } from './print-agent.guard';
 import { PrintAgentOrg } from './print-agent-org.decorator';
 import { PrintersService } from './printers.service';
-import { ReportDiscoveryDto, ReportJobResultDto } from './dto';
+import { PrintDiagnosticsService } from './print-diagnostics.service';
+import { ReportDiscoveryDto, ReportJobResultDto, UploadAgentLogsDto } from './dto';
 
 // Polled by the on-premise print agent, not by the web app — authenticated with the org's
 // print agent token (PrintAgentGuard), not a user JWT. See PrintingService for why this exists:
@@ -18,6 +19,7 @@ export class PrintAgentController {
   constructor(
     private readonly printingService: PrintingService,
     private readonly printersService: PrintersService,
+    private readonly diagnosticsService: PrintDiagnosticsService,
   ) {}
 
   @Get('jobs')
@@ -46,5 +48,11 @@ export class PrintAgentController {
     @Body() dto: ReportJobResultDto,
   ) {
     return this.printingService.reportJobResult(organizationId, id, dto.status, dto.error);
+  }
+
+  @HttpCode(200)
+  @Post('logs')
+  uploadLogs(@PrintAgentOrg() organizationId: string, @Body() dto: UploadAgentLogsDto) {
+    return this.diagnosticsService.recordAgentLogs(organizationId, dto.lines);
   }
 }

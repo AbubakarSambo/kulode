@@ -68,6 +68,18 @@ printers** in Settings > Printers, and right after a network printer can't be re
   `KULODE_DISCOVERY_INTERVAL_MS` (default 600000), `KULODE_DISCOVERY_HOSTS` (comma-separated
   IPs to check instead of searching).
 
+## Support: seeing what an agent is doing
+
+Platform admins have a **Printers** button on each organization in the admin dashboard. It
+shows whether the agent is online, its version and which computer it runs on, every saved
+printer with its last successful print, what the last network search found, recent failed
+jobs with the agent's reason, and the agent's own log. It can also send a test page or start a
+network search for that organization.
+
+To make that possible the agent (from 1.3.0) sends its version and the computer's name with
+each request, and uploads new log lines about once a minute. Uploaded lines are kept for 7
+days. The full log is always on the PC as `agent.log`.
+
 ## Manual setup (any OS, or if the installer can't be used)
 
 Requirements:
