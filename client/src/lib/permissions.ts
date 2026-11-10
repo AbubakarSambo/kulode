@@ -81,9 +81,10 @@ export const PERMISSIONS = {
   // Today's running takings (paid + still-open) for the branch — the strip above the POS pages
   TODAY_TAKINGS_VIEW: WAITER_UP,
   // Stock counts/restocks vs. creating/editing/deleting/importing inventory items
-  // The storekeeper counts and receives stock but can't create, reprice or delete items.
+  // The storekeeper runs the stock room end to end: counts and receives stock (ADJUST) and
+  // creates, edits, reprices, deletes and imports items (MANAGE) — but never sells.
   INVENTORY_ADJUST: [...STOREKEEPER, ...MANAGER_UP],
-  INVENTORY_MANAGE: ADMINS,
+  INVENTORY_MANAGE: [...STOREKEEPER, ...ADMINS],
   // Staff roster. MANAGER may only touch FLOOR_STAFF_ROLES accounts (enforced in UsersService)
   // ADMIN may touch anyone but admins; SUPER_ADMIN anyone.
   STAFF_MANAGE: MANAGER_UP,
