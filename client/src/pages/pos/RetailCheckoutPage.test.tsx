@@ -16,7 +16,7 @@ vi.mock('@/api', () => ({
   organizationsApi: { getCurrent: vi.fn() },
 }))
 
-vi.mock('@/lib/printBill', () => ({ printBill: vi.fn() }))
+vi.mock('@/lib/sendBill', () => ({ printOrderBill: vi.fn() }))
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },

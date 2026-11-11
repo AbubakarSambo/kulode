@@ -1395,6 +1395,12 @@ model Printer {
   // never changes, so when the router hands the printer a new IP the next scan finds it by
   // this and corrects ipAddress on its own.
   macAddress     String?               @map("mac_address")
+  // Customer bills/receipts are sent here through the print agent instead of the browser's
+  // print dialog (which can only see printers installed on that one computer). Off by default
+  // so a kitchen printer never starts producing bills on its own.
+  printsBills    Boolean               @default(false) @map("prints_bills")
+  // Roll width, which decides how many characters fit on a bill line (80mm = 48, 58mm = 32).
+  paperWidthMm   Int                   @default(80) @map("paper_width_mm")
   isActive       Boolean               @default(true) @map("is_active")
 
   createdAt DateTime @default(now()) @map("created_at")

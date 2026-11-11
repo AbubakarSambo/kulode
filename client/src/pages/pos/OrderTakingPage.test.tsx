@@ -30,8 +30,8 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), message: vi.fn() },
 }))
 
-vi.mock('@/lib/printBill', () => ({
-  printBill: vi.fn(),
+vi.mock('@/lib/sendBill', () => ({
+  printBillPreview: vi.fn(),
 }))
 
 const mockUseAuthStore = vi.fn()
@@ -295,8 +295,8 @@ describe('OrderTakingPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Print' }))
 
-    const { printBill } = await import('@/lib/printBill')
-    await waitFor(() => expect(printBill).toHaveBeenCalled())
+    const { printBillPreview } = await import('@/lib/sendBill')
+    await waitFor(() => expect(printBillPreview).toHaveBeenCalled())
     expect(ordersApi.create).not.toHaveBeenCalled()
   })
 })

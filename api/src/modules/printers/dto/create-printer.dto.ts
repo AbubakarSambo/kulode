@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PrinterConnectionType } from '@prisma/client';
-import { IsEnum, IsIP, IsInt, IsNotEmpty, IsOptional, IsString, Matches, Max, MaxLength, Min, ValidateIf } from 'class-validator';
+import { IsBoolean, IsEnum, IsIP, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Matches, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 
 // ipAddress is intentionally optional here even for NETWORK printers — finding a printer's LAN
 // IP (self-test page, router lookup, etc.) is its own separate task, so admins need to be able
@@ -53,4 +53,15 @@ export class CreatePrinterDto {
   @IsOptional()
   @Matches(/^([0-9a-f]{2}:){5}[0-9a-f]{2}$/)
   macAddress?: string;
+
+  // Send customer bills/receipts to this printer through the print agent.
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  printsBills?: boolean;
+
+  @ApiPropertyOptional({ enum: [58, 80], default: 80 })
+  @IsOptional()
+  @IsIn([58, 80])
+  paperWidthMm?: number;
 }

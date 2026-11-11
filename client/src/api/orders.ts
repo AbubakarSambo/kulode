@@ -330,6 +330,57 @@ export const ordersApi = {
     const response = await apiClient.get<ApiResponse<ReceiptData>>(`/orders/${id}/receipt-data`)
     return response.data.data
   },
+
+  /**
+   * Sends the order's bill to the printer(s) set to print bills, through the print agent.
+   * `queued: false` means nothing was sent (no such printer, or the agent is offline) and the
+   * caller should print through the browser instead.
+   */
+  printBill: async (id: string): Promise<BillPrintResult> => {
+    const response = await apiClient.post<ApiResponse<BillPrintResult>>(`/orders/${id}/print-bill`, undefined, {
+      timeout: BILL_PRINT_TIMEOUT_MS,
+    })
+    return response.data.data
+  },
+
+  /** The same, for a bill shown before the order has been placed. */
+  printBillPreview: async (data: BillPreviewData): Promise<BillPrintResult> => {
+    const response = await apiClient.post<ApiResponse<BillPrintResult>>('/orders/print-bill-preview', data, {
+      timeout: BILL_PRINT_TIMEOUT_MS,
+    })
+    return response.data.data
+  },
+}
+
+// Short on purpose: when this request is slow or fails, the bill prints through the browser
+// instead, and a guest shouldn't wait long for that to start.
+const BILL_PRINT_TIMEOUT_MS = 5000
+
+export interface BillPrintResult {
+  queued: boolean
+  /** Bill printers exist but the on-site print agent isn't connected right now. */
+  agentOffline?: boolean
+  /** Names of the printers the bill went to (or would have gone to, when the agent is offline). */
+  printers: string[]
+  jobIds: string[]
+}
+
+export interface BillPreviewData {
+  source: string
+  tableName?: string
+  customerName?: string
+  customerPhone?: string
+  waiterName?: string
+  items: Array<{ name: string; quantity: number; unitPrice: number; notes?: string }>
+  subtotal: number
+  total: number
+  /** A tax or service charge is printed only when its amount is sent. */
+  vatRate?: number
+  vatAmount?: number
+  entertainmentTaxRate?: number
+  entertainmentTaxAmount?: number
+  serviceChargeRate?: number
+  serviceChargeAmount?: number
 }
 
 export interface ReceiptData {
