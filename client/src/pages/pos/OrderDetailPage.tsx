@@ -817,9 +817,15 @@ function SyncedOrderView({ id }: { id: string }) {
   const evenShare = Math.round((remainingBalance / Math.max(1, evenWays)) * 100) / 100
   const paymentAmount =
     splitMode === 'even' ? evenShare : splitMode === 'custom' ? Number(customAmount) || 0 : remainingBalance
+  // An order of only zero-priced items (e.g. a partner-covered meal) has nothing to collect, but
+  // still has to be closed. The server ignores the payment method for these.
+  const nothingToPay = !!order && orderTotal <= 0
 
   const closeOrder = useMutation({
     mutationFn: async () => {
+      if (nothingToPay) {
+        return ordersApi.close(id, { paymentMethod: 'NO_CHARGE' })
+      }
       if (paymentMethod === 'PAYSTACK') {
         return ordersApi.paystackCheckout(id, { paymentMethod, customerEmail })
       }
@@ -1492,6 +1498,11 @@ function SyncedOrderView({ id }: { id: string }) {
             </div>
           )}
 
+          {nothingToPay && (
+            <p className="text-sm text-muted-foreground">
+              There is nothing to pay on this order. Closing it records the items as served; no payment is taken.
+            </p>
+          )}
           <div className="rounded-xl bg-muted p-4 text-center">
             {amountPaidSoFar > 0 && (
               <div className="mb-2 flex justify-between border-b border-border pb-2 text-sm text-muted-foreground">
@@ -1513,16 +1524,19 @@ function SyncedOrderView({ id }: { id: string }) {
             className="w-full"
             isLoading={closeOrder.isPending}
             disabled={
-              (paymentMethod === 'PAYSTACK' && !customerEmail) ||
+              !nothingToPay &&
+              ((paymentMethod === 'PAYSTACK' && !customerEmail) ||
               (paymentMethod === 'OTHER' && !otherPaymentNote.trim()) ||
               (paymentMethod === 'WALLET' &&
                 !!walletBalance &&
                 walletBalance.balance - paymentAmount < -walletBalance.creditLimit) ||
-              (paymentMethod !== 'PAYSTACK' && (paymentAmount <= 0 || paymentAmount > remainingBalance + 0.01))
+              (paymentMethod !== 'PAYSTACK' && (paymentAmount <= 0 || paymentAmount > remainingBalance + 0.01)))
             }
             onClick={() => closeOrder.mutate()}
           >
-            {paymentMethod === 'PAYSTACK'
+            {nothingToPay
+              ? 'Close Order (No Charge)'
+              : paymentMethod === 'PAYSTACK'
               ? 'Generate Checkout Link'
               : paymentAmount >= remainingBalance - 0.01
                 ? 'Confirm Payment & Close'

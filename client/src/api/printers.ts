@@ -14,6 +14,8 @@ export interface Printer {
   macAddress: string | null
   /** Customer bills/receipts are sent to this printer through the print agent. */
   printsBills: boolean
+  /** Kitchen/bar dockets are sent to this printer. Off for a bills-only printer. */
+  printsDockets: boolean
   paperWidthMm: number
   isActive: boolean
   categories: Array<{ categoryId: string; category: { id: string; name: string } }>
@@ -41,6 +43,7 @@ export interface CreatePrinterData {
   devicePath?: string
   macAddress?: string
   printsBills?: boolean
+  printsDockets?: boolean
   paperWidthMm?: number
 }
 
@@ -69,6 +72,7 @@ export interface UpdatePrinterData {
   devicePath?: string
   isActive?: boolean
   printsBills?: boolean
+  printsDockets?: boolean
   paperWidthMm?: number
 }
 
