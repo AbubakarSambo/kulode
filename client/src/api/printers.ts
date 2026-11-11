@@ -12,6 +12,9 @@ export interface Printer {
   port: number | null
   devicePath: string | null
   macAddress: string | null
+  /** Customer bills/receipts are sent to this printer through the print agent. */
+  printsBills: boolean
+  paperWidthMm: number
   isActive: boolean
   categories: Array<{ categoryId: string; category: { id: string; name: string } }>
 }
@@ -37,6 +40,8 @@ export interface CreatePrinterData {
   port?: number
   devicePath?: string
   macAddress?: string
+  printsBills?: boolean
+  paperWidthMm?: number
 }
 
 /** Something the on-site agent found listening for print jobs on the local network. */
@@ -63,6 +68,8 @@ export interface UpdatePrinterData {
   port?: number
   devicePath?: string
   isActive?: boolean
+  printsBills?: boolean
+  paperWidthMm?: number
 }
 
 export const printersApi = {

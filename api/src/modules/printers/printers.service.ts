@@ -66,6 +66,8 @@ export class PrintersService {
         port: dto.port,
         devicePath: dto.devicePath,
         macAddress: dto.macAddress,
+        printsBills: dto.printsBills,
+        paperWidthMm: dto.paperWidthMm,
       },
     });
   }
@@ -101,6 +103,8 @@ export class PrintersService {
         ...(dto.port !== undefined && { port: dto.port }),
         ...(dto.devicePath !== undefined && { devicePath: dto.devicePath }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        ...(dto.printsBills !== undefined && { printsBills: dto.printsBills }),
+        ...(dto.paperWidthMm !== undefined && { paperWidthMm: dto.paperWidthMm }),
       },
     });
   }

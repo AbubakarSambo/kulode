@@ -14,3 +14,4 @@ export { MoveOrderItemsDto } from './move-order-items.dto';
 export { ApplyDiscountDto } from './apply-discount.dto';
 export { ReassignOrderPaymentDto } from './reassign-order-payment.dto';
 export { CancelOrderDto } from './cancel-order.dto';
+export { PrintBillPreviewDto } from './print-bill-preview.dto';

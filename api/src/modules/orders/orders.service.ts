@@ -23,6 +23,7 @@ import {
   MoveOrderItemsDto,
   ApplyDiscountDto,
   ReassignOrderPaymentDto,
+  PrintBillPreviewDto,
 } from './dto';
 import { paginate, runIdempotent, resolvePayment, hasPermission, APPROVER_PIN_ROLES } from '../../common';
 
@@ -1599,6 +1600,71 @@ export class OrdersService {
 
       return updated;
     });
+  }
+
+  // Sends the bill to the org's bill printer(s) through the print agent. `queued: false` means
+  // no printer is set up for bills, and the client prints through the browser instead.
+  async printBill(organizationId: string, id: string) {
+    const receipt = await this.getReceiptData(organizationId, id);
+    return this.printingService.queueBill(organizationId, receipt, id);
+  }
+
+  // The same, for a bill shown to a guest before the order has been placed — there is no order
+  // row yet, so the lines and totals come from the POS screen. The business details always come
+  // from the database, never from the request.
+  async printBillPreview(organizationId: string, dto: PrintBillPreviewDto) {
+    const organization = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: {
+        name: true,
+        email: true,
+        phone: true,
+        address: true,
+        currency: true,
+        receiptBankName: true,
+        receiptBankAccountNumber: true,
+        receiptBankAccountName: true,
+      },
+    });
+    if (!organization) throw new NotFoundException('Organization not found');
+
+    return this.printingService.queueBill(
+      organizationId,
+      {
+        receiptNumber: 'PREVIEW',
+        createdAt: new Date(),
+        closedAt: null,
+        source: dto.source,
+        table: dto.tableName ? { name: dto.tableName } : null,
+        customer: dto.customerName ? { name: dto.customerName, phone: dto.customerPhone ?? null } : null,
+        waiter: dto.waiterName ? { firstName: dto.waiterName, lastName: '' } : null,
+        items: dto.items.map((i) => ({
+          name: i.name,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          amount: Math.round(i.unitPrice * i.quantity * 100) / 100,
+          notes: i.notes ?? null,
+        })),
+        subtotal: dto.subtotal,
+        total: dto.total,
+        amountPaid: 0,
+        discountType: 'FIXED',
+        discountPercent: 0,
+        discountAmount: 0,
+        vatApplied: dto.vatAmount !== undefined,
+        vatRate: dto.vatRate ?? 0,
+        vatAmount: dto.vatAmount ?? 0,
+        entertainmentTaxApplied: dto.entertainmentTaxAmount !== undefined,
+        entertainmentTaxRate: dto.entertainmentTaxRate ?? 0,
+        entertainmentTaxAmount: dto.entertainmentTaxAmount ?? 0,
+        serviceChargeApplied: dto.serviceChargeAmount !== undefined,
+        serviceChargeRate: dto.serviceChargeRate ?? 0,
+        serviceChargeAmount: dto.serviceChargeAmount ?? 0,
+        payments: [],
+        organization,
+      },
+      null,
+    );
   }
 
   async getReceiptData(organizationId: string, id: string) {

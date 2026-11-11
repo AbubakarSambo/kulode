@@ -24,6 +24,8 @@ const printerSchema = z.object({
   devicePath: z.string().optional(),
   // Carried along when a printer is added from the agent's scan; never shown or typed.
   macAddress: z.string().optional(),
+  printsBills: z.boolean(),
+  paperWidthMm: z.coerce.number().int(),
 })
 
 type PrinterFormInput = z.input<typeof printerSchema>
@@ -344,10 +346,11 @@ export function PrintersPage() {
     formState: { errors },
   } = useForm<PrinterFormInput, unknown, PrinterFormData>({
     resolver: zodResolver(printerSchema),
-    defaultValues: { name: '', station: '', connectionType: 'NETWORK', ipAddress: '', port: 9100, devicePath: '', macAddress: '' },
+    defaultValues: { name: '', station: '', connectionType: 'NETWORK', ipAddress: '', port: 9100, devicePath: '', macAddress: '', printsBills: false, paperWidthMm: 80 },
   })
 
   const connectionType = watch('connectionType')
+  const printsBills = watch('printsBills')
 
   const createMutation = useMutation({
     mutationFn: (data: PrinterFormData) => printersApi.create(data),
@@ -411,7 +414,7 @@ export function PrintersPage() {
 
   const openCreateModal = () => {
     setEditingPrinter(null)
-    reset({ name: '', station: '', connectionType: 'NETWORK', ipAddress: '', port: 9100, devicePath: '', macAddress: '' })
+    reset({ name: '', station: '', connectionType: 'NETWORK', ipAddress: '', port: 9100, devicePath: '', macAddress: '', printsBills: false, paperWidthMm: 80 })
     setIsModalOpen(true)
   }
 
@@ -425,6 +428,8 @@ export function PrintersPage() {
       port: printer.port ?? 9100,
       devicePath: printer.devicePath ?? '',
       macAddress: '',
+      printsBills: printer.printsBills,
+      paperWidthMm: printer.paperWidthMm,
     })
     setIsModalOpen(true)
   }
@@ -446,6 +451,8 @@ export function PrintersPage() {
       port: device.port,
       devicePath: '',
       macAddress: device.macAddress ?? '',
+      printsBills: false,
+      paperWidthMm: 80,
     })
     setIsModalOpen(true)
   }
@@ -506,6 +513,7 @@ export function PrintersPage() {
                         <PrinterIcon className="h-4 w-4 text-muted-foreground" />
                         <h3 className="font-medium">{printer.name}</h3>
                         {!printer.isActive && <Badge variant="secondary">Inactive</Badge>}
+                        {printer.printsBills && <Badge variant="secondary">Bills</Badge>}
                         {printer.connectionType === 'NETWORK' && !printer.ipAddress && (
                           <Badge variant="warning">Not configured</Badge>
                         )}
@@ -635,6 +643,34 @@ export function PrintersPage() {
               </p>
             </div>
           )}
+
+          <div className="space-y-3 rounded-lg border border-[rgba(196,197,215,0.4)] p-3">
+            <label className="flex cursor-pointer items-start gap-2">
+              <input type="checkbox" className="mt-1" {...register('printsBills')} />
+              <span>
+                <span className="block text-sm font-medium">Print customer bills and receipts here</span>
+                <span className="block text-xs text-muted-foreground">
+                  Pressing Print bill on an order sends it straight to this printer, from any device. With this off
+                  on every printer, bills open the device's own print window instead.
+                </span>
+              </span>
+            </label>
+            {printsBills && (
+              <div className="space-y-2">
+                <Label htmlFor="paperWidthMm">Paper width</Label>
+                <Controller
+                  name="paperWidthMm"
+                  control={control}
+                  render={({ field }) => (
+                    <Select id="paperWidthMm" {...field} value={String(field.value)}>
+                      <option value="80">80mm (standard)</option>
+                      <option value="58">58mm (narrow)</option>
+                    </Select>
+                  )}
+                />
+              </div>
+            )}
+          </div>
 
           <div className="flex gap-3 pt-2">
             <Button type="submit" isLoading={createMutation.isPending || updateMutation.isPending}>

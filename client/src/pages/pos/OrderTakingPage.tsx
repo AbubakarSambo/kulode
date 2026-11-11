@@ -13,7 +13,7 @@ import { BottomSheet } from '@/components/shared/BottomSheet'
 import { menuCategoriesApi, menuItemsApi, ordersApi, customersApi, tablesApi, organizationsApi, orderTypesApi } from '@/api'
 import type { ReceiptData } from '@/api/orders'
 import { formatCurrency, cn } from '@/lib/utils'
-import { printBill } from '@/lib/printBill'
+import { printBillPreview } from '@/lib/sendBill'
 import { useAuthStore } from '@/stores/auth'
 import type { OrderSource } from '@/types'
 
@@ -338,7 +338,7 @@ export function OrderTakingPage() {
         receiptBankAccountName: organization.receiptBankAccountName,
       },
     }
-    printBill(receipt)
+    void printBillPreview(receipt)
   }
 
   const addToCart = (menuItemId: string, name: string, price: number) => {

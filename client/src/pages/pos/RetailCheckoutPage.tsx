@@ -7,7 +7,7 @@ import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Input, Label, SearchableSelect } from '@/components/ui'
 import { customersApi, inventoryApi, ordersApi, organizationsApi, paymentTypesApi } from '@/api'
 import { cn, formatCurrency, formatPaymentMethod } from '@/lib/utils'
-import { printBill } from '@/lib/printBill'
+import { printOrderBill } from '@/lib/sendBill'
 import { computeOrderCharges } from '@/lib/orderCharges'
 import type { Customer, InventoryItem } from '@/types'
 
@@ -266,7 +266,7 @@ export function RetailCheckoutPage() {
       } else {
         toast.success('Sale complete')
         try {
-          printBill(await ordersApi.getReceiptData(order.id))
+          await printOrderBill(order.id)
         } catch {
           // Printing is best-effort — the sale itself already succeeded above.
           toast.error('Sale completed, but the receipt could not be printed')
