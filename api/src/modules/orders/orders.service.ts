@@ -1476,9 +1476,6 @@ export class OrdersService {
     userId: string,
     dto: CloseOrderDto,
   ) {
-    if (dto.paymentMethod === 'PAYSTACK') {
-      throw new BadRequestException('Use the Paystack checkout endpoint to close an order with PAYSTACK');
-    }
     if (!dto.clientRequestId) {
       throw new BadRequestException('clientRequestId is required to close an order');
     }
@@ -1489,18 +1486,29 @@ export class OrdersService {
     if (!PAYABLE_STATUSES.includes(order.status)) {
       throw new BadRequestException(`Cannot close a ${order.status.toLowerCase()} order`);
     }
-    if (dto.paymentMethod === 'WALLET' && !order.customerId) {
-      throw new BadRequestException('A customer must be attached to the order to pay from their wallet');
-    }
-    if (!(await this.paymentTypesService.exists(organizationId, dto.paymentMethod))) {
-      throw new BadRequestException(`"${dto.paymentMethod}" is not a valid payment method for this organization`);
+
+    // An order that comes to nothing — only zero-priced items (e.g. a partner-covered meal), or
+    // discounted to zero — has no payment to take, but still has to be closed so stock is
+    // deducted and the table freed. It closes with no Payment row; the method sent is ignored.
+    const nothingToPay = toNumber(order.total) <= 0;
+
+    if (!nothingToPay) {
+      if (dto.paymentMethod === 'PAYSTACK') {
+        throw new BadRequestException('Use the Paystack checkout endpoint to close an order with PAYSTACK');
+      }
+      if (dto.paymentMethod === 'WALLET' && !order.customerId) {
+        throw new BadRequestException('A customer must be attached to the order to pay from their wallet');
+      }
+      if (!(await this.paymentTypesService.exists(organizationId, dto.paymentMethod))) {
+        throw new BadRequestException(`"${dto.paymentMethod}" is not a valid payment method for this organization`);
+      }
     }
 
     const remaining = Math.round((toNumber(order.total) - toNumber(order.amountPaid)) * 100) / 100;
-    if (remaining <= 0) {
+    if (remaining <= 0 && !nothingToPay) {
       throw new BadRequestException('Order is already fully paid');
     }
-    const amount = dto.amount ?? remaining;
+    const amount = nothingToPay ? 0 : (dto.amount ?? remaining);
     // Tiny epsilon guards against float/decimal rounding (e.g. three-way splits of an odd total)
     // flagging a final payment as "over" by a fraction of a kobo.
     if (amount > remaining + 0.01) {
@@ -1529,23 +1537,25 @@ export class OrdersService {
         throw new BadRequestException('Order was already closed or cancelled');
       }
 
-      const payment = await tx.payment.create({
-        data: {
-          organizationId,
-          orderId: id,
-          recordedById: userId,
-          amount,
-          paymentMethod: dto.paymentMethod,
-          paymentDate: new Date(),
-          reference: dto.reference,
-          notes:
-            writeOff > 0
-              ? [dto.notes, `₦${writeOff} shortfall written off (within tolerance)`].filter(Boolean).join(' — ')
-              : dto.notes,
-        },
-      });
+      const payment = nothingToPay
+        ? null
+        : await tx.payment.create({
+            data: {
+              organizationId,
+              orderId: id,
+              recordedById: userId,
+              amount,
+              paymentMethod: dto.paymentMethod,
+              paymentDate: new Date(),
+              reference: dto.reference,
+              notes:
+                writeOff > 0
+                  ? [dto.notes, `₦${writeOff} shortfall written off (within tolerance)`].filter(Boolean).join(' — ')
+                  : dto.notes,
+            },
+          });
 
-      if (dto.paymentMethod === 'WALLET') {
+      if (payment && dto.paymentMethod === 'WALLET') {
         // order.customerId presence was validated before entering runIdempotent.
         await this.walletService.debit(tx, organizationId, order.customerId as string, userId, {
           amount,
@@ -1586,7 +1596,7 @@ export class OrdersService {
             toNumber(updated.entertainmentTaxAmount),
             toNumber(updated.serviceChargeAmount),
             '',
-            dto.paymentMethod,
+            nothingToPay ? 'No charge' : dto.paymentMethod,
           ];
         });
         await this.sheetSync.enqueueMany(tx, organizationId, 'ORDER_ITEMS', sheetRows);

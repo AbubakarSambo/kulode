@@ -439,6 +439,28 @@ describe('OrdersService — status transitions across the waiter/cashier split',
       prisma.__tx.user.findUnique.mockResolvedValue({ firstName: 'A', lastName: 'B' });
     });
 
+    it('closes an order that comes to nothing without recording a payment', async () => {
+      prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'OPEN', total: 0, tableId: 'table-1' }));
+      prisma.__tx.order.updateMany.mockResolvedValue({ count: 1 });
+      // The till sends a placeholder method for these; it must not be validated or stored.
+      paymentTypesService.exists.mockResolvedValue(false);
+
+      await service.closeWithPayment(ORG_ID, ORDER_ID, USER_ID, { paymentMethod: 'NO_CHARGE', clientRequestId: 'req-1' });
+
+      expect(prisma.__tx.order.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'CLOSED_PAID', amountPaid: 0 }) }),
+      );
+      expect(prisma.__tx.payment.create).not.toHaveBeenCalled();
+      // Everything else a close does still happens: stock comes off and the table is freed.
+      expect(inventoryService.deductForOrder).toHaveBeenCalledWith(prisma.__tx, ORDER_ID, ORG_ID);
+      expect(prisma.__tx.restaurantTable.update).toHaveBeenCalled();
+    });
+
+    it('still refuses a second payment on an order that has been paid in full', async () => {
+      prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'CLOSED_UNPAID', total: 5000, amountPaid: 5000 }));
+      await expect(service.closeWithPayment(ORG_ID, ORDER_ID, USER_ID, dto)).rejects.toThrow('Order is already fully paid');
+    });
+
     it('rejects closing a CANCELLED order', async () => {
       prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'CANCELLED' }));
       await expect(service.closeWithPayment(ORG_ID, ORDER_ID, USER_ID, dto)).rejects.toThrow(BadRequestException);
