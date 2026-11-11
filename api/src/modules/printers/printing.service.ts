@@ -1,5 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { BillReceipt, formatBillEscPos } from './bill-escpos';
+import { AGENT_ONLINE_WINDOW_MS } from './print-agent.guard';
 
 export interface DocketOrderContext {
   id: string;
@@ -186,6 +188,53 @@ export class PrintingService {
       },
     });
     return { jobId: job.id };
+  }
+
+  // Sends a customer bill/receipt to every active printer marked "prints bills". Returns
+  // queued: false when there is none, so the caller can fall back to the browser's own print
+  // dialog — which is how every bill was printed before this existed. orderId is null for a
+  // preview printed before the order has been placed.
+  async queueBill(
+    organizationId: string,
+    receipt: BillReceipt,
+    orderId: string | null,
+  ): Promise<{ queued: boolean; agentOffline?: boolean; printers: string[]; jobIds: string[] }> {
+    const printers = await this.prisma.printer.findMany({
+      where: { organizationId, isActive: true, printsBills: true },
+      orderBy: { name: 'asc' },
+    });
+    if (printers.length === 0) return { queued: false, printers: [], jobIds: [] };
+
+    // A docket can wait a minute for the agent to come back; a guest waiting for the bill can't.
+    // With the agent offline, say so, and let the POS print through the browser straight away.
+    const organization = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { printAgentLastSeenAt: true },
+    });
+    const lastSeenAt = organization?.printAgentLastSeenAt;
+    if (!lastSeenAt || Date.now() - lastSeenAt.getTime() >= AGENT_ONLINE_WINDOW_MS) {
+      return { queued: false, agentOffline: true, printers: printers.map((p) => p.name), jobIds: [] };
+    }
+
+    const jobs = await Promise.all(
+      printers.map((printer) =>
+        this.prisma.printJob.create({
+          data: {
+            orderId,
+            printerId: printer.id,
+            payload: {
+              type: 'BILL',
+              orderId,
+              tableName: receipt.table?.name ?? null,
+              station: printer.station,
+              printedAt: new Date().toISOString(),
+              escposText: Buffer.from(formatBillEscPos(receipt, printer.paperWidthMm), 'binary').toString('base64'),
+            },
+          },
+        }),
+      ),
+    );
+    return { queued: true, printers: printers.map((p) => p.name), jobIds: jobs.map((j) => j.id) };
   }
 
   async getJobStatus(organizationId: string, jobId: string) {

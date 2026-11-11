@@ -9,7 +9,7 @@ import { Modal } from '@/components/shared/Modal'
 import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, usersApi, tablesApi, orderTypesApi, paymentTypesApi, organizationsApi } from '@/api'
 import { getQueuedActionsForLocalOrder, discardFailedAction, LOCAL_ORDER_PREFIX } from '@/lib/offlineOrderQueue'
 import { formatCurrency, formatPaymentMethod, normalizePhoneForWhatsApp, cn } from '@/lib/utils'
-import { printBill } from '@/lib/printBill'
+import { printOrderBill } from '@/lib/sendBill'
 import { useAuthStore } from '@/stores/auth'
 import { can } from '@/lib/permissions'
 import type { OrderItemStatus, MenuItem, OrderSource } from '@/types'
@@ -744,7 +744,7 @@ function SyncedOrderView({ id }: { id: string }) {
   })
 
   const printBillMutation = useMutation({
-    mutationFn: async () => printBill(await ordersApi.getReceiptData(id)),
+    mutationFn: () => printOrderBill(id),
     onError: () => toast.error('Failed to print bill'),
   })
 

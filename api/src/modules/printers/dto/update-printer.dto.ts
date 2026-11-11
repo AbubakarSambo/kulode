@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PrinterConnectionType } from '@prisma/client';
-import { IsBoolean, IsEnum, IsIP, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min, ValidateIf } from 'class-validator';
+import { IsBoolean, IsEnum, IsIP, IsIn, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 
 export class UpdatePrinterDto {
   @ApiPropertyOptional()
@@ -49,4 +49,15 @@ export class UpdatePrinterDto {
   @IsOptional()
   @Matches(/^([0-9a-f]{2}:){5}[0-9a-f]{2}$/)
   macAddress?: string;
+
+  // Send customer bills/receipts to this printer through the print agent.
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  printsBills?: boolean;
+
+  @ApiPropertyOptional({ enum: [58, 80], default: 80 })
+  @IsOptional()
+  @IsIn([58, 80])
+  paperWidthMm?: number;
 }

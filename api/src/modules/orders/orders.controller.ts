@@ -32,6 +32,7 @@ import {
   ApplyDiscountDto,
   ReassignOrderPaymentDto,
   CancelOrderDto,
+  PrintBillPreviewDto,
 } from './dto';
 import { CurrentUser, CurrentUserData, Can } from '../../common';
 
@@ -239,6 +240,24 @@ export class OrdersController {
     const order = await this.ordersService.findOne(organizationId, id);
     const amount = dto.amount ?? Number(order.total);
     return this.paystackService.initializeOrderTransaction(organizationId, id, dto.customerEmail, amount);
+  }
+
+  // Sends the bill to the printer(s) set to print bills, through the print agent. Responds with
+  // `queued: false` when no printer is, and the POS then prints through the browser instead.
+  @Post('print-bill-preview')
+  printBillPreview(
+    @CurrentUser('organizationId') organizationId: string,
+    @Body() dto: PrintBillPreviewDto,
+  ) {
+    return this.ordersService.printBillPreview(organizationId, dto);
+  }
+
+  @Post(':id/print-bill')
+  printBill(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.ordersService.printBill(organizationId, id);
   }
 
   @Get(':id/receipt-data')
