@@ -25,6 +25,7 @@ const printerSchema = z.object({
   // Carried along when a printer is added from the agent's scan; never shown or typed.
   macAddress: z.string().optional(),
   printsBills: z.boolean(),
+  printsDockets: z.boolean(),
   paperWidthMm: z.coerce.number().int(),
 })
 
@@ -346,7 +347,7 @@ export function PrintersPage() {
     formState: { errors },
   } = useForm<PrinterFormInput, unknown, PrinterFormData>({
     resolver: zodResolver(printerSchema),
-    defaultValues: { name: '', station: '', connectionType: 'NETWORK', ipAddress: '', port: 9100, devicePath: '', macAddress: '', printsBills: false, paperWidthMm: 80 },
+    defaultValues: { name: '', station: '', connectionType: 'NETWORK', ipAddress: '', port: 9100, devicePath: '', macAddress: '', printsBills: false, printsDockets: true, paperWidthMm: 80 },
   })
 
   const connectionType = watch('connectionType')
@@ -414,7 +415,7 @@ export function PrintersPage() {
 
   const openCreateModal = () => {
     setEditingPrinter(null)
-    reset({ name: '', station: '', connectionType: 'NETWORK', ipAddress: '', port: 9100, devicePath: '', macAddress: '', printsBills: false, paperWidthMm: 80 })
+    reset({ name: '', station: '', connectionType: 'NETWORK', ipAddress: '', port: 9100, devicePath: '', macAddress: '', printsBills: false, printsDockets: true, paperWidthMm: 80 })
     setIsModalOpen(true)
   }
 
@@ -429,6 +430,7 @@ export function PrintersPage() {
       devicePath: printer.devicePath ?? '',
       macAddress: '',
       printsBills: printer.printsBills,
+      printsDockets: printer.printsDockets,
       paperWidthMm: printer.paperWidthMm,
     })
     setIsModalOpen(true)
@@ -452,6 +454,7 @@ export function PrintersPage() {
       devicePath: '',
       macAddress: device.macAddress ?? '',
       printsBills: false,
+      printsDockets: true,
       paperWidthMm: 80,
     })
     setIsModalOpen(true)
@@ -533,9 +536,11 @@ export function PrintersPage() {
                             : ' · no share name yet'}
                       </p>
                       <p className="mt-2 text-xs text-muted-foreground">
-                        {printer.categories.length === 0
-                          ? 'Prints every order (broadcast)'
-                          : `Routes: ${printer.categories.map((c) => c.category.name).join(', ')}`}
+                        {!printer.printsDockets
+                          ? 'No kitchen/bar dockets'
+                          : printer.categories.length === 0
+                            ? 'Prints every order (broadcast)'
+                            : `Routes: ${printer.categories.map((c) => c.category.name).join(', ')}`}
                       </p>
                     </div>
                     <div className="flex gap-1">
@@ -645,6 +650,16 @@ export function PrintersPage() {
           )}
 
           <div className="space-y-3 rounded-lg border border-[rgba(196,197,215,0.4)] p-3">
+            <label className="flex cursor-pointer items-start gap-2">
+              <input type="checkbox" className="mt-1" {...register('printsDockets')} />
+              <span>
+                <span className="block text-sm font-medium">Print kitchen/bar dockets here</span>
+                <span className="block text-xs text-muted-foreground">
+                  A docket prints when an order is placed or an item is voided. Turn this off for a printer that
+                  should only print bills.
+                </span>
+              </span>
+            </label>
             <label className="flex cursor-pointer items-start gap-2">
               <input type="checkbox" className="mt-1" {...register('printsBills')} />
               <span>

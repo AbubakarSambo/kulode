@@ -1399,6 +1399,9 @@ model Printer {
   // print dialog (which can only see printers installed on that one computer). Off by default
   // so a kitchen printer never starts producing bills on its own.
   printsBills    Boolean               @default(false) @map("prints_bills")
+  // Kitchen/bar dockets are sent here when an order is placed or an item is voided. Turned off
+  // for a printer that should only print bills (a cashier's desk printer).
+  printsDockets  Boolean               @default(true) @map("prints_dockets")
   // Roll width, which decides how many characters fit on a bill line (80mm = 48, 58mm = 32).
   paperWidthMm   Int                   @default(80) @map("paper_width_mm")
   isActive       Boolean               @default(true) @map("is_active")
