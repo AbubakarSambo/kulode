@@ -56,6 +56,12 @@ export class UpdatePrinterDto {
   @IsBoolean()
   printsBills?: boolean;
 
+  // Send kitchen/bar dockets to this printer. On unless turned off.
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  printsDockets?: boolean;
+
   @ApiPropertyOptional({ enum: [58, 80], default: 80 })
   @IsOptional()
   @IsIn([58, 80])

@@ -137,3 +137,22 @@ describe('PrintingService.queueBill', () => {
     expect(text).not.toContain('-'.repeat(33));
   });
 });
+
+describe('PrintingService docket dispatch', () => {
+  it('only sends dockets to printers set to print them', async () => {
+    const prisma = {
+      printer: { findMany: jest.fn().mockResolvedValue([]) },
+      printJob: { create: jest.fn() },
+    };
+    const service = new PrintingService(prisma as never);
+
+    await service.dispatchDocketsForNewItems('org-1', { id: 'order-1', source: 'Dine In' }, [
+      { id: 'i1', menuItemId: 'm1', itemName: 'Burger', quantity: 1 },
+    ]);
+
+    expect(prisma.printer.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { organizationId: 'org-1', isActive: true, printsDockets: true } }),
+    );
+    expect(prisma.printJob.create).not.toHaveBeenCalled();
+  });
+});

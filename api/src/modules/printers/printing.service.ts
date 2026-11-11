@@ -76,8 +76,9 @@ export class PrintingService {
   ): Promise<void> {
     if (items.length === 0) return;
 
+    // printsDockets is off for a printer that only prints bills (a cashier's desk printer).
     const printers = await this.prisma.printer.findMany({
-      where: { organizationId, isActive: true },
+      where: { organizationId, isActive: true, printsDockets: true },
       include: { categories: { select: { categoryId: true } } },
     });
     if (printers.length === 0) {
@@ -85,7 +86,7 @@ export class PrintingService {
       // UI, nothing anywhere — which is exactly what made a real "why didn't this print"
       // report impossible to diagnose from logs alone.
       this.logger.warn(
-        `No active printer configured for org ${organizationId} — skipping ${docketType} docket for order ${order.id}`,
+        `No active docket printer configured for org ${organizationId} — skipping ${docketType} docket for order ${order.id}`,
       );
       return;
     }
