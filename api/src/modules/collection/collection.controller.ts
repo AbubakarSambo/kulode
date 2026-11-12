@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Can, CurrentUser, CurrentUserData } from '../../common';
 import { CollectionService } from './collection.service';
@@ -59,6 +60,34 @@ export class CollectionController {
     @Body() dto: SetOverrideDto,
   ) {
     return this.collection.setOverride(organizationId, id, userId, dto);
+  }
+
+  @Get('periods/:id/outcome')
+  @ApiOperation({ summary: 'Period outcome per person: final count, zone, incentive due or deduction flag (manager+). Provisional until the period is locked.' })
+  @Can('COLLECTION_OUTCOME')
+  outcome(@CurrentUser('organizationId') organizationId: string, @Param('id', ParseUUIDPipe) id: string) {
+    return this.collection.getOutcome(organizationId, id);
+  }
+
+  @Get('periods/:id/outcome.csv')
+  @ApiOperation({ summary: 'Period outcome as a CSV for payroll (manager+). TariOne flags the outcome; payroll applies the money.' })
+  @Can('COLLECTION_OUTCOME')
+  async outcomeCsv(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+  ) {
+    const { filename, csv } = await this.collection.outcomeCsv(organizationId, id);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+  }
+
+  @Post('periods/:id/lock')
+  @ApiOperation({ summary: 'Lock an ended period now and freeze its outcome (admin). The hourly job does this automatically.' })
+  @Can('COLLECTION_CONFIGURE')
+  lock(@CurrentUser('organizationId') organizationId: string, @Param('id', ParseUUIDPipe) id: string) {
+    return this.collection.lockPeriod(organizationId, id);
   }
 
   @Get('credits')

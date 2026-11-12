@@ -66,6 +66,7 @@ describe('PhoneNumbersTab', () => {
     expect(screen.queryByRole('button', { name: /quick add/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /review numbers/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /set up/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /outcome/i })).not.toBeInTheDocument()
   })
 
   it('lets a supervisor quick add, a manager also review, and an admin also set up', async () => {
@@ -79,6 +80,7 @@ describe('PhoneNumbersTab', () => {
     await screen.findByText('Bayo K')
     expect(screen.getByRole('button', { name: /review numbers/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /set up/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /outcome/i })).toBeInTheDocument()
     manager.unmount()
 
     renderTab(['ADMIN'])

@@ -57,3 +57,23 @@ export function computeZone(
   else nextStep = `${minPace - count} behind pace`;
   return { zone, phase, minPace, greenPace, nextStep };
 }
+
+/** The zone a final count lands in, ignoring pace. */
+export function finalZone(count: number, { minimum, threshold }: ZoneTargets): Zone {
+  return count >= threshold ? 'GREEN' : count >= minimum ? 'NORMAL' : 'RED';
+}
+
+export interface PeriodOutcomeRates {
+  rewardAmount: number;
+  deductionPct: number;
+}
+
+/** What payroll should apply for a final count: the incentive for Green, the deduction for Red, nothing for Normal. */
+export function outcomeFor(count: number, targets: ZoneTargets, rates: PeriodOutcomeRates) {
+  const zone = finalZone(count, targets);
+  return {
+    zone,
+    incentiveAmount: zone === 'GREEN' ? rates.rewardAmount : 0,
+    deductionPct: zone === 'RED' ? rates.deductionPct : 0,
+  };
+}
