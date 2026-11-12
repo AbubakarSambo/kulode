@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsEmail, IsOptional, MaxLength } from 'class-validator';
+import { IsNotEmpty, IsString, IsEmail, IsIn, IsOptional, MaxLength } from 'class-validator';
 
 export class CreateCustomerDto {
   @ApiProperty({ example: 'Tunde Bakare' })
@@ -23,5 +23,9 @@ export class CreateCustomerDto {
   @IsOptional()
   @IsString()
   notes?: string;
-}
 
+  @ApiPropertyOptional({ enum: ['IMPORT'], description: 'Set by bulk CSV import: the number is saved but earns nobody a phone-collection credit' })
+  @IsOptional()
+  @IsIn(['IMPORT'])
+  source?: 'IMPORT';
+}

@@ -114,4 +114,85 @@ describe('PhoneCaptureService', () => {
     creditCreateMany.mockResolvedValue({ count: 0 });
     expect((await service.setPhone(ctx, 'c1', '08031234569')).credited).toBe(false);
   });
+
+  describe('bulk import', () => {
+    it('saves the number but earns nobody a credit', async () => {
+      const { service, tx, creditCreateMany } = setup();
+      const res = await service.createCustomer({ ...ctx, noCredit: true }, { name: 'Imported', phone: '08031234569' });
+      expect(tx.customer.create).toHaveBeenCalled();
+      expect(creditCreateMany).not.toHaveBeenCalled();
+      expect(res.credited).toBe(false);
+    });
+  });
+
+  describe('lookup', () => {
+    it('reports a made-up number as invalid, with the reason', async () => {
+      const { service } = setup();
+      expect(await service.lookup(ORG, '08000000000')).toMatchObject({ valid: false, reason: 'REPEATED' });
+    });
+
+    it('finds the customer already holding a valid number', async () => {
+      const { service } = setup({ holder: { id: 'c9', name: 'Ada' } });
+      expect(await service.lookup(ORG, '0803 123 4569')).toMatchObject({ valid: true, e164: '+2348031234569', customer: { id: 'c9' } });
+    });
+
+    it('returns no customer for a free number', async () => {
+      const { service } = setup();
+      expect(await service.lookup(ORG, '08031234569')).toMatchObject({ valid: true, customer: null });
+    });
+  });
+
+  describe('capture (order and Pay screens)', () => {
+    const orderCtx = { ...ctx, source: PhoneCreditSource.ORDER, orderId: 'o1' };
+
+    it('creates a customer for a free number, named after the number when no name is given, and credits the waiter', async () => {
+      const { service, tx, creditCreateMany } = setup();
+      const res = await service.capture(orderCtx, { phone: '08031234569' });
+      expect(tx.customer.create.mock.calls[0][0].data).toMatchObject({ name: '+2348031234569', phone: '+2348031234569' });
+      expect(creditCreateMany.mock.calls[0][0].data[0]).toMatchObject({ source: 'ORDER', orderId: 'o1', userId: 'w1' });
+      expect(res).toMatchObject({ created: true, credited: true });
+    });
+
+    it('uses the name when one is given', async () => {
+      const { service, tx } = setup();
+      await service.capture(orderCtx, { phone: '08031234569', name: ' Tunde ' });
+      expect(tx.customer.create.mock.calls[0][0].data.name).toBe('Tunde');
+    });
+
+    it('returns the existing customer for a number someone already holds: no new customer, no credit', async () => {
+      const { service, tx, creditCreateMany } = setup({ holder: { id: 'c9', name: 'Ada' } });
+      const res = await service.capture(orderCtx, { phone: '08031234569' });
+      expect(res).toMatchObject({ customer: { id: 'c9', name: 'Ada' }, created: false, credited: false });
+      expect(tx.customer.create).not.toHaveBeenCalled();
+      expect(creditCreateMany).not.toHaveBeenCalled();
+    });
+
+    it('puts a number onto the attached customer who had none, with a credit', async () => {
+      const { service, creditCreateMany } = setup({ existingPhone: null });
+      const res = await service.capture({ ...orderCtx, source: PhoneCreditSource.PAY }, { phone: '08031234569', customerId: 'c1' });
+      expect(res).toMatchObject({ customer: { id: 'c1', phone: '+2348031234569' }, created: false, credited: true });
+      expect(creditCreateMany.mock.calls[0][0].data[0]).toMatchObject({ source: 'PAY' });
+    });
+
+    it('refuses to move a number that belongs to a different customer', async () => {
+      const { service, creditCreateMany } = setup({ existingPhone: null, holder: { id: 'c9', name: 'Ada' } });
+      await expect(service.capture(orderCtx, { phone: '08031234569', customerId: 'c1' })).rejects.toMatchObject({
+        response: { code: 'PHONE_EXISTS', errors: { existingCustomerId: 'c9' } },
+      });
+      expect(creditCreateMany).not.toHaveBeenCalled();
+    });
+
+    it('re-entering the number the attached customer already has is a no-op with no credit', async () => {
+      const { service, creditCreateMany } = setup({ existingPhone: '08031234569', holder: { id: 'c1', name: 'Tunde' } });
+      const res = await service.capture(orderCtx, { phone: '+234 803 123 4569', customerId: 'c1' });
+      expect(res).toMatchObject({ created: false, credited: false });
+      expect(creditCreateMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects a made-up number before touching anything', async () => {
+      const { service, tx } = setup();
+      await expect(service.capture(orderCtx, { phone: '08012345678' })).rejects.toThrow(BadRequestException);
+      expect(tx.customer.create).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -20,6 +20,35 @@ export interface CreateCustomerData {
   phone?: string
   email?: string
   notes?: string
+  /** Bulk CSV import: the number is saved but earns nobody a phone-collection credit. */
+  source?: 'IMPORT'
+}
+
+export interface CapturedCustomer {
+  id: string
+  name: string
+  phone: string | null
+}
+
+export type PhoneLookup =
+  | { valid: false; reason: string; message: string }
+  | { valid: true; e164: string; customer: CapturedCustomer | null }
+
+export interface CapturePhoneData {
+  phone: string
+  name?: string
+  email?: string
+  /** Put the number on this existing customer instead of finding or creating one */
+  customerId?: string
+  source: 'ORDER' | 'PAY'
+  orderId?: string
+  clientRequestId?: string
+}
+
+export interface CapturePhoneResult {
+  customer: CapturedCustomer
+  created: boolean
+  credited: boolean
 }
 
 export interface CustomerStats {
@@ -59,6 +88,16 @@ export const customersApi = {
 
   getStats: async (id: string): Promise<CustomerStats> => {
     const response = await apiClient.get<ApiResponse<CustomerStats>>(`/customers/${id}/stats`)
+    return response.data.data
+  },
+
+  lookupPhone: async (phone: string): Promise<PhoneLookup> => {
+    const response = await apiClient.get<ApiResponse<PhoneLookup>>('/customers/lookup-phone', { params: { phone } })
+    return response.data.data
+  },
+
+  capturePhone: async (data: CapturePhoneData): Promise<CapturePhoneResult> => {
+    const response = await apiClient.post<ApiResponse<CapturePhoneResult>>('/customers/capture-phone', data)
     return response.data.data
   },
 

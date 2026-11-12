@@ -8,6 +8,8 @@ import { toast } from 'sonner'
 import { Minus, Plus, ArrowLeft, UserPlus, X, Search, ChevronDown } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Label, Input, Textarea, SearchableSelect } from '@/components/ui'
+import { CustomerPhoneCapture } from '@/components/pos/CustomerPhoneCapture'
+import { customerSaveError } from '@/lib/phoneErrors'
 import { Modal } from '@/components/shared/Modal'
 import { BottomSheet } from '@/components/shared/BottomSheet'
 import { menuCategoriesApi, menuItemsApi, ordersApi, customersApi, tablesApi, organizationsApi, orderTypesApi } from '@/api'
@@ -249,8 +251,23 @@ export function OrderTakingPage() {
       toast.success('Customer added')
     },
     onError: (err: unknown) => {
-      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      toast.error(message || 'Failed to add customer')
+      const { message, code, existingCustomerId, existingCustomerName } = customerSaveError(err, 'Failed to add customer')
+      if (code === 'PHONE_EXISTS' && existingCustomerId) {
+        // Mid-order, so don't navigate away: offer to put that customer on this order instead.
+        toast.error('Customer already exists', {
+          description: 'That number is already saved.',
+          action: {
+            label: `Use ${existingCustomerName ?? 'them'}`,
+            onClick: () => {
+              setCustomerId(existingCustomerId)
+              setPinnedCustomer({ id: existingCustomerId, name: existingCustomerName ?? 'Customer', phone: null })
+              setNewCustomerOpen(false)
+            },
+          },
+        })
+      } else {
+        toast.error(message)
+      }
     },
   })
 
@@ -725,6 +742,14 @@ export function OrderTakingPage() {
                 </button>
               )}
             </div>
+            <CustomerPhoneCapture
+              customer={selectedCustomer ?? null}
+              source="ORDER"
+              onResolved={(c) => {
+                setCustomerId(c.id)
+                setPinnedCustomer({ id: c.id, name: c.name, phone: c.phone })
+              }}
+            />
           </div>
 
           <div>

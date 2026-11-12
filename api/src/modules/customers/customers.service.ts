@@ -265,7 +265,7 @@ export class CustomersService {
 
   async create(organizationId: string, actorId: string, dto: CreateCustomerDto) {
     const { credited: _credited, ...customer } = await this.phoneCapture.createCustomer(
-      { organizationId, actorId, source: PhoneCreditSource.CUSTOMER_FORM },
+      { organizationId, actorId, source: PhoneCreditSource.CUSTOMER_FORM, noCredit: dto.source === 'IMPORT' },
       dto,
     );
     return customer;
