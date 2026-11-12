@@ -5,13 +5,17 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, Users, Search, Upload, AlertTriangle } from 'lucide-react'
+import { Plus, Users, Search, Upload, AlertTriangle, UserPlus } from 'lucide-react'
 import { UserGroupIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Card, CardContent, EmptyState } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { CsvImportModal, type CsvColumn } from '@/components/shared/CsvImportModal'
 import { customersApi } from '@/api'
+import { useAuthStore } from '@/stores/auth'
+import { can } from '@/lib/permissions'
+import { toastCustomerSaveError } from '@/lib/phoneErrors'
+import { QuickAddCustomerModal } from '@/components/pos/QuickAddCustomerModal'
 import { cn, formatCurrency, formatDate } from '@/lib/utils'
 import type { Customer } from '@/types'
 
@@ -83,6 +87,9 @@ export function CustomersListPage() {
   }
 
   const form = useForm<CustomerFormData>({ resolver: zodResolver(customerSchema) })
+  const user = useAuthStore((state) => state.user)
+  const canQuickAdd = can(user, 'PHONE_QUICK_ADD')
+  const [quickAddOpen, setQuickAddOpen] = useState(false)
 
   const createCustomer = useMutation({
     mutationFn: (data: CustomerFormData) =>
@@ -94,10 +101,7 @@ export function CustomersListPage() {
       form.reset()
       navigate(`/pos/customers/${customer.id}`)
     },
-    onError: (err: unknown) => {
-      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      toast.error(message || 'Failed to add customer')
-    },
+    onError: (err: unknown) => toastCustomerSaveError(err, 'Failed to add customer', (id) => navigate(`/pos/customers/${id}`)),
   })
 
   return (
@@ -109,6 +113,11 @@ export function CustomersListPage() {
         badgeText={data?.meta.total}
         action={
           <div className="flex gap-2">
+            {canQuickAdd && (
+              <Button variant="outline" size="sm" onClick={() => setQuickAddOpen(true)}>
+                <UserPlus className="mr-1.5 h-4 w-4" /> Quick add
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
               <Upload className="mr-1.5 h-4 w-4" /> Import CSV
             </Button>
@@ -290,6 +299,8 @@ export function CustomersListPage() {
           </Button>
         </form>
       </Modal>
+
+      {canQuickAdd && <QuickAddCustomerModal isOpen={quickAddOpen} onClose={() => setQuickAddOpen(false)} />}
 
       <CsvImportModal
         isOpen={importOpen}

@@ -32,6 +32,7 @@ import { Button, Input, Label, Select, Card, CardHeader, CardTitle, CardContent,
 import { Modal } from '@/components/shared/Modal'
 import { customersApi, walletApi, organizationsApi } from '@/api'
 import type { CustomerStats } from '@/api'
+import { toastCustomerSaveError } from '@/lib/phoneErrors'
 import { formatCurrency, formatCompactCurrency, formatDate, formatWalletNote, cn } from '@/lib/utils'
 import { printWalletReceipt } from '@/lib/printWalletReceipt'
 import { printCustomerStatement } from '@/lib/printCustomerStatement'
@@ -620,10 +621,7 @@ export function CustomerDetailPage() {
       toast.success('Customer updated')
       setEditOpen(false)
     },
-    onError: (err: unknown) => {
-      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      toast.error(message || 'Failed to update customer')
-    },
+    onError: (err: unknown) => toastCustomerSaveError(err, 'Failed to update customer', (otherId) => navigate(`/pos/customers/${otherId}`)),
   })
 
   const deleteCustomer = useMutation({

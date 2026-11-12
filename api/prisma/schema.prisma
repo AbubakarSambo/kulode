@@ -220,6 +220,13 @@ model Organization {
   // recipient doesn't need (or want) a Tarione login.
   ownerWhatsappPhone String? @map("owner_whatsapp_phone")
 
+  // Drives "today"/"same business day" for period pacing and locking, and how phone numbers typed
+  // without a country code are read. Defaults suit the existing Nigerian customers.
+  timezone       String   @default("Africa/Lagos")
+  phoneCountry   String   @default("NG") @map("phone_country")
+  // Numbers staff may not save (any format) — extra to the built-in made-up-number checks.
+  phoneBlocklist String[] @default([]) @map("phone_blocklist")
+
   // Paystack integration
   paystackSubaccountCode String? @map("paystack_subaccount_code")
   bankCode               String? @map("bank_code")
@@ -304,10 +311,10 @@ model Organization {
   // local process — running on a machine on the same network as the printers — polls for jobs
   // and does the actual local socket write. Null until an admin generates one from settings;
   // regenerating invalidates whatever agent instance is running with the old value.
-  printAgentToken String? @unique @map("print_agent_token")
+  printAgentToken            String?   @unique @map("print_agent_token")
   // Stamped (at most every 30s) whenever the agent polls — drives the online/offline badge on
   // the Printers settings page.
-  printAgentLastSeenAt DateTime? @map("print_agent_last_seen_at")
+  printAgentLastSeenAt       DateTime? @map("print_agent_last_seen_at")
   // Short-lived code an admin reads off the Printers page and types into the print agent
   // installer, which swaps it for printAgentToken — so nobody has to paste a token into a file.
   printAgentPairingCode      String?   @unique @map("print_agent_pairing_code")
@@ -315,12 +322,12 @@ model Organization {
   // Printer discovery: the agent scans its local network for printers and reports what it
   // found (a list of { ipAddress, port, macAddress }), on a timer and whenever an admin asks
   // for a scan from the Printers page.
-  printAgentScanRequestedAt DateTime? @map("print_agent_scan_requested_at")
-  printAgentDiscovered      Json?     @map("print_agent_discovered")
-  printAgentDiscoveredAt    DateTime? @map("print_agent_discovered_at")
+  printAgentScanRequestedAt  DateTime? @map("print_agent_scan_requested_at")
+  printAgentDiscovered       Json?     @map("print_agent_discovered")
+  printAgentDiscoveredAt     DateTime? @map("print_agent_discovered_at")
   // Reported by the agent on each poll, for support: which build is installed and on which PC.
-  printAgentVersion  String? @map("print_agent_version")
-  printAgentHostname String? @map("print_agent_hostname")
+  printAgentVersion          String?   @map("print_agent_version")
+  printAgentHostname         String?   @map("print_agent_hostname")
 
   // Subscription
   planTier                     PlanTier           @default(FREE) @map("plan_tier")
@@ -369,6 +376,8 @@ model Organization {
   users                User[]
   clients              Client[]
   customers            Customer[]
+  phoneCredits         PhoneCredit[]
+  collectionPeriods    CollectionPeriod[]
   invoices             Invoice[]
   payments             Payment[]
   expenses             Expense[]
@@ -455,6 +464,7 @@ model User {
   openedShifts                  Shift[]                          @relation("ShiftOpenedByUser")
   closedShifts                  Shift[]                          @relation("ShiftClosedByUser")
   walletTransactions            WalletTransaction[]
+  phoneCredits                  PhoneCredit[]                    @relation("PhoneCreditUser")
   resolvedUnreconciledTransfers MoniepointUnreconciledTransfer[] @relation("ResolvedUnreconciledTransfer")
 
   organizationMemberships UserOrganization[]
@@ -564,6 +574,8 @@ model Customer {
   notes          String?
   isActive       Boolean @default(true) @map("is_active")
   walletBalance  Decimal @default(0) @map("wallet_balance") @db.Decimal(12, 2)
+  // Who first saved this customer (null for customers that pre-date attribution).
+  createdById    String? @map("created_by")
   // Max the wallet may go negative by (on-account credit). 0 = no credit approved.
   // Only an ADMIN/SUPER_ADMIN can raise this; any role can then spend against it.
   creditLimit    Decimal @default(0) @map("credit_limit") @db.Decimal(12, 2)
@@ -576,10 +588,97 @@ model Customer {
   orders                    Order[]
   walletTransactions        WalletTransaction[]
   walletTopUpsFromTransfers MoniepointUnreconciledTransfer[]
+  phoneCredits              PhoneCredit[]
 
   @@unique([organizationId, phone])
   @@index([organizationId])
   @@map("customers")
+}
+
+// One row per phone number a staff member captured for a customer who had no number before. The
+// unique customerId means a customer can only ever earn ONE credit, so removing and re-adding a
+// number can't farm the leaderboard, and a retried offline sync can't double-credit. A manager can
+// revoke a credit (kept, with a reason) — revoked rows drop out of every count.
+model PhoneCredit {
+  id              String            @id @default(uuid())
+  organizationId  String            @map("organization_id")
+  // Who gets the credit (the "Collected by" person for paper/QR forms), and who actually keyed it.
+  userId          String            @map("user_id")
+  enteredById     String            @map("entered_by")
+  customerId      String            @unique @map("customer_id")
+  phone           String
+  source          PhoneCreditSource
+  orderId         String?           @map("order_id")
+  // When the number was captured (offline captures keep their original time) vs when we stored it.
+  capturedAt      DateTime          @map("captured_at")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  clientRequestId String?           @map("client_request_id")
+  revokedById     String?           @map("revoked_by")
+  revokedAt       DateTime?         @map("revoked_at")
+  revokeReason    String?           @map("revoke_reason")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  user         User         @relation("PhoneCreditUser", fields: [userId], references: [id])
+
+  @@index([organizationId, userId, capturedAt])
+  @@map("phone_credits")
+}
+
+enum PhoneCreditSource {
+  ORDER
+  PAY
+  QUICK_ADD
+  CUSTOMER_FORM
+}
+
+// A phone-collection drive: staff in scope earn credits for new numbers between two dates and are
+// judged against a minimum and a reward threshold. Values are per-organization settings.
+model CollectionPeriod {
+  id              String                 @id @default(uuid())
+  organizationId  String                 @map("organization_id")
+  name            String
+  // Calendar dates in the organization's timezone, inclusive.
+  startDate       String                 @map("start_date") @db.VarChar(10)
+  endDate         String                 @map("end_date") @db.VarChar(10)
+  // Roles whose holders take part (e.g. ["WAITER"]).
+  rolesInScope    String[]               @map("roles_in_scope")
+  minimum         Int
+  threshold       Int
+  // Payroll hints: TariOne flags the outcome, payroll applies the money.
+  rewardAmount    Decimal                @default(0) @map("reward_amount") @db.Decimal(12, 2)
+  deductionPct    Int                    @default(0) @map("deduction_pct")
+  coverageGoalPct Int                    @default(70) @map("coverage_goal_pct")
+  status          CollectionPeriodStatus @default(OPEN)
+  lockedAt        DateTime?              @map("locked_at")
+  createdAt       DateTime               @default(now()) @map("created_at")
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  overrides    CollectionOverride[]
+
+  @@index([organizationId, status])
+  @@map("collection_periods")
+}
+
+enum CollectionPeriodStatus {
+  OPEN
+  LOCKED
+}
+
+// Per-person adjustments to a period: a different target (part-timers, late joiners) and/or an
+// opening count for numbers collected before TariOne could attribute them.
+model CollectionOverride {
+  id           String @id @default(uuid())
+  periodId     String @map("period_id")
+  userId       String @map("user_id")
+  minimum      Int?
+  threshold    Int?
+  openingCount Int    @default(0) @map("opening_count")
+
+  period CollectionPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  @@unique([periodId, userId])
+  @@map("collection_overrides")
 }
 
 // Restaurant/POS floor staff roster — lightweight, no login required

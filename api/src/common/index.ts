@@ -12,3 +12,5 @@ export * from './payment-tolerance';
 export * from './permissions';
 export * from './org-modules';
 export * from './csv';
+export * from './zoned-date';
+export * from './phone';

@@ -78,6 +78,14 @@ export const PERMISSIONS = {
   LEADERBOARD_VIEW: WAITER_UP,
   LEADERBOARD_AMOUNTS_ALL: MANAGER_UP,
   LEADERBOARD_CONFIGURE: ADMINS,
+  // Phone-number collection. Anyone on the floor can save a number (and earns the credit); only a
+  // supervisor+ can key in paper/QR-form numbers on someone else's behalf ("Collected by"); a
+  // manager+ can revoke a credit; only an admin sets up collection periods and targets.
+  PHONE_CAPTURE: WAITER_UP,
+  PHONE_QUICK_ADD: SUPERVISOR_UP,
+  PHONE_CREDIT_REVOKE: MANAGER_UP,
+  COLLECTION_VIEW: WAITER_UP,
+  COLLECTION_CONFIGURE: ADMINS,
   // Today's running takings (paid + still-open) for the branch — the strip above the POS pages
   TODAY_TAKINGS_VIEW: WAITER_UP,
   // Stock counts/restocks vs. creating/editing/deleting/importing inventory items
