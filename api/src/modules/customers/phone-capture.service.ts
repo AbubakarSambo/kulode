@@ -42,7 +42,8 @@ export class PhoneCaptureService {
       throw new BadRequestException({
         message: PHONE_REJECTION_MESSAGES[result.reason],
         code: 'PHONE_INVALID',
-        reason: result.reason,
+        // The global exception filter forwards only message/code/errors, so detail goes in errors.
+        errors: { reason: result.reason },
       });
     }
     return result.e164;
@@ -69,8 +70,7 @@ export class PhoneCaptureService {
     throw new ConflictException({
       message: 'Customer already exists',
       code: 'PHONE_EXISTS',
-      existingCustomerId: holder.id,
-      existingCustomerName: holder.name,
+      errors: { existingCustomerId: holder.id, existingCustomerName: holder.name },
     });
   }
 
