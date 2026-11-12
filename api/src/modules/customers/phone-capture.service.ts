@@ -15,6 +15,8 @@ export interface CaptureContext {
   orderId?: string;
   capturedAt?: Date;
   clientRequestId?: string;
+  /** Bulk imports create customers with numbers but never earn anyone a credit. */
+  noCredit?: boolean;
 }
 
 // Offline captures keep their original time, but not an arbitrary one: a device clock that is
@@ -53,10 +55,10 @@ export class PhoneCaptureService {
    * The customer that already holds this number, whatever format it was saved in ("0803…",
    * "+234 803…", "234803…"). Compares digits only, against the expression index on customers.
    */
-  async findHolder(db: Db, organizationId: string, e164: string, excludeId?: string): Promise<{ id: string; name: string } | null> {
+  async findHolder(db: Db, organizationId: string, e164: string, excludeId?: string): Promise<{ id: string; name: string; phone: string | null } | null> {
     const variants = phoneDigitVariants(e164);
-    const rows = await db.$queryRaw<{ id: string; name: string }[]>`
-      SELECT id, name FROM customers
+    const rows = await db.$queryRaw<{ id: string; name: string; phone: string | null }[]>`
+      SELECT id, name, phone FROM customers
       WHERE organization_id = ${organizationId}
         AND phone IS NOT NULL
         AND regexp_replace(phone, '[^0-9]', '', 'g') = ANY(${variants}::text[])
@@ -120,7 +122,7 @@ export class PhoneCaptureService {
       const customer = await tx.customer.create({
         data: { organizationId: ctx.organizationId, name: dto.name, phone, email: dto.email, notes: dto.notes, createdById: ctx.actorId },
       });
-      const credited = phone ? await this.recordCredit(tx, ctx, customer.id, phone) : false;
+      const credited = phone && !ctx.noCredit ? await this.recordCredit(tx, ctx, customer.id, phone) : false;
       return { ...customer, credited };
     };
     try {
@@ -180,5 +182,44 @@ export class PhoneCaptureService {
     });
     if (!collector) throw new BadRequestException('Collected by must be an active staff member of this organization');
     return this.createCustomer({ ...ctx, creditUserId: collector.id, source: PhoneCreditSource.QUICK_ADD }, dto);
+  }
+
+  /** Is this a usable number, and does a customer already hold it? Drives the phone field on the order and Pay screens. */
+  async lookup(organizationId: string, raw: string) {
+    const org = await this.prisma.organization.findUnique({ where: { id: organizationId }, select: { phoneCountry: true, phoneBlocklist: true } });
+    const result = normalisePhone(raw, org?.phoneCountry ?? 'NG', org?.phoneBlocklist ?? []);
+    if (!result.ok) return { valid: false as const, reason: result.reason, message: PHONE_REJECTION_MESSAGES[result.reason] };
+    const holder = await this.findHolder(this.prisma, organizationId, result.e164);
+    return { valid: true as const, e164: result.e164, customer: holder };
+  }
+
+  /**
+   * One step for the order and Pay screens: save a number typed at the till. With a customer in
+   * hand it goes onto them (a credit if they had none); without one it finds whoever holds the
+   * number, or creates a customer (name optional — the number stands in until someone fills it in).
+   */
+  async capture(
+    ctx: CaptureContext,
+    dto: { phone: string; name?: string; email?: string; customerId?: string },
+  ): Promise<{ customer: { id: string; name: string; phone: string | null }; created: boolean; credited: boolean }> {
+    const e164 = await this.normaliseForOrg(ctx.organizationId, dto.phone);
+    const holder = await this.findHolder(this.prisma, ctx.organizationId, e164);
+
+    if (dto.customerId) {
+      const target = await this.prisma.customer.findFirst({
+        where: { id: dto.customerId, organizationId: ctx.organizationId },
+        select: { id: true, name: true, phone: true },
+      });
+      if (!target) throw new NotFoundException('Customer not found');
+      if (holder && holder.id !== target.id) this.exists(holder);
+      if (holder) return { customer: { id: target.id, name: target.name, phone: target.phone }, created: false, credited: false };
+      const { phone, credited } = await this.setPhone(ctx, target.id, dto.phone);
+      return { customer: { id: target.id, name: target.name, phone }, created: false, credited };
+    }
+
+    if (holder) return { customer: { id: holder.id, name: holder.name, phone: holder.phone }, created: false, credited: false };
+
+    const created = await this.createCustomer(ctx, { name: dto.name?.trim() || e164, phone: dto.phone, email: dto.email });
+    return { customer: { id: created.id, name: created.name, phone: created.phone }, created: true, credited: created.credited };
   }
 }

@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { CustomersService } from './customers.service';
-import { CreateCustomerDto, UpdateCustomerDto, UpdateCustomerCreditDto, CustomerFilterDto, QuickAddCustomerDto } from './dto';
+import { CreateCustomerDto, UpdateCustomerDto, UpdateCustomerCreditDto, CustomerFilterDto, QuickAddCustomerDto, CapturePhoneDto, LookupPhoneQueryDto } from './dto';
 import { PhoneCaptureService } from './phone-capture.service';
 import { PhoneCreditSource } from '@prisma/client';
 import { CurrentUser, CurrentUserData, Can } from '../../common';
@@ -33,6 +33,14 @@ export class CustomersController {
     @Query() filter: CustomerFilterDto,
   ) {
     return this.customersService.findAll(organizationId, filter);
+  }
+
+  // Declared before ':id' so "lookup-phone" isn't parsed as a customer id
+  @Get('lookup-phone')
+  @ApiOperation({ summary: 'Is this a usable phone number, and which customer (if any) already holds it?' })
+  @Can('PHONE_CAPTURE')
+  async lookupPhone(@Query() query: LookupPhoneQueryDto, @CurrentUser('organizationId') organizationId: string) {
+    return this.phoneCapture.lookup(organizationId, query.phone);
   }
 
   // Declared before ':id' so "wallet-summary" isn't parsed as a customer id
@@ -73,6 +81,23 @@ export class CustomersController {
     @CurrentUser() user: CurrentUserData,
   ) {
     return this.customersService.create(user.organizationId, user.id, dto);
+  }
+
+  @Post('capture-phone')
+  @ApiOperation({ summary: 'Save a number typed at the order or Pay screen: attaches to a customer, finds who holds it, or creates one. Credits the staff member for a new number.' })
+  @Can('PHONE_CAPTURE')
+  async capturePhone(@Body() dto: CapturePhoneDto, @CurrentUser() user: CurrentUserData) {
+    return this.phoneCapture.capture(
+      {
+        organizationId: user.organizationId,
+        actorId: user.id,
+        source: dto.source === 'PAY' ? PhoneCreditSource.PAY : PhoneCreditSource.ORDER,
+        orderId: dto.orderId,
+        capturedAt: dto.capturedAt,
+        clientRequestId: dto.clientRequestId,
+      },
+      dto,
+    );
   }
 
   @Post('quick-add')
