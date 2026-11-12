@@ -67,7 +67,7 @@ describe('PhoneCaptureService', () => {
     const { service, creditCreateMany } = setup({ holder: { id: 'c9', name: 'Ada' } });
     await expect(service.createCustomer(ctx, { name: 'Tunde', phone: '08031234569' })).rejects.toThrow(ConflictException);
     await expect(service.setPhone(ctx, 'c1', '08031234569')).rejects.toMatchObject({
-      response: { code: 'PHONE_EXISTS', existingCustomerId: 'c9' },
+      response: { code: 'PHONE_EXISTS', errors: { existingCustomerId: 'c9', existingCustomerName: 'Ada' } },
     });
     expect(creditCreateMany).not.toHaveBeenCalled();
   });

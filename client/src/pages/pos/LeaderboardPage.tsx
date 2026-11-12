@@ -12,6 +12,7 @@ import { useAuthStore } from '@/stores/auth'
 import { can } from '@/lib/permissions'
 import { REPORT_PERIOD_OPTIONS, reportPeriodRange, businessToday, formatYmd, type ReportsPeriod } from '@/lib/reportPeriods'
 import { cn, formatCurrency } from '@/lib/utils'
+import { PhoneNumbersTab } from '@/components/pos/PhoneNumbersTab'
 
 // A leaderboard is about "how am I doing lately", not ad-hoc ranges.
 const PERIODS = REPORT_PERIOD_OPTIONS.filter((o) => ['TODAY', 'YESTERDAY', 'LAST_WEEK', 'THIS_MONTH', 'LAST_MONTH'].includes(o.value))
@@ -141,6 +142,7 @@ export function LeaderboardPage() {
   const [metric, setMetric] = useState<LeaderboardMetric | undefined>(undefined)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [tab, setTab] = useState<'SALES' | 'PHONES'>('SALES')
 
   const shiftStartTime = organization?.shiftStartTime
   const { from, to } = useMemo(() => reportPeriodRange(period as Exclude<ReportsPeriod, 'CUSTOM'>, new Date(), shiftStartTime), [period, shiftStartTime])
@@ -205,10 +207,22 @@ export function LeaderboardPage() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <Header title="Leaderboard" description="Who's leading on the floor" icon={Trophy} action={controls} />
+      <Header title="Leaderboard" description="Who's leading on the floor" icon={Trophy} action={tab === 'SALES' ? controls : undefined} />
 
       <div className="flex-1 overflow-auto p-4 sm:p-6">
-        <div className="mx-auto max-w-2xl space-y-4">
+        <div className="mx-auto mb-4 flex max-w-2xl items-center gap-1 rounded-xl border border-border bg-card p-1 print:hidden">
+          {([['SALES', 'Sales'], ['PHONES', 'Phone Numbers']] as const).map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setTab(value)}
+              className={cn('h-9 flex-1 rounded-lg px-3 text-xs font-semibold transition-colors', tab === value ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground')}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {tab === 'PHONES' && <PhoneNumbersTab />}
+        <div className={cn('mx-auto max-w-2xl space-y-4', tab !== 'SALES' && 'hidden')}>
           {!isLoading && data && data.entries.length === 0 && (
             <EmptyState
               icon={Award01Icon}
