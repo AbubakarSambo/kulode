@@ -6,6 +6,7 @@ import { ArrowLeft, Download, Plus, X, UserPlus, Pencil, Search } from 'lucide-r
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Badge, Input, Label, SearchableSelect, Textarea } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
+import { CustomerPhoneCapture } from '@/components/pos/CustomerPhoneCapture'
 import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, usersApi, tablesApi, orderTypesApi, paymentTypesApi, organizationsApi } from '@/api'
 import { getQueuedActionsForLocalOrder, discardFailedAction, LOCAL_ORDER_PREFIX } from '@/lib/offlineOrderQueue'
 import { formatCurrency, formatPaymentMethod, normalizePhoneForWhatsApp, cn } from '@/lib/utils'
@@ -968,7 +969,7 @@ function SyncedOrderView({ id }: { id: string }) {
         <div className="mb-4 flex items-center justify-between rounded-xl border border-border p-3">
           {order.customer ? (
             <Link to={`/pos/customers/${order.customer.id}`} className="text-sm font-medium text-foreground hover:underline">
-              {order.customer.name}{order.customer.phone ? ` · ${order.customer.phone}` : ''}
+              {order.customer.name}{order.customer.phone ? ` · ${order.customer.phone}` : ' · no number'}
             </Link>
           ) : (
             <span className="text-sm text-muted-foreground">No customer attached</span>
@@ -1555,6 +1556,12 @@ function SyncedOrderView({ id }: { id: string }) {
               onChange={setSelectedCustomerId}
               onSearchChange={setCustomerSearch}
               placeholder="Search customers"
+            />
+            <CustomerPhoneCapture
+              customer={order.customer ?? null}
+              source="PAY"
+              orderId={id}
+              onResolved={(c) => setCustomer.mutate(c.id)}
             />
           </div>
           <div className="flex gap-3">

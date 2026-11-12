@@ -315,6 +315,8 @@ export function CustomersListPage() {
             phone: row.phone || undefined,
             email: row.email || undefined,
             notes: row.notes || undefined,
+            // A bulk import isn't staff collecting numbers, so it earns nobody a credit.
+            source: 'IMPORT',
           })
         }}
         onImported={() => queryClient.invalidateQueries({ queryKey: ['customers'] })}

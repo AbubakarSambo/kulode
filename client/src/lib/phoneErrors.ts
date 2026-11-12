@@ -14,6 +14,7 @@ export interface CustomerSaveError {
   message: string
   code?: string
   existingCustomerId?: string
+  existingCustomerName?: string
 }
 
 export function customerSaveError(err: unknown, fallback: string): CustomerSaveError {
@@ -22,6 +23,7 @@ export function customerSaveError(err: unknown, fallback: string): CustomerSaveE
     message: body?.message || fallback,
     code: body?.code,
     existingCustomerId: body?.errors?.existingCustomerId,
+    existingCustomerName: body?.errors?.existingCustomerName,
   }
 }
 
