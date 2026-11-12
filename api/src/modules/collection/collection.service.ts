@@ -1,12 +1,15 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CollectionPeriod, CollectionPeriodStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUserData, startOfNextZonedDay, startOfZonedDay, todayInZone } from '../../common';
-import { computeZone, periodPhase } from './collection.zones';
+import { computeZone, outcomeFor, periodPhase } from './collection.zones';
+import { toCsv } from './collection.csv';
 import { CreateCollectionPeriodDto, SetOverrideDto, UpdateCollectionPeriodDto } from './dto';
 
 @Injectable()
 export class CollectionService {
+  private readonly logger = new Logger(CollectionService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   private async timezone(organizationId: string): Promise<string> {
@@ -84,36 +87,48 @@ export class CollectionService {
 
   // ── Leaderboard ─────────────────────────────────────────────────────────────────────────────
 
-  async getLeaderboard(user: CurrentUserData, periodId?: string) {
-    const tz = await this.timezone(user.organizationId);
-    const today = todayInZone(tz);
-    const period = await this.pickPeriod(user.organizationId, periodId, today);
-    if (!period) return { period: null };
-
+  /**
+   * Everyone in scope for a period with their final-to-date count (credits in the window, revoked
+   * ones left out, plus any opening count), ranked. One place so the leaderboard, the outcome report
+   * and the lock all agree on the numbers.
+   */
+  private async standings(
+    organizationId: string,
+    period: CollectionPeriod,
+    tz: string,
+    today: string,
+    opts: { meId?: string; includeCreditedInactive?: boolean } = {},
+  ) {
     const from = startOfZonedDay(period.startDate, tz);
     const to = startOfNextZonedDay(period.endDate, tz);
     const todayFrom = startOfZonedDay(today, tz);
     const todayTo = startOfNextZonedDay(today, tz);
-    const phase = periodPhase(period.startDate, period.endDate, today);
+    const window = { organizationId, revokedAt: null, capturedAt: { gte: from, lt: to } };
 
-    const [staff, overrides, totals, todays, coverage] = await Promise.all([
+    const [staff, overrides, totals, todays] = await Promise.all([
       this.prisma.user.findMany({
-        where: { organizationId: user.organizationId, isActive: true, roles: { hasSome: period.rolesInScope as never[] } },
+        where: {
+          organizationId,
+          roles: { hasSome: period.rolesInScope as never[] },
+          // Payroll still needs someone who left mid-period after earning credits.
+          ...(opts.includeCreditedInactive
+            ? { OR: [{ isActive: true }, { phoneCredits: { some: window } }] }
+            : { isActive: true }),
+        },
         select: { id: true, firstName: true, lastName: true },
       }),
       this.prisma.collectionOverride.findMany({ where: { periodId: period.id } }),
       this.prisma.phoneCredit.groupBy({
         by: ['userId'],
-        where: { organizationId: user.organizationId, revokedAt: null, capturedAt: { gte: from, lt: to } },
+        where: window,
         _count: true,
         _max: { capturedAt: true },
       }),
       this.prisma.phoneCredit.groupBy({
         by: ['userId'],
-        where: { organizationId: user.organizationId, revokedAt: null, capturedAt: { gte: todayFrom, lt: todayTo } },
+        where: { organizationId, revokedAt: null, capturedAt: { gte: todayFrom, lt: todayTo } },
         _count: true,
       }),
-      this.coverage(user.organizationId),
     ]);
 
     const override = new Map(overrides.map((o) => [o.userId, o]));
@@ -137,10 +152,25 @@ export class CollectionService {
         nextStep: z.nextStep,
         // Ties: whoever got there first (their latest credit is the earlier one).
         reachedAt: counted.get(s.id)?._max.capturedAt?.getTime() ?? 0,
-        isMe: s.id === user.id,
+        isMe: s.id === opts.meId,
       };
     });
     rows.sort((a, b) => b.count - a.count || a.reachedAt - b.reachedAt || a.name.localeCompare(b.name));
+    return rows;
+  }
+
+  async getLeaderboard(user: CurrentUserData, periodId?: string) {
+    const tz = await this.timezone(user.organizationId);
+    const today = todayInZone(tz);
+    const period = await this.pickPeriod(user.organizationId, periodId, today);
+    if (!period) return { period: null };
+
+    const phase = periodPhase(period.startDate, period.endDate, today);
+    const [standings, coverage] = await Promise.all([
+      this.standings(user.organizationId, period, tz, today, { meId: user.id }),
+      this.coverage(user.organizationId),
+    ]);
+    const rows = standings;
 
     return {
       period: {
@@ -235,5 +265,135 @@ export class CollectionService {
     });
     if (res.count === 0) throw new ConflictException('This credit is already revoked');
     return { id, revoked: true };
+  }
+
+  // ── Period outcome, lock and payroll export ──────────────────────────────────────────────────
+
+  /**
+   * What each person finished with and what payroll should apply. A locked period reads its frozen
+   * snapshot; an open one is computed live and marked provisional.
+   */
+  async getOutcome(organizationId: string, periodId: string) {
+    const period = await this.getPeriodOrThrow(organizationId, periodId);
+    const tz = await this.timezone(organizationId);
+    const today = todayInZone(tz);
+    const rates = { rewardAmount: Number(period.rewardAmount), deductionPct: period.deductionPct };
+
+    let rows: { userId: string; name: string; count: number; minimum: number; threshold: number; zone: string; incentiveAmount: number; deductionPct: number }[];
+    if (period.status === CollectionPeriodStatus.LOCKED) {
+      const results = await this.prisma.collectionPeriodResult.findMany({ where: { periodId } });
+      rows = results
+        .map((r) => ({
+          userId: r.userId,
+          name: r.name,
+          count: r.count,
+          minimum: r.minimum,
+          threshold: r.threshold,
+          zone: r.zone as string,
+          incentiveAmount: Number(r.incentiveAmount),
+          deductionPct: r.deductionPct,
+        }))
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+    } else {
+      const live = await this.standings(organizationId, period, tz, today, { includeCreditedInactive: true });
+      rows = live.map((r) => ({
+        userId: r.userId,
+        name: r.name,
+        count: r.count,
+        minimum: r.minimum,
+        threshold: r.threshold,
+        ...outcomeFor(r.count, { minimum: r.minimum, threshold: r.threshold }, rates),
+      }));
+    }
+
+    return {
+      period: {
+        id: period.id,
+        name: period.name,
+        startDate: period.startDate,
+        endDate: period.endDate,
+        status: period.status,
+        lockedAt: period.lockedAt,
+        rewardAmount: rates.rewardAmount,
+        deductionPct: rates.deductionPct,
+      },
+      // Not payroll-ready until the period is locked.
+      provisional: period.status !== CollectionPeriodStatus.LOCKED,
+      ended: today > period.endDate,
+      rows,
+      totals: {
+        incentiveDue: rows.reduce((n, r) => n + r.incentiveAmount, 0),
+        deductions: rows.filter((r) => r.deductionPct > 0).length,
+      },
+    };
+  }
+
+  async outcomeCsv(organizationId: string, periodId: string): Promise<{ filename: string; csv: string }> {
+    const outcome = await this.getOutcome(organizationId, periodId);
+    const status = outcome.provisional ? 'PROVISIONAL (period not locked)' : 'FINAL';
+    const verdict = (zone: string) => (zone === 'GREEN' ? 'Incentive due' : zone === 'RED' ? 'Deduction applies' : 'No incentive, no deduction');
+    const rows: (string | number)[][] = [
+      ['Staff', 'Final count', 'Minimum', 'Reward threshold', 'Zone', 'Outcome', 'Incentive due (NGN)', 'Service charge deduction (%)', 'Status'],
+      ...outcome.rows.map((r) => [r.name, r.count, r.minimum, r.threshold, r.zone, verdict(r.zone), r.incentiveAmount, r.deductionPct, status]),
+    ];
+    const slug = outcome.period.name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'period';
+    return { filename: `phone-collection-${slug}-${outcome.provisional ? 'provisional' : 'final'}.csv`, csv: toCsv(rows) };
+  }
+
+  /**
+   * Freeze a period's outcome once it has ended. Idempotent and race-safe: the status flip is a
+   * conditional update, so two callers (the hourly job and an admin) can't both write results.
+   */
+  async lockPeriod(organizationId: string, periodId: string) {
+    const period = await this.getPeriodOrThrow(organizationId, periodId);
+    if (period.status === CollectionPeriodStatus.LOCKED) return { locked: false, alreadyLocked: true, results: 0 };
+
+    const tz = await this.timezone(organizationId);
+    const today = todayInZone(tz);
+    if (today <= period.endDate) {
+      throw new ConflictException('This period has not ended yet — it can be locked from the day after its end date');
+    }
+
+    const rows = await this.standings(organizationId, period, tz, today, { includeCreditedInactive: true });
+    const rates = { rewardAmount: Number(period.rewardAmount), deductionPct: period.deductionPct };
+    const locked = await this.prisma.$transaction(async (tx) => {
+      const flipped = await tx.collectionPeriod.updateMany({
+        where: { id: periodId, status: CollectionPeriodStatus.OPEN },
+        data: { status: CollectionPeriodStatus.LOCKED, lockedAt: new Date() },
+      });
+      if (flipped.count === 0) return false;
+      await tx.collectionPeriodResult.createMany({
+        data: rows.map((r) => ({
+          periodId,
+          userId: r.userId,
+          name: r.name,
+          count: r.count,
+          minimum: r.minimum,
+          threshold: r.threshold,
+          ...outcomeFor(r.count, { minimum: r.minimum, threshold: r.threshold }, rates),
+        })),
+        skipDuplicates: true,
+      });
+      return true;
+    });
+    return { locked, alreadyLocked: !locked, results: locked ? rows.length : 0 };
+  }
+
+  /** Hourly job: lock every open period whose end date has passed in its organization's timezone. */
+  async lockDuePeriods(): Promise<number> {
+    const open = await this.prisma.collectionPeriod.findMany({
+      where: { status: CollectionPeriodStatus.OPEN },
+      include: { organization: { select: { timezone: true } } },
+    });
+    let locked = 0;
+    for (const p of open) {
+      if (todayInZone(p.organization.timezone) <= p.endDate) continue;
+      try {
+        if ((await this.lockPeriod(p.organizationId, p.id)).locked) locked++;
+      } catch (err) {
+        this.logger.error(`Locking collection period ${p.id} failed: ${(err as Error).message}`);
+      }
+    }
+    return locked;
   }
 }

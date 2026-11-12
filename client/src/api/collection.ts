@@ -82,6 +82,35 @@ export interface PhoneCredit {
   revokeReason: string | null
 }
 
+export interface OutcomeRow {
+  userId: string
+  name: string
+  count: number
+  minimum: number
+  threshold: number
+  zone: Zone
+  incentiveAmount: number
+  deductionPct: number
+}
+
+export interface PeriodOutcome {
+  period: {
+    id: string
+    name: string
+    startDate: string
+    endDate: string
+    status: 'OPEN' | 'LOCKED'
+    lockedAt: string | null
+    rewardAmount: number
+    deductionPct: number
+  }
+  /** True until the period is locked: counts can still change, so don't pay from it yet */
+  provisional: boolean
+  ended: boolean
+  rows: OutcomeRow[]
+  totals: { incentiveDue: number; deductions: number }
+}
+
 export interface QuickAddInput {
   name: string
   phone: string
@@ -121,6 +150,26 @@ export const collectionApi = {
   },
   revokeCredit: async (id: string, reason: string): Promise<void> => {
     await apiClient.post(`/collection/credits/${id}/revoke`, { reason })
+  },
+  outcome: async (periodId: string): Promise<PeriodOutcome> => {
+    const response = await apiClient.get<ApiResponse<PeriodOutcome>>(`/collection/periods/${periodId}/outcome`)
+    return response.data.data
+  },
+  lockPeriod: async (periodId: string): Promise<{ locked: boolean; alreadyLocked: boolean; results: number }> => {
+    const response = await apiClient.post<ApiResponse<{ locked: boolean; alreadyLocked: boolean; results: number }>>(`/collection/periods/${periodId}/lock`)
+    return response.data.data
+  },
+  /** Downloads the payroll CSV through the API client (so the auth header is sent). */
+  downloadOutcomeCsv: async (periodId: string): Promise<void> => {
+    const response = await apiClient.get(`/collection/periods/${periodId}/outcome.csv`, { responseType: 'blob' })
+    const disposition = String(response.headers['content-disposition'] ?? '')
+    const filename = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? 'phone-collection-outcome.csv'
+    const objectUrl = URL.createObjectURL(new Blob([response.data], { type: 'text/csv;charset=utf-8' }))
+    const a = document.createElement('a')
+    a.href = objectUrl
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(objectUrl)
   },
   quickAdd: async (data: QuickAddInput): Promise<{ id: string; name: string; credited: boolean }> => {
     const response = await apiClient.post<ApiResponse<{ id: string; name: string; credited: boolean }>>('/customers/quick-add', data)

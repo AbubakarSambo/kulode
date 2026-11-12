@@ -653,8 +653,9 @@ model CollectionPeriod {
   lockedAt        DateTime?              @map("locked_at")
   createdAt       DateTime               @default(now()) @map("created_at")
 
-  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   overrides    CollectionOverride[]
+  results      CollectionPeriodResult[]
 
   @@index([organizationId, status])
   @@map("collection_periods")
@@ -663,6 +664,34 @@ model CollectionPeriod {
 enum CollectionPeriodStatus {
   OPEN
   LOCKED
+}
+
+enum CollectionZone {
+  RED
+  NORMAL
+  GREEN
+}
+
+// What each person finished a locked period with — the frozen basis for payroll. TariOne flags the
+// outcome (incentive due / deduction); payroll applies the money.
+model CollectionPeriodResult {
+  id              String         @id @default(uuid())
+  periodId        String         @map("period_id")
+  userId          String         @map("user_id")
+  // Name as it was at lock time, so the record survives a rename or deactivation.
+  name            String
+  count           Int
+  minimum         Int
+  threshold       Int
+  zone            CollectionZone
+  incentiveAmount Decimal        @default(0) @map("incentive_amount") @db.Decimal(12, 2)
+  deductionPct    Int            @default(0) @map("deduction_pct")
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  period CollectionPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  @@unique([periodId, userId])
+  @@map("collection_period_results")
 }
 
 // Per-person adjustments to a period: a different target (part-timers, late joiners) and/or an
