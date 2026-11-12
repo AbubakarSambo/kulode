@@ -71,6 +71,7 @@
     "class-validator": "^0.14.3",
     "cloudinary": "^2.9.0",
     "googleapis": "^173.0.0",
+    "libphonenumber-js": "^1.13.16",
     "openai": "^6.45.0",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
