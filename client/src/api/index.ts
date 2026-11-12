@@ -38,4 +38,4 @@ export type { ItemSalesReport, ItemSalesCategoryRow, ItemSalesQuantityRow, ItemS
 export { leaderboardApi } from './leaderboard'
 export type { Leaderboard, LeaderboardEntry, LeaderboardSettings, LeaderboardMetric, LeaderboardRole } from './leaderboard'
 export { collectionApi } from './collection'
-export type { CollectionBoard, CollectionEntry, CollectionPeriod, CollectionPeriodInput, CollectionOverride, CollectionRole, PhoneCredit, QuickAddInput, Zone, PeriodPhase } from './collection'
+export type { CollectionBoard, CollectionEntry, CollectionPeriod, CollectionPeriodInput, CollectionOverride, CollectionRole, PhoneCredit, QuickAddInput, Zone, PeriodPhase, OutcomeRow, PeriodOutcome } from './collection'

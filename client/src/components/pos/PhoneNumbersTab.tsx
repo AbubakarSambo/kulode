@@ -1,26 +1,19 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ListChecks, Phone, Settings2, UserPlus } from 'lucide-react'
+import { ClipboardList, ListChecks, Phone, Settings2, UserPlus } from 'lucide-react'
 import { Award01Icon } from '@hugeicons/core-free-icons'
 import { Button, Card, CardContent, EmptyState } from '@/components/ui'
 import { collectionApi } from '@/api'
-import type { CollectionBoard, CollectionEntry, Zone } from '@/api'
+import type { CollectionBoard, CollectionEntry } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { can } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import { CollectionSettingsModal } from './CollectionSettingsModal'
+import { ZoneChip } from './ZoneChip'
+import { ZONE_STYLE } from './zoneStyle'
+import { PeriodOutcomeModal } from './PeriodOutcomeModal'
 import { PhoneCreditsModal } from './PhoneCreditsModal'
 import { QuickAddCustomerModal } from './QuickAddCustomerModal'
-
-const ZONE_STYLE: Record<Zone, { label: string; chip: string; bar: string }> = {
-  RED: { label: 'Red', chip: 'bg-red-100 text-red-700', bar: 'bg-red-500' },
-  NORMAL: { label: 'Normal', chip: 'bg-slate-100 text-slate-700', bar: 'bg-slate-400' },
-  GREEN: { label: 'Green', chip: 'bg-emerald-100 text-emerald-700', bar: 'bg-emerald-500' },
-}
-
-export function ZoneChip({ zone }: { zone: Zone }) {
-  return <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide', ZONE_STYLE[zone].chip)}>{ZONE_STYLE[zone].label}</span>
-}
 
 function pct(part: number, whole: number) {
   return whole > 0 ? Math.min(100, Math.round((part / whole) * 100)) : 0
@@ -97,9 +90,11 @@ export function PhoneNumbersTab() {
   const canQuickAdd = can(user, 'PHONE_QUICK_ADD')
   const canReview = can(user, 'PHONE_CREDIT_REVOKE')
   const canConfigure = can(user, 'COLLECTION_CONFIGURE')
+  const canSeeOutcome = can(user, 'COLLECTION_OUTCOME')
   const [quickAddOpen, setQuickAddOpen] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [outcomeOpen, setOutcomeOpen] = useState(false)
 
   const { data: board, isLoading } = useQuery({
     queryKey: ['collection-board'],
@@ -113,7 +108,7 @@ export function PhoneNumbersTab() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      {(canQuickAdd || canReview || canConfigure) && (
+      {(canQuickAdd || canReview || canConfigure || canSeeOutcome) && (
         <div className="flex flex-wrap items-center justify-end gap-2 print:hidden">
           {canQuickAdd && period && (
             <Button size="sm" onClick={() => setQuickAddOpen(true)}>
@@ -123,6 +118,11 @@ export function PhoneNumbersTab() {
           {canReview && period && (
             <Button size="sm" variant="outline" onClick={() => setReviewOpen(true)}>
               <ListChecks className="mr-1.5 h-4 w-4" /> Review numbers
+            </Button>
+          )}
+          {canSeeOutcome && period && (
+            <Button size="sm" variant="outline" onClick={() => setOutcomeOpen(true)}>
+              <ClipboardList className="mr-1.5 h-4 w-4" /> Outcome
             </Button>
           )}
           {canConfigure && (
@@ -170,6 +170,7 @@ export function PhoneNumbersTab() {
 
       {canQuickAdd && <QuickAddCustomerModal isOpen={quickAddOpen} onClose={() => setQuickAddOpen(false)} />}
       {canReview && <PhoneCreditsModal isOpen={reviewOpen} onClose={() => setReviewOpen(false)} periodId={period?.id} />}
+      {canSeeOutcome && period && <PeriodOutcomeModal isOpen={outcomeOpen} onClose={() => setOutcomeOpen(false)} periodId={period.id} />}
       {canConfigure && <CollectionSettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />}
     </div>
   )

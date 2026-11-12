@@ -1,4 +1,4 @@
-import { computeZone } from './collection.zones';
+import { computeZone, finalZone, outcomeFor } from './collection.zones';
 
 // The Living Room's first period: 8–30 Nov 2026 (23 days), minimum 140, reward threshold 175.
 const period = { startDate: '2026-11-08', endDate: '2026-11-30' };
@@ -46,5 +46,25 @@ describe('computeZone', () => {
 
   it('single-day periods work', () => {
     expect(computeZone(5, { minimum: 5, threshold: 10 }, { startDate: '2026-11-08', endDate: '2026-11-08' }, '2026-11-08').zone).toBe('NORMAL');
+  });
+});
+
+describe('outcomeFor (P8: what payroll applies)', () => {
+  const rates = { rewardAmount: 40_000, deductionPct: 10 };
+  const outcome = (count: number) => outcomeFor(count, targets, rates);
+
+  it('Red below the minimum flags the deduction and no incentive', () => {
+    expect(outcome(139)).toEqual({ zone: 'RED', incentiveAmount: 0, deductionPct: 10 });
+  });
+  it('Normal between minimum and threshold is neither', () => {
+    expect(outcome(140)).toEqual({ zone: 'NORMAL', incentiveAmount: 0, deductionPct: 0 });
+    expect(outcome(174)).toEqual({ zone: 'NORMAL', incentiveAmount: 0, deductionPct: 0 });
+  });
+  it('Green at the threshold earns the incentive', () => {
+    expect(outcome(175)).toEqual({ zone: 'GREEN', incentiveAmount: 40_000, deductionPct: 0 });
+    expect(finalZone(300, targets)).toBe('GREEN');
+  });
+  it('P9: 176 minus 3 revoked is 173, Normal, no money either way', () => {
+    expect(outcome(173)).toEqual({ zone: 'NORMAL', incentiveAmount: 0, deductionPct: 0 });
   });
 });
