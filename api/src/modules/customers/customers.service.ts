@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { Prisma, OrderStatus } from '@prisma/client';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, OrderStatus, PhoneCreditSource } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCustomerDto, UpdateCustomerDto, UpdateCustomerCreditDto, CustomerFilterDto } from './dto';
 import { paginate } from '../../common';
+import { PhoneCaptureService } from './phone-capture.service';
 
 // Sunday-start weekday order, matching the convention used elsewhere in this app (see
 // pos-dashboard.service.ts) — Postgres EXTRACT(DOW ...) returns 0=Sunday..6=Saturday.
@@ -10,7 +11,10 @@ const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 @Injectable()
 export class CustomersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private phoneCapture: PhoneCaptureService,
+  ) {}
 
   async findAll(organizationId: string, filter: CustomerFilterDto) {
     const { page = 1, limit = 20, search, balance } = filter;
@@ -259,39 +263,29 @@ export class CustomersService {
     };
   }
 
-  async create(organizationId: string, dto: CreateCustomerDto) {
-    try {
-      return await this.prisma.customer.create({
-        data: { organizationId, ...dto },
-      });
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('A customer with this phone number already exists');
-      }
-      throw error;
-    }
+  async create(organizationId: string, actorId: string, dto: CreateCustomerDto) {
+    const { credited: _credited, ...customer } = await this.phoneCapture.createCustomer(
+      { organizationId, actorId, source: PhoneCreditSource.CUSTOMER_FORM },
+      dto,
+    );
+    return customer;
   }
 
-  async update(id: string, organizationId: string, dto: UpdateCustomerDto) {
-    const customer = await this.prisma.customer.findFirst({
-      where: { id, organizationId },
-    });
-
+  async update(id: string, organizationId: string, actorId: string, dto: UpdateCustomerDto) {
+    const { phone, ...rest } = dto;
+    const customer = await this.prisma.customer.findFirst({ where: { id, organizationId }, select: { id: true, phone: true } });
     if (!customer) {
       throw new NotFoundException('Customer not found');
     }
 
-    try {
-      return await this.prisma.customer.update({
-        where: { id },
-        data: dto,
-      });
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('A customer with this phone number already exists');
-      }
-      throw error;
+    // The number goes through PhoneCaptureService (normalise, uniqueness, one-time credit); the
+    // other fields are plain edits. An edit form re-sends the stored number untouched, so an
+    // unchanged number is skipped: otherwise a legacy placeholder ("090xxxx") would block even a
+    // name change.
+    if (phone !== undefined && phone !== customer.phone) {
+      await this.phoneCapture.setPhone({ organizationId, actorId, source: PhoneCreditSource.CUSTOMER_FORM }, id, phone);
     }
+    return this.prisma.customer.update({ where: { id }, data: rest });
   }
 
   async updateCreditLimit(id: string, organizationId: string, dto: UpdateCustomerCreditDto) {

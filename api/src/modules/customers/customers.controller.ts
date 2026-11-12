@@ -11,14 +11,19 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { CustomersService } from './customers.service';
-import { CreateCustomerDto, UpdateCustomerDto, UpdateCustomerCreditDto, CustomerFilterDto } from './dto';
-import { CurrentUser, Can } from '../../common';
+import { CreateCustomerDto, UpdateCustomerDto, UpdateCustomerCreditDto, CustomerFilterDto, QuickAddCustomerDto } from './dto';
+import { PhoneCaptureService } from './phone-capture.service';
+import { PhoneCreditSource } from '@prisma/client';
+import { CurrentUser, CurrentUserData, Can } from '../../common';
 
 @ApiTags('Customers')
 @ApiBearerAuth()
 @Controller('customers')
 export class CustomersController {
-  constructor(private readonly customersService: CustomersService) {}
+  constructor(
+    private readonly customersService: CustomersService,
+    private readonly phoneCapture: PhoneCaptureService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'List all customers' })
@@ -65,9 +70,26 @@ export class CustomersController {
   @ApiResponse({ status: 201, description: 'Customer created' })
   async create(
     @Body() dto: CreateCustomerDto,
-    @CurrentUser('organizationId') organizationId: string,
+    @CurrentUser() user: CurrentUserData,
   ) {
-    return this.customersService.create(organizationId, dto);
+    return this.customersService.create(user.organizationId, user.id, dto);
+  }
+
+  @Post('quick-add')
+  @ApiOperation({ summary: 'Add a customer from a paper/QR feedback form; the "collected by" staff member earns the credit' })
+  @ApiResponse({ status: 201, description: 'Customer created (credited: true) — or 409 PHONE_EXISTS with the existing customer id' })
+  @Can('PHONE_QUICK_ADD')
+  async quickAdd(@Body() dto: QuickAddCustomerDto, @CurrentUser() user: CurrentUserData) {
+    return this.phoneCapture.quickAdd(
+      {
+        organizationId: user.organizationId,
+        actorId: user.id,
+        source: PhoneCreditSource.QUICK_ADD,
+        capturedAt: dto.capturedAt,
+        clientRequestId: dto.clientRequestId,
+      },
+      dto,
+    );
   }
 
   @Patch(':id')
@@ -77,9 +99,9 @@ export class CustomersController {
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateCustomerDto,
-    @CurrentUser('organizationId') organizationId: string,
+    @CurrentUser() user: CurrentUserData,
   ) {
-    return this.customersService.update(id, organizationId, dto);
+    return this.customersService.update(id, user.organizationId, user.id, dto);
   }
 
   @Patch(':id/credit')
