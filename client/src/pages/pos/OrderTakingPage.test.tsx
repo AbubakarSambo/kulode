@@ -24,6 +24,7 @@ vi.mock('@/api', () => ({
   usersApi: { directory: vi.fn() },
   organizationsApi: { getCurrent: vi.fn() },
   orderTypesApi: { list: vi.fn() },
+  loyaltyApi: { settings: vi.fn().mockResolvedValue({ enabled: false, available: true, startAt: null, expiryDays: 90, rules: [] }), enrol: vi.fn() },
 }))
 
 vi.mock('sonner', () => ({

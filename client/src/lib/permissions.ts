@@ -88,6 +88,9 @@ export const PERMISSIONS = {
   COLLECTION_CONFIGURE: ADMINS,
   // Period outcome (who earned the incentive, who faces a deduction) and its payroll CSV — money-adjacent, so manager+
   COLLECTION_OUTCOME: MANAGER_UP,
+  // Loyalty programme. Anyone on the floor can enrol a member; only an admin changes the programme's rules.
+  LOYALTY_ENROL: WAITER_UP,
+  LOYALTY_CONFIGURE: ADMINS,
   // Today's running takings (paid + still-open) for the branch — the strip above the POS pages
   TODAY_TAKINGS_VIEW: WAITER_UP,
   // Stock counts/restocks vs. creating/editing/deleting/importing inventory items

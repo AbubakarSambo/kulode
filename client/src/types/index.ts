@@ -237,6 +237,10 @@ export interface Customer {
   isActive: boolean
   walletBalance: number
   creditLimit: number
+  /** Loyalty member: enrolled on purpose, separate from having a phone number */
+  isMember?: boolean
+  enrolledAt?: string | null
+  lifetimeSpend?: number | string
   createdAt: string
   _count?: {
     orders: number
@@ -569,7 +573,7 @@ export interface Order {
   tableId?: string
   table?: { id: string; name: string; section?: string } | null
   customerId?: string
-  customer?: { id: string; name: string; phone?: string } | null
+  customer?: { id: string; name: string; phone?: string; isMember?: boolean } | null
   waiterId?: string
   waiter?: { id: string; firstName: string; lastName: string; phone?: string } | null
   createdById: string

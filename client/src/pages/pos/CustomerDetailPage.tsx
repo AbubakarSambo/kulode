@@ -30,6 +30,7 @@ import { PieChart, Pie, Cell, BarChart, Bar, XAxis, ResponsiveContainer, Tooltip
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Select, Card, CardHeader, CardTitle, CardContent, Badge, EmptyState, ConfirmDialog } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
+import { LoyaltyEnrolSection } from '@/components/pos/CustomerPhoneCapture'
 import { customersApi, walletApi, organizationsApi } from '@/api'
 import type { CustomerStats } from '@/api'
 import { toastCustomerSaveError } from '@/lib/phoneErrors'
@@ -661,12 +662,16 @@ export function CustomerDetailPage() {
             <CardContent className="space-y-3 p-0">
               <div className="flex items-center justify-between">
                 <span className="text-lg font-bold text-foreground">{customer.name}</span>
-                {!customer.isActive && <Badge variant="default">Inactive</Badge>}
+                <div className="flex items-center gap-2">
+                  {customer.isMember && <Badge variant="default">Loyalty member</Badge>}
+                  {!customer.isActive && <Badge variant="default">Inactive</Badge>}
+                </div>
               </div>
               <div className="space-y-1 text-sm">
                 <div className="text-muted-foreground">Phone</div>
                 <div className="font-medium text-foreground">{customer.phone || '—'}</div>
               </div>
+              <LoyaltyEnrolSection customer={customer} />
               {customer.email && (
                 <div className="space-y-1 text-sm">
                   <div className="text-muted-foreground">Email</div>

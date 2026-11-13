@@ -53,7 +53,7 @@ export interface OrderSummary {
   id: string
   tableId?: string
   table?: { id: string; name: string; section?: string } | null
-  customer?: { id: string; name: string; phone?: string } | null
+  customer?: { id: string; name: string; phone?: string; isMember?: boolean } | null
   status: OrderStatus
   total: number
   amountPaid: number

@@ -178,7 +178,7 @@ export class OrdersService {
 
   private readonly orderInclude = {
     table: { select: { id: true, name: true, section: true } },
-    customer: { select: { id: true, name: true, phone: true } },
+    customer: { select: { id: true, name: true, phone: true, isMember: true } },
     waiter: { select: { id: true, firstName: true, lastName: true, phone: true } },
     createdBy: { select: { id: true, firstName: true, lastName: true } },
     cancelledBy: { select: { id: true, firstName: true, lastName: true } },
@@ -215,7 +215,7 @@ export class OrdersService {
     source: true,
     createdAt: true,
     table: { select: { id: true, name: true, section: true } },
-    customer: { select: { id: true, name: true, phone: true } },
+    customer: { select: { id: true, name: true, phone: true, isMember: true } },
     waiter: { select: { id: true, firstName: true, lastName: true } },
     createdBy: { select: { id: true, firstName: true, lastName: true } },
     _count: { select: { items: true } },

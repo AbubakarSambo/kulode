@@ -93,6 +93,7 @@ const PosPaymentsPage = lazyPage(() => import('@/pages/pos/PosPaymentsPage'), 'P
 const UnreconciledTransfersPage = lazyPage(() => import('@/pages/pos/UnreconciledTransfersPage'), 'UnreconciledTransfersPage')
 const PosAiChatPage = lazyPage(() => import('@/pages/pos/PosAiChatPage'), 'PosAiChatPage')
 const PrintersPage = lazyPage(() => import('@/pages/settings/PrintersPage'), 'PrintersPage')
+const LoyaltyPage = lazyPage(() => import('@/pages/settings/LoyaltyPage'), 'LoyaltyPage')
 
 // Same URL for both posModes so nav links, role allow-lists (WAITER/CASHIER_ALLOWED_HREFS in
 // Sidebar), and deep links to "Sell" keep working unchanged — only which checkout UI renders
@@ -328,6 +329,7 @@ function App() {
               <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']} />}>
                 <Route path="/settings/printers" element={<PrintersPage />} />
                 <Route path="/settings/moniepoint" element={<MoniepointPage />} />
+                <Route path="/settings/loyalty" element={<LoyaltyPage />} />
               </Route>
               <Route path="/settings/changelog" element={<ChangelogPage />} />
             </Route>

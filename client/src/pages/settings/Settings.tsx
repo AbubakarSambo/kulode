@@ -1,7 +1,7 @@
 import { Header } from '@/components/layout'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui'
 import { Link } from 'react-router-dom'
-import { Building, CreditCard, Tags, Sparkles, UserCog, Printer, Radio } from 'lucide-react'
+import { Building, CreditCard, Tags, Sparkles, UserCog, Printer, Radio, Gift } from 'lucide-react'
 import { useSubscription } from '@/hooks/useSubscription'
 import { useOverscrollBounce, useOrgModules } from '@/hooks'
 
@@ -58,6 +58,12 @@ export function SettingsPage() {
             description: 'Push order payments to your physical card terminal',
             icon: Radio,
             href: '/settings/moniepoint',
+          },
+          {
+            title: 'Loyalty',
+            description: 'Reward repeat customers with free menu items',
+            icon: Gift,
+            href: '/settings/loyalty',
           },
         ]
       : []),

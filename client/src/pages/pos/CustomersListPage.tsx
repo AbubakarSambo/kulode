@@ -210,7 +210,10 @@ export function CustomersListPage() {
                         onClick={() => navigate(`/pos/customers/${customer.id}`)}
                         className="cursor-pointer hover:bg-muted/40"
                       >
-                        <td className="px-4 py-3 font-semibold text-foreground">{customer.name}</td>
+                        <td className="px-4 py-3 font-semibold text-foreground">
+                          {customer.name}
+                          {customer.isMember && <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">Member</span>}
+                        </td>
                         <td className="px-4 py-3 text-sm text-muted-foreground">{customer.phone || '—'}</td>
                         <td className="px-4 py-3 text-sm text-muted-foreground">{customer.email || '—'}</td>
                         <td className="px-4 py-3">
@@ -238,7 +241,10 @@ export function CustomersListPage() {
                   <CardContent className="p-0">
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="font-semibold text-foreground">{customer.name}</div>
+                        <div className="font-semibold text-foreground">
+                          {customer.name}
+                          {customer.isMember && <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">Member</span>}
+                        </div>
                         <div className="text-xs text-muted-foreground">{customer.phone || '—'}</div>
                       </div>
                       {Number(customer.walletBalance) < 0 ? (
