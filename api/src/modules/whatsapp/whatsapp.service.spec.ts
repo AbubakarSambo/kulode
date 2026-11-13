@@ -6,6 +6,7 @@ const WAMID = 'wamid.HBgNMjM0OTA1MzAxODAwNRUCABEY'; // encodes the recipient's n
 function setup(known: { id: string; templateName: string } | null = { id: 'msg-1', templateName: 'loyalty_reward_earned_v1' }) {
   const prisma: any = {
     whatsappMessage: {
+      create: jest.fn().mockResolvedValue({ id: 'row-1' }),
       findUnique: jest.fn().mockResolvedValue(known),
       updateMany: jest.fn().mockResolvedValue({ count: known ? 1 : 0 }),
     },
@@ -55,3 +56,16 @@ describe('WhatsappService delivery status callbacks', () => {
     expect(prisma.whatsappMessage.updateMany).not.toHaveBeenCalled();
   });
 });
+
+describe('WhatsappService.sendCustomerTemplate', () => {
+  beforeEach(() => jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined));
+  afterEach(() => jest.restoreAllMocks());
+
+  it('returns our own record id for the message it recorded, so logs can be tied to Meta\'s later status lines', async () => {
+    const { service, prisma } = setup(); // no credentials configured: mock mode
+    const res = await service.sendCustomerTemplate({ organizationId: 'org-1', toPhone: '+2348031234569', templateName: 'loyalty_reward_earned_v1', bodyValues: ['A', 'B', 'C', 'D'] });
+    expect(prisma.whatsappMessage.create).toHaveBeenCalledWith({ data: expect.objectContaining({ organizationId: 'org-1', templateName: 'loyalty_reward_earned_v1', status: 'SENT' }) });
+    expect(res).toEqual({ providerMessageId: null, messageId: 'row-1' });
+  });
+});
+

@@ -303,20 +303,32 @@ export class LoyaltyService {
   }
 
   /**
-   * Members whose welcome message did not reach them, for staff to follow up: sends that ran out of
-   * retries, plus sends Meta accepted but later reported as undeliverable. Newest first.
+   * Messages that did not reach the customer, for staff to follow up: sends that ran out of retries,
+   * plus sends WhatsApp accepted but Meta later reported as undeliverable (for example error 131049,
+   * Meta's limit on how many marketing messages one person receives). Covers both the welcome and the
+   * reward-earned message; a reward message carries what was earned so staff can tell the customer in
+   * person. Newest first.
    */
-  async welcomeQueue(organizationId: string) {
+  async undelivered(organizationId: string) {
     const rows = await this.prisma.$queryRaw<
-      { id: string; customer_id: string; name: string; phone: string | null; status: string; last_error: string | null; created_at: Date; delivery_error: string | null }[]
+      {
+        id: string;
+        kind: string;
+        customer_id: string;
+        name: string;
+        phone: string | null;
+        last_error: string | null;
+        created_at: Date;
+        delivery_error: string | null;
+        reward_text: string | null;
+      }[]
     >`
-      SELECT m.id, m.customer_id, c.name, c.phone, m.status, m.last_error, m.created_at,
-             w.error_message AS delivery_error
+      SELECT m.id, m.kind, m.customer_id, c.name, c.phone, m.last_error, m.created_at,
+             w.error_message AS delivery_error, m.payload->>'rewardText' AS reward_text
       FROM loyalty_messages m
       JOIN customers c ON c.id = m.customer_id
       LEFT JOIN whatsapp_messages w ON w.provider_message_id = m.provider_message_id
       WHERE m.organization_id = ${organizationId}
-        AND m.kind = 'WELCOME'
         AND m.resolved_at IS NULL
         AND (m.status = 'FAILED' OR (m.status = 'SENT' AND w.status = 'FAILED'))
       ORDER BY m.created_at DESC
@@ -324,31 +336,37 @@ export class LoyaltyService {
     `;
     return rows.map((r) => ({
       id: r.id,
+      kind: r.kind as 'WELCOME' | 'REWARD_EARNED',
       customerId: r.customer_id,
       name: r.name,
       phone: r.phone,
       reason: r.delivery_error || r.last_error || 'Could not be delivered',
+      // What was earned, so staff know what to tell the customer (reward messages only)
+      rewardText: r.reward_text,
       createdAt: r.created_at,
     }));
   }
 
-  /** Staff followed this one up by hand. */
-  async resolveWelcome(organizationId: string, id: string, userId: string) {
+  /** Staff followed this one up by hand (told the customer in person, or called them). */
+  async resolveUndelivered(organizationId: string, id: string, userId: string) {
     const res = await this.prisma.loyaltyMessage.updateMany({
-      where: { id, organizationId, kind: 'WELCOME', resolvedAt: null },
+      where: { id, organizationId, resolvedAt: null },
       data: { resolvedAt: new Date(), resolvedById: userId },
     });
     if (res.count === 0) throw new NotFoundException('Message not found');
     return { resolved: true };
   }
 
-  /** Put a failed welcome back in the queue to be sent again. */
-  async retryWelcome(organizationId: string, id: string) {
+  /**
+   * Put a failed welcome back in the queue to be sent again. Only the welcome: a reward message has a
+   * reward and an expiry date worked out at the time, and Meta's per-person limit would only refuse it again.
+   */
+  async retryUndelivered(organizationId: string, id: string) {
     const res = await this.prisma.loyaltyMessage.updateMany({
       where: { id, organizationId, kind: 'WELCOME', status: { in: ['FAILED', 'SKIPPED', 'SENT'] }, resolvedAt: null },
       data: { status: 'PENDING', attempts: 0, nextAttemptAt: new Date(), lastError: null, providerMessageId: null },
     });
-    if (res.count === 0) throw new NotFoundException('Message not found');
+    if (res.count === 0) throw new NotFoundException('Message not found, or it cannot be sent again');
     return { queued: true };
   }
 

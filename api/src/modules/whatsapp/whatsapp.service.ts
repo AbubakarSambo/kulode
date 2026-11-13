@@ -322,7 +322,7 @@ export class WhatsappService {
     toPhone: string;
     templateName: string;
     bodyValues: string[];
-  }): Promise<{ providerMessageId: string | null }> {
+  }): Promise<{ providerMessageId: string | null; messageId: string }> {
     const toPhone = this.normalizePhone(params.toPhone);
     const values = params.bodyValues.map((v) => v.replace(/[\r\n\t]+/g, ' ').replace(/ {4,}/g, '   ').trim());
 
@@ -339,19 +339,21 @@ export class WhatsappService {
 
     if (this.isMockMode) {
       this.logger.warn(`[MOCK WHATSAPP] Would send "${params.templateName}" to ${toPhone} for org ${params.organizationId}`);
-      await this.prisma.whatsappMessage.create({
+      const row = await this.prisma.whatsappMessage.create({
         data: { organizationId: params.organizationId, templateName: params.templateName, toPhone, status: 'SENT', sentAt: new Date() },
       });
-      return { providerMessageId: null };
+      return { providerMessageId: null, messageId: row.id };
     }
 
     try {
       const data = await this.makeRequest<{ messages?: { id: string }[] }>(`/${this.phoneNumberId}/messages`, payload);
       const providerMessageId = data.messages?.[0]?.id || null;
-      await this.prisma.whatsappMessage.create({
+      const row = await this.prisma.whatsappMessage.create({
         data: { organizationId: params.organizationId, templateName: params.templateName, toPhone, status: 'SENT', providerMessageId, sentAt: new Date() },
       });
-      return { providerMessageId };
+      // `messageId` is our own record id (what the delivery-status log lines are keyed by); WhatsApp's
+      // id encodes the recipient's phone number and must not be logged.
+      return { providerMessageId, messageId: row.id };
     } catch (error) {
       await this.prisma.whatsappMessage.create({
         data: {

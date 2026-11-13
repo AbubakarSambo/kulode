@@ -11,9 +11,9 @@ vi.mock('@/api', () => ({
   loyaltyApi: {
     report: vi.fn(),
     coverage: vi.fn(),
-    welcomeQueue: vi.fn(),
-    resolveWelcome: vi.fn(),
-    retryWelcome: vi.fn(),
+    undelivered: vi.fn(),
+    resolveUndelivered: vi.fn(),
+    retryUndelivered: vi.fn(),
     downloadMembersCsv: vi.fn(),
   },
 }))
@@ -52,7 +52,7 @@ describe('LoyaltyReportPage', () => {
         { date: '2026-11-13', customers: 5581, withPhone: 2800, pct: 50.2 },
       ],
     })
-    vi.mocked(loyaltyApi.welcomeQueue).mockResolvedValue([])
+    vi.mocked(loyaltyApi.undelivered).mockResolvedValue([])
   })
 
   it('shows members, member share of spend, rewards and what they cost', async () => {
@@ -85,26 +85,26 @@ describe('LoyaltyReportPage', () => {
     expect(screen.getByText(/2,800 of 5,581 customers \(50\.2%\)/)).toBeInTheDocument()
   })
 
-  it('says so when every welcome message got through', async () => {
+  it('says so when every message got through', async () => {
     renderPage()
-    expect(await screen.findByText(/every welcome message got through/)).toBeInTheDocument()
+    expect(await screen.findByText(/every message got through/)).toBeInTheDocument()
   })
 
-  it('lists failed welcomes with the reason, and can send again or mark followed up', async () => {
-    vi.mocked(loyaltyApi.welcomeQueue).mockResolvedValue([
-      { id: 'm1', customerId: 'c1', name: 'Amaka Obi', phone: '+2348031234569', reason: 'Recipient not on WhatsApp', createdAt: '2026-11-13T10:00:00.000Z' },
+  it('lists a failed welcome with the reason, and can send it again or mark it followed up', async () => {
+    vi.mocked(loyaltyApi.undelivered).mockResolvedValue([
+      { id: 'm1', kind: 'WELCOME', customerId: 'c1', name: 'Amaka Obi', phone: '+2348031234569', reason: 'Recipient not on WhatsApp', rewardText: null, createdAt: '2026-11-13T10:00:00.000Z' },
     ])
-    vi.mocked(loyaltyApi.retryWelcome).mockResolvedValue()
-    vi.mocked(loyaltyApi.resolveWelcome).mockResolvedValue()
+    vi.mocked(loyaltyApi.retryUndelivered).mockResolvedValue()
+    vi.mocked(loyaltyApi.resolveUndelivered).mockResolvedValue()
     const user = renderPage()
     expect(await screen.findByText('Amaka Obi')).toBeInTheDocument()
     expect(screen.getByText(/Recipient not on WhatsApp/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Send again' }))
-    await waitFor(() => expect(loyaltyApi.retryWelcome).toHaveBeenCalled())
-    expect(vi.mocked(loyaltyApi.retryWelcome).mock.calls[0][0]).toBe('m1')
+    await waitFor(() => expect(loyaltyApi.retryUndelivered).toHaveBeenCalled())
+    expect(vi.mocked(loyaltyApi.retryUndelivered).mock.calls[0][0]).toBe('m1')
     await user.click(screen.getByRole('button', { name: 'Followed up' }))
-    await waitFor(() => expect(loyaltyApi.resolveWelcome).toHaveBeenCalled())
-    expect(vi.mocked(loyaltyApi.resolveWelcome).mock.calls[0][0]).toBe('m1')
+    await waitFor(() => expect(loyaltyApi.resolveUndelivered).toHaveBeenCalled())
+    expect(vi.mocked(loyaltyApi.resolveUndelivered).mock.calls[0][0]).toBe('m1')
   })
 
   it('exports the members, and shows a message if that fails', async () => {
@@ -119,5 +119,30 @@ describe('LoyaltyReportPage', () => {
     vi.mocked(loyaltyApi.report).mockRejectedValue(new Error('boom'))
     renderPage()
     expect(await screen.findByText(/Could not load the loyalty report/)).toBeInTheDocument()
+  })
+
+  it('shows what a customer earned when their reward message did not arrive, and offers no resend', async () => {
+    vi.mocked(loyaltyApi.undelivered).mockResolvedValue([
+      {
+        id: 'm9',
+        kind: 'REWARD_EARNED',
+        customerId: 'c9',
+        name: 'Bola Ade',
+        phone: '+2348039998887',
+        reason: 'This message was not delivered to maintain healthy ecosystem engagement.',
+        rewardText: 'a free Nigerian Breakfast or Smoked Chicken Salad',
+        createdAt: '2026-11-13T17:16:00.000Z',
+      },
+    ])
+    vi.mocked(loyaltyApi.resolveUndelivered).mockResolvedValue()
+    const user = renderPage()
+    expect(await screen.findByText('Bola Ade')).toBeInTheDocument()
+    expect(screen.getByText(/Reward message/)).toBeInTheDocument()
+    expect(screen.getByText('Earned a free Nigerian Breakfast or Smoked Chicken Salad')).toBeInTheDocument()
+    expect(screen.getByText(/maintain healthy ecosystem engagement/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Send again' })).not.toBeInTheDocument() // Meta would refuse it again
+    await user.click(screen.getByRole('button', { name: 'Followed up' }))
+    await waitFor(() => expect(loyaltyApi.resolveUndelivered).toHaveBeenCalled())
+    expect(vi.mocked(loyaltyApi.resolveUndelivered).mock.calls[0][0]).toBe('m9')
   })
 })

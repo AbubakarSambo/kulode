@@ -247,3 +247,52 @@ describe('LoyaltyService member discounts', () => {
   });
 });
 
+describe('LoyaltyService undelivered messages', () => {
+  const row = (over: object = {}) => ({
+    id: 'm1',
+    kind: 'REWARD_EARNED',
+    customer_id: 'c1',
+    name: 'Amaka',
+    phone: '+2348031234569',
+    last_error: null,
+    created_at: new Date('2026-11-13T17:16:02Z'),
+    delivery_error: 'This message was not delivered to maintain healthy ecosystem engagement.',
+    reward_text: 'a free Nigerian Breakfast',
+    ...over,
+  });
+
+  it('lists welcome and reward messages, with Meta\'s reason and what was earned', async () => {
+    const { service, prisma } = setup();
+    prisma.$queryRaw = jest.fn().mockResolvedValue([row(), row({ id: 'm2', kind: 'WELCOME', delivery_error: null, last_error: 'Meta says no', reward_text: null })]);
+    const list = await service.undelivered(ORG);
+    expect(list).toEqual([
+      expect.objectContaining({ id: 'm1', kind: 'REWARD_EARNED', rewardText: 'a free Nigerian Breakfast', reason: 'This message was not delivered to maintain healthy ecosystem engagement.' }),
+      expect.objectContaining({ id: 'm2', kind: 'WELCOME', rewardText: null, reason: 'Meta says no' }),
+    ]);
+  });
+
+  it('falls back to a generic reason when there is none', async () => {
+    const { service, prisma } = setup();
+    prisma.$queryRaw = jest.fn().mockResolvedValue([row({ delivery_error: null, last_error: null })]);
+    expect((await service.undelivered(ORG))[0].reason).toBe('Could not be delivered');
+  });
+
+  it('either kind can be marked followed up, scoped to the organization', async () => {
+    const { service, prisma } = setup();
+    prisma.loyaltyMessage = { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
+    await service.resolveUndelivered(ORG, 'm1', 'u1');
+    expect(prisma.loyaltyMessage.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'm1', organizationId: ORG, resolvedAt: null } }));
+    prisma.loyaltyMessage.updateMany.mockResolvedValue({ count: 0 });
+    await expect(service.resolveUndelivered(ORG, 'other-org-msg', 'u1')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('only a welcome can be sent again; a reward message cannot', async () => {
+    const { service, prisma } = setup();
+    prisma.loyaltyMessage = { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
+    await service.retryUndelivered(ORG, 'm2');
+    expect(prisma.loyaltyMessage.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ id: 'm2', organizationId: ORG, kind: 'WELCOME' }) }));
+    prisma.loyaltyMessage.updateMany.mockResolvedValue({ count: 0 }); // a reward message matches nothing
+    await expect(service.retryUndelivered(ORG, 'reward-msg')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
