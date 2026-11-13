@@ -567,9 +567,18 @@ export interface OrderPayment {
   createdAt: string
 }
 
+/** What paying an order earned its loyalty member (sent back with the closing payment) */
+export interface LoyaltyEarned {
+  customerId: string
+  amount: number
+  lifetimeSpend: number
+  rewards: { ruleId: string; name: string; count: number }[]
+}
+
 export interface Order {
   id: string
   organizationId: string
+  loyalty?: LoyaltyEarned
   tableId?: string
   table?: { id: string; name: string; section?: string } | null
   customerId?: string

@@ -132,7 +132,7 @@ export class LoyaltyService {
     });
     if (!org.loyaltyEnabled) throw new BadRequestException({ message: 'Loyalty is not switched on', code: 'LOYALTY_OFF' });
     if (!dto.consent) {
-      throw new BadRequestException({ message: 'Confirm the customer agrees to receive loyalty messages', code: 'LOYALTY_CONSENT_REQUIRED' });
+      throw new BadRequestException({ message: 'Confirm the customer agrees to receive loyalty offers and rewards', code: 'LOYALTY_CONSENT_REQUIRED' });
     }
     if (!dto.customerId && !dto.phone?.trim()) throw new BadRequestException('Enter the customer\'s phone number');
 

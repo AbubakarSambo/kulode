@@ -5,6 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { creditOrderSpendSafe } from '../loyalty/loyalty.earn';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSubaccountDto, VerifyBankAccountDto } from './dto';
 import { createHmac, timingSafeEqual } from 'crypto';
@@ -673,6 +674,7 @@ export class PaystackService {
     const platformFees = amountInNaira * (platformFeePercent / 100);
     const netAmount = amountInNaira - paystackFees - platformFees;
 
+    let orderClosed = false;
     await this.prisma.$transaction(async (tx) => {
       const doubleCheck = await tx.payment.findFirst({ where: { paystackReference: reference } });
       if (doubleCheck) return;
@@ -709,6 +711,7 @@ export class PaystackService {
       });
 
       if (result.count === 0) return;
+      orderClosed = true;
 
       await this.inventoryService.deductForOrder(tx, order.id, order.organizationId);
 
@@ -716,6 +719,9 @@ export class PaystackService {
         await tx.restaurantTable.update({ where: { id: order.tableId }, data: { status: 'NEEDS_CLEANING' } });
       }
     });
+
+    // After the payment has committed, so loyalty can never fail it (the hourly job is the backstop).
+    if (orderClosed) await creditOrderSpendSafe(this.prisma, this.logger, order.id);
 
     this.logger.log(`Order payment recorded for order ${order.id}`);
     return { success: true };

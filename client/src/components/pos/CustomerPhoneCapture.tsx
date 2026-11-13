@@ -26,7 +26,7 @@ const digitsOf = (value: string) => value.replace(/\D/g, '')
 // A customer saved from just a number carries that number as their name until someone adds it.
 const looksLikeNumber = (name: string) => /^[+\d\s\-().]+$/.test(name.trim())
 
-const CONSENT_LABEL = 'Customer agrees to receive loyalty messages on WhatsApp'
+const CONSENT_LABEL = 'Customer agrees to receive loyalty offers and rewards on WhatsApp'
 
 /** An existing customer who has a number but isn't a loyalty member yet. */
 export function EnrolExisting({ customer, source, orderId, onResolved }: { customer: NonNullable<Props['customer']>; source: EnrolSource; orderId?: string; onResolved: Props['onResolved'] }) {

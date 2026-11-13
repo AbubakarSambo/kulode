@@ -9,6 +9,13 @@ import { SheetSyncService } from '../sheet-sync';
 import { PrintingService } from '../printers';
 import { OrderTypesService } from '../order-types';
 import { PaymentTypesService } from '../payment-types';
+import { creditOrderSpendSafe, reverseOrderSpend } from '../loyalty/loyalty.earn';
+
+// Loyalty has its own tests; here it is only checked that payment paths call it (and when).
+jest.mock('../loyalty/loyalty.earn', () => ({
+  creditOrderSpendSafe: jest.fn().mockResolvedValue(null),
+  reverseOrderSpend: jest.fn().mockResolvedValue(true),
+}));
 
 // ─── Mock helpers ────────────────────────────────────────────────────────────
 
@@ -50,6 +57,7 @@ function createMockPrisma() {
     },
     menuItem: { findMany: jest.fn() },
     organization: { findUniqueOrThrow: jest.fn() },
+    customer: { findFirst: jest.fn() },
     user: { findMany: jest.fn() },
     // Both `cancel` (direct $transaction) and `runIdempotent` (via closeWithPayment) drive
     // everything through this same tx mock, so assertions can check either surface.
@@ -456,6 +464,28 @@ describe('OrdersService — status transitions across the waiter/cashier split',
       expect(prisma.__tx.restaurantTable.update).toHaveBeenCalled();
     });
 
+    it('credits loyalty after the payment that completes an order, and attaches what was earned to the response', async () => {
+      prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'OPEN', total: 5000 }));
+      prisma.__tx.order.updateMany.mockResolvedValue({ count: 1 });
+      const earned = { customerId: 'c1', amount: 5000, lifetimeSpend: 105000, rewards: [{ ruleId: 'r1', name: 'Meal Reward', count: 1 }] };
+      jest.mocked(creditOrderSpendSafe).mockResolvedValueOnce(earned);
+
+      const res = await service.closeWithPayment(ORG_ID, ORDER_ID, USER_ID, dto);
+
+      expect(creditOrderSpendSafe).toHaveBeenCalledWith(prisma, expect.anything(), ORDER_ID);
+      expect(res).toMatchObject({ loyalty: earned });
+    });
+
+    it('does not credit loyalty on a partial payment (the order is not paid yet)', async () => {
+      prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'OPEN', total: 5000 }));
+      prisma.__tx.order.updateMany.mockResolvedValue({ count: 1 });
+      prisma.__tx.order.findUniqueOrThrow.mockResolvedValue(orderWith({ status: 'CLOSED_UNPAID' }));
+
+      await service.closeWithPayment(ORG_ID, ORDER_ID, USER_ID, { ...dto, amount: 2000 });
+
+      expect(creditOrderSpendSafe).not.toHaveBeenCalled();
+    });
+
     it('still refuses a second payment on an order that has been paid in full', async () => {
       prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'CLOSED_UNPAID', total: 5000, amountPaid: 5000 }));
       await expect(service.closeWithPayment(ORG_ID, ORDER_ID, USER_ID, dto)).rejects.toThrow('Order is already fully paid');
@@ -685,6 +715,74 @@ describe('OrdersService — status transitions across the waiter/cashier split',
           data: expect.objectContaining({ status: 'MERGED' }),
         }),
       );
+    });
+  });
+  // ─── setCustomer on a paid order (loyalty spend moves with the order) ────────
+
+  describe('setCustomer on a paid order', () => {
+    const WAITER = { id: 'user-waiter-1', roles: ['WAITER'] };
+    const OLD = 'customer-old';
+    const NEW = 'customer-new';
+    const paid = (extra: object = {}) => orderWith({ status: 'CLOSED_PAID', customerId: OLD, closedAt: new Date(), ...extra });
+
+    beforeEach(() => {
+      prisma.customer.findFirst.mockResolvedValue({ id: NEW });
+      prisma.order.update.mockResolvedValue(paid({ customerId: NEW }));
+      prisma.organization.findUniqueOrThrow.mockResolvedValue({ loyaltyEnabled: true, shiftStartTime: '00:00', shiftEndTime: '23:59' });
+    });
+
+    it('when loyalty is off, changes the customer as before with no approval and no loyalty work', async () => {
+      prisma.order.findFirst.mockResolvedValue(paid());
+      prisma.organization.findUniqueOrThrow.mockResolvedValue({ loyaltyEnabled: false, shiftStartTime: '00:00', shiftEndTime: '23:59' });
+      await service.setCustomer(ORG_ID, ORDER_ID, { customerId: NEW }, WAITER);
+      expect(prisma.order.update).toHaveBeenCalled();
+      expect(reverseOrderSpend).not.toHaveBeenCalled();
+      expect(creditOrderSpendSafe).not.toHaveBeenCalled();
+    });
+
+    it('needs a reason', async () => {
+      prisma.order.findFirst.mockResolvedValue(paid());
+      await expect(service.setCustomer(ORG_ID, ORDER_ID, { customerId: NEW }, SUPERVISOR)).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'REASON_REQUIRED' }),
+      });
+      expect(prisma.order.update).not.toHaveBeenCalled();
+    });
+
+    it('needs a supervisor — a waiter without a PIN is refused', async () => {
+      prisma.order.findFirst.mockResolvedValue(paid());
+      await expect(service.setCustomer(ORG_ID, ORDER_ID, { customerId: NEW, reason: 'Forgot number' }, WAITER)).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'APPROVAL_REQUIRED' }),
+      });
+      expect(prisma.order.update).not.toHaveBeenCalled();
+    });
+
+    it('is refused once the business day has ended', async () => {
+      prisma.order.findFirst.mockResolvedValue(paid({ closedAt: new Date(Date.now() - 2 * 86_400_000) }));
+      await expect(service.setCustomer(ORG_ID, ORDER_ID, { customerId: NEW, reason: 'Forgot number' }, SUPERVISOR)).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'PAID_ORDER_LOCKED' }),
+      });
+      expect(prisma.order.update).not.toHaveBeenCalled();
+    });
+
+    it('a supervisor moves the order and its spend: reversed off the old customer, credited to the new, with the reason', async () => {
+      prisma.order.findFirst.mockResolvedValue(paid());
+      await service.setCustomer(ORG_ID, ORDER_ID, { customerId: NEW, reason: 'Forgot number' }, SUPERVISOR);
+      expect(reverseOrderSpend).toHaveBeenCalledWith(prisma, ORDER_ID, OLD, { actorId: SUPERVISOR.id, note: 'Forgot number' });
+      expect(creditOrderSpendSafe).toHaveBeenCalledWith(prisma, expect.anything(), ORDER_ID, { force: true, actorId: SUPERVISOR.id, note: 'Forgot number' });
+    });
+
+    it('attaching a customer to a paid order that had none only credits', async () => {
+      prisma.order.findFirst.mockResolvedValue(paid({ customerId: null }));
+      await service.setCustomer(ORG_ID, ORDER_ID, { customerId: NEW, reason: 'Forgot number' }, SUPERVISOR);
+      expect(reverseOrderSpend).not.toHaveBeenCalled();
+      expect(creditOrderSpendSafe).toHaveBeenCalled();
+    });
+
+    it('is not gated while the order is still open', async () => {
+      prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'OPEN', customerId: null }));
+      await service.setCustomer(ORG_ID, ORDER_ID, { customerId: NEW }, WAITER);
+      expect(prisma.order.update).toHaveBeenCalled();
+      expect(creditOrderSpendSafe).not.toHaveBeenCalled();
     });
   });
 });

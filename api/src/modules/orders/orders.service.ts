@@ -25,7 +25,8 @@ import {
   ReassignOrderPaymentDto,
   PrintBillPreviewDto,
 } from './dto';
-import { paginate, runIdempotent, resolvePayment, hasPermission, APPROVER_PIN_ROLES } from '../../common';
+import { creditOrderSpendSafe, reverseOrderSpend } from '../loyalty/loyalty.earn';
+import { paginate, runIdempotent, resolvePayment, hasPermission, APPROVER_PIN_ROLES, businessDateFor } from '../../common';
 
 const OPEN_STATUSES: OrderStatus[] = [OrderStatus.OPEN, OrderStatus.IN_KITCHEN, OrderStatus.READY];
 // CLOSED_UNPAID means "a waiter marked this ready for payment, a cashier hasn't taken it yet" —
@@ -786,7 +787,7 @@ export class OrdersService {
     return updated;
   }
 
-  async setCustomer(organizationId: string, id: string, dto: UpdateOrderCustomerDto) {
+  async setCustomer(organizationId: string, id: string, dto: UpdateOrderCustomerDto, actor?: { id: string; roles: string[] }) {
     const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
     if (!order) throw new NotFoundException('Order not found');
     if (order.status === OrderStatus.CANCELLED || order.status === OrderStatus.MERGED) {
@@ -800,11 +801,42 @@ export class OrdersService {
       if (!customer) throw new NotFoundException('Customer not found');
     }
 
-    return this.prisma.order.update({
+    // Changing who a PAID order belongs to moves loyalty spend, so when loyalty is on it needs a
+    // supervisor's authority, a reason, and the same business day — otherwise spend could be
+    // moved between members after the fact.
+    const paid = order.status === OrderStatus.CLOSED_PAID;
+    const changing = (dto.customerId ?? null) !== order.customerId;
+    let approvedById: string | undefined;
+    if (paid && changing) {
+      const org = await this.prisma.organization.findUniqueOrThrow({
+        where: { id: organizationId },
+        select: { loyaltyEnabled: true, shiftStartTime: true, shiftEndTime: true },
+      });
+      if (org.loyaltyEnabled) {
+        if (!actor) throw new ForbiddenException('Approval required');
+        const reason = dto.reason?.trim();
+        if (!reason) throw new BadRequestException({ message: 'Give a reason for changing the customer on a paid order', code: 'REASON_REQUIRED' });
+        const shift = { shiftStartTime: org.shiftStartTime, shiftEndTime: org.shiftEndTime };
+        if (!order.closedAt || businessDateFor(order.closedAt, shift).getTime() !== businessDateFor(new Date(), shift).getTime()) {
+          throw new BadRequestException({ message: 'A paid order can only be changed on the same business day', code: 'PAID_ORDER_LOCKED' });
+        }
+        approvedById = await this.resolveApprover(organizationId, actor, dto.approverPin);
+      }
+    }
+
+    const updated = await this.prisma.order.update({
       where: { id },
       data: { customerId: dto.customerId ?? null },
       include: this.orderInclude,
     });
+
+    if (paid && changing && approvedById) {
+      const note = dto.reason?.trim();
+      // Spend follows the order: take it off the old customer, give it to the new one (if a member).
+      if (order.customerId) await reverseOrderSpend(this.prisma, id, order.customerId, { actorId: approvedById, note });
+      if (dto.customerId) await creditOrderSpendSafe(this.prisma, this.logger, id, { force: true, actorId: approvedById, note });
+    }
+    return updated;
   }
 
   async setWaiter(organizationId: string, id: string, dto: UpdateOrderWaiterDto) {
@@ -1394,12 +1426,14 @@ export class OrdersService {
     userId: string,
     dto: ReassignOrderPaymentDto,
   ) {
-    return runIdempotent(this.prisma, organizationId, 'ORDER_REASSIGN_PAYMENT', dto.clientRequestId, async (tx) => {
+    let fromCustomerId: string | null = null;
+    const reassigned = await runIdempotent(this.prisma, organizationId, 'ORDER_REASSIGN_PAYMENT', dto.clientRequestId, async (tx) => {
       const order = await tx.order.findFirst({ where: { id, organizationId } });
       if (!order) throw new NotFoundException('Order not found');
       if (!order.customerId) {
         throw new BadRequestException('Order has no customer to reassign the payment from');
       }
+      fromCustomerId = order.customerId;
       if (order.customerId === dto.toCustomerId) {
         throw new BadRequestException('Order is already attributed to this customer');
       }
@@ -1457,6 +1491,15 @@ export class OrdersService {
 
       return tx.order.findUniqueOrThrow({ where: { id }, include: this.orderInclude });
     });
+
+    // The order's spend moves with the payment: off the wrongly-charged member, onto the right one.
+    if (fromCustomerId) {
+      await reverseOrderSpend(this.prisma, id, fromCustomerId, { actorId: userId, note: dto.reason }).catch((err) =>
+        this.logger.error(`Loyalty reversal failed for order ${id}: ${(err as Error).message}`),
+      );
+      await creditOrderSpendSafe(this.prisma, this.logger, id, { force: true, actorId: userId, note: dto.reason });
+    }
+    return reassigned;
   }
 
   /**
@@ -1520,7 +1563,7 @@ export class OrdersService {
     const rawAmountPaid = Math.round((toNumber(order.amountPaid) + amount) * 100) / 100;
     const { amountPaid: newAmountPaid, isComplete: isFinalPayment, writeOff } = resolvePayment(rawAmountPaid, toNumber(order.total));
 
-    return runIdempotent(this.prisma, organizationId, 'ORDER_CLOSE', clientRequestId, async (tx) => {
+    const closed = await runIdempotent(this.prisma, organizationId, 'ORDER_CLOSE', clientRequestId, async (tx) => {
       // Conditional update guards against a concurrent close/cancel racing past the check above —
       // only an order still in a payable status actually transitions, so double-submits (e.g. a
       // cashier double-tapping "pay") can't create two Payment rows for the same tender. A partial
@@ -1610,6 +1653,14 @@ export class OrdersService {
 
       return updated;
     });
+
+    // Loyalty runs after the payment has committed, so it can never fail a payment; if it errors
+    // the hourly catch-up job credits the order. The result lets the till show "reward earned".
+    if (closed.status === 'CLOSED_PAID') {
+      const loyalty = await creditOrderSpendSafe(this.prisma, this.logger, closed.id);
+      if (loyalty) return { ...closed, loyalty };
+    }
+    return closed;
   }
 
   // Sends the bill to the org's bill printer(s) through the print agent. `queued: false` means

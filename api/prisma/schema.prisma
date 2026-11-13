@@ -384,6 +384,8 @@ model Organization {
   phoneCredits         PhoneCredit[]
   collectionPeriods    CollectionPeriod[]
   loyaltyRewardRules   LoyaltyRewardRule[]
+  loyaltyLedger        LoyaltyLedger[]
+  loyaltyRewards       LoyaltyReward[]
   invoices             Invoice[]
   payments             Payment[]
   expenses             Expense[]
@@ -604,6 +606,8 @@ model Customer {
   walletTransactions        WalletTransaction[]
   walletTopUpsFromTransfers MoniepointUnreconciledTransfer[]
   phoneCredits              PhoneCredit[]
+  loyaltyLedger             LoyaltyLedger[]
+  loyaltyRewards            LoyaltyReward[]
 
   @@unique([organizationId, phone])
   @@index([organizationId])
@@ -1852,6 +1856,7 @@ model LoyaltyRewardRule {
 
   organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   items        LoyaltyRewardRuleItem[]
+  rewards      LoyaltyReward[]
 
   @@index([organizationId])
   @@map("loyalty_reward_rules")
@@ -1868,4 +1873,67 @@ model LoyaltyRewardRuleItem {
   @@id([ruleId, menuItemId])
   @@index([menuItemId])
   @@map("loyalty_reward_rule_items")
+}
+
+enum LoyaltyLedgerType {
+  SPEND
+  ADJUSTMENT
+  REVERSAL
+}
+
+enum LoyaltyRewardStatus {
+  AVAILABLE
+  REDEEMED
+  EXPIRED
+  CANCELLED
+}
+
+// Append-only record of every change to a member's lifetime spend. amount is signed: a SPEND is
+// positive, a REVERSAL negative. The unique key makes crediting an order idempotent — a retry, a
+// second payment path or the catch-up job can never credit the same order to the same customer twice.
+model LoyaltyLedger {
+  id             String            @id @default(uuid())
+  organizationId String            @map("organization_id")
+  customerId     String            @map("customer_id")
+  orderId        String?           @map("order_id")
+  amount         Decimal           @db.Decimal(14, 2)
+  entryType      LoyaltyLedgerType @map("entry_type")
+  note           String?
+  createdById    String?           @map("created_by")
+  createdAt      DateTime          @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, customerId, entryType])
+  @@index([organizationId, customerId, createdAt])
+  @@map("loyalty_ledger")
+}
+
+// One earned reward. Each is its own row so it can be redeemed, expire or be cancelled on its own.
+model LoyaltyReward {
+  id                  String              @id @default(uuid())
+  organizationId      String              @map("organization_id")
+  customerId          String              @map("customer_id")
+  ruleId              String              @map("rule_id")
+  status              LoyaltyRewardStatus @default(AVAILABLE)
+  earnedOrderId       String?             @map("earned_order_id")
+  earnedAt            DateTime            @default(now()) @map("earned_at")
+  expiresAt           DateTime            @map("expires_at")
+  redeemedOrderId     String?             @map("redeemed_order_id")
+  redeemedOrderItemId String?             @map("redeemed_order_item_id")
+  redeemedMenuItemId  String?             @map("redeemed_menu_item_id")
+  redeemedById        String?             @map("redeemed_by")
+  redeemedAt          DateTime?           @map("redeemed_at")
+  createdAt           DateTime            @default(now()) @map("created_at")
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  rule         LoyaltyRewardRule @relation(fields: [ruleId], references: [id])
+
+  @@index([organizationId, customerId, status])
+  @@index([status, expiresAt])
+  @@index([earnedOrderId])
+  @@index([redeemedOrderId])
+  @@map("loyalty_rewards")
 }

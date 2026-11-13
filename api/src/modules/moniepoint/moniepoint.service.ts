@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { createHmac } from 'crypto';
+import { creditOrderSpendSafe } from '../loyalty/loyalty.earn';
 import { PrismaService } from '../prisma/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { WalletService } from '../wallet/wallet.service';
@@ -565,6 +566,7 @@ export class MoniepointService {
     // own comment; `amount` (what was actually received) still gets recorded as-is on the Payment
     // row below, only the Order's amountPaid/status reflect the write-off.
     const { amountPaid: newAmountPaid, isComplete: isFinalPayment, writeOff } = resolvePayment(rawAmountPaid, Number(order.total));
+    let orderClosed = false;
     await this.prisma.$transaction(async (tx) => {
       const result = await tx.order.updateMany({
         where: { id: order.id, status: { in: PAYABLE_STATUSES } },
@@ -597,12 +599,16 @@ export class MoniepointService {
       });
 
       if (result.count === 0 || !isFinalPayment) return;
+      orderClosed = true;
 
       await this.inventoryService.deductForOrder(tx, order.id, organizationId);
       if (order.tableId) {
         await tx.restaurantTable.update({ where: { id: order.tableId }, data: { status: 'NEEDS_CLEANING' } });
       }
     });
+
+    // After the payment has committed, so loyalty can never fail it (the hourly job is the backstop).
+    if (orderClosed) await creditOrderSpendSafe(this.prisma, this.logger, order.id);
   }
 
   async listUnreconciledTransfers(organizationId: string, status?: 'PENDING_REVIEW' | 'RESOLVED' | 'IGNORED') {

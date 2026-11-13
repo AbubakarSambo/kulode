@@ -121,11 +121,11 @@ export class OrdersController {
   @Patch(':id/customer')
   @Can('ORDER_SELL')
   setCustomer(
-    @CurrentUser('organizationId') organizationId: string,
+    @CurrentUser() user: CurrentUserData,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateOrderCustomerDto,
   ) {
-    return this.ordersService.setCustomer(organizationId, id, dto);
+    return this.ordersService.setCustomer(user.organizationId, id, dto, user);
   }
 
   @Patch(':id/waiter')

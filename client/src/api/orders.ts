@@ -185,8 +185,9 @@ export const ordersApi = {
     return response.data.data
   },
 
-  setCustomer: async (id: string, customerId: string | null): Promise<Order> => {
-    const response = await apiClient.patch<ApiResponse<Order>>(`/orders/${id}/customer`, { customerId })
+  /** On a paid order (loyalty on) the server also needs a reason, and a supervisor PIN from anyone below supervisor. */
+  setCustomer: async (id: string, customerId: string | null, approval?: { reason: string; approverPin?: string }): Promise<Order> => {
+    const response = await apiClient.patch<ApiResponse<Order>>(`/orders/${id}/customer`, { customerId, ...approval })
     return response.data.data
   },
 
