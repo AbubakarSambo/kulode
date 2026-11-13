@@ -9,6 +9,7 @@ import { Minus, Plus, ArrowLeft, UserPlus, X, Search, ChevronDown } from 'lucide
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Label, Input, Textarea, SearchableSelect } from '@/components/ui'
 import { CustomerPhoneCapture } from '@/components/pos/CustomerPhoneCapture'
+import { MemberPanel } from '@/components/pos/MemberPanel'
 import { customerSaveError } from '@/lib/phoneErrors'
 import { Modal } from '@/components/shared/Modal'
 import { BottomSheet } from '@/components/shared/BottomSheet'
@@ -742,6 +743,7 @@ export function OrderTakingPage() {
                 </button>
               )}
             </div>
+            {customerId && <MemberPanel customerId={customerId} />}
             <CustomerPhoneCapture
               customer={selectedCustomer ?? null}
               source="ORDER"

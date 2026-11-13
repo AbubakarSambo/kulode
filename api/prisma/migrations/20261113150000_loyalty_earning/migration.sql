@@ -30,7 +30,6 @@ CREATE TABLE "loyalty_rewards" (
     "earned_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "expires_at" TIMESTAMP(3) NOT NULL,
     "redeemed_order_id" TEXT,
-    "redeemed_order_item_id" TEXT,
     "redeemed_menu_item_id" TEXT,
     "redeemed_by" TEXT,
     "redeemed_at" TIMESTAMP(3),

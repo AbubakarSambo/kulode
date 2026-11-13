@@ -546,6 +546,8 @@ export interface OrderItem {
   unitPrice: number
   amount: number
   notes?: string
+  /** Set when this line is a redeemed loyalty reward (₦0) */
+  loyaltyRewardId?: string | null
   status: OrderItemStatus
   assignedToId?: string | null
   assignedTo?: { id: string; firstName: string; lastName: string } | null

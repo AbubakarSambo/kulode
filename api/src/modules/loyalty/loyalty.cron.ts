@@ -12,6 +12,23 @@ export class LoyaltyCron {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
+   * Unused rewards past their expiry date become EXPIRED. One set-based statement for every
+   * organization (not a loop per org), served by the (status, expires_at) index.
+   */
+  @Cron(CronExpression.EVERY_HOUR)
+  async expireRewards() {
+    try {
+      const expired = await this.prisma.loyaltyReward.updateMany({
+        where: { status: 'AVAILABLE', expiresAt: { lte: new Date() } },
+        data: { status: 'EXPIRED' },
+      });
+      if (expired.count > 0) this.logger.log(`Expired ${expired.count} unused loyalty reward(s)`);
+    } catch (err) {
+      this.logger.error(`Expiring loyalty rewards failed: ${(err as Error).message}`);
+    }
+  }
+
+  /**
    * Payments credit loyalty right after they commit; if that step failed or the process died in
    * between, this finds the paid orders of enrolled members that have no ledger entry and credits
    * them. Crediting is idempotent, so a repeat run (or racing a live payment) is harmless.

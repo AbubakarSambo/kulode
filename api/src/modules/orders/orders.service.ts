@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { Prisma, OrderStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -26,6 +26,7 @@ import {
   PrintBillPreviewDto,
 } from './dto';
 import { creditOrderSpendSafe, reverseOrderSpend } from '../loyalty/loyalty.earn';
+import { loyaltyReceipt } from '../loyalty/loyalty.receipt';
 import { paginate, runIdempotent, resolvePayment, hasPermission, APPROVER_PIN_ROLES, businessDateFor } from '../../common';
 
 const OPEN_STATUSES: OrderStatus[] = [OrderStatus.OPEN, OrderStatus.IN_KITCHEN, OrderStatus.READY];
@@ -720,6 +721,9 @@ export class OrdersService {
     if (item.status !== 'PENDING') {
       throw new BadRequestException('Cannot edit an item once the kitchen has started on it');
     }
+    if (item.loyaltyRewardId && dto.quantity > 1) {
+      throw new BadRequestException('A loyalty reward item is always quantity 1');
+    }
     // The item is already on a kitchen docket, so taking any of it back off is a partial void —
     // emptying an order line by line must need the same approval as voiding it outright.
     // Increases and note edits don't.
@@ -738,6 +742,7 @@ export class OrdersService {
 
     const updated = await this.prisma.$transaction(async (tx) => {
       if (dto.quantity === 0) {
+        await this.restoreRewards(tx, { id: itemId });
         await tx.orderItem.delete({ where: { id: itemId } });
       } else {
         await tx.orderItem.update({
@@ -787,6 +792,108 @@ export class OrdersService {
     return updated;
   }
 
+  /**
+   * Puts a member's earned reward on an order as a ₦0 line. The line goes through kitchen/bar
+   * routing, docket printing and stock deduction like any other item; the reward is claimed with a
+   * conditional update, so two devices (or a double-tap) can never redeem the same reward twice.
+   */
+  async redeemReward(
+    organizationId: string,
+    orderId: string,
+    dto: { rewardId: string; menuItemId: string },
+    actor: { id: string; roles: string[] },
+  ) {
+    const order = await this.prisma.order.findFirst({ where: { id: orderId, organizationId } });
+    if (!order) throw new NotFoundException('Order not found');
+    if (!OPEN_STATUSES.includes(order.status)) {
+      throw new BadRequestException(`Cannot redeem a reward on a ${order.status.toLowerCase()} order`);
+    }
+    if (!order.customerId) {
+      throw new BadRequestException({ message: 'Attach the loyalty member to the order first', code: 'REWARD_NO_CUSTOMER' });
+    }
+
+    const organization = await this.prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
+    if (!organization.loyaltyEnabled) throw new BadRequestException({ message: 'Loyalty is not switched on', code: 'LOYALTY_OFF' });
+
+    const reward = await this.prisma.loyaltyReward.findFirst({
+      where: { id: dto.rewardId, organizationId },
+      include: { rule: { include: { items: true } } },
+    });
+    if (!reward) throw new NotFoundException('Reward not found');
+    if (reward.customerId !== order.customerId) {
+      throw new BadRequestException({ message: 'That reward belongs to a different customer', code: 'REWARD_WRONG_CUSTOMER' });
+    }
+    if (reward.status !== 'AVAILABLE' || reward.expiresAt <= new Date()) {
+      throw new ConflictException({ message: 'That reward is no longer available', code: 'REWARD_UNAVAILABLE' });
+    }
+    if (!reward.rule.items.some((i) => i.menuItemId === dto.menuItemId)) {
+      throw new BadRequestException({ message: 'That item is not one this reward can be used for', code: 'REWARD_ITEM_NOT_ELIGIBLE' });
+    }
+    const menuItem = await this.prisma.menuItem.findFirst({ where: { id: dto.menuItemId, organizationId } });
+    if (!menuItem) throw new NotFoundException('Menu item not found');
+    if (!menuItem.isAvailable) throw new BadRequestException(`"${menuItem.name}" is currently unavailable`);
+
+    if (reward.rule.maxPerOrder != null) {
+      const already = await this.prisma.orderItem.count({ where: { orderId, loyaltyReward: { ruleId: reward.ruleId } } });
+      if (already >= reward.rule.maxPerOrder) {
+        throw new BadRequestException({
+          message: `Only ${reward.rule.maxPerOrder} ${reward.rule.name} can be used on one order`,
+          code: 'REWARD_LIMIT',
+        });
+      }
+    }
+
+    let newItemId = '';
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const now = new Date();
+      const claimed = await tx.loyaltyReward.updateMany({
+        where: { id: reward.id, status: 'AVAILABLE', expiresAt: { gt: now } },
+        data: {
+          status: 'REDEEMED',
+          redeemedOrderId: orderId,
+          redeemedMenuItemId: menuItem.id,
+          redeemedById: actor.id,
+          redeemedAt: now,
+          redeemedMenuPrice: menuItem.price,
+          redeemedFoodCost: reward.rule.foodCost,
+        },
+      });
+      if (claimed.count === 0) {
+        throw new ConflictException({ message: 'That reward was just used', code: 'REWARD_UNAVAILABLE' });
+      }
+      const item = await tx.orderItem.create({
+        data: { orderId, menuItemId: menuItem.id, itemName: menuItem.name, quantity: 1, unitPrice: 0, amount: 0, loyaltyRewardId: reward.id },
+      });
+      newItemId = item.id;
+      // ₦0, so the totals don't move — but the order did change.
+      return tx.order.update({ where: { id: orderId }, data: { itemsModifiedAt: now }, include: this.orderInclude });
+    });
+
+    this.dispatchPrintDockets(organizationId, updated, updated.items.filter((i) => i.id === newItemId));
+    return updated;
+  }
+
+  /** Gives rewards back (to AVAILABLE) when the line they were redeemed on is removed or its order is voided. */
+  private async restoreRewards(tx: Prisma.TransactionClient, where: Prisma.OrderItemWhereInput) {
+    const lines = await tx.orderItem.findMany({ where: { ...where, loyaltyRewardId: { not: null } }, select: { id: true, loyaltyRewardId: true } });
+    if (lines.length === 0) return;
+    const rewardIds = lines.map((l) => l.loyaltyRewardId as string);
+    await tx.loyaltyReward.updateMany({
+      where: { id: { in: rewardIds }, status: 'REDEEMED' },
+      data: {
+        status: 'AVAILABLE',
+        redeemedOrderId: null,
+        redeemedMenuItemId: null,
+        redeemedById: null,
+        redeemedAt: null,
+        redeemedMenuPrice: null,
+        redeemedFoodCost: null,
+      },
+    });
+    // Free the link so the same reward can be redeemed again on another order.
+    await tx.orderItem.updateMany({ where: { id: { in: lines.map((l) => l.id) } }, data: { loyaltyRewardId: null } });
+  }
+
   async setCustomer(organizationId: string, id: string, dto: UpdateOrderCustomerDto, actor?: { id: string; roles: string[] }) {
     const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
     if (!order) throw new NotFoundException('Order not found');
@@ -799,6 +906,18 @@ export class OrdersService {
         where: { id: dto.customerId, organizationId },
       });
       if (!customer) throw new NotFoundException('Customer not found');
+    }
+
+    // A redeemed reward belongs to one member: moving the order to someone else would hand its free
+    // item to a different person.
+    if ((dto.customerId ?? null) !== order.customerId && order.customerId) {
+      const rewardLines = await this.prisma.orderItem.count({ where: { orderId: id, loyaltyRewardId: { not: null } } });
+      if (rewardLines > 0) {
+        throw new BadRequestException({
+          message: 'Remove the loyalty reward items before changing the customer',
+          code: 'ORDER_HAS_REWARDS',
+        });
+      }
     }
 
     // Changing who a PAID order belongs to moves loyalty spend, so when loyalty is on it needs a
@@ -1314,6 +1433,8 @@ export class OrdersService {
       if (order.tableId) {
         await tx.restaurantTable.update({ where: { id: order.tableId }, data: { status: 'AVAILABLE' } });
       }
+      // Rewards redeemed on a voided order go back to the member.
+      await this.restoreRewards(tx, { orderId: id });
 
       return tx.order.findUniqueOrThrow({ where: { id }, include: this.orderInclude });
     });
@@ -1752,6 +1873,9 @@ export class OrdersService {
     });
     if (!order) throw new NotFoundException('Order not found');
 
+    // Printed on the receipt for a loyalty member; a failure here must never stop a receipt printing.
+    const loyalty = await loyaltyReceipt(this.prisma, organizationId, order.customerId).catch(() => null);
+
     return {
       receiptNumber: `ORD-${order.id.slice(0, 5).toUpperCase()}`,
       createdAt: order.createdAt,
@@ -1759,6 +1883,7 @@ export class OrdersService {
       source: order.source,
       table: order.table,
       customer: order.customer ? { name: order.customer.name, phone: order.customer.phone } : null,
+      loyalty,
       // Falls back to whoever placed the order when no waiter was assigned, so the receipt always
       // shows a name for "who to ask" rather than going blank.
       waiter: order.waiter

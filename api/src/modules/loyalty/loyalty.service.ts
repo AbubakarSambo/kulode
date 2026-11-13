@@ -4,6 +4,7 @@ import { normalisePhone, PHONE_REJECTION_MESSAGES } from '../../common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PhoneCaptureService } from '../customers/phone-capture.service';
 import { EnrolMemberDto, RewardRuleDto, UpdateLoyaltySettingsDto } from './dto';
+import { toKobo, toNextReward } from './loyalty.earn';
 
 const toNumber = (v: Prisma.Decimal | number | null | undefined) => (v == null ? 0 : Number(v));
 
@@ -197,6 +198,53 @@ export class LoyaltyService {
       customer: { id: fresh.id, name: fresh.name, phone: fresh.phone, isMember: fresh.isMember },
       enrolled: upgraded.count === 1,
       phoneCredited,
+    };
+  }
+
+  /**
+   * What the till shows for a member: lifetime spend, rewards they can use now (with the items they
+   * can choose from) and how far they are from the next reward of each kind.
+   */
+  async getMemberSummary(organizationId: string, customerId: string) {
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: customerId, organizationId },
+      select: { id: true, name: true, phone: true, isMember: true, lifetimeSpend: true, enrolledAt: true },
+    });
+    if (!customer) throw new NotFoundException('Customer not found');
+    if (!customer.isMember) {
+      return { customer: { ...customer, lifetimeSpend: toNumber(customer.lifetimeSpend) }, rewards: [], progress: [] };
+    }
+
+    const [rewards, rules] = await Promise.all([
+      this.prisma.loyaltyReward.findMany({
+        where: { organizationId, customerId, status: 'AVAILABLE', expiresAt: { gt: new Date() } },
+        orderBy: { expiresAt: 'asc' },
+        include: { rule: { include: { items: { include: { menuItem: { select: { id: true, name: true, isAvailable: true } } } } } } },
+      }),
+      this.prisma.loyaltyRewardRule.findMany({
+        where: { organizationId, isActive: true, items: { some: {} } },
+        orderBy: { sortOrder: 'asc' },
+        select: { id: true, name: true, thresholdAmount: true, repeating: true },
+      }),
+    ]);
+
+    const spendKobo = toKobo(customer.lifetimeSpend);
+    return {
+      customer: { ...customer, lifetimeSpend: toNumber(customer.lifetimeSpend) },
+      rewards: rewards.map((r) => ({
+        id: r.id,
+        ruleId: r.ruleId,
+        name: r.rule.name,
+        expiresAt: r.expiresAt,
+        maxPerOrder: r.rule.maxPerOrder,
+        items: r.rule.items.filter((i) => i.menuItem.isAvailable).map((i) => ({ id: i.menuItem.id, name: i.menuItem.name })),
+      })),
+      progress: rules
+        .map((r) => {
+          const next = toNextReward(spendKobo, toKobo(r.thresholdAmount), r.repeating);
+          return next == null ? null : { ruleId: r.id, name: r.name, toNext: next / 100 };
+        })
+        .filter((p): p is { ruleId: string; name: string; toNext: number } => p !== null),
     };
   }
 }

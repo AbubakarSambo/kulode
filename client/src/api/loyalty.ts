@@ -61,6 +61,23 @@ export interface EnrolMemberResult {
   phoneCredited: boolean
 }
 
+export interface MemberReward {
+  id: string
+  ruleId: string
+  name: string
+  expiresAt: string
+  /** Most of this reward usable on one order (null = no limit) */
+  maxPerOrder: number | null
+  /** The items the customer can choose from */
+  items: { id: string; name: string }[]
+}
+
+export interface MemberSummary {
+  customer: { id: string; name: string; phone: string | null; isMember: boolean; lifetimeSpend: number; enrolledAt: string | null }
+  rewards: MemberReward[]
+  progress: { ruleId: string; name: string; toNext: number }[]
+}
+
 export const loyaltyApi = {
   settings: async (): Promise<LoyaltySettings> => {
     const response = await apiClient.get<ApiResponse<LoyaltySettings>>('/loyalty/settings')
@@ -68,6 +85,10 @@ export const loyaltyApi = {
   },
   updateSettings: async (data: LoyaltySettingsInput): Promise<LoyaltySettings> => {
     const response = await apiClient.put<ApiResponse<LoyaltySettings>>('/loyalty/settings', data)
+    return response.data.data
+  },
+  member: async (customerId: string): Promise<MemberSummary> => {
+    const response = await apiClient.get<ApiResponse<MemberSummary>>(`/loyalty/members/${customerId}`)
     return response.data.data
   },
   enrol: async (data: EnrolMemberData): Promise<EnrolMemberResult> => {

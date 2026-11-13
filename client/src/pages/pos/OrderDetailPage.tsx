@@ -8,6 +8,7 @@ import { Button, Card, CardContent, Badge, Input, Label, SearchableSelect, Texta
 import { Modal } from '@/components/shared/Modal'
 import { CustomerPhoneCapture } from '@/components/pos/CustomerPhoneCapture'
 import { useLoyaltyOn } from '@/hooks/useLoyaltyOn'
+import { MemberPanel } from '@/components/pos/MemberPanel'
 import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, usersApi, tablesApi, orderTypesApi, paymentTypesApi, organizationsApi } from '@/api'
 import { getQueuedActionsForLocalOrder, discardFailedAction, LOCAL_ORDER_PREFIX } from '@/lib/offlineOrderQueue'
 import { formatCurrency, formatPaymentMethod, normalizePhoneForWhatsApp, cn } from '@/lib/utils'
@@ -981,6 +982,18 @@ function SyncedOrderView({ id }: { id: string }) {
           )}
         </div>
 
+        {order.customerId && (
+          <MemberPanel
+            customerId={order.customerId}
+            orderId={id}
+            canRedeem={isOpenStatus}
+            onRedeemed={() => {
+              queryClient.invalidateQueries({ queryKey: ['order', id] })
+              queryClient.invalidateQueries({ queryKey: ['orders'] })
+            }}
+          />
+        )}
+
         <div className="mb-4 flex items-center justify-between rounded-xl border border-border p-3">
           {order.customer ? (
             <Link to={`/pos/customers/${order.customer.id}`} className="text-sm font-medium text-foreground hover:underline">
@@ -1120,6 +1133,9 @@ function SyncedOrderView({ id }: { id: string }) {
                       <div className="font-semibold text-foreground">
                         {isOpenStatus && item.status === 'PENDING' ? '' : `${item.quantity}x `}
                         {item.menuItem?.name ?? item.itemName}
+                        {item.loyaltyRewardId && (
+                          <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">Loyalty reward</span>
+                        )}
                       </div>
                       {(item.notes || (isOpenStatus && item.status === 'PENDING')) && (
                         <div className="flex items-center gap-2">

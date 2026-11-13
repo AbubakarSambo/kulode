@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Put } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Can, CurrentUser, CurrentUserData, hasPermission } from '../../common';
 import { EnrolMemberDto, UpdateLoyaltySettingsDto } from './dto';
@@ -22,6 +22,13 @@ export class LoyaltyController {
   @Can('LOYALTY_CONFIGURE')
   updateSettings(@CurrentUser() user: CurrentUserData, @Body() dto: UpdateLoyaltySettingsDto) {
     return this.loyalty.updateSettings(user.organizationId, dto);
+  }
+
+  @Get('members/:customerId')
+  @ApiOperation({ summary: 'A member\'s lifetime spend, rewards they can use now, and progress to the next reward' })
+  @Can('LOYALTY_ENROL')
+  member(@CurrentUser('organizationId') organizationId: string, @Param('customerId', ParseUUIDPipe) customerId: string) {
+    return this.loyalty.getMemberSummary(organizationId, customerId);
   }
 
   @Post('enrol')

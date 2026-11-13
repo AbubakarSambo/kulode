@@ -22,6 +22,7 @@ import {
   UpdateOrderItemDto,
   UpdateOrderItemAssigneeDto,
   UpdateOrderCustomerDto,
+  RedeemRewardDto,
   UpdateOrderWaiterDto,
   UpdateOrderNotesDto,
   UpdateOrderSourceDto,
@@ -126,6 +127,16 @@ export class OrdersController {
     @Body() dto: UpdateOrderCustomerDto,
   ) {
     return this.ordersService.setCustomer(user.organizationId, id, dto, user);
+  }
+
+  @Post(':id/redeem-reward')
+  @Can('LOYALTY_ENROL')
+  redeemReward(
+    @CurrentUser() user: CurrentUserData,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RedeemRewardDto,
+  ) {
+    return this.ordersService.redeemReward(user.organizationId, id, dto, user);
   }
 
   @Patch(':id/waiter')

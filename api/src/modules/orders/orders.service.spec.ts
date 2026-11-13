@@ -33,7 +33,11 @@ function createTxMock() {
       count: jest.fn().mockResolvedValue(0),
       update: jest.fn(),
       delete: jest.fn(),
+      // restoreRewards looks for redeemed-reward lines first; none by default.
+      findMany: jest.fn().mockResolvedValue([]),
+      updateMany: jest.fn(),
     },
+    loyaltyReward: { updateMany: jest.fn() },
     restaurantTable: { update: jest.fn() },
     payment: { create: jest.fn() },
     user: { findUnique: jest.fn() },
@@ -58,6 +62,8 @@ function createMockPrisma() {
     menuItem: { findMany: jest.fn() },
     organization: { findUniqueOrThrow: jest.fn() },
     customer: { findFirst: jest.fn() },
+    // setCustomer checks for redeemed-reward lines before moving an order to someone else.
+    orderItem: { count: jest.fn().mockResolvedValue(0) },
     user: { findMany: jest.fn() },
     // Both `cancel` (direct $transaction) and `runIdempotent` (via closeWithPayment) drive
     // everything through this same tx mock, so assertions can check either surface.
@@ -783,6 +789,90 @@ describe('OrdersService — status transitions across the waiter/cashier split',
       await service.setCustomer(ORG_ID, ORDER_ID, { customerId: NEW }, WAITER);
       expect(prisma.order.update).toHaveBeenCalled();
       expect(creditOrderSpendSafe).not.toHaveBeenCalled();
+    });
+  });
+  // ─── redeemReward (a member's earned reward goes on the order at ₦0) ─────────
+
+  describe('redeemReward', () => {
+    const CUSTOMER = 'customer-member';
+    const REWARD = 'reward-1';
+    const MENU_ITEM = 'menu-salad';
+    const WAITER = { id: 'user-waiter-1', roles: ['WAITER'] };
+    const dto = { rewardId: REWARD, menuItemId: MENU_ITEM };
+    const futureDate = () => new Date(Date.now() + 86_400_000);
+
+    function rewardWith(overrides: object = {}) {
+      return {
+        id: REWARD,
+        customerId: CUSTOMER,
+        ruleId: 'rule-1',
+        status: 'AVAILABLE',
+        expiresAt: futureDate(),
+        rule: { id: 'rule-1', name: 'Meal Reward', maxPerOrder: 1, foodCost: 2700, items: [{ menuItemId: MENU_ITEM }] },
+        ...overrides,
+      };
+    }
+
+    beforeEach(() => {
+      Object.assign(prisma, {
+        loyaltyReward: { findFirst: jest.fn().mockResolvedValue(rewardWith()) },
+        menuItem: { findMany: jest.fn(), findFirst: jest.fn().mockResolvedValue({ id: MENU_ITEM, name: 'Smoked Chicken Salad', price: 6000, isAvailable: true }) },
+        orderItem: { count: jest.fn().mockResolvedValue(0) },
+      });
+      prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'OPEN', customerId: CUSTOMER }));
+      prisma.organization.findUniqueOrThrow.mockResolvedValue({ loyaltyEnabled: true });
+      prisma.__tx.loyaltyReward.updateMany.mockResolvedValue({ count: 1 });
+      prisma.__tx.orderItem.create.mockResolvedValue({ id: 'item-new' });
+      prisma.__tx.order.update.mockResolvedValue(orderWith({ customerId: CUSTOMER, items: [{ id: 'item-new', menuItemId: MENU_ITEM, itemName: 'Smoked Chicken Salad' }] }));
+    });
+
+    it('claims the reward and adds the chosen item at ₦0, with the price and food cost recorded for reporting', async () => {
+      await service.redeemReward(ORG_ID, ORDER_ID, dto, WAITER);
+      expect(prisma.__tx.loyaltyReward.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: REWARD, status: 'AVAILABLE' }),
+          data: expect.objectContaining({ status: 'REDEEMED', redeemedOrderId: ORDER_ID, redeemedById: WAITER.id, redeemedMenuPrice: 6000, redeemedFoodCost: 2700 }),
+        }),
+      );
+      expect(prisma.__tx.orderItem.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ orderId: ORDER_ID, menuItemId: MENU_ITEM, quantity: 1, unitPrice: 0, amount: 0, loyaltyRewardId: REWARD }),
+      });
+    });
+
+    it('refuses a reward that was claimed in the meantime (two devices, one reward)', async () => {
+      prisma.__tx.loyaltyReward.updateMany.mockResolvedValue({ count: 0 });
+      await expect(service.redeemReward(ORG_ID, ORDER_ID, dto, WAITER)).rejects.toMatchObject({ response: expect.objectContaining({ code: 'REWARD_UNAVAILABLE' }) });
+      expect(prisma.__tx.orderItem.create).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['an already-used reward', { status: 'REDEEMED' }, 'REWARD_UNAVAILABLE'],
+      ['an expired reward', { expiresAt: new Date(Date.now() - 1000) }, 'REWARD_UNAVAILABLE'],
+      ["another customer's reward", { customerId: 'someone-else' }, 'REWARD_WRONG_CUSTOMER'],
+    ])('refuses %s', async (_label, override, code) => {
+      (prisma as any).loyaltyReward.findFirst.mockResolvedValue(rewardWith(override));
+      await expect(service.redeemReward(ORG_ID, ORDER_ID, dto, WAITER)).rejects.toMatchObject({ response: expect.objectContaining({ code }) });
+    });
+
+    it('refuses an item the reward cannot be used for', async () => {
+      await expect(service.redeemReward(ORG_ID, ORDER_ID, { ...dto, menuItemId: 'menu-steak' }, WAITER)).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'REWARD_ITEM_NOT_ELIGIBLE' }),
+      });
+    });
+
+    it('enforces the most-per-order limit', async () => {
+      (prisma as any).orderItem.count.mockResolvedValue(1);
+      await expect(service.redeemReward(ORG_ID, ORDER_ID, dto, WAITER)).rejects.toMatchObject({ response: expect.objectContaining({ code: 'REWARD_LIMIT' }) });
+    });
+
+    it('needs a customer on the order, an open order, and loyalty switched on', async () => {
+      prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'OPEN', customerId: null }));
+      await expect(service.redeemReward(ORG_ID, ORDER_ID, dto, WAITER)).rejects.toMatchObject({ response: expect.objectContaining({ code: 'REWARD_NO_CUSTOMER' }) });
+      prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'CLOSED_PAID', customerId: CUSTOMER }));
+      await expect(service.redeemReward(ORG_ID, ORDER_ID, dto, WAITER)).rejects.toThrow(BadRequestException);
+      prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'OPEN', customerId: CUSTOMER }));
+      prisma.organization.findUniqueOrThrow.mockResolvedValue({ loyaltyEnabled: false });
+      await expect(service.redeemReward(ORG_ID, ORDER_ID, dto, WAITER)).rejects.toMatchObject({ response: expect.objectContaining({ code: 'LOYALTY_OFF' }) });
     });
   });
 });
