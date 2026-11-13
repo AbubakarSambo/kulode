@@ -206,6 +206,12 @@ export class DemoSeedService {
     await this.prisma.order.deleteMany({ where });
     await this.prisma.shift.deleteMany({ where });
     await this.prisma.customer.deleteMany({ where });
+    // Loyalty set-up made in the demo (customers' rewards, messages and ledger went with the customers
+    // above): the reward rules, member discounts and daily coverage figures, and the on/off switch.
+    await this.prisma.loyaltyRewardRule.deleteMany({ where });
+    await this.prisma.memberDiscount.deleteMany({ where });
+    await this.prisma.coverageSnapshot.deleteMany({ where });
+    await this.prisma.organization.update({ where: { id: organizationId }, data: { loyaltyEnabled: false, loyaltyStartAt: null, loyaltyExpiryDays: 90 } });
     await this.prisma.menuItem.deleteMany({ where });
     await this.prisma.menuCategory.deleteMany({ where });
     await this.prisma.inventoryItem.deleteMany({ where });

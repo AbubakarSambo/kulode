@@ -96,10 +96,12 @@ export class LoyaltySender {
 
   private async deliver(row: ClaimedRow): Promise<Outcome> {
     const [org, customer] = await Promise.all([
-      this.prisma.organization.findUnique({ where: { id: row.organization_id }, select: { name: true, currency: true, phoneCountry: true, loyaltyEnabled: true } }),
+      this.prisma.organization.findUnique({ where: { id: row.organization_id }, select: { name: true, currency: true, phoneCountry: true, loyaltyEnabled: true, isTestAccount: true } }),
       this.prisma.customer.findUnique({ where: { id: row.customer_id }, select: { name: true, phone: true, isMember: true, messageConsentAt: true } }),
     ]);
     if (!org || !customer || !org.loyaltyEnabled || !customer.isMember) return this.skip(row, 'Loyalty is off or the customer is not a member');
+    // Demo and test organizations hold made-up customers whose numbers can look real: never message them.
+    if (org.isTestAccount) return this.skip(row, 'Test or demo organization: messages are never sent');
     if (!customer.messageConsentAt) return this.skip(row, 'No message consent recorded');
     const phone = customer.phone ? normalisePhone(customer.phone, org.phoneCountry) : null;
     if (!phone || !phone.ok) return this.skip(row, 'No valid phone number');
