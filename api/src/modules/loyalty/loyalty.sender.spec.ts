@@ -12,13 +12,13 @@ interface Row {
 
 const row = (over: Partial<Row> = {}): Row => ({ id: 'm1', organization_id: 'org-1', customer_id: 'c1', kind: 'REWARD_EARNED', payload: { rewardText: 'a free Jollof', expiryText: '12 February 2027' }, attempts: 1, ...over });
 
-function setup(opts: { enabled?: boolean; rows?: Row[]; customer?: Record<string, unknown> | null; sendError?: Error; rules?: unknown[] } = {}) {
+function setup(opts: { testAccount?: boolean; enabled?: boolean; rows?: Row[]; customer?: Record<string, unknown> | null; sendError?: Error; rules?: unknown[] } = {}) {
   const rows = opts.rows ?? [row()];
   const prisma: any = {
     $executeRaw: jest.fn().mockResolvedValue(0),
     // claim(): first the due ids, then the claimed rows
     $queryRaw: jest.fn().mockResolvedValueOnce(rows.map((r) => ({ id: r.id }))).mockResolvedValueOnce(rows),
-    organization: { findUnique: jest.fn().mockResolvedValue({ name: 'The Living Room', currency: 'NGN', phoneCountry: 'NG', loyaltyEnabled: true }) },
+    organization: { findUnique: jest.fn().mockResolvedValue({ name: 'The Living Room', currency: 'NGN', phoneCountry: 'NG', loyaltyEnabled: true, isTestAccount: opts.testAccount ?? false }) },
     customer: {
       findUnique: jest.fn().mockResolvedValue(
         opts.customer === undefined ? { name: 'Amaka', phone: '+2348031234569', isMember: true, messageConsentAt: new Date() } : opts.customer,
@@ -104,6 +104,14 @@ describe('LoyaltySender', () => {
     expect(last.prisma.loyaltyMessage.update).toHaveBeenCalledWith(expect.objectContaining({ data: { status: 'FAILED', lastError: timeout.message } }));
     expect(logged(warn).some((l) => l.includes('FAILED for good'))).toBe(true);
     expect(logged(log).some((l) => l.includes('0 sent, 0 skipped, 0 will retry, 1 failed'))).toBe(true);
+  });
+
+  it('never messages a test or demo organization, even with a valid number and consent', async () => {
+    const { sender, whatsapp, prisma } = setup({ testAccount: true });
+    await sender.run();
+    expect(whatsapp.sendCustomerTemplate).not.toHaveBeenCalled();
+    expect(prisma.loyaltyMessage.update).toHaveBeenCalledWith(expect.objectContaining({ data: { status: 'SKIPPED', lastError: 'Test or demo organization: messages are never sent' } }));
+    expect(warn.mock.calls.map((c) => String(c[0])).some((l) => l.includes('SKIPPED') && l.includes('Test or demo organization'))).toBe(true);
   });
 
   it('sends nothing while the switch is off', async () => {
