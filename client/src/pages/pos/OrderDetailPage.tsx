@@ -508,6 +508,10 @@ function SyncedOrderView({ id }: { id: string }) {
   const [attachPin, setAttachPin] = useState('')
   const attachReady = !paidGate || (attachReason.trim() !== '' && (!needsApproval || attachPin.trim() !== ''))
 
+  // The customer picked in the Attach Customer dropdown, before it is saved: the phone field must
+  // follow this (a customer who already has a number needs no number typed), not only the saved one.
+  const pickedCustomer = selectedCustomerId ? customersPage?.data.find((c) => c.id === selectedCustomerId) : undefined
+
   const setCustomer = useMutation({
     mutationFn: (customerId: string | null) =>
       ordersApi.setCustomer(id, customerId, paidGate ? { reason: attachReason.trim(), ...(needsApproval && { approverPin: attachPin.trim() }) } : undefined),
@@ -1613,7 +1617,7 @@ function SyncedOrderView({ id }: { id: string }) {
               placeholder="Search customers"
             />
             <CustomerPhoneCapture
-              customer={order.customer ?? null}
+              customer={pickedCustomer ?? order.customer ?? null}
               source="PAY"
               orderId={id}
               onResolved={(c) => (attachReady ? setCustomer.mutate(c.id) : toast.error('Give a reason first'))}
