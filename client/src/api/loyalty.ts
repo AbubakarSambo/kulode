@@ -99,6 +99,29 @@ export interface MemberSummary {
   progress: { ruleId: string; name: string; toNext: number }[]
 }
 
+export interface LoyaltyReport {
+  range: { from: string; to: string }
+  members: { total: number; newInPeriod: number; byStaff: { userId: string | null; name: string; count: number }[] }
+  spend: { total: number; member: number; nonMember: number; memberSharePct: number; orders: number }
+  rewards: { earned: number; redeemed: number; expired: number }
+  cost: { foodCost: number; menuValue: number; pctOfMemberSpend: number }
+  outstanding: { rewards: number; foodCost: number }
+}
+
+export interface CoverageReport {
+  live: { customers: number; withPhone: number; pct: number }
+  days: { date: string; customers: number; withPhone: number; pct: number }[]
+}
+
+export interface WelcomeQueueEntry {
+  id: string
+  customerId: string
+  name: string
+  phone: string | null
+  reason: string
+  createdAt: string
+}
+
 export const loyaltyApi = {
   settings: async (): Promise<LoyaltySettings> => {
     const response = await apiClient.get<ApiResponse<LoyaltySettings>>('/loyalty/settings')
@@ -107,6 +130,35 @@ export const loyaltyApi = {
   updateSettings: async (data: LoyaltySettingsInput): Promise<LoyaltySettings> => {
     const response = await apiClient.put<ApiResponse<LoyaltySettings>>('/loyalty/settings', data)
     return response.data.data
+  },
+  report: async (range: { from?: string; to?: string } = {}): Promise<LoyaltyReport> => {
+    const response = await apiClient.get<ApiResponse<LoyaltyReport>>('/loyalty/reports/summary', { params: range })
+    return response.data.data
+  },
+  coverage: async (days = 60): Promise<CoverageReport> => {
+    const response = await apiClient.get<ApiResponse<CoverageReport>>('/loyalty/reports/coverage', { params: { days } })
+    return response.data.data
+  },
+  welcomeQueue: async (): Promise<WelcomeQueueEntry[]> => {
+    const response = await apiClient.get<ApiResponse<WelcomeQueueEntry[]>>('/loyalty/welcome-queue')
+    return response.data.data
+  },
+  resolveWelcome: async (id: string): Promise<void> => {
+    await apiClient.post(`/loyalty/welcome-queue/${id}/resolve`)
+  },
+  retryWelcome: async (id: string): Promise<void> => {
+    await apiClient.post(`/loyalty/welcome-queue/${id}/retry`)
+  },
+  downloadMembersCsv: async (): Promise<void> => {
+    const response = await apiClient.get('/loyalty/members.csv', { responseType: 'blob' })
+    const disposition = String(response.headers['content-disposition'] ?? '')
+    const filename = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? 'loyalty-members.csv'
+    const objectUrl = URL.createObjectURL(new Blob([response.data], { type: 'text/csv;charset=utf-8' }))
+    const a = document.createElement('a')
+    a.href = objectUrl
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(objectUrl)
   },
   member: async (customerId: string): Promise<MemberSummary> => {
     const response = await apiClient.get<ApiResponse<MemberSummary>>(`/loyalty/members/${customerId}`)

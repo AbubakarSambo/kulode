@@ -5,11 +5,12 @@ import { LoyaltySender } from './loyalty.sender';
 import { LoyaltyCron } from './loyalty.cron';
 import { LoyaltyController } from './loyalty.controller';
 import { LoyaltyService } from './loyalty.service';
+import { LoyaltyReportsService } from './loyalty.reports.service';
 
 @Module({
   imports: [CustomersModule, WhatsappModule],
   controllers: [LoyaltyController],
-  providers: [LoyaltyService, LoyaltyCron, LoyaltySender],
+  providers: [LoyaltyService, LoyaltyReportsService, LoyaltyCron, LoyaltySender],
   exports: [LoyaltyService],
 })
 export class LoyaltyModule {}

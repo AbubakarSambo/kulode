@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
+import { LoyaltyReportsService } from './loyalty.reports.service';
 import { creditOrderSpend } from './loyalty.earn';
 
 const CATCH_UP_BATCH = 500;
@@ -9,7 +10,34 @@ const CATCH_UP_BATCH = 500;
 export class LoyaltyCron {
   private readonly logger = new Logger(LoyaltyCron.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly reports: LoyaltyReportsService,
+  ) {}
+
+  /**
+   * Records each organization's phone-number coverage for today, for the "coverage by day" report.
+   * Only for organizations that use loyalty or run a collection drive, so it stays cheap as tenants
+   * are added; the last run of the local day is what is kept.
+   */
+  @Cron(CronExpression.EVERY_HOUR)
+  async snapshotCoverage() {
+    try {
+      const orgs = await this.prisma.organization.findMany({
+        where: { OR: [{ loyaltyEnabled: true }, { collectionPeriods: { some: { status: 'OPEN' } } }] },
+        select: { id: true, timezone: true },
+      });
+      for (const org of orgs) {
+        try {
+          await this.reports.snapshotCoverage(org.id, org.timezone);
+        } catch (err) {
+          this.logger.error(`Coverage snapshot failed for org ${org.id}: ${(err as Error).message}`);
+        }
+      }
+    } catch (err) {
+      this.logger.error(`Coverage snapshot run failed: ${(err as Error).message}`);
+    }
+  }
 
   /**
    * Unused rewards past their expiry date become EXPIRED. One set-based statement for every

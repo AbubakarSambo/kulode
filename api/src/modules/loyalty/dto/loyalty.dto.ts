@@ -13,11 +13,34 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
+
+export class ReportRangeDto {
+  @ApiPropertyOptional({ example: '2026-11-01', description: 'First day, YYYY-MM-DD in the organization timezone' })
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  from?: string;
+
+  @ApiPropertyOptional({ example: '2026-11-30', description: 'Last day, inclusive' })
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  to?: string;
+}
+
+export class CoverageQueryDto {
+  @ApiPropertyOptional({ example: 60, description: 'How many days back (default 60, max 365)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  days?: number;
+}
 
 export const ENROL_SOURCES = ['ORDER', 'PAY', 'QUICK_ADD', 'CUSTOMER_FORM'] as const;
 export type EnrolSource = (typeof ENROL_SOURCES)[number];

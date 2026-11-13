@@ -388,6 +388,7 @@ model Organization {
   loyaltyRewards       LoyaltyReward[]
   loyaltyMessages      LoyaltyMessage[]
   memberDiscounts      MemberDiscount[]
+  coverageSnapshots    CoverageSnapshot[]
   invoices             Invoice[]
   payments             Payment[]
   expenses             Expense[]
@@ -2009,4 +2010,21 @@ model MemberDiscount {
 
   @@index([organizationId])
   @@map("member_discounts")
+}
+
+// One row per organization per local day: how many active customers there are and how many have a
+// valid phone number, written by an hourly job (the last write of the day wins). History can't be
+// reconstructed afterwards, so this is what makes "coverage by day" accurate going forward.
+model CoverageSnapshot {
+  organizationId String   @map("organization_id")
+  // 'YYYY-MM-DD' in the organization's timezone
+  date           String
+  customers      Int
+  withPhone      Int      @map("with_phone")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, date])
+  @@map("coverage_snapshots")
 }

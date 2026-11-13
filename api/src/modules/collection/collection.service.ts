@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUserData, startOfNextZonedDay, startOfZonedDay, todayInZone } from '../../common';
 import { computeZone, outcomeFor, periodPhase } from './collection.zones';
 import { toCsv } from './collection.csv';
+import { customerCoverage } from './collection.coverage';
 import { CreateCollectionPeriodDto, SetOverrideDto, UpdateCollectionPeriodDto } from './dto';
 
 @Injectable()
@@ -199,20 +200,8 @@ export class CollectionService {
    * full validator) so it stays one cheap query however many customers an org has. The pattern
    * avoids backslashes on purpose: a tagged template cooks escapes, turning \s into a plain s.
    */
-  private async coverage(organizationId: string) {
-    const [row] = await this.prisma.$queryRaw<{ total: bigint; with_phone: bigint }[]>`
-      SELECT
-        COUNT(*) AS total,
-        COUNT(*) FILTER (
-          WHERE regexp_replace(COALESCE(phone, ''), '[^0-9]', '', 'g') ~ '^(234|0)?(70|80|81|90|91)[0-9]{8}$'
-             OR (phone ~ '^[[:space:]]*[+]' AND length(regexp_replace(phone, '[^0-9]', '', 'g')) BETWEEN 8 AND 15)
-        ) AS with_phone
-      FROM customers
-      WHERE organization_id = ${organizationId} AND is_active = true
-    `;
-    const total = Number(row?.total ?? 0);
-    const withPhone = Number(row?.with_phone ?? 0);
-    return { customers: total, withPhone, pct: total ? Math.round((withPhone / total) * 1000) / 10 : 0 };
+  private coverage(organizationId: string) {
+    return customerCoverage(this.prisma, organizationId);
   }
 
   // ── Credits ─────────────────────────────────────────────────────────────────────────────────

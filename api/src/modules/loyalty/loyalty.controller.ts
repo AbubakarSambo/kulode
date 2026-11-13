@@ -1,15 +1,19 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Res } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Can, CurrentUser, CurrentUserData, hasPermission } from '../../common';
-import { EnrolMemberDto, UpdateLoyaltySettingsDto } from './dto';
+import { CoverageQueryDto, EnrolMemberDto, ReportRangeDto, UpdateLoyaltySettingsDto } from './dto';
+import { LoyaltyReportsService } from './loyalty.reports.service';
 import { LoyaltyService } from './loyalty.service';
 
 @ApiTags('Loyalty')
 @ApiBearerAuth()
 @Controller('loyalty')
 export class LoyaltyController {
-  constructor(private readonly loyalty: LoyaltyService) {}
+  constructor(
+    private readonly loyalty: LoyaltyService,
+    private readonly reports: LoyaltyReportsService,
+  ) {}
 
   @Get('settings')
   @ApiOperation({ summary: 'Loyalty programme settings and reward rules (food cost is admin-only)' })
@@ -23,6 +27,20 @@ export class LoyaltyController {
   @Can('LOYALTY_CONFIGURE')
   updateSettings(@CurrentUser() user: CurrentUserData, @Body() dto: UpdateLoyaltySettingsDto) {
     return this.loyalty.updateSettings(user.organizationId, dto);
+  }
+
+  @Get('reports/summary')
+  @ApiOperation({ summary: 'Loyalty report: members, spend, rewards earned/redeemed/expired and their cost' })
+  @Can('LOYALTY_REPORT')
+  reportSummary(@CurrentUser('organizationId') organizationId: string, @Query() query: ReportRangeDto) {
+    return this.reports.summary(organizationId, query.from, query.to);
+  }
+
+  @Get('reports/coverage')
+  @ApiOperation({ summary: 'Customer phone coverage by day, plus today\'s live figure' })
+  @Can('LOYALTY_REPORT')
+  reportCoverage(@CurrentUser('organizationId') organizationId: string, @Query() query: CoverageQueryDto) {
+    return this.reports.coverage(organizationId, query.days ?? 60);
   }
 
   @Get('members.csv')
