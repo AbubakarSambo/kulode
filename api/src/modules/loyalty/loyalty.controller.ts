@@ -60,25 +60,25 @@ export class LoyaltyController {
     return this.loyalty.getMemberSummary(organizationId, customerId);
   }
 
-  @Get('welcome-queue')
-  @ApiOperation({ summary: 'Members whose welcome message failed, for staff to follow up' })
+  @Get('undelivered')
+  @ApiOperation({ summary: 'Welcome and reward messages that did not reach the customer, for staff to follow up' })
   @Can('LOYALTY_REPORT')
-  welcomeQueue(@CurrentUser('organizationId') organizationId: string) {
-    return this.loyalty.welcomeQueue(organizationId);
+  undelivered(@CurrentUser('organizationId') organizationId: string) {
+    return this.loyalty.undelivered(organizationId);
   }
 
-  @Post('welcome-queue/:id/resolve')
-  @ApiOperation({ summary: 'Mark a failed welcome as followed up by hand' })
+  @Post('undelivered/:id/resolve')
+  @ApiOperation({ summary: 'Mark an undelivered message as followed up by hand' })
   @Can('LOYALTY_REPORT')
-  resolveWelcome(@CurrentUser() user: CurrentUserData, @Param('id', ParseUUIDPipe) id: string) {
-    return this.loyalty.resolveWelcome(user.organizationId, id, user.id);
+  resolveUndelivered(@CurrentUser() user: CurrentUserData, @Param('id', ParseUUIDPipe) id: string) {
+    return this.loyalty.resolveUndelivered(user.organizationId, id, user.id);
   }
 
-  @Post('welcome-queue/:id/retry')
-  @ApiOperation({ summary: 'Send a failed welcome message again' })
+  @Post('undelivered/:id/retry')
+  @ApiOperation({ summary: 'Send a failed welcome message again (reward messages cannot be re-sent)' })
   @Can('LOYALTY_REPORT')
-  retryWelcome(@CurrentUser('organizationId') organizationId: string, @Param('id', ParseUUIDPipe) id: string) {
-    return this.loyalty.retryWelcome(organizationId, id);
+  retryUndelivered(@CurrentUser('organizationId') organizationId: string, @Param('id', ParseUUIDPipe) id: string) {
+    return this.loyalty.retryUndelivered(organizationId, id);
   }
 
   @Post('enrol')

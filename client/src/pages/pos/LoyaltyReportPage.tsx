@@ -22,12 +22,14 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
   )
 }
 
-function WelcomeQueue() {
+const KIND_LABEL = { WELCOME: 'Welcome message', REWARD_EARNED: 'Reward message' } as const
+
+function UndeliveredMessages() {
   const queryClient = useQueryClient()
-  const queue = useQuery({ queryKey: ['loyalty-welcome-queue'], queryFn: loyaltyApi.welcomeQueue })
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ['loyalty-welcome-queue'] })
+  const queue = useQuery({ queryKey: ['loyalty-undelivered'], queryFn: loyaltyApi.undelivered })
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['loyalty-undelivered'] })
   const retry = useMutation({
-    mutationFn: loyaltyApi.retryWelcome,
+    mutationFn: loyaltyApi.retryUndelivered,
     onSuccess: () => {
       toast.success('Queued to send again')
       refresh()
@@ -35,7 +37,7 @@ function WelcomeQueue() {
     onError: (e) => toast.error(apiMessage(e, 'Could not retry')),
   })
   const resolve = useMutation({
-    mutationFn: loyaltyApi.resolveWelcome,
+    mutationFn: loyaltyApi.resolveUndelivered,
     onSuccess: () => {
       toast.success('Marked as followed up')
       refresh()
@@ -46,27 +48,35 @@ function WelcomeQueue() {
   return (
     <section className="space-y-2">
       <div>
-        <h2 className="text-sm font-semibold">Welcome queue</h2>
-        <p className="text-xs text-muted-foreground">Members whose welcome message did not reach them. Contact them yourself, or send it again.</p>
+        <h2 className="text-sm font-semibold">Messages that did not arrive</h2>
+        <p className="text-xs text-muted-foreground">
+          WhatsApp messages that were refused or never delivered. Tell the customer in person or call them, then mark it followed up. WhatsApp limits how many marketing messages one person can receive, so a
+          customer who gets many may not receive these.
+        </p>
       </div>
       {queue.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : !queue.data?.length ? (
-        <p className="text-sm text-muted-foreground">Nobody is waiting — every welcome message got through.</p>
+        <p className="text-sm text-muted-foreground">Nothing to follow up — every message got through.</p>
       ) : (
         <ul className="divide-y divide-border rounded-xl border border-border">
           {queue.data.map((m) => (
             <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 p-3">
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{m.name}</p>
+                <p className="truncate text-sm font-medium">
+                  {m.name} <span className="font-normal text-muted-foreground">· {KIND_LABEL[m.kind]}</span>
+                </p>
+                {m.rewardText && <p className="text-sm">Earned {m.rewardText}</p>}
                 <p className="text-xs text-muted-foreground">
                   {m.phone ?? 'No number'} · {m.reason} · {formatDate(m.createdAt)}
                 </p>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" disabled={resolve.isPending} isLoading={retry.isPending && retry.variables === m.id} onClick={() => retry.mutate(m.id)}>
-                  Send again
-                </Button>
+                {m.kind === 'WELCOME' && (
+                  <Button size="sm" variant="outline" disabled={resolve.isPending} isLoading={retry.isPending && retry.variables === m.id} onClick={() => retry.mutate(m.id)}>
+                    Send again
+                  </Button>
+                )}
                 <Button size="sm" variant="outline" disabled={retry.isPending} isLoading={resolve.isPending && resolve.variables === m.id} onClick={() => resolve.mutate(m.id)}>
                   Followed up
                 </Button>
@@ -171,7 +181,7 @@ export function LoyaltyReportPage() {
           )}
 
           <Coverage />
-          <WelcomeQueue />
+          <UndeliveredMessages />
         </div>
       </div>
     </div>

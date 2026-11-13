@@ -30,7 +30,7 @@ function setup(opts: { enabled?: boolean; rows?: Row[]; customer?: Record<string
   const whatsapp: any = {
     sendCustomerTemplate: jest.fn(async () => {
       if (opts.sendError) throw opts.sendError;
-      return { providerMessageId: 'wamid.1' };
+      return { providerMessageId: 'wamid.1', messageId: 'wa-row-1' };
     }),
   };
   const config: any = { get: (k: string) => ({ 'whatsapp.loyaltyMessagesEnabled': opts.enabled ?? true }[k]) };
@@ -57,7 +57,8 @@ describe('LoyaltySender', () => {
     );
     expect(prisma.loyaltyMessage.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'SENT', providerMessageId: 'wamid.1' }) }));
     const lines = logged(log);
-    expect(lines.some((l) => l.includes('REWARD_EARNED message m1') && l.includes('SENT to WhatsApp as loyalty_reward_earned_v1'))).toBe(true);
+    // the line carries our WhatsApp record id, which is what Meta's later delivery-status lines are keyed by
+    expect(lines.some((l) => l.includes('REWARD_EARNED message m1') && l.includes('SENT to WhatsApp as loyalty_reward_earned_v1 (WhatsApp record wa-row-1)'))).toBe(true);
     // WhatsApp's own message id encodes the recipient's number, so it is not logged
     expect(lines.join(' ')).not.toContain('wamid');
     expect(lines.some((l) => l.includes('1 picked up — 1 sent, 0 skipped, 0 will retry, 0 failed'))).toBe(true);
@@ -67,7 +68,7 @@ describe('LoyaltySender', () => {
 
   it('says so when it is in mock mode (nothing really sent)', async () => {
     const { sender, whatsapp } = setup();
-    whatsapp.sendCustomerTemplate.mockResolvedValue({ providerMessageId: null });
+    whatsapp.sendCustomerTemplate.mockResolvedValue({ providerMessageId: null, messageId: 'wa-row-2' });
     await sender.run();
     expect(logged(log).some((l) => l.includes('mock mode'))).toBe(true);
   });

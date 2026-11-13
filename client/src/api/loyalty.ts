@@ -113,12 +113,16 @@ export interface CoverageReport {
   days: { date: string; customers: number; withPhone: number; pct: number }[]
 }
 
-export interface WelcomeQueueEntry {
+export interface UndeliveredMessage {
   id: string
+  kind: 'WELCOME' | 'REWARD_EARNED'
   customerId: string
   name: string
   phone: string | null
+  /** Why it did not arrive (Meta's reason where it gave one) */
   reason: string
+  /** What the customer earned, for a reward message — so staff can tell them in person */
+  rewardText: string | null
   createdAt: string
 }
 
@@ -139,15 +143,16 @@ export const loyaltyApi = {
     const response = await apiClient.get<ApiResponse<CoverageReport>>('/loyalty/reports/coverage', { params: { days } })
     return response.data.data
   },
-  welcomeQueue: async (): Promise<WelcomeQueueEntry[]> => {
-    const response = await apiClient.get<ApiResponse<WelcomeQueueEntry[]>>('/loyalty/welcome-queue')
+  undelivered: async (): Promise<UndeliveredMessage[]> => {
+    const response = await apiClient.get<ApiResponse<UndeliveredMessage[]>>('/loyalty/undelivered')
     return response.data.data
   },
-  resolveWelcome: async (id: string): Promise<void> => {
-    await apiClient.post(`/loyalty/welcome-queue/${id}/resolve`)
+  resolveUndelivered: async (id: string): Promise<void> => {
+    await apiClient.post(`/loyalty/undelivered/${id}/resolve`)
   },
-  retryWelcome: async (id: string): Promise<void> => {
-    await apiClient.post(`/loyalty/welcome-queue/${id}/retry`)
+  /** Only a welcome can be sent again */
+  retryUndelivered: async (id: string): Promise<void> => {
+    await apiClient.post(`/loyalty/undelivered/${id}/retry`)
   },
   downloadMembersCsv: async (): Promise<void> => {
     const response = await apiClient.get('/loyalty/members.csv', { responseType: 'blob' })
