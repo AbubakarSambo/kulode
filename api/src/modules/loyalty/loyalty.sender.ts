@@ -134,7 +134,7 @@ export class LoyaltySender {
         data: { status: 'SENT', sentAt: new Date(), providerMessageId, lastError: null },
       });
       // Accepted by WhatsApp. Whether it then reaches the phone is reported later by Meta's delivery receipt.
-      this.logger.log(`Loyalty ${row.kind} message ${row.id} (org ${row.organization_id}) SENT to WhatsApp as ${templateName}${providerMessageId ? ` (${providerMessageId})` : ' (mock mode: nothing was really sent)'}`);
+      this.logger.log(`Loyalty ${row.kind} message ${row.id} (org ${row.organization_id}) SENT to WhatsApp as ${templateName}${providerMessageId ? '' : ' (mock mode: nothing was really sent)'}`);
       return 'SENT';
     } catch (err) {
       const message = (err as Error).message;

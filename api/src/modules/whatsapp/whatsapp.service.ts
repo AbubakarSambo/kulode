@@ -397,6 +397,17 @@ export class WhatsappService {
 
     const error = status.errors?.[0];
 
+    // Say what Meta reported for this message, by our own message id (WhatsApp's id encodes the
+    // recipient's phone number, so it is never logged). A failure carries Meta's reason, which is
+    // what explains "it was sent but never arrived".
+    const known = await this.prisma.whatsappMessage.findUnique({ where: { providerMessageId }, select: { id: true, templateName: true } });
+    if (known) {
+      const detail = error ? ` (error ${error.code}: ${error.title || error.message})` : '';
+      const line = `WhatsApp ${known.templateName} message ${known.id}: Meta reports ${mappedStatus}${detail}`;
+      if (mappedStatus === 'FAILED') this.logger.warn(line);
+      else this.logger.log(line);
+    }
+
     const result = await this.prisma.whatsappMessage.updateMany({
       where: { providerMessageId },
       data: {
