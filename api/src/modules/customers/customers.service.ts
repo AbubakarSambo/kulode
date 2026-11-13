@@ -47,6 +47,8 @@ export class CustomersService {
           phone: true,
           email: true,
           isActive: true,
+          // The till and the customers list need to know who is already a loyalty member.
+          isMember: true,
           walletBalance: true,
           creditLimit: true,
           createdAt: true,

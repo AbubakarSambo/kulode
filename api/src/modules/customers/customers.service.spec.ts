@@ -26,3 +26,14 @@ describe('CustomersService.update', () => {
     expect(prisma.customer.update.mock.calls[0][0].data).not.toHaveProperty('phone');
   });
 });
+
+describe('CustomersService.findAll', () => {
+  it('returns whether each customer is a loyalty member, so the till and list can show it', async () => {
+    const prisma: any = {
+      customer: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
+    };
+    const service = new CustomersService(prisma, {} as any);
+    await service.findAll('org-1', { page: 1, limit: 20 } as any);
+    expect(prisma.customer.findMany.mock.calls[0][0].select).toMatchObject({ id: true, name: true, phone: true, isMember: true });
+  });
+});
