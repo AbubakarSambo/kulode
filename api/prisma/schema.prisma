@@ -386,6 +386,7 @@ model Organization {
   loyaltyRewardRules   LoyaltyRewardRule[]
   loyaltyLedger        LoyaltyLedger[]
   loyaltyRewards       LoyaltyReward[]
+  loyaltyMessages      LoyaltyMessage[]
   invoices             Invoice[]
   payments             Payment[]
   expenses             Expense[]
@@ -608,6 +609,7 @@ model Customer {
   phoneCredits              PhoneCredit[]
   loyaltyLedger             LoyaltyLedger[]
   loyaltyRewards            LoyaltyReward[]
+  loyaltyMessages           LoyaltyMessage[]
 
   @@unique([organizationId, phone])
   @@index([organizationId])
@@ -1942,4 +1944,47 @@ model LoyaltyReward {
   @@index([earnedOrderId])
   @@index([redeemedOrderId])
   @@map("loyalty_rewards")
+}
+
+enum LoyaltyMessageKind {
+  WELCOME
+  REWARD_EARNED
+}
+
+enum LoyaltyMessageStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+// Outbox for customer WhatsApp messages. Enrolling a member or earning a reward only writes a row
+// here (inside the same transaction, so it can't be lost or sent for a rolled-back change); a
+// worker sends them with retries and a per-run cap per organization. A failed WELCOME shows in the
+// Welcome queue so staff can follow up by hand.
+model LoyaltyMessage {
+  id                String               @id @default(uuid())
+  organizationId    String               @map("organization_id")
+  customerId        String               @map("customer_id")
+  kind              LoyaltyMessageKind
+  status            LoyaltyMessageStatus @default(PENDING)
+  // Template values decided when the message was queued (e.g. the reward text and expiry date).
+  payload           Json?
+  attempts          Int                  @default(0)
+  nextAttemptAt     DateTime             @default(now()) @map("next_attempt_at")
+  lastError         String?              @map("last_error")
+  providerMessageId String?              @map("provider_message_id")
+  sentAt            DateTime?            @map("sent_at")
+  // Staff followed up a failed message by hand.
+  resolvedAt        DateTime?            @map("resolved_at")
+  resolvedById      String?              @map("resolved_by")
+  createdAt         DateTime             @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
+  @@index([organizationId, kind, status])
+  @@index([customerId])
+  @@map("loyalty_messages")
 }

@@ -31,6 +31,27 @@ export class LoyaltyController {
     return this.loyalty.getMemberSummary(organizationId, customerId);
   }
 
+  @Get('welcome-queue')
+  @ApiOperation({ summary: 'Members whose welcome message failed, for staff to follow up' })
+  @Can('LOYALTY_REPORT')
+  welcomeQueue(@CurrentUser('organizationId') organizationId: string) {
+    return this.loyalty.welcomeQueue(organizationId);
+  }
+
+  @Post('welcome-queue/:id/resolve')
+  @ApiOperation({ summary: 'Mark a failed welcome as followed up by hand' })
+  @Can('LOYALTY_REPORT')
+  resolveWelcome(@CurrentUser() user: CurrentUserData, @Param('id', ParseUUIDPipe) id: string) {
+    return this.loyalty.resolveWelcome(user.organizationId, id, user.id);
+  }
+
+  @Post('welcome-queue/:id/retry')
+  @ApiOperation({ summary: 'Send a failed welcome message again' })
+  @Can('LOYALTY_REPORT')
+  retryWelcome(@CurrentUser('organizationId') organizationId: string, @Param('id', ParseUUIDPipe) id: string) {
+    return this.loyalty.retryWelcome(organizationId, id);
+  }
+
   @Post('enrol')
   @ApiOperation({ summary: 'Enrol a customer as a loyalty member (upgrades an existing customer, never duplicates)' })
   @Can('LOYALTY_ENROL')

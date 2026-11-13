@@ -100,6 +100,13 @@ export const whatsappConfig = registerAs("whatsapp", () => ({
   shiftReportTemplateName:
     process.env.WHATSAPP_SHIFT_REPORT_TEMPLATE_NAME || "shift_report_v3",
   templateLanguage: process.env.WHATSAPP_TEMPLATE_LANGUAGE || "en",
+  // Customer loyalty messages. Off until the two templates are approved by Meta; while off,
+  // messages stay queued (and are dropped after 48h) rather than being sent.
+  loyaltyMessagesEnabled: process.env.WHATSAPP_LOYALTY_ENABLED === "true",
+  loyaltyWelcomeTemplateName:
+    process.env.WHATSAPP_LOYALTY_WELCOME_TEMPLATE_NAME || "loyalty_welcome_v1",
+  loyaltyRewardTemplateName:
+    process.env.WHATSAPP_LOYALTY_REWARD_TEMPLATE_NAME || "loyalty_reward_earned_v1",
   webhookVerifyToken: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "",
 }));
 

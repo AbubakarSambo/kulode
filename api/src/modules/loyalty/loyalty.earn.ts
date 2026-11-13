@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { expiryText, rewardText } from './loyalty.messages';
 
 // Money is compared in whole kobo so "floor(spend / threshold)" never suffers float drift.
 export const toKobo = (v: Prisma.Decimal | number | string | null | undefined): number => Math.round(Number(v ?? 0) * 100);
@@ -66,7 +67,7 @@ export async function creditOrderSpend(prisma: PrismaService, orderId: string, o
 
     const org = await tx.organization.findUnique({
       where: { id: order.organizationId },
-      select: { loyaltyEnabled: true, loyaltyStartAt: true, loyaltyExpiryDays: true },
+      select: { loyaltyEnabled: true, loyaltyStartAt: true, loyaltyExpiryDays: true, timezone: true },
     });
     // Only orders paid after the programme went live count — there is no back-credit.
     if (!org?.loyaltyEnabled || !org.loyaltyStartAt || order.closedAt < org.loyaltyStartAt) return null;
@@ -107,11 +108,12 @@ export async function creditOrderSpend(prisma: PrismaService, orderId: string, o
 
     const rules = await tx.loyaltyRewardRule.findMany({
       where: { organizationId: order.organizationId, isActive: true, items: { some: {} } },
-      select: { id: true, name: true, thresholdAmount: true, repeating: true },
+      select: { id: true, name: true, thresholdAmount: true, repeating: true, items: { select: { menuItem: { select: { name: true } } } } },
       orderBy: { sortOrder: 'asc' },
     });
     const expiresAt = new Date(Date.now() + org.loyaltyExpiryDays * 86_400_000);
     const rewards: EarnedReward[] = [];
+    const earnedForMessage: { count: number; items: string[]; name: string }[] = [];
     for (const rule of rules) {
       const threshold = toKobo(rule.thresholdAmount);
       const count = rewardsEarnedTotal(afterKobo, threshold, rule.repeating) - rewardsEarnedTotal(beforeKobo, threshold, rule.repeating);
@@ -126,6 +128,20 @@ export async function creditOrderSpend(prisma: PrismaService, orderId: string, o
         })),
       });
       rewards.push({ ruleId: rule.id, name: rule.name, count });
+      earnedForMessage.push({ count, name: rule.name, items: rule.items.map((i) => i.menuItem.name) });
+    }
+
+    // Tell the customer, via the message queue: written in this transaction so it exists exactly
+    // when the reward does, and sent later by the worker (which checks consent and retries).
+    if (earnedForMessage.length > 0) {
+      await tx.loyaltyMessage.create({
+        data: {
+          organizationId: order.organizationId,
+          customerId: customer.id,
+          kind: 'REWARD_EARNED',
+          payload: { rewardText: rewardText(earnedForMessage), expiryText: expiryText(expiresAt, org.timezone) },
+        },
+      });
     }
 
     return { customerId: customer.id, amount: spendKobo / 100, lifetimeSpend: afterKobo / 100, rewards };

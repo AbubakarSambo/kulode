@@ -27,6 +27,8 @@ function setup(opts: Opts = {}) {
       create: jest.fn(async () => ({ id: 'r-new' })),
     },
     loyaltyRewardRuleItem: { deleteMany: jest.fn(), createMany: jest.fn() },
+    customer: { updateMany: jest.fn().mockResolvedValue({ count: opts.alreadyMember ? 0 : 1 }) },
+    loyaltyMessage: { create: jest.fn() },
   };
   const prisma: any = {
     organization: {
@@ -42,7 +44,6 @@ function setup(opts: Opts = {}) {
     customer: {
       findFirst: jest.fn().mockResolvedValue(customer),
       findFirstOrThrow: jest.fn().mockImplementation(async () => customer),
-      updateMany: jest.fn().mockResolvedValue({ count: opts.alreadyMember ? 0 : 1 }),
     },
     loyaltyRewardRule: {
       findMany: jest.fn().mockResolvedValue(
@@ -63,18 +64,25 @@ const rule = { name: 'Meal Reward', thresholdAmount: 100000, repeating: true, me
 
 describe('LoyaltyService.enrol', () => {
   it('upgrades an existing customer to a member, recording who, where and consent', async () => {
-    const { service, prisma } = setup();
+    const { service, tx } = setup();
     const res = await service.enrol(ctx, { ...baseDto, customerId: 'c1' });
     expect(res.enrolled).toBe(true);
-    const call = prisma.customer.updateMany.mock.calls[0][0];
+    const call = tx.customer.updateMany.mock.calls[0][0];
     expect(call.where).toMatchObject({ id: 'c1', organizationId: ORG, isMember: false });
     expect(call.data).toMatchObject({ isMember: true, enrolledById: 'w1', enrolSource: 'ORDER' });
     expect(call.data.messageConsentAt).toBeInstanceOf(Date);
   });
 
   it('enrolling twice is a no-op that keeps the first enroller', async () => {
-    const { service } = setup({ alreadyMember: true });
+    const { service, tx } = setup({ alreadyMember: true });
     expect((await service.enrol(ctx, { ...baseDto, customerId: 'c1' })).enrolled).toBe(false);
+    expect(tx.loyaltyMessage.create).not.toHaveBeenCalled(); // no second welcome message
+  });
+
+  it('queues the welcome message for a newly enrolled member, in the same transaction', async () => {
+    const { service, tx } = setup();
+    await service.enrol(ctx, { ...baseDto, customerId: 'c1' });
+    expect(tx.loyaltyMessage.create).toHaveBeenCalledWith({ data: { organizationId: ORG, customerId: 'c1', kind: 'WELCOME' } });
   });
 
   it('refuses when the programme is off', async () => {
@@ -83,11 +91,11 @@ describe('LoyaltyService.enrol', () => {
   });
 
   it('refuses without the customer\'s message consent', async () => {
-    const { service, prisma } = setup();
+    const { service, tx } = setup();
     await expect(service.enrol(ctx, { ...baseDto, consent: false, customerId: 'c1' })).rejects.toMatchObject({
       response: { code: 'LOYALTY_CONSENT_REQUIRED' },
     });
-    expect(prisma.customer.updateMany).not.toHaveBeenCalled();
+    expect(tx.customer.updateMany).not.toHaveBeenCalled();
   });
 
   it('refuses a customer whose stored number is a junk placeholder', async () => {
@@ -106,9 +114,9 @@ describe('LoyaltyService.enrol', () => {
   });
 
   it('a typed name replaces the number-as-name placeholder', async () => {
-    const { service, prisma } = setup({ customer: { id: 'c1', name: '+2348031234569', phone: '+2348031234569', email: null, isMember: false } });
+    const { service, tx } = setup({ customer: { id: 'c1', name: '+2348031234569', phone: '+2348031234569', email: null, isMember: false } });
     await service.enrol(ctx, { ...baseDto, customerId: 'c1', name: ' Amaka Obi ' });
-    expect(prisma.customer.updateMany.mock.calls[0][0].data.name).toBe('Amaka Obi');
+    expect(tx.customer.updateMany.mock.calls[0][0].data.name).toBe('Amaka Obi');
   });
 
   it('a new number goes through phone capture (so it finds an existing holder and credits the drive)', async () => {

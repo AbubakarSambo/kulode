@@ -93,6 +93,8 @@ export const PERMISSIONS = {
   // Loyalty programme. Anyone on the floor can enrol a member; only an admin changes the programme's rules.
   LOYALTY_ENROL: WAITER_UP,
   LOYALTY_CONFIGURE: ADMINS,
+  // Loyalty reports and the Welcome queue (members whose welcome message failed) — manager and above
+  LOYALTY_REPORT: MANAGER_UP,
   // Today's running takings (paid + still-open) for the branch — the strip above the POS pages
   TODAY_TAKINGS_VIEW: WAITER_UP,
   // Stock counts/restocks vs. creating/editing/deleting/importing inventory items

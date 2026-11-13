@@ -180,17 +180,24 @@ export class LoyaltyService {
 
     // Conditional on not-yet-a-member, so a double-tap or a second device enrols once and the
     // original enroller/time/place is kept.
-    const upgraded = await this.prisma.customer.updateMany({
-      where: { id: customer.id, organizationId: ctx.organizationId, isMember: false },
-      data: {
-        isMember: true,
-        enrolledById: ctx.actorId,
-        enrolledAt: new Date(),
-        enrolSource: dto.source as LoyaltyEnrolSource,
-        messageConsentAt: new Date(),
-        name,
-        ...(dto.email && !customer.email ? { email: dto.email } : {}),
-      },
+    const upgraded = await this.prisma.$transaction(async (tx) => {
+      const res = await tx.customer.updateMany({
+        where: { id: customer.id, organizationId: ctx.organizationId, isMember: false },
+        data: {
+          isMember: true,
+          enrolledById: ctx.actorId,
+          enrolledAt: new Date(),
+          enrolSource: dto.source as LoyaltyEnrolSource,
+          messageConsentAt: new Date(),
+          name,
+          ...(dto.email && !customer.email ? { email: dto.email } : {}),
+        },
+      });
+      // A newly enrolled member gets the welcome message (queued; sent by the worker).
+      if (res.count === 1) {
+        await tx.loyaltyMessage.create({ data: { organizationId: ctx.organizationId, customerId: customer.id, kind: 'WELCOME' } });
+      }
+      return res;
     });
 
     const fresh = await this.prisma.customer.findFirstOrThrow({ where: { id: customer.id, organizationId: ctx.organizationId } });
@@ -246,5 +253,55 @@ export class LoyaltyService {
         })
         .filter((p): p is { ruleId: string; name: string; toNext: number } => p !== null),
     };
+  }
+
+  /**
+   * Members whose welcome message did not reach them, for staff to follow up: sends that ran out of
+   * retries, plus sends Meta accepted but later reported as undeliverable. Newest first.
+   */
+  async welcomeQueue(organizationId: string) {
+    const rows = await this.prisma.$queryRaw<
+      { id: string; customer_id: string; name: string; phone: string | null; status: string; last_error: string | null; created_at: Date; delivery_error: string | null }[]
+    >`
+      SELECT m.id, m.customer_id, c.name, c.phone, m.status, m.last_error, m.created_at,
+             w.error_message AS delivery_error
+      FROM loyalty_messages m
+      JOIN customers c ON c.id = m.customer_id
+      LEFT JOIN whatsapp_messages w ON w.provider_message_id = m.provider_message_id
+      WHERE m.organization_id = ${organizationId}
+        AND m.kind = 'WELCOME'
+        AND m.resolved_at IS NULL
+        AND (m.status = 'FAILED' OR (m.status = 'SENT' AND w.status = 'FAILED'))
+      ORDER BY m.created_at DESC
+      LIMIT 500
+    `;
+    return rows.map((r) => ({
+      id: r.id,
+      customerId: r.customer_id,
+      name: r.name,
+      phone: r.phone,
+      reason: r.delivery_error || r.last_error || 'Could not be delivered',
+      createdAt: r.created_at,
+    }));
+  }
+
+  /** Staff followed this one up by hand. */
+  async resolveWelcome(organizationId: string, id: string, userId: string) {
+    const res = await this.prisma.loyaltyMessage.updateMany({
+      where: { id, organizationId, kind: 'WELCOME', resolvedAt: null },
+      data: { resolvedAt: new Date(), resolvedById: userId },
+    });
+    if (res.count === 0) throw new NotFoundException('Message not found');
+    return { resolved: true };
+  }
+
+  /** Put a failed welcome back in the queue to be sent again. */
+  async retryWelcome(organizationId: string, id: string) {
+    const res = await this.prisma.loyaltyMessage.updateMany({
+      where: { id, organizationId, kind: 'WELCOME', status: { in: ['FAILED', 'SKIPPED', 'SENT'] }, resolvedAt: null },
+      data: { status: 'PENDING', attempts: 0, nextAttemptAt: new Date(), lastError: null, providerMessageId: null },
+    });
+    if (res.count === 0) throw new NotFoundException('Message not found');
+    return { queued: true };
   }
 }
