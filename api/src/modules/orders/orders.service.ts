@@ -27,6 +27,7 @@ import {
 } from './dto';
 import { creditOrderSpendSafe, reverseOrderSpend } from '../loyalty/loyalty.earn';
 import { loyaltyReceipt } from '../loyalty/loyalty.receipt';
+import { discountReasonWith, memberDiscountFor, stripMemberLabel } from '../loyalty/loyalty.discount';
 import { paginate, runIdempotent, resolvePayment, hasPermission, APPROVER_PIN_ROLES, businessDateFor } from '../../common';
 
 const OPEN_STATUSES: OrderStatus[] = [OrderStatus.OPEN, OrderStatus.IN_KITCHEN, OrderStatus.READY];
@@ -920,6 +921,11 @@ export class OrdersService {
       }
     }
 
+    // Likewise the member discount: it was worked out for this member.
+    if ((dto.customerId ?? null) !== order.customerId && order.customerId && toNumber(order.memberDiscountAmount) > 0) {
+      throw new BadRequestException({ message: 'Remove the member discount before changing the customer', code: 'ORDER_HAS_MEMBER_DISCOUNT' });
+    }
+
     // Changing who a PAID order belongs to moves loyalty spend, so when loyalty is on it needs a
     // supervisor's authority, a reason, and the same business day — otherwise spend could be
     // moved between members after the fact.
@@ -1517,9 +1523,139 @@ export class OrdersService {
         discountPercent,
         discountAmount,
         discountReason: dto.reason,
+        // A manual discount replaces whatever was there, including a member discount.
+        memberDiscountAmount: 0,
         discountAppliedById: actor.id,
         // Only recorded when someone else's PIN authorised it — null when they approved their own.
         discountApprovedById: approvedById === actor.id ? null : approvedById,
+        taxAmount,
+        vatAmount,
+        entertainmentTaxAmount,
+        serviceChargeAmount,
+        total: afterDiscount + taxAmount + serviceChargeAmount,
+      },
+      include: this.orderInclude,
+    });
+  }
+
+  /**
+   * Takes the loyalty member's discount off an order: each line that qualifies (by item or
+   * category) gets its best preset rate. Needs no PIN because the rule is preset by an admin; it
+   * only needs a supervisor's PIN to be stacked on top of another discount. Can be applied again
+   * to refresh it after items change (the member share is tracked separately from any manual discount).
+   */
+  async applyMemberDiscount(
+    organizationId: string,
+    id: string,
+    actor: { id: string; roles: string[] },
+    approverPin?: string,
+  ) {
+    const order = await this.prisma.order.findFirst({
+      where: { id, organizationId },
+      include: { items: { include: { menuItem: { select: { categories: { select: { categoryId: true } } } } } } },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (!PAYABLE_STATUSES.includes(order.status)) {
+      throw new BadRequestException(`Cannot discount a ${order.status.toLowerCase()} order`);
+    }
+    if (toNumber(order.amountPaid) > 0) {
+      throw new BadRequestException('This order already has a payment recorded — cannot change its discount');
+    }
+    if (!order.customerId) {
+      throw new BadRequestException({ message: 'Attach a loyalty member to the order first', code: 'NOT_A_MEMBER' });
+    }
+
+    const organization = await this.prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
+    if (!organization.loyaltyEnabled) throw new BadRequestException({ message: 'Loyalty is not switched on', code: 'LOYALTY_OFF' });
+    const customer = await this.prisma.customer.findFirst({ where: { id: order.customerId, organizationId }, select: { isMember: true } });
+    if (!customer?.isMember) throw new BadRequestException({ message: 'This customer is not a loyalty member', code: 'NOT_A_MEMBER' });
+
+    const rules = await this.prisma.memberDiscount.findMany({ where: { organizationId, isActive: true } });
+    const memberAmount = memberDiscountFor(
+      order.items.map((i) => ({
+        menuItemId: i.menuItemId,
+        categoryIds: i.menuItem?.categories.map((c) => c.categoryId) ?? [],
+        amount: toNumber(i.amount),
+        isReward: !!i.loyaltyRewardId,
+      })),
+      rules.map((r) => ({ ratePct: toNumber(r.ratePct), menuItemIds: r.menuItemIds, categoryIds: r.categoryIds })),
+    );
+    if (memberAmount <= 0) {
+      throw new BadRequestException({ message: 'None of the items on this order qualify for a member discount', code: 'NO_ELIGIBLE_ITEMS' });
+    }
+
+    const subtotal = toNumber(order.subtotal);
+    // Whatever discount is already there that is not the member's own share.
+    const manual = Math.max(0, Math.round((toNumber(order.discountAmount) - toNumber(order.memberDiscountAmount)) * 100) / 100);
+    // Stacking on another discount needs a supervisor's authority.
+    const approvedById = manual > 0 ? await this.resolveApprover(organizationId, actor, approverPin) : undefined;
+
+    const discountAmount = Math.min(subtotal, Math.round((manual + memberAmount) * 100) / 100);
+    const memberPart = Math.round((discountAmount - manual) * 100) / 100;
+    const afterDiscount = subtotal - discountAmount;
+    const { vatAmount, entertainmentTaxAmount, serviceChargeAmount, taxAmount } = this.computeOrderCharges(
+      afterDiscount,
+      organization,
+      order.vatApplied,
+      order.entertainmentTaxApplied,
+      order.serviceChargeApplied,
+    );
+
+    return this.prisma.order.update({
+      where: { id },
+      data: {
+        discountType: 'FIXED',
+        discountPercent: 0,
+        discountAmount,
+        memberDiscountAmount: memberPart,
+        discountReason: discountReasonWith(order.discountReason, manual > 0),
+        discountAppliedById: actor.id,
+        discountApprovedById: approvedById && approvedById !== actor.id ? approvedById : manual > 0 ? order.discountApprovedById : null,
+        taxAmount,
+        vatAmount,
+        entertainmentTaxAmount,
+        serviceChargeAmount,
+        total: afterDiscount + taxAmount + serviceChargeAmount,
+      },
+      include: this.orderInclude,
+    });
+  }
+
+  /** Takes the member's discount off again (leaving any manual discount alone), e.g. to add more items. */
+  async removeMemberDiscount(organizationId: string, id: string) {
+    const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
+    if (!order) throw new NotFoundException('Order not found');
+    if (!PAYABLE_STATUSES.includes(order.status)) {
+      throw new BadRequestException(`Cannot change the discount on a ${order.status.toLowerCase()} order`);
+    }
+    if (toNumber(order.amountPaid) > 0) {
+      throw new BadRequestException('This order already has a payment recorded — cannot change its discount');
+    }
+    if (toNumber(order.memberDiscountAmount) <= 0) {
+      throw new BadRequestException('This order has no member discount');
+    }
+
+    const organization = await this.prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
+    const subtotal = toNumber(order.subtotal);
+    const manual = Math.max(0, Math.round((toNumber(order.discountAmount) - toNumber(order.memberDiscountAmount)) * 100) / 100);
+    const afterDiscount = subtotal - manual;
+    const { vatAmount, entertainmentTaxAmount, serviceChargeAmount, taxAmount } = this.computeOrderCharges(
+      afterDiscount,
+      organization,
+      order.vatApplied,
+      order.entertainmentTaxApplied,
+      order.serviceChargeApplied,
+    );
+
+    return this.prisma.order.update({
+      where: { id },
+      data: {
+        discountAmount: manual,
+        memberDiscountAmount: 0,
+        // With no manual discount left there is nothing to keep a reason for.
+        ...(manual === 0
+          ? { discountPercent: 0, discountReason: null, discountAppliedById: null, discountApprovedById: null }
+          : { discountReason: stripMemberLabel(order.discountReason) }),
         taxAmount,
         vatAmount,
         entertainmentTaxAmount,

@@ -581,6 +581,8 @@ export interface Order {
   id: string
   organizationId: string
   loyalty?: LoyaltyEarned
+  /** The part of the discount that is a loyalty member discount */
+  memberDiscountAmount?: number | string
   tableId?: string
   table?: { id: string; name: string; section?: string } | null
   customerId?: string

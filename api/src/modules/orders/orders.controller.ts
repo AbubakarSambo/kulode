@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -23,6 +24,7 @@ import {
   UpdateOrderItemAssigneeDto,
   UpdateOrderCustomerDto,
   RedeemRewardDto,
+  ApplyMemberDiscountDto,
   UpdateOrderWaiterDto,
   UpdateOrderNotesDto,
   UpdateOrderSourceDto,
@@ -127,6 +129,22 @@ export class OrdersController {
     @Body() dto: UpdateOrderCustomerDto,
   ) {
     return this.ordersService.setCustomer(user.organizationId, id, dto, user);
+  }
+
+  @Post(':id/member-discount')
+  @Can('LOYALTY_ENROL')
+  applyMemberDiscount(
+    @CurrentUser() user: CurrentUserData,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ApplyMemberDiscountDto,
+  ) {
+    return this.ordersService.applyMemberDiscount(user.organizationId, id, user, dto.approverPin);
+  }
+
+  @Delete(':id/member-discount')
+  @Can('LOYALTY_ENROL')
+  removeMemberDiscount(@CurrentUser('organizationId') organizationId: string, @Param('id', ParseUUIDPipe) id: string) {
+    return this.ordersService.removeMemberDiscount(organizationId, id);
   }
 
   @Post(':id/redeem-reward')

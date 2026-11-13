@@ -25,7 +25,7 @@ function renderField(props: Partial<React.ComponentProps<typeof CustomerPhoneCap
   return { onResolved, user: userEvent.setup() }
 }
 
-const LOYALTY_OFF = { enabled: false, available: true, startAt: null, expiryDays: 90, rules: [] }
+const LOYALTY_OFF = { enabled: false, available: true, startAt: null, expiryDays: 90, rules: [], discounts: [] }
 const LOYALTY_ON = { ...LOYALTY_OFF, enabled: true }
 
 const type = (user: ReturnType<typeof userEvent.setup>, value: string) => user.type(screen.getByLabelText('Customer phone'), value)

@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Can, CurrentUser, CurrentUserData, hasPermission } from '../../common';
 import { EnrolMemberDto, UpdateLoyaltySettingsDto } from './dto';
@@ -22,6 +23,16 @@ export class LoyaltyController {
   @Can('LOYALTY_CONFIGURE')
   updateSettings(@CurrentUser() user: CurrentUserData, @Body() dto: UpdateLoyaltySettingsDto) {
     return this.loyalty.updateSettings(user.organizationId, dto);
+  }
+
+  @Get('members.csv')
+  @ApiOperation({ summary: 'All loyalty members as a CSV (name, phone, email, enrolled date, lifetime spend)' })
+  @Can('LOYALTY_REPORT')
+  async membersCsv(@CurrentUser('organizationId') organizationId: string, @Res() res: Response) {
+    const { filename, csv } = await this.loyalty.membersCsv(organizationId);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
   }
 
   @Get('members/:customerId')

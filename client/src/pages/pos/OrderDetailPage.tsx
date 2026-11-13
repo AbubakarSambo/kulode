@@ -986,8 +986,13 @@ function SyncedOrderView({ id }: { id: string }) {
           <MemberPanel
             customerId={order.customerId}
             orderId={id}
-            canRedeem={isOpenStatus}
+            canRedeem={isOpenStatus && Number(order.amountPaid) === 0}
+            memberDiscountAmount={Number(order.memberDiscountAmount ?? 0)}
             onRedeemed={() => {
+              queryClient.invalidateQueries({ queryKey: ['order', id] })
+              queryClient.invalidateQueries({ queryKey: ['orders'] })
+            }}
+            onDiscountChanged={() => {
               queryClient.invalidateQueries({ queryKey: ['order', id] })
               queryClient.invalidateQueries({ queryKey: ['orders'] })
             }}

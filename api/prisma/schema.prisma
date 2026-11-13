@@ -387,6 +387,7 @@ model Organization {
   loyaltyLedger        LoyaltyLedger[]
   loyaltyRewards       LoyaltyReward[]
   loyaltyMessages      LoyaltyMessage[]
+  memberDiscounts      MemberDiscount[]
   invoices             Invoice[]
   payments             Payment[]
   expenses             Expense[]
@@ -1667,6 +1668,8 @@ model Order {
   discountType         String  @default("PERCENTAGE") @map("discount_type")
   discountPercent      Decimal @default(0) @map("discount_percent") @db.Decimal(5, 2)
   discountAmount       Decimal @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  // The part of discountAmount that is a loyalty member discount (the rest, if any, is a manual discount).
+  memberDiscountAmount Decimal @default(0) @map("member_discount_amount") @db.Decimal(12, 2)
   discountReason       String? @map("discount_reason")
   discountAppliedById  String? @map("discount_applied_by")
   discountAppliedBy    User?   @relation("OrderDiscountAppliedBy", fields: [discountAppliedById], references: [id], onDelete: SetNull)
@@ -1987,4 +1990,23 @@ model LoyaltyMessage {
   @@index([organizationId, kind, status])
   @@index([customerId])
   @@map("loyalty_messages")
+}
+
+// A percentage off chosen menu items and/or whole categories, for loyalty members only. Applied
+// from the order screen with no PIN (the rule is preset); stored in the order's discount.
+model MemberDiscount {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  name           String
+  ratePct        Decimal  @map("rate_pct") @db.Decimal(5, 2)
+  menuItemIds    String[] @default([]) @map("menu_item_ids")
+  categoryIds    String[] @default([]) @map("category_ids")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("member_discounts")
 }

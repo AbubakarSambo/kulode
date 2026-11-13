@@ -13,6 +13,8 @@ interface Opts {
   alreadyMember?: boolean;
   existingRules?: { id: string; isActive: boolean }[];
   menuItemCount?: number;
+  categoryCount?: number;
+  existingDiscounts?: { id: string }[];
 }
 
 function setup(opts: Opts = {}) {
@@ -29,6 +31,7 @@ function setup(opts: Opts = {}) {
     loyaltyRewardRuleItem: { deleteMany: jest.fn(), createMany: jest.fn() },
     customer: { updateMany: jest.fn().mockResolvedValue({ count: opts.alreadyMember ? 0 : 1 }) },
     loyaltyMessage: { create: jest.fn() },
+    memberDiscount: { updateMany: jest.fn(), update: jest.fn(), create: jest.fn() },
   };
   const prisma: any = {
     organization: {
@@ -51,6 +54,8 @@ function setup(opts: Opts = {}) {
       ),
     },
     menuItem: { count: jest.fn().mockResolvedValue(opts.menuItemCount ?? 1) },
+    menuCategory: { count: jest.fn().mockResolvedValue(opts.categoryCount ?? 1) },
+    memberDiscount: { findMany: jest.fn().mockResolvedValue(opts.existingDiscounts ?? []) },
     $transaction: jest.fn(async (fn: any) => fn(tx)),
   };
   const phoneCapture: any = {
@@ -205,3 +210,40 @@ describe('LoyaltyService.getSettings', () => {
     expect((await service.getSettings(ORG, true)).available).toBe(false);
   });
 });
+
+describe('LoyaltyService member discounts', () => {
+  const eventSpace = { name: 'Event space', ratePct: 7.5, menuItemIds: ['m1'], categoryIds: [] as string[] };
+
+  it('creates a discount with its items and categories (de-duplicated)', async () => {
+    const { service, tx } = setup({ enabled: false });
+    await service.updateSettings(ORG, { discounts: [{ ...eventSpace, menuItemIds: ['m1', 'm1'], categoryIds: ['c1', 'c1'] }] });
+    expect(tx.memberDiscount.create).toHaveBeenCalledWith({
+      data: { name: 'Event space', ratePct: 7.5, menuItemIds: ['m1'], categoryIds: ['c1'], isActive: true, organizationId: ORG },
+    });
+  });
+
+  it('edits by id and deactivates the ones left out, never deleting', async () => {
+    const { service, tx } = setup({ enabled: false, existingDiscounts: [{ id: 'd1' }, { id: 'd2' }] });
+    await service.updateSettings(ORG, { discounts: [{ ...eventSpace, id: 'd1' }] });
+    expect(tx.memberDiscount.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'd1' } }));
+    expect(tx.memberDiscount.updateMany).toHaveBeenCalledWith({ where: { id: { in: ['d2'] }, organizationId: ORG }, data: { isActive: false } });
+  });
+
+  it('needs at least one item or category', async () => {
+    const { service } = setup({ enabled: false });
+    await expect(service.updateSettings(ORG, { discounts: [{ ...eventSpace, menuItemIds: [] }] })).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('refuses items or categories from another organization', async () => {
+    await expect(setup({ enabled: false, menuItemCount: 0 }).service.updateSettings(ORG, { discounts: [eventSpace] })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      setup({ enabled: false, categoryCount: 0 }).service.updateSettings(ORG, { discounts: [{ ...eventSpace, menuItemIds: [], categoryIds: ['c9'] }] }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('refuses to edit another organization\'s discount', async () => {
+    const { service } = setup({ enabled: false, existingDiscounts: [{ id: 'mine' }] });
+    await expect(service.updateSettings(ORG, { discounts: [{ ...eventSpace, id: 'theirs' }] })).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+

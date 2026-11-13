@@ -875,4 +875,109 @@ describe('OrdersService — status transitions across the waiter/cashier split',
       await expect(service.redeemReward(ORG_ID, ORDER_ID, dto, WAITER)).rejects.toMatchObject({ response: expect.objectContaining({ code: 'LOYALTY_OFF' }) });
     });
   });
+  // ─── member discount (loyalty members only, preset rule, no PIN) ─────────────
+
+  describe('member discount', () => {
+    const WAITER = { id: 'user-waiter-1', roles: ['WAITER'] };
+    const hallLine = (amount: number, extra: object = {}) => ({ id: 'i1', menuItemId: 'hall', amount, loyaltyRewardId: null, menuItem: { categories: [] }, ...extra });
+    const eventRule = { ratePct: 7.5, menuItemIds: ['hall'], categoryIds: [] as string[] };
+    const org = { loyaltyEnabled: true, taxRate: 7.5, entertainmentTaxRate: 0, serviceChargeRate: 10 };
+
+    function open(extra: object = {}) {
+      return orderWith({ status: 'OPEN', customerId: 'c1', subtotal: 100000, discountAmount: 0, memberDiscountAmount: 0, vatApplied: true, entertainmentTaxApplied: false, serviceChargeApplied: true, items: [hallLine(100000)], ...extra });
+    }
+
+    beforeEach(() => {
+      Object.assign(prisma, { memberDiscount: { findMany: jest.fn().mockResolvedValue([eventRule]) } });
+      prisma.organization.findUniqueOrThrow.mockResolvedValue(org);
+      prisma.customer.findFirst.mockResolvedValue({ isMember: true });
+      prisma.order.findFirst.mockResolvedValue(open());
+      prisma.order.update.mockResolvedValue(open());
+    });
+
+    it('takes the preset percentage off the qualifying lines with no PIN, and recomputes the charges on what is left', async () => {
+      await service.applyMemberDiscount(ORG_ID, ORDER_ID, WAITER);
+      expect(prisma.order.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            discountType: 'FIXED',
+            discountAmount: 7500,
+            memberDiscountAmount: 7500,
+            discountReason: 'Member discount',
+            vatAmount: 6937.5, // 7.5% of 92,500
+            serviceChargeAmount: 9250,
+            total: 92500 + 6937.5 + 9250,
+          }),
+        }),
+      );
+      expect(prisma.user.findMany).not.toHaveBeenCalled(); // no PIN lookup
+    });
+
+    it.each([
+      ['no customer on the order', { customerId: null }, 'NOT_A_MEMBER'],
+      ['nothing that qualifies', { items: [hallLine(5000, { menuItemId: 'jollof' })] }, 'NO_ELIGIBLE_ITEMS'],
+    ])('refuses with %s', async (_label, override, code) => {
+      prisma.order.findFirst.mockResolvedValue(open(override));
+      await expect(service.applyMemberDiscount(ORG_ID, ORDER_ID, WAITER)).rejects.toMatchObject({ response: expect.objectContaining({ code }) });
+      expect(prisma.order.update).not.toHaveBeenCalled();
+    });
+
+    it('refuses a customer who is not a member, and when loyalty is off', async () => {
+      prisma.customer.findFirst.mockResolvedValue({ isMember: false });
+      await expect(service.applyMemberDiscount(ORG_ID, ORDER_ID, WAITER)).rejects.toMatchObject({ response: expect.objectContaining({ code: 'NOT_A_MEMBER' }) });
+      prisma.customer.findFirst.mockResolvedValue({ isMember: true });
+      prisma.organization.findUniqueOrThrow.mockResolvedValue({ ...org, loyaltyEnabled: false });
+      await expect(service.applyMemberDiscount(ORG_ID, ORDER_ID, WAITER)).rejects.toMatchObject({ response: expect.objectContaining({ code: 'LOYALTY_OFF' }) });
+    });
+
+    it('refuses once a payment has been recorded', async () => {
+      prisma.order.findFirst.mockResolvedValue(open({ amountPaid: 500 }));
+      await expect(service.applyMemberDiscount(ORG_ID, ORDER_ID, WAITER)).rejects.toThrow('payment recorded');
+    });
+
+    it('applying it again refreshes the member share rather than adding to it', async () => {
+      prisma.order.findFirst.mockResolvedValue(open({ discountAmount: 7500, memberDiscountAmount: 7500, discountReason: 'Member discount' }));
+      await service.applyMemberDiscount(ORG_ID, ORDER_ID, WAITER);
+      expect(prisma.order.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ discountAmount: 7500, memberDiscountAmount: 7500 }) }));
+    });
+
+    it('stacking on a manual discount needs a supervisor: a waiter without a PIN is refused', async () => {
+      prisma.order.findFirst.mockResolvedValue(open({ discountAmount: 5000, discountReason: 'Manager comp' }));
+      await expect(service.applyMemberDiscount(ORG_ID, ORDER_ID, WAITER)).rejects.toMatchObject({ response: expect.objectContaining({ code: 'APPROVAL_REQUIRED' }) });
+      expect(prisma.order.update).not.toHaveBeenCalled();
+    });
+
+    it('a supervisor stacks both: the manual 5,000 plus the member 7,500, with the reasons joined', async () => {
+      prisma.order.findFirst.mockResolvedValue(open({ discountAmount: 5000, discountReason: 'Manager comp' }));
+      await service.applyMemberDiscount(ORG_ID, ORDER_ID, SUPERVISOR);
+      expect(prisma.order.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ discountAmount: 12500, memberDiscountAmount: 7500, discountReason: 'Manager comp + Member discount' }) }),
+      );
+    });
+
+    it('removing it leaves a manual discount in place, and clears everything when there was none', async () => {
+      prisma.order.findFirst.mockResolvedValue(open({ discountAmount: 12500, memberDiscountAmount: 7500, discountReason: 'Manager comp + Member discount' }));
+      await service.removeMemberDiscount(ORG_ID, ORDER_ID);
+      expect(prisma.order.update).toHaveBeenLastCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ discountAmount: 5000, memberDiscountAmount: 0, discountReason: 'Manager comp' }) }),
+      );
+      prisma.order.findFirst.mockResolvedValue(open({ discountAmount: 7500, memberDiscountAmount: 7500, discountReason: 'Member discount' }));
+      await service.removeMemberDiscount(ORG_ID, ORDER_ID);
+      expect(prisma.order.update).toHaveBeenLastCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ discountAmount: 0, memberDiscountAmount: 0, discountReason: null }) }),
+      );
+    });
+
+    it('has nothing to remove when the order carries no member discount', async () => {
+      await expect(service.removeMemberDiscount(ORG_ID, ORDER_ID)).rejects.toThrow('no member discount');
+    });
+
+    it('an order with a member discount cannot be moved to another customer', async () => {
+      prisma.order.findFirst.mockResolvedValue(open({ discountAmount: 7500, memberDiscountAmount: 7500 }));
+      prisma.customer.findFirst.mockResolvedValue({ id: 'c2' });
+      await expect(service.setCustomer(ORG_ID, ORDER_ID, { customerId: 'c2' }, WAITER)).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'ORDER_HAS_MEMBER_DISCOUNT' }),
+      });
+    });
+  });
 });

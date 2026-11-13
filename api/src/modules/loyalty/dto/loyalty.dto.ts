@@ -68,6 +68,42 @@ export class RewardRuleDto {
   isActive?: boolean;
 }
 
+export class MemberDiscountDto {
+  @ApiPropertyOptional({ description: 'Existing discount to edit; omit to create' })
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
+  @ApiProperty({ example: 'Event space' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(60)
+  name: string;
+
+  @ApiProperty({ example: 7.5, description: 'Percentage off (0.01–100)' })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  @Max(100)
+  ratePct: number;
+
+  @ApiProperty({ description: 'Menu items it applies to' })
+  @IsArray()
+  @ArrayMaxSize(200)
+  @IsUUID('all', { each: true })
+  menuItemIds: string[];
+
+  @ApiProperty({ description: 'Whole menu categories it applies to' })
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsUUID('all', { each: true })
+  categoryIds: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
 export class UpdateLoyaltySettingsDto {
   @ApiPropertyOptional()
   @IsOptional()
@@ -88,6 +124,14 @@ export class UpdateLoyaltySettingsDto {
   @ValidateNested({ each: true })
   @Type(() => RewardRuleDto)
   rules?: RewardRuleDto[];
+
+  @ApiPropertyOptional({ type: [MemberDiscountDto], description: 'The full list of member discounts; any existing one left out is deactivated' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => MemberDiscountDto)
+  discounts?: MemberDiscountDto[];
 }
 
 export class EnrolMemberDto {

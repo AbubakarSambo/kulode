@@ -191,6 +191,16 @@ export const ordersApi = {
     return response.data.data
   },
 
+  /** Takes the loyalty member's preset discount off the qualifying lines. A supervisor PIN is only needed to stack it on another discount. */
+  applyMemberDiscount: async (id: string, approverPin?: string): Promise<Order> => {
+    const response = await apiClient.post<ApiResponse<Order>>(`/orders/${id}/member-discount`, approverPin ? { approverPin } : {})
+    return response.data.data
+  },
+  removeMemberDiscount: async (id: string): Promise<Order> => {
+    const response = await apiClient.delete<ApiResponse<Order>>(`/orders/${id}/member-discount`)
+    return response.data.data
+  },
+
   /** Put a member's earned reward on the order as a ₦0 item. Needs a connection — a reward can only be claimed once. */
   redeemReward: async (id: string, data: { rewardId: string; menuItemId: string }): Promise<Order> => {
     const response = await apiClient.post<ApiResponse<Order>>(`/orders/${id}/redeem-reward`, data)

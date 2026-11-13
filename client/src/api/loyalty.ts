@@ -13,7 +13,27 @@ export interface LoyaltyRule {
   items: { id: string; name: string }[]
 }
 
+export interface MemberDiscount {
+  id: string
+  name: string
+  ratePct: number
+  menuItemIds: string[]
+  categoryIds: string[]
+  isActive: boolean
+}
+
+export interface MemberDiscountInput {
+  id?: string
+  name: string
+  ratePct: number
+  menuItemIds: string[]
+  categoryIds: string[]
+  isActive?: boolean
+}
+
 export interface LoyaltySettings {
+  /** Member discounts, so the till can offer "Apply member discount" */
+  discounts: MemberDiscount[]
   enabled: boolean
   /** False for retail organizations, which can't use loyalty */
   available: boolean
@@ -37,6 +57,7 @@ export interface LoyaltySettingsInput {
   enabled?: boolean
   expiryDays?: number
   rules?: LoyaltyRuleInput[]
+  discounts?: MemberDiscountInput[]
 }
 
 export type EnrolSource = 'ORDER' | 'PAY' | 'QUICK_ADD' | 'CUSTOMER_FORM'

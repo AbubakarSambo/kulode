@@ -3,7 +3,8 @@ import { LoyaltyEnrolSource, PhoneCreditSource, Prisma } from '@prisma/client';
 import { normalisePhone, PHONE_REJECTION_MESSAGES } from '../../common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PhoneCaptureService } from '../customers/phone-capture.service';
-import { EnrolMemberDto, RewardRuleDto, UpdateLoyaltySettingsDto } from './dto';
+import { EnrolMemberDto, MemberDiscountDto, RewardRuleDto, UpdateLoyaltySettingsDto } from './dto';
+import { toCsv } from '../collection/collection.csv';
 import { toKobo, toNextReward } from './loyalty.earn';
 
 const toNumber = (v: Prisma.Decimal | number | null | undefined) => (v == null ? 0 : Number(v));
@@ -37,7 +38,16 @@ export class LoyaltyService {
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
       include: { items: { include: { menuItem: { select: { id: true, name: true } } } } },
     });
+    const discounts = await this.prisma.memberDiscount.findMany({ where: { organizationId }, orderBy: { createdAt: 'asc' } });
     return {
+      discounts: discounts.map((d) => ({
+        id: d.id,
+        name: d.name,
+        ratePct: toNumber(d.ratePct),
+        menuItemIds: d.menuItemIds,
+        categoryIds: d.categoryIds,
+        isActive: d.isActive,
+      })),
       enabled: org.loyaltyEnabled,
       // Loyalty is built around restaurant orders; a retail org can't switch it on.
       available: org.posMode === 'RESTAURANT',
@@ -68,6 +78,8 @@ export class LoyaltyService {
 
     const existing = await this.prisma.loyaltyRewardRule.findMany({ where: { organizationId }, select: { id: true, isActive: true } });
     if (dto.rules) await this.validateRules(organizationId, dto.rules, existing.map((r) => r.id));
+    const existingDiscounts = await this.prisma.memberDiscount.findMany({ where: { organizationId }, select: { id: true } });
+    if (dto.discounts) await this.validateDiscounts(organizationId, dto.discounts, existingDiscounts.map((d) => d.id));
 
     const activeAfter = dto.rules ? dto.rules.filter((r) => r.isActive !== false).length : existing.filter((r) => r.isActive).length;
     if (enabled && activeAfter === 0) {
@@ -84,6 +96,24 @@ export class LoyaltyService {
           ...(enabled && !org.loyaltyStartAt && { loyaltyStartAt: new Date() }),
         },
       });
+
+      if (dto.discounts) {
+        const keepDiscounts = new Set(dto.discounts.filter((d) => d.id).map((d) => d.id as string));
+        const droppedDiscounts = existingDiscounts.filter((d) => !keepDiscounts.has(d.id)).map((d) => d.id);
+        // Left out = switched off, not deleted.
+        if (droppedDiscounts.length) await tx.memberDiscount.updateMany({ where: { id: { in: droppedDiscounts }, organizationId }, data: { isActive: false } });
+        for (const d of dto.discounts) {
+          const data = {
+            name: d.name.trim(),
+            ratePct: d.ratePct,
+            menuItemIds: [...new Set(d.menuItemIds)],
+            categoryIds: [...new Set(d.categoryIds)],
+            isActive: d.isActive ?? true,
+          };
+          if (d.id) await tx.memberDiscount.update({ where: { id: d.id }, data });
+          else await tx.memberDiscount.create({ data: { ...data, organizationId } });
+        }
+      }
 
       if (!dto.rules) return;
       const keep = new Set(dto.rules.filter((r) => r.id).map((r) => r.id as string));
@@ -110,6 +140,23 @@ export class LoyaltyService {
     });
 
     return this.getSettings(organizationId, true);
+  }
+
+  private async validateDiscounts(organizationId: string, discounts: MemberDiscountDto[], ownIds: string[]) {
+    for (const d of discounts) {
+      if (d.id && !ownIds.includes(d.id)) throw new NotFoundException('Member discount not found');
+      if (d.menuItemIds.length === 0 && d.categoryIds.length === 0) {
+        throw new BadRequestException(`"${d.name}" needs at least one item or category`);
+      }
+    }
+    const itemIds = [...new Set(discounts.flatMap((d) => d.menuItemIds))];
+    const categoryIds = [...new Set(discounts.flatMap((d) => d.categoryIds))];
+    const [items, categories] = await Promise.all([
+      itemIds.length ? this.prisma.menuItem.count({ where: { id: { in: itemIds }, organizationId } }) : Promise.resolve(0),
+      categoryIds.length ? this.prisma.menuCategory.count({ where: { id: { in: categoryIds }, organizationId } }) : Promise.resolve(0),
+    ]);
+    if (items !== itemIds.length) throw new BadRequestException('A discount item is not on this organization\'s menu');
+    if (categories !== categoryIds.length) throw new BadRequestException('A discount category is not one of this organization\'s categories');
   }
 
   private async validateRules(organizationId: string, rules: RewardRuleDto[], ownRuleIds: string[]) {
@@ -303,5 +350,19 @@ export class LoyaltyService {
     });
     if (res.count === 0) throw new NotFoundException('Message not found');
     return { queued: true };
+  }
+
+  /** Every loyalty member (name, phone, email, enrolled date, lifetime spend) as a CSV, e.g. to invite them to a tasting. */
+  async membersCsv(organizationId: string) {
+    const members = await this.prisma.customer.findMany({
+      where: { organizationId, isMember: true },
+      orderBy: [{ lifetimeSpend: 'desc' }, { name: 'asc' }],
+      select: { name: true, phone: true, email: true, enrolledAt: true, lifetimeSpend: true },
+    });
+    const rows: (string | number)[][] = [['Name', 'Phone', 'Email', 'Enrolled', 'Lifetime spend']];
+    for (const m of members) {
+      rows.push([m.name, m.phone ?? '', m.email ?? '', m.enrolledAt ? m.enrolledAt.toISOString().slice(0, 10) : '', toNumber(m.lifetimeSpend)]);
+    }
+    return { filename: `loyalty-members-${new Date().toISOString().slice(0, 10)}.csv`, csv: toCsv(rows) };
   }
 }

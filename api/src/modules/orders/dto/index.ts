@@ -16,3 +16,4 @@ export { ReassignOrderPaymentDto } from './reassign-order-payment.dto';
 export { CancelOrderDto } from './cancel-order.dto';
 export { PrintBillPreviewDto } from './print-bill-preview.dto';
 export { RedeemRewardDto } from './redeem-reward.dto';
+export { ApplyMemberDiscountDto } from './member-discount.dto';
