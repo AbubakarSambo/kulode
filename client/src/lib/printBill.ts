@@ -20,6 +20,12 @@ function formatPercent(rate: number): string {
 export function printBill(receipt: ReceiptData) {
   const isPaid = receipt.payments.length > 0
   const title = isPaid ? 'Receipt' : 'Pro Forma Receipt'
+  const loyaltyParts: string[] = []
+  if (receipt.loyalty?.toNextReward != null) loyaltyParts.push(`${formatCurrency(receipt.loyalty.toNextReward)} to your next reward`)
+  if (receipt.loyalty && receipt.loyalty.rewardsAvailable > 0) {
+    loyaltyParts.push(`${receipt.loyalty.rewardsAvailable} reward${receipt.loyalty.rewardsAvailable === 1 ? '' : 's'} available`)
+  }
+  const loyaltyText = loyaltyParts.length ? `Loyalty: ${loyaltyParts.join(' · ')}` : ''
   const waiterName = receipt.waiter ? `${receipt.waiter.firstName} ${receipt.waiter.lastName}` : null
   // Tax/service charge are computed pre-tax, on subtotal minus any discount — shown here rather
   // than the raw subtotal so the printed rate breakdown's math actually adds up.
@@ -146,6 +152,7 @@ export function printBill(receipt: ReceiptData) {
                  </table>`
               : ''
         }
+        ${loyaltyText ? `<div class="divider"></div><div class="center">${escapeHtml(loyaltyText)}</div>` : ''}
         <div class="divider"></div>
         <div class="center">Thank you for dining with us!</div>
         <div class="footer-cols">

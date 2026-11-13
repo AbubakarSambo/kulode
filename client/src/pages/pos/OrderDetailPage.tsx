@@ -7,13 +7,15 @@ import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Badge, Input, Label, SearchableSelect, Textarea } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
 import { CustomerPhoneCapture } from '@/components/pos/CustomerPhoneCapture'
+import { useLoyaltyOn } from '@/hooks/useLoyaltyOn'
+import { MemberPanel } from '@/components/pos/MemberPanel'
 import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, usersApi, tablesApi, orderTypesApi, paymentTypesApi, organizationsApi } from '@/api'
 import { getQueuedActionsForLocalOrder, discardFailedAction, LOCAL_ORDER_PREFIX } from '@/lib/offlineOrderQueue'
 import { formatCurrency, formatPaymentMethod, normalizePhoneForWhatsApp, cn } from '@/lib/utils'
 import { printOrderBill } from '@/lib/sendBill'
 import { useAuthStore } from '@/stores/auth'
 import { can } from '@/lib/permissions'
-import type { OrderItemStatus, MenuItem, OrderSource } from '@/types'
+import type { OrderItemStatus, MenuItem, OrderSource, LoyaltyEarned } from '@/types'
 import type { CreateOrderItemData } from '@/api/orders'
 
 const ITEM_STATUS_FLOW: OrderItemStatus[] = ['PENDING', 'ON_IT', 'PASS', 'SERVED']
@@ -498,10 +500,21 @@ function SyncedOrderView({ id }: { id: string }) {
     [customersPage],
   )
 
+  // Changing who a PAID order belongs to moves loyalty spend, so the server wants a reason and a
+  // supervisor's authority (their PIN, from anyone below supervisor).
+  const loyaltyOn = useLoyaltyOn()
+  const paidGate = loyaltyOn && order?.status === 'CLOSED_PAID'
+  const [attachReason, setAttachReason] = useState('')
+  const [attachPin, setAttachPin] = useState('')
+  const attachReady = !paidGate || (attachReason.trim() !== '' && (!needsApproval || attachPin.trim() !== ''))
+
   const setCustomer = useMutation({
-    mutationFn: (customerId: string | null) => ordersApi.setCustomer(id, customerId),
+    mutationFn: (customerId: string | null) =>
+      ordersApi.setCustomer(id, customerId, paidGate ? { reason: attachReason.trim(), ...(needsApproval && { approverPin: attachPin.trim() }) } : undefined),
     onSuccess: () => {
       toast.success('Customer updated')
+      setAttachReason('')
+      setAttachPin('')
       setCustomerModalOpen(false)
       queryClient.invalidateQueries({ queryKey: ['order', id] })
       queryClient.invalidateQueries({ queryKey: ['orders'] })
@@ -822,6 +835,8 @@ function SyncedOrderView({ id }: { id: string }) {
   // still has to be closed. The server ignores the payment method for these.
   const nothingToPay = !!order && orderTotal <= 0
 
+  const [rewardEarned, setRewardEarned] = useState<LoyaltyEarned | null>(null)
+
   const closeOrder = useMutation({
     mutationFn: async () => {
       if (nothingToPay) {
@@ -860,6 +875,7 @@ function SyncedOrderView({ id }: { id: string }) {
         return
       }
       toast.success('Order closed')
+      if (result.loyalty?.rewards.length) setRewardEarned(result.loyalty)
       if (order?.customerId) {
         queryClient.invalidateQueries({ queryKey: ['customers'] })
         queryClient.invalidateQueries({ queryKey: ['wallet-balance', order.customerId] })
@@ -965,6 +981,23 @@ function SyncedOrderView({ id }: { id: string }) {
             </button>
           )}
         </div>
+
+        {order.customerId && (
+          <MemberPanel
+            customerId={order.customerId}
+            orderId={id}
+            canRedeem={isOpenStatus && Number(order.amountPaid) === 0}
+            memberDiscountAmount={Number(order.memberDiscountAmount ?? 0)}
+            onRedeemed={() => {
+              queryClient.invalidateQueries({ queryKey: ['order', id] })
+              queryClient.invalidateQueries({ queryKey: ['orders'] })
+            }}
+            onDiscountChanged={() => {
+              queryClient.invalidateQueries({ queryKey: ['order', id] })
+              queryClient.invalidateQueries({ queryKey: ['orders'] })
+            }}
+          />
+        )}
 
         <div className="mb-4 flex items-center justify-between rounded-xl border border-border p-3">
           {order.customer ? (
@@ -1105,6 +1138,9 @@ function SyncedOrderView({ id }: { id: string }) {
                       <div className="font-semibold text-foreground">
                         {isOpenStatus && item.status === 'PENDING' ? '' : `${item.quantity}x `}
                         {item.menuItem?.name ?? item.itemName}
+                        {item.loyaltyRewardId && (
+                          <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">Loyalty reward</span>
+                        )}
                       </div>
                       {(item.notes || (isOpenStatus && item.status === 'PENDING')) && (
                         <div className="flex items-center gap-2">
@@ -1546,6 +1582,25 @@ function SyncedOrderView({ id }: { id: string }) {
         </div>
       </Modal>
 
+      <Modal isOpen={rewardEarned !== null} onClose={() => setRewardEarned(null)} title="Reward earned">
+        <div className="space-y-4">
+          <p className="text-sm">
+            <span className="font-semibold">{order.customer?.name ?? 'The customer'}</span> has earned a reward. Let them know before they leave.
+          </p>
+          <ul className="space-y-1 text-sm font-medium">
+            {rewardEarned?.rewards.map((r) => (
+              <li key={r.ruleId}>
+                {r.count} × {r.name}
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-muted-foreground">Lifetime spend is now {formatCurrency(rewardEarned?.lifetimeSpend ?? 0)}.</p>
+          <Button className="w-full" onClick={() => setRewardEarned(null)}>
+            Done
+          </Button>
+        </div>
+      </Modal>
+
       <Modal isOpen={customerModalOpen} onClose={() => setCustomerModalOpen(false)} title="Attach Customer">
         <div className="space-y-4">
           <div>
@@ -1561,14 +1616,33 @@ function SyncedOrderView({ id }: { id: string }) {
               customer={order.customer ?? null}
               source="PAY"
               orderId={id}
-              onResolved={(c) => setCustomer.mutate(c.id)}
+              onResolved={(c) => (attachReady ? setCustomer.mutate(c.id) : toast.error('Give a reason first'))}
             />
           </div>
+          {paidGate && (
+            <div className="space-y-3 rounded-xl border border-dashed border-border p-3">
+              <p className="text-xs text-muted-foreground">
+                This order is already paid. Changing the customer moves their loyalty spend, so it needs a reason
+                {needsApproval ? " and a supervisor's PIN" : ''}, and can only be done on the day of the sale.
+              </p>
+              <div>
+                <Label>Reason</Label>
+                <Input value={attachReason} onChange={(e) => setAttachReason(e.target.value)} placeholder="e.g. Customer gave their number after paying" />
+              </div>
+              {needsApproval && (
+                <div>
+                  <Label>Supervisor PIN</Label>
+                  <Input type="password" inputMode="numeric" value={attachPin} onChange={(e) => setAttachPin(e.target.value)} aria-label="Supervisor PIN" />
+                </div>
+              )}
+            </div>
+          )}
           <div className="flex gap-3">
             {order.customer && (
               <Button
                 variant="outline"
                 className="flex-1"
+                disabled={!attachReady}
                 isLoading={setCustomer.isPending}
                 onClick={() => setCustomer.mutate(null)}
               >
@@ -1577,7 +1651,7 @@ function SyncedOrderView({ id }: { id: string }) {
             )}
             <Button
               className="flex-1"
-              disabled={!selectedCustomerId}
+              disabled={!selectedCustomerId || !attachReady}
               isLoading={setCustomer.isPending}
               onClick={() => setCustomer.mutate(selectedCustomerId)}
             >

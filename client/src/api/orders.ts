@@ -53,7 +53,7 @@ export interface OrderSummary {
   id: string
   tableId?: string
   table?: { id: string; name: string; section?: string } | null
-  customer?: { id: string; name: string; phone?: string } | null
+  customer?: { id: string; name: string; phone?: string; isMember?: boolean } | null
   status: OrderStatus
   total: number
   amountPaid: number
@@ -185,8 +185,25 @@ export const ordersApi = {
     return response.data.data
   },
 
-  setCustomer: async (id: string, customerId: string | null): Promise<Order> => {
-    const response = await apiClient.patch<ApiResponse<Order>>(`/orders/${id}/customer`, { customerId })
+  /** On a paid order (loyalty on) the server also needs a reason, and a supervisor PIN from anyone below supervisor. */
+  setCustomer: async (id: string, customerId: string | null, approval?: { reason: string; approverPin?: string }): Promise<Order> => {
+    const response = await apiClient.patch<ApiResponse<Order>>(`/orders/${id}/customer`, { customerId, ...approval })
+    return response.data.data
+  },
+
+  /** Takes the loyalty member's preset discount off the qualifying lines. A supervisor PIN is only needed to stack it on another discount. */
+  applyMemberDiscount: async (id: string, approverPin?: string): Promise<Order> => {
+    const response = await apiClient.post<ApiResponse<Order>>(`/orders/${id}/member-discount`, approverPin ? { approverPin } : {})
+    return response.data.data
+  },
+  removeMemberDiscount: async (id: string): Promise<Order> => {
+    const response = await apiClient.delete<ApiResponse<Order>>(`/orders/${id}/member-discount`)
+    return response.data.data
+  },
+
+  /** Put a member's earned reward on the order as a ₦0 item. Needs a connection — a reward can only be claimed once. */
+  redeemReward: async (id: string, data: { rewardId: string; menuItemId: string }): Promise<Order> => {
+    const response = await apiClient.post<ApiResponse<Order>>(`/orders/${id}/redeem-reward`, data)
     return response.data.data
   },
 
@@ -390,6 +407,8 @@ export interface ReceiptData {
   source: string
   table: { name: string } | null
   customer: { name: string; phone: string | null } | null
+  /** Set for a loyalty member: spend to the next reward and rewards they can use now */
+  loyalty?: { toNextReward: number | null; rewardsAvailable: number } | null
   waiter: { firstName: string; lastName: string } | null
   items: Array<{ name: string; quantity: number; unitPrice: number; amount: number; notes?: string | null }>
   subtotal: number

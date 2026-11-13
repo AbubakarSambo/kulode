@@ -8,6 +8,7 @@ export interface BillReceipt {
   source: string;
   table?: { name: string } | null;
   customer?: { name: string; phone?: string | null } | null;
+  loyalty?: { toNextReward: number | null; rewardsAvailable: number } | null;
   waiter?: { firstName: string; lastName: string } | null;
   items: Array<{ name: string; quantity: number; unitPrice: number; amount: number; notes?: string | null }>;
   subtotal: number;
@@ -68,6 +69,15 @@ function ascii(value: string): string {
     .replace(/\s+/g, ' ')
     .replace(/[^\x20-\x7e]/g, '?')
     .trim();
+}
+
+/** "Loyalty: NGN 32,000 to your next reward · 1 reward available" (null when there is nothing to say). */
+export function loyaltyLine(loyalty: BillReceipt['loyalty'], format: (n: number) => string): string | null {
+  if (!loyalty) return null;
+  const parts: string[] = [];
+  if (loyalty.toNextReward != null) parts.push(`${format(loyalty.toNextReward)} to your next reward`);
+  if (loyalty.rewardsAvailable > 0) parts.push(`${loyalty.rewardsAvailable} reward${loyalty.rewardsAvailable === 1 ? '' : 's'} available`);
+  return parts.length ? `Loyalty: ${parts.join(' · ')}` : null;
 }
 
 function money(amount: number): string {
@@ -207,6 +217,12 @@ export function formatBillEscPos(receipt: BillReceipt, paperWidthMm = 80): strin
     if (org.receiptBankName) out.push(row('Bank', org.receiptBankName, width));
     if (org.receiptBankAccountNumber) out.push(row('Account No.', org.receiptBankAccountNumber, width));
     if (org.receiptBankAccountName) out.push(row('Account Name', org.receiptBankAccountName, width));
+  }
+
+  const loyaltyText = loyaltyLine(receipt.loyalty, (n) => `${currency} ${money(n)}`);
+  if (loyaltyText) {
+    out.push(divider);
+    out.push(CENTER, ...wrap(ascii(loyaltyText), width).map((line) => `${line}\n`), LEFT);
   }
 
   out.push(divider);

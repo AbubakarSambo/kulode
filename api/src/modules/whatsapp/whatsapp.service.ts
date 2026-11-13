@@ -311,6 +311,61 @@ export class WhatsappService {
     }
   }
 
+  /**
+   * Sends one approved template to a customer. Body values map 1:1, in order, to the template's
+   * {{1}}..{{n}} placeholders. Meta rejects values containing newlines, tabs or 4+ spaces, so they
+   * are cleaned here. Every attempt is recorded in whatsapp_messages (delivery receipts from Meta
+   * update that row); a failure is recorded and thrown for the caller to retry.
+   */
+  async sendCustomerTemplate(params: {
+    organizationId: string;
+    toPhone: string;
+    templateName: string;
+    bodyValues: string[];
+  }): Promise<{ providerMessageId: string | null }> {
+    const toPhone = this.normalizePhone(params.toPhone);
+    const values = params.bodyValues.map((v) => v.replace(/[\r\n\t]+/g, ' ').replace(/ {4,}/g, '   ').trim());
+
+    const payload = {
+      messaging_product: 'whatsapp',
+      to: toPhone,
+      type: 'template',
+      template: {
+        name: params.templateName,
+        language: { code: this.templateLanguage },
+        components: [{ type: 'body', parameters: values.map((text) => ({ type: 'text', text })) }],
+      },
+    };
+
+    if (this.isMockMode) {
+      this.logger.warn(`[MOCK WHATSAPP] Would send "${params.templateName}" to ${toPhone} for org ${params.organizationId}`);
+      await this.prisma.whatsappMessage.create({
+        data: { organizationId: params.organizationId, templateName: params.templateName, toPhone, status: 'SENT', sentAt: new Date() },
+      });
+      return { providerMessageId: null };
+    }
+
+    try {
+      const data = await this.makeRequest<{ messages?: { id: string }[] }>(`/${this.phoneNumberId}/messages`, payload);
+      const providerMessageId = data.messages?.[0]?.id || null;
+      await this.prisma.whatsappMessage.create({
+        data: { organizationId: params.organizationId, templateName: params.templateName, toPhone, status: 'SENT', providerMessageId, sentAt: new Date() },
+      });
+      return { providerMessageId };
+    } catch (error) {
+      await this.prisma.whatsappMessage.create({
+        data: {
+          organizationId: params.organizationId,
+          templateName: params.templateName,
+          toPhone,
+          status: 'FAILED',
+          errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        },
+      });
+      throw error;
+    }
+  }
+
   isValidVerifyToken(token: string | undefined): boolean {
     return !!this.webhookVerifyToken && token === this.webhookVerifyToken;
   }

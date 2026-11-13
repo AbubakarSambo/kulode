@@ -28,6 +28,7 @@ export interface CapturedCustomer {
   id: string
   name: string
   phone: string | null
+  isMember?: boolean
 }
 
 export type PhoneLookup =

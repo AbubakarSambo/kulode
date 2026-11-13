@@ -9,6 +9,7 @@ import { Minus, Plus, ArrowLeft, UserPlus, X, Search, ChevronDown } from 'lucide
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Label, Input, Textarea, SearchableSelect } from '@/components/ui'
 import { CustomerPhoneCapture } from '@/components/pos/CustomerPhoneCapture'
+import { MemberPanel } from '@/components/pos/MemberPanel'
 import { customerSaveError } from '@/lib/phoneErrors'
 import { Modal } from '@/components/shared/Modal'
 import { BottomSheet } from '@/components/shared/BottomSheet'
@@ -212,11 +213,11 @@ export function OrderTakingPage() {
   // Pins the selected customer so it survives the search-scoped `customerOptions`/`customersPage`
   // list changing underneath it (e.g. the debounced search resets to the default "recent 100"
   // page right after selection, which can drop a customer that was only found by searching).
-  const [pinnedCustomer, setPinnedCustomer] = useState<{ id: string; name: string; phone?: string | null } | null>(null)
+  const [pinnedCustomer, setPinnedCustomer] = useState<{ id: string; name: string; phone?: string | null; isMember?: boolean } | null>(null)
   const handleSelectCustomer = (id: string) => {
     setCustomerId(id)
     const found = customersPage?.data.find((c) => c.id === id)
-    setPinnedCustomer(found ? { id: found.id, name: found.name, phone: found.phone } : null)
+    setPinnedCustomer(found ? { id: found.id, name: found.name, phone: found.phone, isMember: found.isMember } : null)
   }
   const customerOptionsWithSelected = useMemo(() => {
     if (!pinnedCustomer || customerOptions.some((c) => c.id === pinnedCustomer.id)) return customerOptions
@@ -742,12 +743,13 @@ export function OrderTakingPage() {
                 </button>
               )}
             </div>
+            {customerId && <MemberPanel customerId={customerId} />}
             <CustomerPhoneCapture
               customer={selectedCustomer ?? null}
               source="ORDER"
               onResolved={(c) => {
                 setCustomerId(c.id)
-                setPinnedCustomer({ id: c.id, name: c.name, phone: c.phone })
+                setPinnedCustomer({ id: c.id, name: c.name, phone: c.phone, isMember: c.isMember })
               }}
             />
           </div>

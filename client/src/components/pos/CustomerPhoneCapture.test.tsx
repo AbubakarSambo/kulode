@@ -4,11 +4,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { toast } from 'sonner'
 import { CustomerPhoneCapture } from './CustomerPhoneCapture'
-import { customersApi } from '@/api'
+import { customersApi, loyaltyApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 
 vi.mock('@/api', () => ({
   customersApi: { lookupPhone: vi.fn(), capturePhone: vi.fn() },
+  loyaltyApi: { settings: vi.fn(), enrol: vi.fn() },
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
@@ -24,10 +25,16 @@ function renderField(props: Partial<React.ComponentProps<typeof CustomerPhoneCap
   return { onResolved, user: userEvent.setup() }
 }
 
+const LOYALTY_OFF = { enabled: false, available: true, startAt: null, expiryDays: 90, rules: [], discounts: [] }
+const LOYALTY_ON = { ...LOYALTY_OFF, enabled: true }
+
 const type = (user: ReturnType<typeof userEvent.setup>, value: string) => user.type(screen.getByLabelText('Customer phone'), value)
 
 describe('CustomerPhoneCapture', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(loyaltyApi.settings).mockResolvedValue(LOYALTY_OFF)
+  })
 
   it('shows nothing to roles that cannot capture numbers', () => {
     renderField({}, ['KITCHEN'])
@@ -109,5 +116,78 @@ describe('CustomerPhoneCapture', () => {
     expect(options.action.label).toBe('Use Ada Obi')
     options.action.onClick()
     expect(onResolved).toHaveBeenCalledWith({ id: 'c9', name: 'Ada Obi', phone: null })
+  })
+
+  describe('loyalty', () => {
+    it('offers no loyalty controls when the programme is off', async () => {
+      vi.mocked(customersApi.lookupPhone).mockResolvedValue({ valid: true, e164: '+2348031234569', customer: null })
+      const { user } = renderField()
+      await type(user, '08031234569')
+      await screen.findByRole('button', { name: /save and attach/i })
+      expect(screen.queryByLabelText('Loyalty member')).not.toBeInTheDocument()
+    })
+
+    it('saves and enrols a new number only once the customer\'s message consent is ticked', async () => {
+      vi.mocked(loyaltyApi.settings).mockResolvedValue(LOYALTY_ON)
+      vi.mocked(customersApi.lookupPhone).mockResolvedValue({ valid: true, e164: '+2348031234569', customer: null })
+      vi.mocked(loyaltyApi.enrol).mockResolvedValue({
+        customer: { id: 'c3', name: 'Amaka Obi', phone: '+2348031234569', isMember: true },
+        enrolled: true,
+        phoneCredited: true,
+      })
+      const { user, onResolved } = renderField({ orderId: 'o1', source: 'PAY' })
+      await type(user, '08031234569')
+      await user.click(await screen.findByLabelText('Loyalty member'))
+      await user.type(screen.getByLabelText('Customer name'), 'Amaka Obi')
+      const save = screen.getByRole('button', { name: /save and enrol/i })
+      expect(save).toBeDisabled()
+      await user.click(screen.getByLabelText(/agrees to receive loyalty offers/i))
+      await user.click(save)
+      await waitFor(() => expect(loyaltyApi.enrol).toHaveBeenCalled())
+      expect(loyaltyApi.enrol).toHaveBeenCalledWith(expect.objectContaining({ phone: '08031234569', name: 'Amaka Obi', consent: true, source: 'PAY', orderId: 'o1' }))
+      expect(customersApi.capturePhone).not.toHaveBeenCalled()
+      expect(onResolved).toHaveBeenCalledWith(expect.objectContaining({ id: 'c3', isMember: true }))
+      expect(toast.success).toHaveBeenCalledWith('Number saved — +1 credit to you · loyalty member')
+    })
+
+    it('requires a name to enrol a brand-new customer', async () => {
+      vi.mocked(loyaltyApi.settings).mockResolvedValue(LOYALTY_ON)
+      vi.mocked(customersApi.lookupPhone).mockResolvedValue({ valid: true, e164: '+2348031234569', customer: null })
+      const { user } = renderField()
+      await type(user, '08031234569')
+      await user.click(await screen.findByLabelText('Loyalty member'))
+      await user.click(screen.getByLabelText(/agrees to receive loyalty offers/i))
+      expect(screen.getByRole('button', { name: /save and enrol/i })).toBeDisabled()
+    })
+
+    it('lets staff enrol the customer already on the order when they have a number but are not a member', async () => {
+      vi.mocked(loyaltyApi.settings).mockResolvedValue(LOYALTY_ON)
+      vi.mocked(loyaltyApi.enrol).mockResolvedValue({ customer: { id: 'c1', name: 'Ada', phone: '+2348031234569', isMember: true }, enrolled: true, phoneCredited: false })
+      const { user, onResolved } = renderField({ customer: { id: 'c1', name: 'Ada', phone: '+2348031234569' } })
+      await user.click(await screen.findByRole('button', { name: /enrol ada in loyalty/i }))
+      const enrol = screen.getByRole('button', { name: 'Enrol' })
+      expect(enrol).toBeDisabled()
+      await user.click(screen.getByLabelText(/agrees to receive loyalty offers/i))
+      await user.click(enrol)
+      await waitFor(() => expect(loyaltyApi.enrol).toHaveBeenCalledWith(expect.objectContaining({ customerId: 'c1', consent: true, source: 'ORDER' })))
+      expect(onResolved).toHaveBeenCalledWith(expect.objectContaining({ id: 'c1', isMember: true }))
+    })
+
+    it('asks for a name when the customer\'s name is just their number', async () => {
+      vi.mocked(loyaltyApi.settings).mockResolvedValue(LOYALTY_ON)
+      const { user } = renderField({ customer: { id: 'c1', name: '+2348031234569', phone: '+2348031234569' } })
+      await user.click(await screen.findByRole('button', { name: /enrol .* in loyalty/i }))
+      await user.click(screen.getByLabelText(/agrees to receive loyalty offers/i))
+      expect(screen.getByRole('button', { name: 'Enrol' })).toBeDisabled()
+      await user.type(screen.getByLabelText('Customer name'), 'Ada Obi')
+      expect(screen.getByRole('button', { name: 'Enrol' })).toBeEnabled()
+    })
+
+    it('shows nothing for a customer who is already a member', async () => {
+      vi.mocked(loyaltyApi.settings).mockResolvedValue(LOYALTY_ON)
+      renderField({ customer: { id: 'c1', name: 'Ada', phone: '+2348031234569', isMember: true } })
+      await waitFor(() => expect(loyaltyApi.settings).toHaveBeenCalled())
+      expect(screen.queryByRole('button', { name: /in loyalty/i })).not.toBeInTheDocument()
+    })
   })
 })
