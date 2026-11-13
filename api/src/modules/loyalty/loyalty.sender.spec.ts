@@ -49,7 +49,7 @@ describe('LoyaltySender', () => {
 
   const logged = (spy: jest.SpyInstance) => spy.mock.calls.map((c) => String(c[0]));
 
-  it('sends the reward message and logs that WhatsApp accepted it, with the message id and no personal details', async () => {
+  it('sends the reward message and logs that WhatsApp accepted it, by our message id and with no personal details', async () => {
     const { sender, whatsapp, prisma } = setup();
     await sender.run();
     expect(whatsapp.sendCustomerTemplate).toHaveBeenCalledWith(
@@ -57,7 +57,9 @@ describe('LoyaltySender', () => {
     );
     expect(prisma.loyaltyMessage.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'SENT', providerMessageId: 'wamid.1' }) }));
     const lines = logged(log);
-    expect(lines.some((l) => l.includes('REWARD_EARNED message m1') && l.includes('SENT') && l.includes('wamid.1'))).toBe(true);
+    expect(lines.some((l) => l.includes('REWARD_EARNED message m1') && l.includes('SENT to WhatsApp as loyalty_reward_earned_v1'))).toBe(true);
+    // WhatsApp's own message id encodes the recipient's number, so it is not logged
+    expect(lines.join(' ')).not.toContain('wamid');
     expect(lines.some((l) => l.includes('1 picked up — 1 sent, 0 skipped, 0 will retry, 0 failed'))).toBe(true);
     // never the phone number or the customer's name
     expect([...lines, ...logged(warn)].join(' ')).not.toMatch(/2348031234569|Amaka/);
