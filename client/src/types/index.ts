@@ -237,6 +237,10 @@ export interface Customer {
   isActive: boolean
   walletBalance: number
   creditLimit: number
+  /** Loyalty member: enrolled on purpose, separate from having a phone number */
+  isMember?: boolean
+  enrolledAt?: string | null
+  lifetimeSpend?: number | string
   createdAt: string
   _count?: {
     orders: number
@@ -542,6 +546,8 @@ export interface OrderItem {
   unitPrice: number
   amount: number
   notes?: string
+  /** Set when this line is a redeemed loyalty reward (₦0) */
+  loyaltyRewardId?: string | null
   status: OrderItemStatus
   assignedToId?: string | null
   assignedTo?: { id: string; firstName: string; lastName: string } | null
@@ -563,13 +569,24 @@ export interface OrderPayment {
   createdAt: string
 }
 
+/** What paying an order earned its loyalty member (sent back with the closing payment) */
+export interface LoyaltyEarned {
+  customerId: string
+  amount: number
+  lifetimeSpend: number
+  rewards: { ruleId: string; name: string; count: number }[]
+}
+
 export interface Order {
   id: string
   organizationId: string
+  loyalty?: LoyaltyEarned
+  /** The part of the discount that is a loyalty member discount */
+  memberDiscountAmount?: number | string
   tableId?: string
   table?: { id: string; name: string; section?: string } | null
   customerId?: string
-  customer?: { id: string; name: string; phone?: string } | null
+  customer?: { id: string; name: string; phone?: string; isMember?: boolean } | null
   waiterId?: string
   waiter?: { id: string; firstName: string; lastName: string; phone?: string } | null
   createdById: string

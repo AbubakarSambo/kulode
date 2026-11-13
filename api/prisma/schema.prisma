@@ -222,10 +222,15 @@ model Organization {
 
   // Drives "today"/"same business day" for period pacing and locking, and how phone numbers typed
   // without a country code are read. Defaults suit the existing Nigerian customers.
-  timezone       String   @default("Africa/Lagos")
-  phoneCountry   String   @default("NG") @map("phone_country")
+  timezone          String    @default("Africa/Lagos")
+  phoneCountry      String    @default("NG") @map("phone_country")
   // Numbers staff may not save (any format) — extra to the built-in made-up-number checks.
-  phoneBlocklist String[] @default([]) @map("phone_blocklist")
+  phoneBlocklist    String[]  @default([]) @map("phone_blocklist")
+  // Loyalty programme (restaurant orgs only). Spend counts from loyaltyStartAt — set the first time
+  // the programme is switched on; there is no back-credit for earlier orders.
+  loyaltyEnabled    Boolean   @default(false) @map("loyalty_enabled")
+  loyaltyStartAt    DateTime? @map("loyalty_start_at")
+  loyaltyExpiryDays Int       @default(90) @map("loyalty_expiry_days")
 
   // Paystack integration
   paystackSubaccountCode String? @map("paystack_subaccount_code")
@@ -378,6 +383,12 @@ model Organization {
   customers            Customer[]
   phoneCredits         PhoneCredit[]
   collectionPeriods    CollectionPeriod[]
+  loyaltyRewardRules   LoyaltyRewardRule[]
+  loyaltyLedger        LoyaltyLedger[]
+  loyaltyRewards       LoyaltyReward[]
+  loyaltyMessages      LoyaltyMessage[]
+  memberDiscounts      MemberDiscount[]
+  coverageSnapshots    CoverageSnapshot[]
   invoices             Invoice[]
   payments             Payment[]
   expenses             Expense[]
@@ -566,19 +577,28 @@ model Client {
 
 // Restaurant/POS diner profiles — distinct from Client (invoicing customers)
 model Customer {
-  id             String  @id @default(uuid())
-  organizationId String  @map("organization_id")
-  name           String
-  phone          String?
-  email          String?
-  notes          String?
-  isActive       Boolean @default(true) @map("is_active")
-  walletBalance  Decimal @default(0) @map("wallet_balance") @db.Decimal(12, 2)
+  id               String              @id @default(uuid())
+  organizationId   String              @map("organization_id")
+  name             String
+  phone            String?
+  email            String?
+  notes            String?
+  isActive         Boolean             @default(true) @map("is_active")
+  walletBalance    Decimal             @default(0) @map("wallet_balance") @db.Decimal(12, 2)
   // Who first saved this customer (null for customers that pre-date attribution).
-  createdById    String? @map("created_by")
+  createdById      String?             @map("created_by")
+  // Loyalty membership is a deliberate step (staff switch it on), separate from having a phone
+  // number on file. lifetimeSpend is a cache of the loyalty ledger.
+  isMember         Boolean             @default(false) @map("is_member")
+  enrolledById     String?             @map("enrolled_by")
+  enrolledAt       DateTime?           @map("enrolled_at")
+  enrolSource      LoyaltyEnrolSource? @map("enrol_source")
+  // When staff recorded that the customer agreed to receive loyalty messages on WhatsApp/SMS.
+  messageConsentAt DateTime?           @map("message_consent_at")
+  lifetimeSpend    Decimal             @default(0) @map("lifetime_spend") @db.Decimal(14, 2)
   // Max the wallet may go negative by (on-account credit). 0 = no credit approved.
   // Only an ADMIN/SUPER_ADMIN can raise this; any role can then spend against it.
-  creditLimit    Decimal @default(0) @map("credit_limit") @db.Decimal(12, 2)
+  creditLimit      Decimal             @default(0) @map("credit_limit") @db.Decimal(12, 2)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -589,9 +609,13 @@ model Customer {
   walletTransactions        WalletTransaction[]
   walletTopUpsFromTransfers MoniepointUnreconciledTransfer[]
   phoneCredits              PhoneCredit[]
+  loyaltyLedger             LoyaltyLedger[]
+  loyaltyRewards            LoyaltyReward[]
+  loyaltyMessages           LoyaltyMessage[]
 
   @@unique([organizationId, phone])
   @@index([organizationId])
+  @@index([organizationId, isMember])
   @@map("customers")
 }
 
@@ -1479,11 +1503,12 @@ model MenuItem {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  organization  Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  inventoryItem InventoryItem?       @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
-  orderItems    OrderItem[]
-  categories    MenuItemCategory[]
-  ingredients   MenuItemIngredient[]
+  organization     Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inventoryItem    InventoryItem?          @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  orderItems       OrderItem[]
+  categories       MenuItemCategory[]
+  ingredients      MenuItemIngredient[]
+  loyaltyRuleItems LoyaltyRewardRuleItem[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -1644,6 +1669,8 @@ model Order {
   discountType         String  @default("PERCENTAGE") @map("discount_type")
   discountPercent      Decimal @default(0) @map("discount_percent") @db.Decimal(5, 2)
   discountAmount       Decimal @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  // The part of discountAmount that is a loyalty member discount (the rest, if any, is a manual discount).
+  memberDiscountAmount Decimal @default(0) @map("member_discount_amount") @db.Decimal(12, 2)
   discountReason       String? @map("discount_reason")
   discountAppliedById  String? @map("discount_applied_by")
   discountAppliedBy    User?   @relation("OrderDiscountAppliedBy", fields: [discountAppliedById], references: [id], onDelete: SetNull)
@@ -1778,6 +1805,8 @@ model OrderItem {
   // role, since who's tagged for kitchen vs. drinks varies by org. Set by whoever's coordinating
   // the station (expo/manager), not by the assignee themselves.
   assignedToId    String?         @map("assigned_to_id")
+  // Set when this line is a redeemed loyalty reward (priced at ₦0). Cleared if the reward is given back.
+  loyaltyRewardId String?         @unique @map("loyalty_reward_id")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1798,10 +1827,204 @@ model OrderItem {
   menuItem      MenuItem?      @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
   inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
   assignedTo    User?          @relation("OrderItemAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  loyaltyReward LoyaltyReward? @relation(fields: [loyaltyRewardId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
   @@index([menuItemId])
   @@index([inventoryItemId])
   @@index([assignedToId])
   @@map("order_items")
+}
+
+enum LoyaltyEnrolSource {
+  ORDER
+  PAY
+  QUICK_ADD
+  CUSTOMER_FORM
+}
+
+// One reward the programme gives: "for every thresholdAmount of lifetime spend, a free item from
+// this list". Rows (not fixed columns) so an org can have one reward, two (the Living Room's meal
+// reward + milestone platter) or more. Edited by id; a rule that earned rewards is deactivated,
+// never deleted.
+model LoyaltyRewardRule {
+  id              String   @id @default(uuid())
+  organizationId  String   @map("organization_id")
+  name            String
+  thresholdAmount Decimal  @map("threshold_amount") @db.Decimal(14, 2)
+  // true = earned again at 2x, 3x…; false = once, at the first threshold.
+  repeating       Boolean  @default(true)
+  // Most of this reward redeemable on one order (null = no limit).
+  maxPerOrder     Int?     @map("max_per_order")
+  // What the free item costs the business, for reward-cost reporting.
+  foodCost        Decimal  @default(0) @map("food_cost") @db.Decimal(12, 2)
+  isActive        Boolean  @default(true) @map("is_active")
+  sortOrder       Int      @default(0) @map("sort_order")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  items        LoyaltyRewardRuleItem[]
+  rewards      LoyaltyReward[]
+
+  @@index([organizationId])
+  @@map("loyalty_reward_rules")
+}
+
+// The menu items a customer may pick from when redeeming a reward.
+model LoyaltyRewardRuleItem {
+  ruleId     String @map("rule_id")
+  menuItemId String @map("menu_item_id")
+
+  rule     LoyaltyRewardRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  menuItem MenuItem          @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@id([ruleId, menuItemId])
+  @@index([menuItemId])
+  @@map("loyalty_reward_rule_items")
+}
+
+enum LoyaltyLedgerType {
+  SPEND
+  ADJUSTMENT
+  REVERSAL
+}
+
+enum LoyaltyRewardStatus {
+  AVAILABLE
+  REDEEMED
+  EXPIRED
+  CANCELLED
+}
+
+// Append-only record of every change to a member's lifetime spend. amount is signed: a SPEND is
+// positive, a REVERSAL negative. The unique key makes crediting an order idempotent — a retry, a
+// second payment path or the catch-up job can never credit the same order to the same customer twice.
+model LoyaltyLedger {
+  id             String            @id @default(uuid())
+  organizationId String            @map("organization_id")
+  customerId     String            @map("customer_id")
+  orderId        String?           @map("order_id")
+  amount         Decimal           @db.Decimal(14, 2)
+  entryType      LoyaltyLedgerType @map("entry_type")
+  note           String?
+  createdById    String?           @map("created_by")
+  createdAt      DateTime          @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, customerId, entryType])
+  @@index([organizationId, customerId, createdAt])
+  @@map("loyalty_ledger")
+}
+
+// One earned reward. Each is its own row so it can be redeemed, expire or be cancelled on its own.
+model LoyaltyReward {
+  id                 String              @id @default(uuid())
+  organizationId     String              @map("organization_id")
+  customerId         String              @map("customer_id")
+  ruleId             String              @map("rule_id")
+  status             LoyaltyRewardStatus @default(AVAILABLE)
+  earnedOrderId      String?             @map("earned_order_id")
+  earnedAt           DateTime            @default(now()) @map("earned_at")
+  expiresAt          DateTime            @map("expires_at")
+  redeemedOrderId    String?             @map("redeemed_order_id")
+  redeemedMenuItemId String?             @map("redeemed_menu_item_id")
+  // Snapshots at redemption, for reward-cost reporting: what the item sells for, and what it costs the business.
+  redeemedMenuPrice  Decimal?            @map("redeemed_menu_price") @db.Decimal(12, 2)
+  redeemedFoodCost   Decimal?            @map("redeemed_food_cost") @db.Decimal(12, 2)
+  redeemedById       String?             @map("redeemed_by")
+  redeemedAt         DateTime?           @map("redeemed_at")
+  createdAt          DateTime            @default(now()) @map("created_at")
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  rule         LoyaltyRewardRule @relation(fields: [ruleId], references: [id])
+  orderItem    OrderItem?
+
+  @@index([organizationId, customerId, status])
+  @@index([status, expiresAt])
+  @@index([earnedOrderId])
+  @@index([redeemedOrderId])
+  @@map("loyalty_rewards")
+}
+
+enum LoyaltyMessageKind {
+  WELCOME
+  REWARD_EARNED
+}
+
+enum LoyaltyMessageStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+// Outbox for customer WhatsApp messages. Enrolling a member or earning a reward only writes a row
+// here (inside the same transaction, so it can't be lost or sent for a rolled-back change); a
+// worker sends them with retries and a per-run cap per organization. A failed WELCOME shows in the
+// Welcome queue so staff can follow up by hand.
+model LoyaltyMessage {
+  id                String               @id @default(uuid())
+  organizationId    String               @map("organization_id")
+  customerId        String               @map("customer_id")
+  kind              LoyaltyMessageKind
+  status            LoyaltyMessageStatus @default(PENDING)
+  // Template values decided when the message was queued (e.g. the reward text and expiry date).
+  payload           Json?
+  attempts          Int                  @default(0)
+  nextAttemptAt     DateTime             @default(now()) @map("next_attempt_at")
+  lastError         String?              @map("last_error")
+  providerMessageId String?              @map("provider_message_id")
+  sentAt            DateTime?            @map("sent_at")
+  // Staff followed up a failed message by hand.
+  resolvedAt        DateTime?            @map("resolved_at")
+  resolvedById      String?              @map("resolved_by")
+  createdAt         DateTime             @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
+  @@index([organizationId, kind, status])
+  @@index([customerId])
+  @@map("loyalty_messages")
+}
+
+// A percentage off chosen menu items and/or whole categories, for loyalty members only. Applied
+// from the order screen with no PIN (the rule is preset); stored in the order's discount.
+model MemberDiscount {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  name           String
+  ratePct        Decimal  @map("rate_pct") @db.Decimal(5, 2)
+  menuItemIds    String[] @default([]) @map("menu_item_ids")
+  categoryIds    String[] @default([]) @map("category_ids")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("member_discounts")
+}
+
+// One row per organization per local day: how many active customers there are and how many have a
+// valid phone number, written by an hourly job (the last write of the day wins). History can't be
+// reconstructed afterwards, so this is what makes "coverage by day" accurate going forward.
+model CoverageSnapshot {
+  organizationId String   @map("organization_id")
+  // 'YYYY-MM-DD' in the organization's timezone
+  date           String
+  customers      Int
+  withPhone      Int      @map("with_phone")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, date])
+  @@map("coverage_snapshots")
 }
