@@ -61,7 +61,14 @@ import {
     SentryModule.forRoot(),
     ConfigModule,
     ThrottlerModule.forRoot([{ name: 'global', ttl: 60000, limit: 60 }]),
-    ScheduleModule.forRoot(),
+    // SCHEDULER_DISABLED=true starts the API with no @Cron/@Interval jobs running, so a second
+    // copy can be brought up next to the live one (e.g. while moving the service) without every
+    // scheduled job firing twice. Leave it unset everywhere else.
+    ScheduleModule.forRoot(
+      process.env.SCHEDULER_DISABLED === 'true'
+        ? { cronJobs: false, intervals: false, timeouts: false }
+        : {},
+    ),
     PrismaModule,
     EmailModule,
     AuthModule,
