@@ -156,6 +156,16 @@ enum TableStatus {
   NEEDS_CLEANING
 }
 
+enum HeldSaleStatus {
+  HELD
+  // Picked back up at a till — the cart was loaded for checkout.
+  RECALLED
+  // Thrown away by staff, with the audit trail kept (who, when).
+  DISCARDED
+  // Left parked past the retention window and swept away by the system.
+  EXPIRED
+}
+
 enum OrderStatus {
   // No longer written by any app code (the draft-order feature was reverted) — kept here only
   // because real rows with this status already exist in the database from when it was briefly
@@ -409,6 +419,7 @@ model Organization {
   menuItems                       MenuItem[]
   orders                          Order[]
   orderTypes                      OrderType[]
+  heldSales                       HeldSale[]
   paymentTypes                    PaymentType[]
   shifts                          Shift[]
   idempotencyKeys                 IdempotencyKey[]
@@ -473,6 +484,8 @@ model User {
   ordersCancelled               Order[]                          @relation("OrderCancelledBy")
   cancellationsApproved         Order[]                          @relation("OrderCancelApprovedBy")
   openedShifts                  Shift[]                          @relation("ShiftOpenedByUser")
+  heldSales                     HeldSale[]                       @relation("HeldSaleHeldBy")
+  recalledHeldSales             HeldSale[]                       @relation("HeldSaleRecalledBy")
   closedShifts                  Shift[]                          @relation("ShiftClosedByUser")
   walletTransactions            WalletTransaction[]
   phoneCredits                  PhoneCredit[]                    @relation("PhoneCreditUser")
@@ -1440,6 +1453,34 @@ model MenuCategory {
 // Per-org order types (e.g. Dine In, Takeaway, or something org-specific like "Hotel Room
 // Service" for a restaurant with an attached hotel). Order.source stores this row's `name`
 // directly as a plain string — no separate translation layer, same as Printer.station.
+// A retail cart parked at one till so the cashier can serve the next customer ("hold"), to be
+// picked up at ANY till in the org ("recall") — customers wander between lanes. Deliberately its
+// own table, not an Order status: every report, the accounting feed and the kitchen board key off
+// Order.status, and a parked cart is not a sale. No stock is reserved while parked.
+model HeldSale {
+  id             String         @id @default(uuid())
+  organizationId String         @map("organization_id")
+  heldById       String         @map("held_by")
+  // Cashier-typed tag ("blue jacket") so a returning customer can be found in the list.
+  label          String?
+  // [{ inventoryItemId, name, quantity, unitPrice }] — name/unitPrice are what the cashier saw at
+  // hold time, used on recall only to flag a price that has since changed.
+  items          Json
+  // The wallet customer attached to the cart, if any.
+  customerId     String?        @map("customer_id")
+  status         HeldSaleStatus @default(HELD)
+  recalledById   String?        @map("recalled_by")
+  settledAt      DateTime?      @map("settled_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  heldBy       User         @relation("HeldSaleHeldBy", fields: [heldById], references: [id])
+  recalledBy   User?        @relation("HeldSaleRecalledBy", fields: [recalledById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@map("held_sales")
+}
+
 model OrderType {
   id             String  @id @default(uuid())
   organizationId String  @map("organization_id")
