@@ -2,11 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Trash2, Minus, Plus, ScanLine, X } from 'lucide-react'
+import { Trash2, Minus, Plus, ScanLine, X, PauseCircle, ListRestart } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Input, Label, SearchableSelect } from '@/components/ui'
-import { customersApi, inventoryApi, ordersApi, organizationsApi, paymentTypesApi } from '@/api'
-import { cn, formatCurrency, formatPaymentMethod } from '@/lib/utils'
+import { customersApi, heldSalesApi, inventoryApi, ordersApi, organizationsApi, paymentTypesApi } from '@/api'
+import { cn, formatCurrency, formatDateTime, formatPaymentMethod } from '@/lib/utils'
 import { printOrderBill } from '@/lib/sendBill'
 import { computeOrderCharges } from '@/lib/orderCharges'
 import type { Customer, InventoryItem } from '@/types'
@@ -232,6 +232,104 @@ export function RetailCheckoutPage() {
   const balanceAfter = walletCustomer ? walletCustomer.walletBalance - total : undefined
   const exceedsCredit = walletCustomer !== null && balanceAfter !== undefined && balanceAfter < -walletCustomer.creditLimit
 
+  // ── Hold / recall ─────────────────────────────────────────────────────────────────────────────
+  // A customer who left to fetch something doesn't lose their place: the cart is parked on the
+  // server, so it shows up at EVERY lane and can be picked up wherever they come back to.
+  const [showHeld, setShowHeld] = useState(false)
+  const [isHolding, setIsHolding] = useState(false)
+  const [recallingId, setRecallingId] = useState<string | null>(null)
+  const { data: heldSales = [], refetch: refetchHeld } = useQuery({
+    queryKey: ['held-sales'],
+    queryFn: () => heldSalesApi.list(),
+    // Other lanes park carts too, so keep the badge fresh without anyone reloading
+    refetchInterval: 15_000,
+    enabled: isOnline,
+  })
+
+  const holdSale = async () => {
+    if (cart.length === 0) return
+    setIsHolding(true)
+    try {
+      await heldSalesApi.hold({
+        items: cart.map((line) => ({ inventoryItemId: line.inventoryItemId, quantity: line.quantity })),
+        ...(walletCustomer && { customerId: walletCustomer.id }),
+      })
+      setCart([])
+      setWalletCustomer(null)
+      setPaymentMethod(paymentOptions[0]?.name ?? '')
+      toast.success('Sale held — recall it from any lane')
+      refetchHeld()
+      refocusScanInput()
+    } catch (err) {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Could not hold the sale')
+    } finally {
+      setIsHolding(false)
+    }
+  }
+
+  const recallSale = async (id: string) => {
+    // Never merge two customers' carts: the cashier decides what happens to the current one first
+    if (cart.length > 0) {
+      toast.error('Finish or hold the current sale before recalling another')
+      return
+    }
+    setRecallingId(id)
+    try {
+      const recalled = await heldSalesApi.recall(id)
+      const sellable = recalled.lines.filter((line) => !line.unavailable)
+      const dropped = recalled.lines.filter((line) => line.unavailable)
+      setCart(
+        sellable.map((line) => ({
+          inventoryItemId: line.inventoryItemId,
+          name: line.name,
+          quantity: line.quantity,
+          unitPrice: line.unitPrice,
+        })),
+      )
+      const repriced = sellable.filter((line) => line.priceChanged)
+      if (dropped.length > 0) {
+        toast.error(`No longer sellable, left out: ${dropped.map((l) => l.name).join(', ')}`)
+      }
+      if (repriced.length > 0) {
+        toast.warning(
+          `Price changed since this was held: ${repriced
+            .map((l) => `${l.name} ${formatCurrency(l.heldUnitPrice)} → ${formatCurrency(l.unitPrice)}`)
+            .join(', ')}`,
+        )
+      }
+      if (recalled.customerId && isOnline) {
+        try {
+          setWalletCustomer(await customersApi.get(recalled.customerId))
+          setPaymentMethod(WALLET)
+        } catch {
+          toast.error('Could not reattach the wallet customer — pick them again before charging')
+        }
+      }
+      setShowHeld(false)
+      refetchHeld()
+      refocusScanInput()
+    } catch (err) {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      // Typically "already picked up at another till" — refresh so the stale row disappears
+      toast.error(message || 'Could not recall that sale')
+      refetchHeld()
+    } finally {
+      setRecallingId(null)
+    }
+  }
+
+  const discardHeld = async (id: string) => {
+    try {
+      await heldSalesApi.discard(id)
+      refetchHeld()
+    } catch (err) {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Could not discard that sale')
+      refetchHeld()
+    }
+  }
+
   const charge = async () => {
     if (cart.length === 0) return
     if (!paymentMethod) {
@@ -365,6 +463,68 @@ export function RetailCheckoutPage() {
             )}
           </div>
         </form>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={holdSale}
+            disabled={cart.length === 0 || isHolding || !isOnline}
+            isLoading={isHolding}
+            title={!isOnline ? 'Holding a sale needs a connection' : undefined}
+          >
+            <PauseCircle className="mr-1.5 h-4 w-4" />
+            Hold sale
+          </Button>
+          <Button
+            variant={showHeld ? 'secondary' : 'outline'}
+            size="sm"
+            onClick={() => {
+              if (!showHeld) refetchHeld()
+              setShowHeld((v) => !v)
+            }}
+            disabled={!isOnline}
+            title={!isOnline ? 'Held sales need a connection' : undefined}
+          >
+            <ListRestart className="mr-1.5 h-4 w-4" />
+            Held ({heldSales.length})
+          </Button>
+        </div>
+
+        {showHeld && (
+          <Card>
+            <CardContent className="space-y-2 p-3">
+              {heldSales.length === 0 && (
+                <p className="py-2 text-center text-sm text-muted-foreground">No held sales</p>
+              )}
+              {heldSales.map((held) => (
+                <div key={held.id} className="flex items-center justify-between gap-3 rounded-md border border-border p-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-foreground">
+                      {held.label || held.preview.join(', ')}
+                      {!held.label && held.itemCount > held.preview.length ? '…' : ''}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {held.itemCount} item{held.itemCount === 1 ? '' : 's'} · {formatCurrency(held.total)} · held by{' '}
+                      {held.heldByName} · {formatDateTime(held.createdAt)}
+                    </div>
+                  </div>
+                  <Button size="sm" onClick={() => recallSale(held.id)} isLoading={recallingId === held.id}>
+                    Recall
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Discard held sale"
+                    onClick={() => discardHeld(held.id)}
+                  >
+                    <Trash2 className="h-4 w-4 text-error" />
+                  </Button>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         <div className="space-y-2">
           {cart.length === 0 && (

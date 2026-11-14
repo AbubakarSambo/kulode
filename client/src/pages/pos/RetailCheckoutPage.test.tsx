@@ -5,21 +5,22 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { toast } from 'sonner'
 import { RetailCheckoutPage } from './RetailCheckoutPage'
-import { customersApi, inventoryApi, ordersApi, organizationsApi, paymentTypesApi } from '@/api'
+import { customersApi, heldSalesApi, inventoryApi, ordersApi, organizationsApi, paymentTypesApi } from '@/api'
 import type { Customer, InventoryItem } from '@/types'
 
 vi.mock('@/api', () => ({
   inventoryApi: { list: vi.fn(), lookupByBarcode: vi.fn() },
   ordersApi: { create: vi.fn(), close: vi.fn(), getReceiptData: vi.fn() },
   paymentTypesApi: { list: vi.fn() },
-  customersApi: { list: vi.fn() },
+  customersApi: { list: vi.fn(), get: vi.fn() },
+  heldSalesApi: { list: vi.fn().mockResolvedValue([]), hold: vi.fn(), recall: vi.fn(), discard: vi.fn() },
   organizationsApi: { getCurrent: vi.fn() },
 }))
 
 vi.mock('@/lib/sendBill', () => ({ printOrderBill: vi.fn() }))
 
 vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }))
 
 function item(overrides: Partial<InventoryItem>): InventoryItem {
@@ -252,3 +253,121 @@ describe('RetailCheckoutPage tax', () => {
   })
 })
 
+
+describe('RetailCheckoutPage hold and recall', () => {
+  const heldRow = {
+    id: 'held-1',
+    label: null,
+    createdAt: '2026-11-14T10:00:00Z',
+    heldByName: 'Ada Obi',
+    preview: ['Mama Gold Rice 5kg'],
+    itemCount: 1,
+    total: 9000,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(inventoryApi.list).mockResolvedValue(catalog)
+    vi.mocked(paymentTypesApi.list).mockResolvedValue([])
+    vi.mocked(organizationsApi.getCurrent).mockResolvedValue({} as never)
+    vi.mocked(heldSalesApi.list).mockResolvedValue([])
+  })
+
+  async function addMilk(user: ReturnType<typeof userEvent.setup>) {
+    await user.type(screen.getByLabelText('Scan barcode or search'), 'peak')
+    await user.click(await screen.findByRole('option', { name: /Peak Milk 400g/ }))
+  }
+
+  it('parks the cart on the server and clears the till for the next customer', async () => {
+    const user = userEvent.setup()
+    vi.mocked(heldSalesApi.hold).mockResolvedValue({ id: 'held-1' })
+    renderPage()
+    await waitFor(() => expect(heldSalesApi.list).toHaveBeenCalled())
+    await addMilk(user)
+
+    await user.click(screen.getByRole('button', { name: /Hold sale/ }))
+
+    await waitFor(() =>
+      expect(heldSalesApi.hold).toHaveBeenCalledWith({ items: [{ inventoryItemId: 'milk', quantity: 1 }] }),
+    )
+    expect(await screen.findByText(/Cart is empty/)).toBeInTheDocument()
+  })
+
+  it("won't hold an empty cart", async () => {
+    renderPage()
+    await waitFor(() => expect(heldSalesApi.list).toHaveBeenCalled())
+    expect(screen.getByRole('button', { name: /Hold sale/ })).toBeDisabled()
+  })
+
+  it("shows carts held at other lanes and loads one back into the cart", async () => {
+    const user = userEvent.setup()
+    vi.mocked(heldSalesApi.list).mockResolvedValue([heldRow])
+    vi.mocked(heldSalesApi.recall).mockResolvedValue({
+      id: 'held-1',
+      label: null,
+      customerId: null,
+      lines: [
+        { inventoryItemId: 'rice', name: 'Mama Gold Rice 5kg', quantity: 1, unitPrice: 9000, heldUnitPrice: 9000, priceChanged: false, unavailable: false },
+      ],
+    })
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Held (1)' }))
+    expect(screen.getByText(/held by Ada Obi/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Recall' }))
+
+    await waitFor(() => expect(heldSalesApi.recall).toHaveBeenCalledWith('held-1'))
+    expect(await screen.findByRole('button', { name: 'Charge ₦9,000' })).toBeInTheDocument()
+  })
+
+  it('refuses to recall over a sale already in progress', async () => {
+    const user = userEvent.setup()
+    vi.mocked(heldSalesApi.list).mockResolvedValue([heldRow])
+    renderPage()
+    await addMilk(user)
+    await user.click(await screen.findByRole('button', { name: 'Held (1)' }))
+
+    await user.click(screen.getByRole('button', { name: 'Recall' }))
+
+    expect(heldSalesApi.recall).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('Finish or hold the current sale before recalling another')
+  })
+
+  it('warns about repriced lines and drops ones that can no longer be sold', async () => {
+    const user = userEvent.setup()
+    vi.mocked(heldSalesApi.list).mockResolvedValue([heldRow])
+    vi.mocked(heldSalesApi.recall).mockResolvedValue({
+      id: 'held-1',
+      label: null,
+      customerId: null,
+      lines: [
+        { inventoryItemId: 'milk', name: 'Peak Milk 400g', quantity: 1, unitPrice: 2600, heldUnitPrice: 2500, priceChanged: true, unavailable: false },
+        { inventoryItemId: 'rice', name: 'Mama Gold Rice 5kg', quantity: 1, unitPrice: 9000, heldUnitPrice: 9000, priceChanged: false, unavailable: true },
+      ],
+    })
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Held (1)' }))
+    await user.click(screen.getByRole('button', { name: 'Recall' }))
+
+    await waitFor(() => expect(toast.warning).toHaveBeenCalled())
+    expect(vi.mocked(toast.warning).mock.calls[0][0]).toContain('Peak Milk 400g')
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('left out: Mama Gold Rice 5kg'))
+    expect(screen.queryByText('Mama Gold Rice 5kg')).not.toBeInTheDocument()
+  })
+
+  it('reports a sale another lane already picked up and refreshes the list', async () => {
+    const user = userEvent.setup()
+    vi.mocked(heldSalesApi.list).mockResolvedValue([heldRow])
+    vi.mocked(heldSalesApi.recall).mockRejectedValue({
+      response: { data: { message: 'This sale has already been picked up at another till' } },
+    })
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Held (1)' }))
+    await user.click(screen.getByRole('button', { name: 'Recall' }))
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('This sale has already been picked up at another till'),
+    )
+    expect(vi.mocked(heldSalesApi.list).mock.calls.length).toBeGreaterThan(1)
+  })
+})
