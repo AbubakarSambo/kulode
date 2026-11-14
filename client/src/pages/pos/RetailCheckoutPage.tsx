@@ -427,7 +427,7 @@ export function RetailCheckoutPage() {
               <ul
                 id="barcode-scan-suggestions"
                 role="listbox"
-                className="absolute z-20 mt-1 max-h-80 w-full overflow-y-auto rounded-md border border-border bg-surface-container-lowest shadow-lg"
+                className="absolute z-50 mt-1 max-h-80 w-full overflow-y-auto rounded-md border border-border bg-card shadow-lg"
               >
                 {suggestions.map((item, index) => (
                   <li
@@ -444,7 +444,7 @@ export function RetailCheckoutPage() {
                     onMouseEnter={() => setActiveIndex(index)}
                     className={cn(
                       'flex cursor-pointer items-center justify-between gap-3 px-3 py-2 text-sm',
-                      index === activeIndex ? 'bg-surface-container' : 'hover:bg-surface-container-low',
+                      index === activeIndex ? 'bg-muted' : 'hover:bg-muted/60',
                     )}
                   >
                     <div className="min-w-0">

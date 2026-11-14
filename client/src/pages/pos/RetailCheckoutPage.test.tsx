@@ -76,6 +76,9 @@ describe('RetailCheckoutPage search', () => {
     await user.type(screen.getByLabelText('Scan barcode or search'), 'mil')
 
     expect(await screen.findByRole('option', { name: /Peak Milk 400g/ })).toBeInTheDocument()
+    // The list must paint over the cart and Hold/Held buttons beneath it: a solid theme background
+    // (an undefined colour class leaves it transparent) above them in the stacking order.
+    expect(screen.getByRole('listbox')).toHaveClass('bg-card', 'z-50')
     expect(screen.getByRole('option', { name: /Milo Refill 500g/ })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /Rice/ })).not.toBeInTheDocument()
 
