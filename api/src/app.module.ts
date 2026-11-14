@@ -38,6 +38,7 @@ import { CollectionModule } from './modules/collection';
 import { LoyaltyModule } from './modules/loyalty';
 import { PrintersModule } from './modules/printers';
 import { OrderTypesModule } from './modules/order-types';
+import { HeldSalesModule } from './modules/held-sales';
 import { PaymentTypesModule } from './modules/payment-types';
 import { FeedModule } from './modules/feed';
 import { DemoModule } from './modules/demo';
@@ -94,6 +95,7 @@ import {
     LoyaltyModule,
     PrintersModule,
     OrderTypesModule,
+    HeldSalesModule,
     PaymentTypesModule,
     FeedModule,
     DemoModule,
