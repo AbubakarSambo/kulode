@@ -32,6 +32,10 @@ async function bootstrap() {
           callback(new Error(`Origin ${origin} not allowed by CORS`));
         },
     credentials: true,
+    // Without this browsers remember the cross-origin permission check for only 5 seconds, so most
+    // calls from the web app cost two round trips. From Nigeria to the API that is ~500 ms each.
+    // 7200 is the longest Chrome honours.
+    maxAge: 7200,
   });
 
   // Validation pipe
