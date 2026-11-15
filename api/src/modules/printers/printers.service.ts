@@ -1,7 +1,8 @@
-import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { AGENT_ONLINE_WINDOW_MS, SCAN_REQUEST_TTL_MS } from './print-agent.guard';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { CreatePrinterDto, UpdatePrinterDto, SetPrinterCategoriesDto } from './dto';
 
 const PAIRING_CODE_TTL_MS = 15 * 60 * 1000;
@@ -29,7 +30,10 @@ export function normalizePairingCode(raw: string): string {
 export class PrintersService {
   private readonly logger = new Logger(PrintersService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Optional() private analytics?: AnalyticsService,
+  ) {}
 
   async findAll(organizationId: string) {
     return this.prisma.printer.findMany({
@@ -56,7 +60,7 @@ export class PrintersService {
       throw new ConflictException('A printer with this name already exists');
     }
 
-    return this.prisma.printer.create({
+    const printer = await this.prisma.printer.create({
       data: {
         organizationId,
         name: dto.name,
@@ -71,6 +75,16 @@ export class PrintersService {
         paperWidthMm: dto.paperWidthMm,
       },
     });
+    this.analytics?.capture(organizationId, 'printer_added', {
+      station: dto.station,
+      connection_type: dto.connectionType,
+      prints_bills: !!dto.printsBills,
+      prints_dockets: !!dto.printsDockets,
+    });
+    void this.analytics?.milestone(organizationId, 'first_printer_added', async () => {
+      return (await this.prisma.printer.count({ where: { organizationId } })) === 1;
+    });
+    return printer;
   }
 
   async update(organizationId: string, id: string, dto: UpdatePrinterDto) {
@@ -196,6 +210,7 @@ export class PrintersService {
       where: { id: organization.id },
       data: { printAgentToken: token, printAgentPairingCode: null, printAgentPairingExpiresAt: null },
     });
+    this.analytics?.capture(organization.id, 'print_agent_paired', { first_time: !organization.printAgentToken });
     return { token, organizationName: organization.name };
   }
 

@@ -207,6 +207,11 @@ export interface Organization {
   rcNumber?: string
   tin?: string
   googleSheetId?: string
+  createdAt?: string
+  // Set by the API for analytics: demo orgs (DEMO_ORG_IDS), internal test accounts, and orgs that have gone live.
+  isDemo?: boolean
+  isTestAccount?: boolean
+  wentLiveAt?: string | null
 }
 
 // Client types

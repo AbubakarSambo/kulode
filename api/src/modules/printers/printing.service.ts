@@ -1,5 +1,6 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { BillReceipt, formatBillEscPos } from './bill-escpos';
 import { AGENT_ONLINE_WINDOW_MS } from './print-agent.guard';
 
@@ -48,7 +49,10 @@ const STALE_JOB_MS = 10 * 60 * 1000;
 export class PrintingService {
   private readonly logger = new Logger(PrintingService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Optional() private analytics?: AnalyticsService,
+  ) {}
 
   async dispatchDocketsForNewItems(
     organizationId: string,
@@ -322,6 +326,12 @@ export class PrintingService {
         printedAt: status === 'SENT' ? new Date() : job.printedAt,
         attempts: { increment: 1 },
       },
+    });
+
+    this.analytics?.capture(organizationId, 'print_job_result', {
+      status,
+      job_type: (job.payload as { type?: string } | null)?.type ?? 'UNKNOWN',
+      attempts: job.attempts + 1,
     });
 
     if (status === 'FAILED') {

@@ -6,11 +6,13 @@ import {
   Inject,
   forwardRef,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { PaystackService } from '../paystack/paystack.service';
 import { EmailService } from '../email/email.service';
 import { PLAN_LIMITS, PLAN_PRICES, TEST_ACCOUNT_PRICE, maxUsersFor, planAmount } from '../../common/plan-limits';
@@ -30,6 +32,7 @@ export class SubscriptionService {
     @Inject(forwardRef(() => PaystackService))
     private paystackService: PaystackService,
     private emailService: EmailService,
+    @Optional() private analytics?: AnalyticsService,
   ) {
     this.paystackSecretKey = this.configService.get<string>('paystack.secretKey') || '';
     this.paystackBaseUrl = this.configService.get<string>('paystack.baseUrl') || 'https://api.paystack.co';
@@ -319,6 +322,12 @@ export class SubscriptionService {
       });
 
       this.logger.log(`Subscription activated for org ${organizationId}: ${planTier} ${billingPeriod}`);
+      this.analytics?.capture(organizationId, 'subscription_payment_succeeded', {
+        plan_tier: planTier,
+        billing_period: billingPeriod,
+        amount,
+        paid_by_bank_mandate: !!opts.keepPaymentMethod,
+      });
 
       // Dispatch subscription success email
       const admin = await this.getOrgAdmin(organizationId);
@@ -621,6 +630,7 @@ export class SubscriptionService {
   }
 
   private async notifyRenewalFailed(organizationId: string, planTier: string) {
+    this.analytics?.capture(organizationId, 'subscription_renewal_failed', { plan_tier: planTier });
     const admin = await this.getOrgAdmin(organizationId);
     if (!admin) return;
     this.emailService
@@ -979,6 +989,7 @@ export class SubscriptionService {
     });
 
     this.logger.log(`Expired ${orgIds.length} trial(s)`);
+    for (const orgId of orgIds) this.analytics?.capture(orgId, 'trial_expired');
 
     for (const orgId of orgIds) {
       try {

@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { OpenShiftDto, CloseShiftDto, BackdateShiftDto } from './dto';
 import { bucketCollections, splitTopUp, splitWalletDebit } from './shift-report-figures';
@@ -16,6 +17,7 @@ export class ShiftsService {
   constructor(
     private prisma: PrismaService,
     private readonly whatsappService: WhatsappService,
+    @Optional() private analytics?: AnalyticsService,
   ) {}
 
   async findAll(organizationId: string) {
@@ -168,13 +170,17 @@ export class ShiftsService {
       throw new BadRequestException('A shift is already open for this organization');
     }
 
-    return this.prisma.shift.create({
+    const shift = await this.prisma.shift.create({
       data: {
         organizationId,
         openedById: userId,
         openingFloat: dto.openingFloat ?? 0,
       },
     });
+    void this.analytics?.milestone(organizationId, 'first_shift_opened', async () => {
+      return (await this.prisma.shift.count({ where: { organizationId } })) === 1;
+    });
+    return shift;
   }
 
   // Admin-only escape hatch for a staff member who forgot to open the till: backdates the shift's

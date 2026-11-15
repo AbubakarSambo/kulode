@@ -422,6 +422,10 @@ export function OrderTakingPage() {
     },
     onError: (err: unknown) => {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      posthog.capture('pos_order_create_failed', {
+        source,
+        status: (err as { response?: { status?: number } })?.response?.status,
+      })
       toast.error(message || 'Failed to create order')
     },
   })

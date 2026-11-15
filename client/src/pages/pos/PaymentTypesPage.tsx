@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { posthog } from '@/lib/posthog'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -37,7 +38,12 @@ export function PaymentTypesPage() {
   const save = useMutation({
     mutationFn: (data: PaymentTypeFormData) =>
       editing ? paymentTypesApi.update(editing.id, data) : paymentTypesApi.create({ name: data.name, sortOrder: data.sortOrder, isComplimentary: data.isComplimentary }),
-    onSuccess: () => {
+    onSuccess: (_saved, data) => {
+      posthog.capture('pos_setting_changed', {
+        setting: 'payment_type',
+        action: editing ? 'updated' : 'created',
+        is_complimentary: !!data.isComplimentary,
+      })
       queryClient.invalidateQueries({ queryKey: ['payment-types'] })
       toast.success(editing ? 'Payment type updated' : 'Payment type created')
       setModalOpen(false)

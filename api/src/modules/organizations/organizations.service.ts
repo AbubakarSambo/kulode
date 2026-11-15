@@ -46,6 +46,8 @@ export class OrganizationsService {
         enabledModules: true,
         posMode: true,
         googleSheetId: true,
+        isTestAccount: true,
+        wentLiveAt: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -55,7 +57,10 @@ export class OrganizationsService {
       throw new NotFoundException('Organization not found');
     }
 
-    return organization;
+    // Lets the client tag analytics events from the sales-demo orgs (the ones the demo job keeps
+    // "live"), so scripted demo traffic can be filtered out of real usage dashboards.
+    const demoOrgIds = (process.env.DEMO_ORG_IDS ?? '').split(',').map((v) => v.trim()).filter(Boolean);
+    return { ...organization, isDemo: demoOrgIds.includes(organization.id) };
   }
 
   async update(id: string, dto: UpdateOrganizationDto) {

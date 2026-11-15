@@ -752,6 +752,7 @@ function SyncedOrderView({ id }: { id: string }) {
     },
     onError: (err: unknown) => {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      posthog.capture('pos_items_add_failed', { status: (err as { response?: { status?: number } })?.response?.status })
       toast.error(message || 'Failed to add items')
     },
   })

@@ -44,6 +44,7 @@ import { MyPinModal } from './MyPinModal'
 import { TrialBanner } from '../shared/TrialBanner'
 import { ImpersonationBanner } from '../shared/ImpersonationBanner'
 import { useOrgSettingsSync } from '@/hooks/useOrgSettingsSync'
+import { useAnalyticsContext } from '@/hooks/useAnalyticsContext'
 import { SubscriptionExpiredBanner } from '../shared/SubscriptionExpiredBanner'
 import { OfflineQueueBanner } from '../pos/OfflineQueueBanner'
 import { TodayTakingsStrip } from '../pos/TodayTakingsStrip'
@@ -64,6 +65,7 @@ export function AppLayout() {
   const location = useLocation()
   const user = useAuthStore((state) => state.user)
   useOrgSettingsSync()
+  useAnalyticsContext()
   const logout = useLogout()
   const switchUser = useSwitchUser()
   const userIsPinEligible = !!user && isPinEligible(user.roles)

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { ChevronDown, Download, Printer } from 'lucide-react'
@@ -7,6 +7,7 @@ import { Header } from '@/components/layout'
 import { DatePicker, DropdownPanel, EmptyState, Input } from '@/components/ui'
 import { posReportsApi, salesReportApi, organizationsApi } from '@/api'
 import { cn } from '@/lib/utils'
+import { posthog } from '@/lib/posthog'
 import { can } from '@/lib/permissions'
 import { printWithTitle, reportFileTitle } from '@/lib/printWithTitle'
 import {
@@ -48,6 +49,12 @@ export function PosReportsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const view: 'sales' | 'items' = canSeeSalesReport && searchParams.get('view') !== 'items' ? 'sales' : 'items'
   const setView = (v: 'sales' | 'items') => setSearchParams(v === 'items' ? { view: 'items' } : {}, { replace: true })
+
+  // Which report people actually open; the sales view is admin-only, so this also shows how
+  // many accounts get past the cashier-level item view.
+  useEffect(() => {
+    posthog.capture('pos_report_viewed', { view })
+  }, [view])
 
   const shiftStartTime = organization?.shiftStartTime
   const { from, to } = useMemo(
@@ -130,6 +137,7 @@ export function PosReportsPage() {
               key={opt.value}
               onClick={() => {
                 setPeriod(opt.value)
+                posthog.capture('pos_report_period_changed', { period: opt.value, view })
                 setDropdownOpen(false)
               }}
               className={cn(
@@ -154,7 +162,10 @@ export function PosReportsPage() {
         <>
           {view === 'sales' && report && (
             <button
-              onClick={() => downloadSalesReportCsv(report)}
+              onClick={() => {
+                posthog.capture('pos_report_exported', { format: 'csv', view })
+                downloadSalesReportCsv(report)
+              }}
               className="h-11 px-4 rounded-xl border border-border bg-card text-xs font-bold text-foreground hover:bg-muted/50 transition-all flex items-center gap-2"
             >
               <Download className="h-4 w-4" />
@@ -162,9 +173,10 @@ export function PosReportsPage() {
             </button>
           )}
           <button
-            onClick={() =>
+            onClick={() => {
+              posthog.capture('pos_report_exported', { format: 'print', view })
               printWithTitle(reportFileTitle(organization?.name, view === 'sales' ? 'Sales Report' : 'Item Sales Report', from, to))
-            }
+            }}
             className="h-11 px-4 rounded-xl border border-border bg-card text-xs font-bold text-foreground hover:bg-muted/50 transition-all flex items-center gap-2"
           >
             <Printer className="h-4 w-4" />

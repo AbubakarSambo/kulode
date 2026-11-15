@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { posthog } from '@/lib/posthog'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -68,6 +69,7 @@ export function MenuCategoriesPage() {
     mutationFn: (data: CategoryFormData) =>
       editingCategory ? menuCategoriesApi.update(editingCategory.id, data) : menuCategoriesApi.create(data),
     onSuccess: () => {
+      posthog.capture('pos_setting_changed', { setting: 'menu_category', action: editingCategory ? 'updated' : 'created' })
       queryClient.invalidateQueries({ queryKey: ['menu-categories'] })
       toast.success(editingCategory ? 'Category updated' : 'Category created')
       setCategoryModalOpen(false)
