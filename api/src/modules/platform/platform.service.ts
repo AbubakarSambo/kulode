@@ -664,6 +664,7 @@ export class PlatformService {
       recentSignups,
       topOrganizations,
       avgFulfillmentResult,
+      payingByPlanRows,
     ] = await Promise.all([
       this.prisma.organization.count({ where: posOrgWhere }),
 
@@ -833,6 +834,20 @@ export class PlatformService {
           AND ord.created_at >= ${currentPeriodStart}
           AND ord.created_at <= ${currentPeriodEnd}
       `,
+
+      // Customers actually on a paid plan: an ACTIVE paid subscription that hasn't run out, excluding
+      // grandfathered orgs (given access, not paying) and the team's own test accounts (in posOrgWhere).
+      this.prisma.organization.groupBy({
+        by: ['planTier'],
+        where: {
+          ...posOrgWhere,
+          isGrandfathered: false,
+          subscriptionStatus: 'ACTIVE',
+          planTier: { in: ['STARTER', 'PRO', 'BUSINESS'] },
+          subscriptionEndDate: { gt: now },
+        },
+        _count: { id: true },
+      }),
     ]);
 
     const orgsMoMChange = this.calculateMoMChange(newPosOrgsThisMonth, lastMonthPosOrgs);
@@ -907,6 +922,14 @@ export class PlatformService {
         newThisMonth: newPosOrgsThisMonth,
         active: activePosOrgs,
         inactive: totalPosOrgs - activePosOrgs,
+        paying: {
+          total: payingByPlanRows.reduce((sum, r) => sum + r._count.id, 0),
+          byPlan: {
+            STARTER: payingByPlanRows.find((r) => r.planTier === 'STARTER')?._count.id ?? 0,
+            PRO: payingByPlanRows.find((r) => r.planTier === 'PRO')?._count.id ?? 0,
+            BUSINESS: payingByPlanRows.find((r) => r.planTier === 'BUSINESS')?._count.id ?? 0,
+          },
+        },
         lastMonth: lastMonthPosOrgs,
         changePct: orgsMoMChange,
       },

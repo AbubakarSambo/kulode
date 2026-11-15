@@ -6,6 +6,8 @@ import { UpdatePlatformOrgDto } from './dto/update-platform-org.dto';
 import { GrantOrgAccessDto } from './dto/grant-org-access.dto';
 import { UpdateMembershipRolesDto } from './dto/update-membership-roles.dto';
 import { ExtendTrialDto } from './dto/extend-trial.dto';
+import { RecordSubscriptionPaymentDto } from './dto/record-subscription-payment.dto';
+import { SubscriptionService } from '../subscription/subscription.service';
 import { GoLiveDto } from './dto/go-live.dto';
 import { OrgGoLiveService } from './org-go-live.service';
 import { CurrentUser, CurrentUserData } from '../../common/decorators/current-user.decorator';
@@ -19,6 +21,7 @@ export class PlatformController {
   constructor(
     private readonly platformService: PlatformService,
     private readonly orgGoLiveService: OrgGoLiveService,
+    private readonly subscriptionService: SubscriptionService,
   ) {}
 
   @Get('dashboard')
@@ -95,6 +98,21 @@ export class PlatformController {
     @Body() dto: ExtendTrialDto,
   ) {
     return this.platformService.extendTrial(id, dto.days);
+  }
+
+  @Post('organizations/:id/subscription-payment')
+  @ApiOperation({
+    summary: 'Record a subscription payment made outside the app (bank transfer, cash) as if the org paid in-app',
+  })
+  @ApiResponse({ status: 201, description: 'Plan activated or extended; payment stored in the payment history' })
+  @ApiResponse({ status: 404, description: 'Organization not found' })
+  @ApiResponse({ status: 409, description: 'A payment with this reference was already recorded' })
+  async recordSubscriptionPayment(
+    @Param('id') id: string,
+    @Body() dto: RecordSubscriptionPaymentDto,
+    @CurrentUser() admin: CurrentUserData,
+  ) {
+    return this.subscriptionService.recordManualPayment(id, dto, admin.email);
   }
 
   @Get('organizations/:id/go-live/preview')

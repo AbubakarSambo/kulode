@@ -148,6 +148,18 @@ export const platformApi = {
     return response.data.data
   },
 
+  /** Records a subscription payment made outside the app (bank transfer, cash) as if the org paid in-app. */
+  recordSubscriptionPayment: async (
+    id: string,
+    data: { planTier: 'STARTER' | 'PRO' | 'BUSINESS'; months: number; amount?: number; reference?: string; sendEmail?: boolean }
+  ): Promise<{ reference: string; planTier: string; months: number; amount: number; periodStart: string; periodEnd: string; extendedExistingPeriod: boolean }> => {
+    const response = await apiClient.post<ApiResponse<{ reference: string; planTier: string; months: number; amount: number; periodStart: string; periodEnd: string; extendedExistingPeriod: boolean }>>(
+      `/platform/organizations/${id}/subscription-payment`,
+      data
+    )
+    return response.data.data
+  },
+
   /** Counts of the pre-launch test activity that goLive would delete. */
   previewGoLive: async (id: string): Promise<GoLivePreview> => {
     const response = await apiClient.get<ApiResponse<GoLivePreview>>(`/platform/organizations/${id}/go-live/preview`)
