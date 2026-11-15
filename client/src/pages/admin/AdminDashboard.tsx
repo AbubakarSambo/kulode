@@ -935,7 +935,7 @@ export function AdminDashboardPage() {
                 </div>
 
                 {/* Adoption + Org counts row */}
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white">
                     <CardContent className="p-6">
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655]">POS Organizations</p>
@@ -946,6 +946,19 @@ export function AdminDashboardPage() {
                           {posDashboardData.organizations.active} active / {posDashboardData.organizations.inactive} never ordered
                         </span>
                       </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-0 shadow-[0px_12px_32px_rgba(0,55,176,0.04)] rounded-3xl bg-white">
+                    <CardContent className="p-6">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#434655] flex items-center gap-1">
+                        Paying Organizations
+                        <MetricTooltip content="POS/BOTH organizations on an active paid plan (Starter, Pro or Business) that hasn't run out. Excludes grandfathered orgs, trials, lapsed plans and internal test accounts." />
+                      </p>
+                      <p className="mt-1.5 text-2xl font-bold tracking-tight text-[#121c28]">{posDashboardData.organizations.paying.total}</p>
+                      <p className="mt-2 text-[10px] text-[#434655]">
+                        Starter {posDashboardData.organizations.paying.byPlan.STARTER} · Pro {posDashboardData.organizations.paying.byPlan.PRO} · Business {posDashboardData.organizations.paying.byPlan.BUSINESS}
+                      </p>
                     </CardContent>
                   </Card>
 

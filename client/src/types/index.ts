@@ -908,6 +908,8 @@ export interface PlatformPosDashboard {
     newThisMonth: number
     active: number
     inactive: number
+    /** Active paid subscriptions (not grandfathered, not test accounts). */
+    paying: { total: number; byPlan: { STARTER: number; PRO: number; BUSINESS: number } }
     lastMonth: number
     changePct: number
   }
