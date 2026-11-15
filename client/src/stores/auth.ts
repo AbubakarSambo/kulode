@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { posthog } from '@/lib/posthog'
+import { posthog, setAnalyticsContext } from '@/lib/posthog'
 import { queryClient } from '@/lib/queryClient'
 import { rememberOrgContext } from '@/lib/deviceOrgContext'
 import type { User } from '@/types'
@@ -42,6 +42,7 @@ export const useAuthStore = create<AuthState>()(
           roles: user.roles,
           organizationId: user.organizationId,
         })
+        setAnalyticsContext(user)
         set({ user, token, isAuthenticated: true })
       },
 
@@ -54,6 +55,7 @@ export const useAuthStore = create<AuthState>()(
         const origin = impersonationOrigin ?? (originUser && originToken ? { user: originUser, token: originToken } : null)
         localStorage.setItem('token', token)
         queryClient.clear()
+        setAnalyticsContext(user)
         set({ user, token, isAuthenticated: true, impersonationOrigin: origin })
       },
 
@@ -66,6 +68,7 @@ export const useAuthStore = create<AuthState>()(
           return null
         }
         localStorage.setItem('token', origin.token)
+        setAnalyticsContext(origin.user)
         set({ user: origin.user, token: origin.token, isAuthenticated: true, impersonationOrigin: null })
         return origin.user
       },

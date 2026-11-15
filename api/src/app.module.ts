@@ -5,6 +5,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { ConfigModule } from './config';
 import { PrismaModule } from './modules/prisma';
+import { AnalyticsModule } from './modules/analytics';
 import { AuthModule } from './modules/auth';
 import { UsersModule } from './modules/users';
 import { OrganizationsModule } from './modules/organizations';
@@ -70,6 +71,7 @@ import {
         : {},
     ),
     PrismaModule,
+    AnalyticsModule,
     EmailModule,
     AuthModule,
     UsersModule,

@@ -1,5 +1,6 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 export const AGENT_HEARTBEAT_WRITE_MS = 30_000;
 // An agent that hasn't polled for this long is shown as offline (three missed heartbeats).
@@ -18,7 +19,10 @@ function headerValue(raw: unknown): string | undefined {
 // session, only the org-wide token an admin generated from Settings.
 @Injectable()
 export class PrintAgentGuard implements CanActivate {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Optional() private analytics?: AnalyticsService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
@@ -53,6 +57,16 @@ export class PrintAgentGuard implements CanActivate {
     const identityChanged =
       (version !== undefined && version !== organization.printAgentVersion) ||
       (hostname !== undefined && hostname !== organization.printAgentHostname);
+    // First contact ever, or back after being offline: the moments that tell us an install works
+    // and how often the PC drops out. Only on a heartbeat write, so it never fires per poll.
+    if (!organization.printAgentLastSeenAt) {
+      this.analytics?.capture(organization.id, 'print_agent_first_seen', { version, hostname_set: !!hostname });
+    } else if (Date.now() - lastSeen > AGENT_ONLINE_WINDOW_MS) {
+      this.analytics?.capture(organization.id, 'print_agent_back_online', {
+        offline_minutes: Math.round((Date.now() - lastSeen) / 60_000),
+        version,
+      });
+    }
     if (identityChanged || Date.now() - lastSeen > AGENT_HEARTBEAT_WRITE_MS) {
       this.prisma.organization
         .update({

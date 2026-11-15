@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { posthog } from '@/lib/posthog'
 import { ChevronDown, Settings2, Trophy } from 'lucide-react'
 import { Award01Icon } from '@hugeicons/core-free-icons'
 import { toast } from 'sonner'
@@ -66,6 +67,7 @@ function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leaderboard'] })
       queryClient.invalidateQueries({ queryKey: ['leaderboard-settings'] })
+      posthog.capture('pos_setting_changed', { setting: 'leaderboard', action: 'updated' })
       toast.success('Leaderboard settings saved')
       setDraft(null)
       onClose()

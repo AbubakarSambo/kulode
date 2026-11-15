@@ -31,6 +31,7 @@
 
 import apiClient from '@/api/client'
 import type { CreateOrderData, CreateOrderItemData, CloseOrderData } from '@/api/orders'
+import { posthog } from '@/lib/posthog'
 
 const DB_NAME = 'kulode-pos-offline'
 const DB_VERSION = 2
@@ -262,12 +263,18 @@ export async function flushOfflineQueue(): Promise<void> {
   flushing = true
   try {
     const queue = await getQueue()
+    const outcome = { synced: 0, failed: 0 }
+    const tally = (result: SendResult) => {
+      if (result === 'ok') outcome.synced += 1
+      else if (result === 'failed') outcome.failed += 1
+    }
 
     for (const entry of queue) {
       if (entry.status === 'failed') continue
 
       if (entry.type === 'CREATE_ORDER') {
         const result = await sendCreateOrder(entry)
+        tally(result)
         if (result === 'network-error') break // stop this pass; connection dropped again
         continue
       }
@@ -287,7 +294,13 @@ export async function flushOfflineQueue(): Promise<void> {
 
       const result =
         entry.type === 'ADD_ITEMS' ? await sendAddItems(entry, resolved) : await sendCloseOrder(entry, resolved)
+      tally(result)
       if (result === 'network-error') break
+    }
+
+    // How often offline mode actually saves a sale, and how often a queued action is rejected.
+    if (outcome.synced + outcome.failed > 0) {
+      posthog.capture('pos_offline_queue_synced', { ...outcome, queued: queue.length })
     }
   } finally {
     flushing = false
@@ -358,7 +371,11 @@ let started = false
 export function startOfflineQueueSync() {
   if (started) return
   started = true
-  window.addEventListener('online', () => void flushOfflineQueue())
+  window.addEventListener('online', () => {
+    posthog.capture('pos_back_online')
+    void flushOfflineQueue()
+  })
+  window.addEventListener('offline', () => posthog.capture('pos_went_offline'))
   setInterval(() => void flushOfflineQueue(), 30_000)
   if (navigator.onLine) void flushOfflineQueue()
 }

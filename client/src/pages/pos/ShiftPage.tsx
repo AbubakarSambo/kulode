@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { posthog } from '@/lib/posthog'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -62,6 +63,7 @@ export function ShiftPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['current-shift'] })
       queryClient.invalidateQueries({ queryKey: ['shifts'] })
+      posthog.capture('pos_shift_opened')
       toast.success('Shift opened')
       openForm.reset()
     },
@@ -81,6 +83,7 @@ export function ShiftPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['current-shift'] })
       queryClient.invalidateQueries({ queryKey: ['shifts'] })
+      posthog.capture('pos_shift_opened', { backdated: true })
       toast.success('Shift opened retroactively')
       setShowBackdateForm(false)
       backdateForm.reset()
@@ -97,6 +100,7 @@ export function ShiftPage() {
     onSuccess: (closed) => {
       queryClient.invalidateQueries({ queryKey: ['current-shift'] })
       queryClient.invalidateQueries({ queryKey: ['shifts'] })
+      posthog.capture('pos_shift_closed', { variance: closed.variance ?? 0 })
       toast.success(`Shift closed — variance ${formatCurrency(closed.variance ?? 0)}`)
       setShowCloseForm(false)
       setCountedAmounts({})
