@@ -11,6 +11,7 @@ import { ChatSidebar } from '@/components/ai/ChatSidebar'
 import { DynamicLayoutRenderer } from '@/components/ai/DynamicRenderer'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { posthog } from '@/lib/posthog'
 
 const SUGGESTED_QUESTIONS: Record<ChatContext, string[]> = {
   INVOICING: [
@@ -176,6 +177,7 @@ export function AiChatPage({ context = 'INVOICING' }: AiChatPageProps) {
   const deleteSessionMutation = useMutation({
     mutationFn: (id: string) => aiApi.deleteSession(id, context),
     onSuccess: (_, deletedId) => {
+      posthog.capture('ai_chat_session_deleted', { context })
       queryClient.invalidateQueries({ queryKey: ['chatSessions', context] })
       if (currentSessionId === deletedId) {
         setCurrentSessionId(undefined)
@@ -195,12 +197,13 @@ export function AiChatPage({ context = 'INVOICING' }: AiChatPageProps) {
   const togglePinMutation = useMutation({
     mutationFn: ({ id, isPinned }: { id: string; isPinned: boolean }) =>
       aiApi.updateSession(id, { isPinned }, context),
-    onSuccess: () => {
+    onSuccess: (_result, { isPinned }) => {
+      posthog.capture('ai_chat_session_pinned', { context, pinned: isPinned })
       queryClient.invalidateQueries({ queryKey: ['chatSessions', context] })
     },
   })
 
-  const send = async (text: string) => {
+  const send = async (text: string, fromSuggestion = false) => {
     const trimmed = text.trim()
     if (!trimmed || loading) return
 
@@ -210,8 +213,21 @@ export function AiChatPage({ context = 'INVOICING' }: AiChatPageProps) {
     setInput('')
     setLoading(true)
 
+    // Length and counts only: the message text can carry customer names and sales figures.
+    const isFirstMessage = !currentSessionId
+    posthog.capture('ai_chat_message_sent', {
+      context,
+      first_in_session: isFirstMessage,
+      from_suggestion: fromSuggestion,
+      message_length: trimmed.length,
+      turn: next.filter((m) => m.role === 'user').length,
+    })
+    const startedAt = performance.now()
+
     try {
       const response = await aiApi.chat(next, currentSessionId, context)
+      posthog.capture('ai_chat_response_received', { context, success: true, latency_ms: Math.round(performance.now() - startedAt) })
+      if (isFirstMessage) posthog.capture('ai_chat_session_started', { context })
       if (!currentSessionId) {
         setCurrentSessionId(response.sessionId)
         queryClient.invalidateQueries({ queryKey: ['chatSessions', context] })
@@ -219,6 +235,7 @@ export function AiChatPage({ context = 'INVOICING' }: AiChatPageProps) {
         queryClient.invalidateQueries({ queryKey: ['chatMessages', currentSessionId, context] })
       }
     } catch {
+      posthog.capture('ai_chat_response_received', { context, success: false, latency_ms: Math.round(performance.now() - startedAt) })
       setMessages([...next, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' }])
     } finally {
       setLoading(false)
@@ -292,7 +309,7 @@ export function AiChatPage({ context = 'INVOICING' }: AiChatPageProps) {
                   {SUGGESTED_QUESTIONS[context].map((q) => (
                     <button
                       key={q}
-                      onClick={() => send(q)}
+                      onClick={() => send(q, true)}
                       className="text-left px-5 py-4 rounded-3xl border border-border bg-white text-xs font-medium text-slate-700 hover:border-[#0037b0]/30 hover:text-[#0037b0] hover:bg-[#0037b0]/3 transition-all cursor-pointer shadow-[0px_12px_32px_rgba(0,55,176,0.08)]"
                     >
                       {q}
