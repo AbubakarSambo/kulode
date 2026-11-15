@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { posthog } from '@/lib/posthog'
 import { toast } from 'sonner'
 import { ArrowLeft, Download, Plus, X, UserPlus, Pencil, Search } from 'lucide-react'
 import { Header } from '@/components/layout'
@@ -605,6 +606,7 @@ function SyncedOrderView({ id }: { id: string }) {
   const mergeOrder = useMutation({
     mutationFn: (sourceOrderId: string) => ordersApi.merge(id, sourceOrderId),
     onSuccess: () => {
+      posthog.capture('pos_orders_merged')
       toast.success('Orders merged')
       setMergeModalOpen(false)
       queryClient.invalidateQueries({ queryKey: ['order', id] })
@@ -633,6 +635,7 @@ function SyncedOrderView({ id }: { id: string }) {
         tableId: moveMode === 'new' && moveTableId ? moveTableId : undefined,
       }),
     onSuccess: (destination) => {
+      posthog.capture('pos_items_moved', { to: moveMode, line_count: selectedItemIds.size })
       toast.success('Items moved')
       setMoveModalOpen(false)
       setSelectedItemIds(new Set())
@@ -668,7 +671,12 @@ function SyncedOrderView({ id }: { id: string }) {
   const applyDiscount = useMutation({
     mutationFn: (data: { discountType: 'PERCENTAGE' | 'FIXED'; value: number; reason: string; approverPin?: string }) =>
       ordersApi.applyDiscount(id, data),
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
+      posthog.capture('pos_discount_applied', {
+        discount_type: variables.discountType,
+        value: variables.value,
+        needed_approval: needsApproval,
+      })
       toast.success('Discount updated')
       setDiscountModalOpen(false)
       setDiscountValue('')
@@ -728,7 +736,11 @@ function SyncedOrderView({ id }: { id: string }) {
 
   const addItems = useMutation({
     mutationFn: (items: CreateOrderItemData[]) => ordersApi.addItems(id, items),
-    onSuccess: (result) => {
+    onSuccess: (result, items) => {
+      posthog.capture('pos_items_added', {
+        item_count: items.reduce((n, i) => n + i.quantity, 0),
+        offline: '__offlinePending' in result,
+      })
       if ('__offlinePending' in result) {
         toast.success('No connection — items queued and will sync automatically')
       } else {
@@ -748,6 +760,7 @@ function SyncedOrderView({ id }: { id: string }) {
     mutationFn: ({ reason, approverPin }: { reason: string; approverPin?: string }) =>
       ordersApi.cancel(id, reason, approverPin),
     onSuccess: () => {
+      posthog.capture('pos_order_voided', { needed_approval: needsApproval })
       toast.success('Order cancelled')
       setVoidModalOpen(false)
       setVoidApproverPin('')
@@ -763,7 +776,11 @@ function SyncedOrderView({ id }: { id: string }) {
 
   const printBillMutation = useMutation({
     mutationFn: () => printOrderBill(id),
-    onError: () => toast.error('Failed to print bill'),
+    onSuccess: () => posthog.capture('pos_bill_printed'),
+    onError: () => {
+      posthog.capture('pos_bill_print_failed')
+      toast.error('Failed to print bill')
+    },
   })
 
   const sendBillViaWhatsApp = () => {
@@ -810,12 +827,14 @@ function SyncedOrderView({ id }: { id: string }) {
     ]
     const text = lines.join('\n')
     const phone = normalizePhoneForWhatsApp(order.customer.phone)
+    posthog.capture('pos_bill_sent_whatsapp')
     window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(text)}`, '_blank')
   }
 
   const markAwaitingPayment = useMutation({
     mutationFn: () => ordersApi.markAwaitingPayment(id),
     onSuccess: () => {
+      posthog.capture('pos_order_marked_ready')
       toast.success('Order marked ready — a cashier can now take payment')
       queryClient.invalidateQueries({ queryKey: ['order', id] })
       queryClient.invalidateQueries({ queryKey: ['orders'] })
@@ -856,13 +875,23 @@ function SyncedOrderView({ id }: { id: string }) {
       })
     },
     onSuccess: (result) => {
+      const closeProps = {
+        payment_method: nothingToPay ? 'NO_CHARGE' : paymentMethod,
+        no_charge: nothingToPay,
+        split_mode: splitMode,
+        amount: nothingToPay ? 0 : paymentAmount,
+        order_total: orderTotal,
+        has_customer: !!order?.customerId,
+      }
       if ('paymentUrl' in result) {
+        posthog.capture('pos_paystack_checkout_started', closeProps)
         window.open(result.paymentUrl, '_blank')
         toast.success('Checkout link opened — order closes once payment confirms')
         setCloseModalOpen(false)
         return
       }
       if ('__offlinePending' in result) {
+        posthog.capture('pos_order_close_queued_offline', closeProps)
         toast.success('No connection — close queued and will sync automatically')
         setCloseModalOpen(false)
         navigate('/pos/tables')
@@ -870,6 +899,7 @@ function SyncedOrderView({ id }: { id: string }) {
       }
       if (result.status !== 'CLOSED_PAID') {
         // Partial payment recorded — more splits still owed, keep the modal open for the next one.
+        posthog.capture('pos_payment_recorded', closeProps)
         const stillDue = Math.max(0, Math.round((orderTotal - Number(result.amountPaid)) * 100) / 100)
         toast.success(`Payment recorded — ${formatCurrency(stillDue)} still due`)
         queryClient.invalidateQueries({ queryKey: ['order', id] })
@@ -878,6 +908,7 @@ function SyncedOrderView({ id }: { id: string }) {
         setCustomAmount('')
         return
       }
+      posthog.capture('pos_order_closed', closeProps)
       toast.success('Order closed')
       if (result.loyalty?.rewards.length) setRewardEarned(result.loyalty)
       if (order?.customerId) {
@@ -894,6 +925,7 @@ function SyncedOrderView({ id }: { id: string }) {
     },
     onError: (err: unknown) => {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      posthog.capture('pos_order_close_failed', { payment_method: nothingToPay ? 'NO_CHARGE' : paymentMethod })
       toast.error(message || 'Failed to close order')
     },
   })

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { posthog } from '@/lib/posthog'
 import { toast } from 'sonner'
 import { Trash2, Minus, Plus, ScanLine, X, PauseCircle, ListRestart } from 'lucide-react'
 import { Header } from '@/components/layout'
@@ -254,6 +255,7 @@ export function RetailCheckoutPage() {
         items: cart.map((line) => ({ inventoryItemId: line.inventoryItemId, quantity: line.quantity })),
         ...(walletCustomer && { customerId: walletCustomer.id }),
       })
+      posthog.capture('pos_retail_sale_held', { item_count: cart.reduce((n, l) => n + l.quantity, 0) })
       setCart([])
       setWalletCustomer(null)
       setPaymentMethod(paymentOptions[0]?.name ?? '')
@@ -359,6 +361,12 @@ export function RetailCheckoutPage() {
       }
 
       const closed = await ordersApi.close(order.id, { paymentMethod })
+      posthog.capture('pos_retail_sale_completed', {
+        payment_method: paymentMethod,
+        item_count: cart.reduce((n, l) => n + l.quantity, 0),
+        line_count: cart.length,
+        offline: '__offlinePending' in closed,
+      })
       if ('__offlinePending' in closed) {
         toast.success('No connection — payment queued and will sync automatically')
       } else {
@@ -380,6 +388,7 @@ export function RetailCheckoutPage() {
       refocusScanInput()
     } catch (err) {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      posthog.capture('pos_retail_sale_failed', { payment_method: paymentMethod })
       toast.error(message || 'Failed to complete sale')
     } finally {
       setIsCharging(false)

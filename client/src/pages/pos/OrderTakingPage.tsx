@@ -17,6 +17,7 @@ import { menuCategoriesApi, menuItemsApi, ordersApi, customersApi, tablesApi, or
 import type { ReceiptData } from '@/api/orders'
 import { formatCurrency, cn } from '@/lib/utils'
 import { printBillPreview } from '@/lib/sendBill'
+import { posthog } from '@/lib/posthog'
 import { useAuthStore } from '@/stores/auth'
 import type { OrderSource } from '@/types'
 
@@ -401,6 +402,14 @@ export function OrderTakingPage() {
           // ignore
         }
       }
+      posthog.capture('pos_order_created', {
+        source,
+        item_count: cart.reduce((n, l) => n + l.quantity, 0),
+        line_count: cart.length,
+        has_table: !!effectiveTableId,
+        has_customer: !!customerId,
+        offline: '__offlinePending' in result,
+      })
       if ('__offlinePending' in result) {
         toast.success('No connection — order saved and will sync automatically', { duration: 4000 })
         navigate(`/pos/orders/${result.localOrderId}`)
