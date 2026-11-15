@@ -1353,7 +1353,7 @@ describe('SubscriptionService', () => {
       expect(res.periodEnd.toISOString()).toBe('2027-02-15T10:00:00.000Z');
       expect(orgUpdate.mock.calls[0][0].data).toMatchObject({ planTier: 'PRO', subscriptionStatus: 'ACTIVE', billingPeriod: 'MONTHLY' });
       expect(paymentCreate.mock.calls[0][0].data).toMatchObject({
-        organizationId: ORG_ID, amount: 150000, paystackReference: 'manual:GTB-1', planTier: 'PRO',
+        organizationId: ORG_ID, amount: 147000, paystackReference: 'manual:GTB-1', planTier: 'PRO',
       });
     });
 

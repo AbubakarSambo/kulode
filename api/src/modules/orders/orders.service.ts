@@ -1,7 +1,8 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { Prisma, OrderStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { WalletService } from '../wallet/wallet.service';
 import { SheetSyncService } from '../sheet-sync';
@@ -76,6 +77,7 @@ export class OrdersService {
     private printingService: PrintingService,
     private orderTypesService: OrderTypesService,
     private paymentTypesService: PaymentTypesService,
+    @Optional() private analytics?: AnalyticsService,
   ) {}
 
   // Fires kitchen/bar dockets for newly created order items. Run after the DB transaction
@@ -437,6 +439,9 @@ export class OrdersService {
     // "place order" request must not print the same docket twice.
     if (isFreshExecution) {
       this.dispatchPrintDockets(organizationId, created, created.items);
+      void this.analytics?.milestone(organizationId, 'first_order_created', async () => {
+        return (await this.prisma.order.count({ where: { organizationId } })) === 1;
+      });
     }
 
     return created;
@@ -1914,6 +1919,7 @@ export class OrdersService {
     // Loyalty runs after the payment has committed, so it can never fail a payment; if it errors
     // the hourly catch-up job credits the order. The result lets the till show "reward earned".
     if (closed.status === 'CLOSED_PAID') {
+      void this.analytics?.milestone(organizationId, 'first_order_closed', async () => (await this.prisma.order.count({ where: { organizationId, status: 'CLOSED_PAID' } })) === 1);
       const loyalty = await creditOrderSpendSafe(this.prisma, this.logger, closed.id);
       if (loyalty) return { ...closed, loyalty };
     }

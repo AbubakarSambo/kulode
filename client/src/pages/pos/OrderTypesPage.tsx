@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { posthog } from '@/lib/posthog'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -37,7 +38,12 @@ export function OrderTypesPage() {
   const save = useMutation({
     mutationFn: (data: OrderTypeFormData) =>
       editing ? orderTypesApi.update(editing.id, data) : orderTypesApi.create({ name: data.name, sortOrder: data.sortOrder, requiresTable: data.requiresTable }),
-    onSuccess: () => {
+    onSuccess: (_saved, data) => {
+      posthog.capture('pos_setting_changed', {
+        setting: 'order_type',
+        action: editing ? 'updated' : 'created',
+        requires_table: !!data.requiresTable,
+      })
       queryClient.invalidateQueries({ queryKey: ['order-types'] })
       toast.success(editing ? 'Order type updated' : 'Order type created')
       setModalOpen(false)

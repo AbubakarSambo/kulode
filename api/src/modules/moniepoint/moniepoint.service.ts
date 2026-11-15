@@ -4,12 +4,14 @@ import {
   BadRequestException,
   InternalServerErrorException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { createHmac } from 'crypto';
 import { creditOrderSpendSafe } from '../loyalty/loyalty.earn';
 import { PrismaService } from '../prisma/prisma.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { WalletService } from '../wallet/wallet.service';
 import { encryptSecret, decryptSecret, resolvePayment } from '../../common';
@@ -74,6 +76,7 @@ export class MoniepointService {
     private prisma: PrismaService,
     private inventoryService: InventoryService,
     private walletService: WalletService,
+    @Optional() private analytics?: AnalyticsService,
   ) {
     this.baseUrl = this.configService.get<string>('moniepoint.baseUrl') || 'https://channel.moniepoint.com';
     this.posApiBaseUrl = this.configService.get<string>('moniepoint.posApiBaseUrl') || 'https://api.pos.moniepoint.com';
@@ -526,12 +529,19 @@ export class MoniepointService {
           source,
         },
       });
+      this.analytics?.capture(organization.id, 'moniepoint_payment_unreconciled', {
+        source,
+        amount,
+        reason: matches.length === 0 ? 'no_match' : 'ambiguous',
+        candidates: matches.length,
+      });
       return { received: true, reconciled: false, reason: matches.length === 0 ? 'No matching order' : 'Ambiguous — multiple matching orders' };
     }
 
     const order = matches[0];
     const paymentMethod = source === 'TRANSFER' ? 'MONIEPOINT_TRANSFER' : 'MONIEPOINT_POS';
     await this.closeOrderForAutoMatch(organization.id, order, amount, transactionReference, paymentMethod);
+    this.analytics?.capture(organization.id, 'moniepoint_payment_reconciled', { source, amount, auto: true });
 
     this.logger.log(`${label} of ₦${amount} auto-reconciled to order ${order.id} for org ${organization.id} (ref ${transactionReference ?? 'none'})`);
     return { received: true, reconciled: true };
@@ -608,7 +618,12 @@ export class MoniepointService {
     });
 
     // After the payment has committed, so loyalty can never fail it (the hourly job is the backstop).
-    if (orderClosed) await creditOrderSpendSafe(this.prisma, this.logger, order.id);
+    if (orderClosed) {
+      void this.analytics?.milestone(organizationId, 'first_order_closed', async () => {
+        return (await this.prisma.order.count({ where: { organizationId, status: 'CLOSED_PAID' } })) === 1;
+      });
+      await creditOrderSpendSafe(this.prisma, this.logger, order.id);
+    }
   }
 
   async listUnreconciledTransfers(organizationId: string, status?: 'PENDING_REVIEW' | 'RESOLVED' | 'IGNORED') {

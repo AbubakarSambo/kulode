@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { posthog } from '@/lib/posthog'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -92,7 +93,8 @@ export function MenuManagementPage() {
   const saveItem = useMutation({
     mutationFn: (data: ItemFormData) =>
       editingItem ? menuItemsApi.update(editingItem.id, data) : menuItemsApi.create(data),
-    onSuccess: () => {
+    onSuccess: (_saved, data) => {
+      posthog.capture(editingItem ? 'pos_menu_item_updated' : 'pos_menu_item_created', { zero_price: Number(data.price) === 0 })
       queryClient.invalidateQueries({ queryKey: ['menu-items'] })
       toast.success(editingItem ? 'Item updated' : 'Item created')
       setItemModalOpen(false)

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { posthog } from '@/lib/posthog'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -95,6 +96,7 @@ export function CustomersListPage() {
     mutationFn: (data: CustomerFormData) =>
       customersApi.create({ ...data, phone: data.phone || undefined, email: data.email || undefined }),
     onSuccess: (customer) => {
+      posthog.capture('pos_customer_created', { has_phone: !!customer.phone })
       queryClient.invalidateQueries({ queryKey: ['customers'] })
       toast.success('Customer added')
       setCreateOpen(false)

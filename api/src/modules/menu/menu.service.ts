@@ -1,6 +1,7 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import {
   CreateMenuCategoryDto,
   UpdateMenuCategoryDto,
@@ -64,7 +65,10 @@ export function computeRecipeCost(
 
 @Injectable()
 export class MenuService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Optional() private analytics?: AnalyticsService,
+  ) {}
 
   // ─── Categories ───────────────────────────────────────────────────────────
 
@@ -313,6 +317,9 @@ export class MenuService {
         categories: { include: { category: { select: { id: true, name: true } } } },
         ...ingredientsInclude,
       },
+    });
+    void this.analytics?.milestone(organizationId, 'first_menu_item_created', async () => {
+      return (await this.prisma.menuItem.count({ where: { organizationId } })) === 1;
     });
     return this.flattenIngredients(this.flattenCategories(item));
   }
