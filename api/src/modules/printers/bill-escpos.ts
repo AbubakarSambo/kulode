@@ -141,10 +141,20 @@ function centered(text: string, width: number): string {
     .join('');
 }
 
+/**
+ * Whether a receipt is for an order that has been settled, as opposed to a bill still waiting to
+ * be paid. Normally that means a payment exists. An order that came to nothing (only zero-priced
+ * items, e.g. a partner-covered meal) closes with no payment at all, so it counts once it's closed.
+ * Kept in step with the same check in client/src/lib/printBill.ts.
+ */
+export function isReceiptSettled(receipt: Pick<BillReceipt, 'payments' | 'total' | 'closedAt'>): boolean {
+  return receipt.payments.length > 0 || (receipt.total <= 0 && !!receipt.closedAt);
+}
+
 export function formatBillEscPos(receipt: BillReceipt, paperWidthMm = 80): string {
   const width = charsPerLine(paperWidthMm);
   const divider = `${'-'.repeat(width)}\n`;
-  const isPaid = receipt.payments.length > 0;
+  const isPaid = isReceiptSettled(receipt);
   const title = isPaid ? 'Receipt' : 'Pro Forma Receipt';
   const org = receipt.organization;
   const currency = ascii(org.currency || 'NGN');

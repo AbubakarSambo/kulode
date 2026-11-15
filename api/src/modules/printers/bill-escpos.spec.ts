@@ -53,6 +53,34 @@ describe('formatBillEscPos', () => {
     expect(lines.find((l) => l.startsWith('TOTAL'))).toMatch(/NGN 12,900\.00$/);
   });
 
+  it('prints an order that came to nothing as a receipt once it is closed, without asking for payment', () => {
+    const lines = textLines(
+      formatBillEscPos(
+        receipt({
+          closedAt: '2026-11-11T12:20:00.000Z',
+          items: [{ name: 'Partner Meal: Sandwich + Drink', quantity: 1, unitPrice: 0, amount: 0 }],
+          subtotal: 0,
+          total: 0,
+          vatAmount: 0,
+          payments: [],
+        }),
+      ),
+    );
+
+    expect(lines).toContain('Receipt');
+    expect(lines).not.toContain('Pro Forma Receipt');
+    // The org has bank details set up, but there is nothing to pay.
+    expect(lines).not.toContain('Pay by Transfer');
+    expect(lines.find((l) => l.startsWith('1 x Partner Meal'))).toMatch(/0\.00$/);
+    expect(lines.find((l) => l.startsWith('TOTAL'))).toMatch(/NGN 0\.00$/);
+  });
+
+  it('still treats an open order that totals nothing as a bill, not a receipt', () => {
+    const lines = textLines(formatBillEscPos(receipt({ closedAt: null, items: [], subtotal: 0, total: 0, vatAmount: 0 })));
+
+    expect(lines).toContain('Pro Forma Receipt');
+  });
+
   it('prints a paid order as a receipt with its payments instead of bank details', () => {
     const lines = textLines(
       formatBillEscPos(

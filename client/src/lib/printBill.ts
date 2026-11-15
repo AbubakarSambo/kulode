@@ -10,6 +10,16 @@ function formatPercent(rate: number): string {
 }
 
 /**
+ * Whether a receipt is for an order that has been settled, as opposed to a bill still waiting to
+ * be paid. Normally that means a payment exists. An order that came to nothing (only zero-priced
+ * items, e.g. a partner-covered meal) closes with no payment at all, so it counts once it's closed.
+ * Kept in step with the same check in api/src/modules/printers/bill-escpos.ts.
+ */
+export function isReceiptSettled(receipt: Pick<ReceiptData, 'payments' | 'total' | 'closedAt'>): boolean {
+  return receipt.payments.length > 0 || (receipt.total <= 0 && !!receipt.closedAt)
+}
+
+/**
  * Renders the same order data the PDF receipt uses as plain print-ready HTML and sends it to
  * `window.print()` via a hidden iframe. Deliberately not the existing PDF — that's generated at a
  * fixed page height (fine for a downloadable document, wrong for a thermal roll printer, which
@@ -18,7 +28,7 @@ function formatPercent(rate: number): string {
  * the guest-check moment) and "Receipt" once a payment exists — matches local POS convention.
  */
 export function printBill(receipt: ReceiptData) {
-  const isPaid = receipt.payments.length > 0
+  const isPaid = isReceiptSettled(receipt)
   const title = isPaid ? 'Receipt' : 'Pro Forma Receipt'
   const loyaltyParts: string[] = []
   if (receipt.loyalty?.toNextReward != null) loyaltyParts.push(`${formatCurrency(receipt.loyalty.toNextReward)} to your next reward`)
