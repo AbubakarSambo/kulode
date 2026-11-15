@@ -986,6 +986,7 @@ export interface PlatformOrganization {
   trialStartDate: string | null
   trialEndDate: string | null
   subscriptionStartDate: string | null
+  subscriptionEndDate: string | null
   daysInTrial: number | null
   trialDaysRemaining: number | null
   lastInvoiceAt: string | null

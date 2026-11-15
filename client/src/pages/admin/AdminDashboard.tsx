@@ -2070,6 +2070,56 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
     extendTrialMutation.mutate(days)
   }
 
+  const [payPlan, setPayPlan] = useState<'STARTER' | 'PRO' | 'BUSINESS'>(
+    org.planTier === 'STARTER' || org.planTier === 'BUSINESS' ? org.planTier : 'PRO'
+  )
+  const [payMonths, setPayMonths] = useState<string>('1')
+  const [payAmount, setPayAmount] = useState<string>('')
+  const [payReference, setPayReference] = useState<string>('')
+  const [paySendEmail, setPaySendEmail] = useState<boolean>(true)
+
+  const recordPaymentMutation = useMutation({
+    mutationFn: () =>
+      platformApi.recordSubscriptionPayment(org.id, {
+        planTier: payPlan,
+        months: parseInt(payMonths, 10),
+        ...(payAmount.trim() && { amount: Number(payAmount) }),
+        ...(payReference.trim() && { reference: payReference.trim() }),
+        sendEmail: paySendEmail,
+      }),
+    onSuccess: (res) => {
+      toast.success(
+        `Recorded. ${res.planTier} is active until ${new Date(res.periodEnd).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}`
+      )
+      setPayAmount('')
+      setPayReference('')
+      queryClient.invalidateQueries({ queryKey: ['platform', 'organization', org.id] })
+      queryClient.invalidateQueries({ queryKey: ['platform', 'organizations'] })
+      queryClient.invalidateQueries({ queryKey: ['platform', 'dashboard'] })
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Failed to record payment')
+    },
+  })
+
+  const handleRecordPayment = () => {
+    const months = parseInt(payMonths, 10)
+    if (!months || Number.isNaN(months) || months < 1 || months > 36) {
+      toast.error('Enter a number of months between 1 and 36')
+      return
+    }
+    if (payAmount.trim() && (Number.isNaN(Number(payAmount)) || Number(payAmount) < 0)) {
+      toast.error('Enter a valid amount')
+      return
+    }
+    const endText = org.subscriptionStatus === 'ACTIVE' && org.subscriptionEndDate && new Date(org.subscriptionEndDate) > new Date()
+      ? 'on top of their current paid period'
+      : 'starting today'
+    if (!window.confirm(`Record ${months} month(s) of ${payPlan} for ${org.name}, ${endText}?`)) return
+    recordPaymentMutation.mutate()
+  }
+
   const updateMutation = useMutation({
     mutationFn: (data: {
       planTier?: string
@@ -2233,6 +2283,84 @@ function EditOrgModalForm({ org, onClose }: EditOrgModalFormProps) {
                 </Button>
               </div>
               <p className="text-[10px] text-[#434655]">Extends from the current trial end date, or from today if the trial has already lapsed. Use a negative number to shorten it.</p>
+            </div>
+
+            <div className="rounded-2xl bg-[#f8f9ff] p-4 space-y-3">
+              <Label className="text-[11px] font-bold text-[#434655] uppercase tracking-wider">Record Subscription Payment</Label>
+              <p className="text-[10px] text-[#434655]">
+                For orgs that paid outside the app (bank transfer, cash). Activates the plan as if they paid in-app.
+                Current plan ends: {org.subscriptionEndDate ? new Date(org.subscriptionEndDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'not set'}
+              </p>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="payPlan" className="text-[10px] font-semibold text-[#434655]">Plan</Label>
+                  <FilterSelect
+                    id="payPlan"
+                    value={payPlan}
+                    onChange={(val) => setPayPlan(val as 'STARTER' | 'PRO' | 'BUSINESS')}
+                    options={[
+                      { value: 'STARTER', label: 'Starter' },
+                      { value: 'PRO', label: 'Pro' },
+                      { value: 'BUSINESS', label: 'Business' },
+                    ]}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="payMonths" className="text-[10px] font-semibold text-[#434655]">Months paid for</Label>
+                  <input
+                    id="payMonths"
+                    type="number"
+                    min={1}
+                    max={36}
+                    value={payMonths}
+                    onChange={(e) => setPayMonths(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0037b0]/20"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="payAmount" className="text-[10px] font-semibold text-[#434655]">Amount received (₦, optional)</Label>
+                  <input
+                    id="payAmount"
+                    type="number"
+                    min={0}
+                    value={payAmount}
+                    onChange={(e) => setPayAmount(e.target.value)}
+                    placeholder="Plan price × months"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0037b0]/20"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="payReference" className="text-[10px] font-semibold text-[#434655]">Reference (optional)</Label>
+                  <input
+                    id="payReference"
+                    type="text"
+                    maxLength={80}
+                    value={payReference}
+                    onChange={(e) => setPayReference(e.target.value)}
+                    placeholder="Bank transfer ref"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0037b0]/20"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  id="paySendEmail"
+                  type="checkbox"
+                  checked={paySendEmail}
+                  onChange={(e) => setPaySendEmail(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 accent-[#0037b0] cursor-pointer"
+                />
+                <Label htmlFor="paySendEmail" className="text-[11px] text-[#434655]">Email the owner a payment confirmation</Label>
+                <Button
+                  type="button"
+                  onClick={handleRecordPayment}
+                  disabled={recordPaymentMutation.isPending}
+                  className="ml-auto px-4 py-2 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] text-white text-xs font-bold shadow-md shadow-[#0037b0]/20 min-h-[40px]"
+                >
+                  {recordPaymentMutation.isPending ? 'Recording...' : 'Record Payment'}
+                </Button>
+              </div>
+              <p className="text-[10px] text-[#434655]">If the org is already active, the months are added after its current end date, so nothing they paid for is lost. Their saved card and auto-renew are not changed.</p>
             </div>
 
               <div className="flex items-center justify-between py-2">
