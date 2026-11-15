@@ -22,9 +22,9 @@ export const PLAN_LIMITS = {
 } as const;
 
 export const PLAN_PRICES = {
-  STARTER: { monthly: 30000, annual: 300000 },
-  PRO: { monthly: 50000, annual: 500000 },
-  BUSINESS: { monthly: 60000, annual: 600000 },
+  STARTER: { monthly: 29000, annual: 290000 },
+  PRO: { monthly: 49000, annual: 490000 },
+  BUSINESS: { monthly: 59000, annual: 590000 },
 } as const;
 
 /**

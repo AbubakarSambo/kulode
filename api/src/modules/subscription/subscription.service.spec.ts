@@ -293,10 +293,10 @@ describe('SubscriptionService', () => {
       expect(result.reference).toBe('SUB-org-1234-12345');
       expect(result.accessCode).toBe('access123');
 
-      // Verify the correct amount was sent (50000 * 100 = 5000000 kobo)
+      // Verify the correct amount was sent (49000 * 100 = 4900000 kobo)
       const fetchCall = mockFetch.mock.calls[0];
       const body = JSON.parse(fetchCall[1].body);
-      expect(body.amount).toBe(5000000);
+      expect(body.amount).toBe(4900000);
       expect(body.email).toBe('user@test.com');
       expect(body.metadata.type).toBe('subscription');
       expect(body.metadata.plan_tier).toBe('PRO');
@@ -321,7 +321,7 @@ describe('SubscriptionService', () => {
       expect(result.paymentUrl).toBe('https://paystack.com/pay/xyz');
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body.amount).toBe(60000000); // 600000 * 100 kobo
+      expect(body.amount).toBe(59000000); // 590000 * 100 kobo
     });
 
     it('should throw if Paystack initialization fails', async () => {
@@ -902,9 +902,9 @@ describe('SubscriptionService', () => {
       await expect(service.renewSubscription(ORG_ID)).resolves.toBe(true);
 
       expect(charge()).toHaveBeenCalledTimes(1);
-      expect(charge().mock.calls[0].slice(0, 3)).toEqual(['admin@example.com', 5000000, 'AUTH_bank']);
+      expect(charge().mock.calls[0].slice(0, 3)).toEqual(['admin@example.com', 4900000, 'AUTH_bank']);
       expect(activate).toHaveBeenCalledWith(
-        ORG_ID, 'PRO', 'MONTHLY', 'R1', 50000,
+        ORG_ID, 'PRO', 'MONTHLY', 'R1', 49000,
         undefined, undefined, undefined, undefined, { keepPaymentMethod: true },
       );
     });
@@ -936,7 +936,7 @@ describe('SubscriptionService', () => {
       expect(charge()).toHaveBeenCalledTimes(2);
       expect(charge().mock.calls[1][2]).toBe('AUTH_card');
       expect(activate).toHaveBeenCalledWith(
-        ORG_ID, 'PRO', 'MONTHLY', 'R4', 50000, 'AUTH_card', 'owner@example.com', 'visa', '4081',
+        ORG_ID, 'PRO', 'MONTHLY', 'R4', 49000, 'AUTH_card', 'owner@example.com', 'visa', '4081',
       );
     });
 
@@ -1311,7 +1311,7 @@ describe('SubscriptionService', () => {
 
       await service.subscribe(ORG_ID, 'PRO', 'MONTHLY', 'a@b.com');
 
-      expect(JSON.parse(mockFetch.mock.calls[0][1].body).amount).toBe(5000000);
+      expect(JSON.parse(mockFetch.mock.calls[0][1].body).amount).toBe(4900000);
     });
 
     it('renews a test account for the token amount too', async () => {
@@ -1326,6 +1326,94 @@ describe('SubscriptionService', () => {
       await service.renewSubscription(ORG_ID);
 
       expect((paystackService.chargeAuthorization as jest.Mock).mock.calls[0][1]).toBe(10000);
+    });
+  });
+  describe('recordManualPayment (platform admin records an off-app payment)', () => {
+    let orgUpdate: jest.Mock;
+    let paymentCreate: jest.Mock;
+
+    beforeEach(() => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-11-15T10:00:00Z'));
+      orgUpdate = jest.fn();
+      paymentCreate = jest.fn().mockResolvedValue({ id: 'pay-1' });
+      prisma.$transaction.mockImplementation(async (fn: any) =>
+        fn({ organization: { update: orgUpdate }, subscriptionPayment: { create: paymentCreate } }),
+      );
+    });
+    afterEach(() => jest.useRealTimers());
+
+    it('starts the period now for a lapsed org and stores it as a payment', async () => {
+      prisma.organization.findUnique.mockResolvedValue({
+        id: ORG_ID, subscriptionStatus: 'EXPIRED', subscriptionStartDate: null, subscriptionEndDate: new Date('2026-10-01T00:00:00Z'),
+      });
+
+      const res = await service.recordManualPayment(ORG_ID, { planTier: 'PRO', months: 3, reference: 'GTB-1' });
+
+      expect(res.extendedExistingPeriod).toBe(false);
+      expect(res.periodEnd.toISOString()).toBe('2027-02-15T10:00:00.000Z');
+      expect(orgUpdate.mock.calls[0][0].data).toMatchObject({ planTier: 'PRO', subscriptionStatus: 'ACTIVE', billingPeriod: 'MONTHLY' });
+      expect(paymentCreate.mock.calls[0][0].data).toMatchObject({
+        organizationId: ORG_ID, amount: 150000, paystackReference: 'manual:GTB-1', planTier: 'PRO',
+      });
+    });
+
+    it('stacks onto the current end date when the org is ACTIVE with time left', async () => {
+      prisma.organization.findUnique.mockResolvedValue({
+        id: ORG_ID, subscriptionStatus: 'ACTIVE',
+        subscriptionStartDate: new Date('2026-11-01T00:00:00Z'), subscriptionEndDate: new Date('2026-12-01T00:00:00Z'),
+      });
+
+      const res = await service.recordManualPayment(ORG_ID, { planTier: 'PRO', months: 1 });
+
+      expect(res.extendedExistingPeriod).toBe(true);
+      expect(res.periodStart.toISOString()).toBe('2026-12-01T00:00:00.000Z');
+      expect(res.periodEnd.toISOString()).toBe('2027-01-01T00:00:00.000Z');
+      // Original start date kept; saved card / auto-renew not touched.
+      const data = orgUpdate.mock.calls[0][0].data;
+      expect(data.subscriptionStartDate.toISOString()).toBe('2026-11-01T00:00:00.000Z');
+      expect(data).not.toHaveProperty('autoRenew');
+      expect(data).not.toHaveProperty('paystackAuthorizationCode');
+    });
+
+    it('does not overflow past month end (31 Jan + 1 month = 28 Feb)', async () => {
+      jest.setSystemTime(new Date('2027-01-31T10:00:00Z'));
+      prisma.organization.findUnique.mockResolvedValue({ id: ORG_ID, subscriptionStatus: 'TRIALING', subscriptionStartDate: null, subscriptionEndDate: null });
+
+      const res = await service.recordManualPayment(ORG_ID, { planTier: 'STARTER', months: 1 });
+
+      expect(res.periodEnd.toISOString()).toBe('2027-02-28T10:00:00.000Z');
+    });
+
+    it('treats 12 months as an annual billing period and honours a custom amount', async () => {
+      prisma.organization.findUnique.mockResolvedValue({ id: ORG_ID, subscriptionStatus: 'TRIALING', subscriptionStartDate: null, subscriptionEndDate: null });
+
+      await service.recordManualPayment(ORG_ID, { planTier: 'BUSINESS', months: 12, amount: 550000 });
+
+      expect(orgUpdate.mock.calls[0][0].data.billingPeriod).toBe('ANNUAL');
+      expect(paymentCreate.mock.calls[0][0].data.amount).toBe(550000);
+    });
+
+    it('emails the owner by default and skips the email when told not to', async () => {
+      prisma.organization.findUnique.mockResolvedValue({ id: ORG_ID, subscriptionStatus: 'TRIALING', subscriptionStartDate: null, subscriptionEndDate: null });
+      prisma.user.findMany.mockResolvedValue([{ email: 'o@x.com', firstName: 'Ola', roles: ['SUPER_ADMIN'], organization: { posMode: 'RESTAURANT' } }]);
+
+      await service.recordManualPayment(ORG_ID, { planTier: 'PRO', months: 1 });
+      expect(emailService.sendSubscriptionSuccessEmail).toHaveBeenCalledTimes(1);
+
+      await service.recordManualPayment(ORG_ID, { planTier: 'PRO', months: 1, sendEmail: false });
+      expect(emailService.sendSubscriptionSuccessEmail).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects a reference that was already recorded', async () => {
+      prisma.organization.findUnique.mockResolvedValue({ id: ORG_ID, subscriptionStatus: 'TRIALING', subscriptionStartDate: null, subscriptionEndDate: null });
+      prisma.$transaction.mockRejectedValue(new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: 'x' }));
+
+      await expect(service.recordManualPayment(ORG_ID, { planTier: 'PRO', months: 1, reference: 'DUP' })).rejects.toThrow('already recorded');
+    });
+
+    it('404s for an unknown org', async () => {
+      prisma.organization.findUnique.mockResolvedValue(null);
+      await expect(service.recordManualPayment('nope', { planTier: 'PRO', months: 1 })).rejects.toThrow('Organization not found');
     });
   });
 });

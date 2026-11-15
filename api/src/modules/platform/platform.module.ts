@@ -3,8 +3,10 @@ import { PlatformService } from './platform.service';
 import { PlatformController } from './platform.controller';
 import { VersionController } from './version.controller';
 import { OrgGoLiveService } from './org-go-live.service';
+import { SubscriptionModule } from '../subscription/subscription.module';
 
 @Module({
+  imports: [SubscriptionModule],
   controllers: [PlatformController, VersionController],
   providers: [PlatformService, OrgGoLiveService],
   exports: [PlatformService],

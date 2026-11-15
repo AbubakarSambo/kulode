@@ -1,11 +1,14 @@
 import {
   Injectable,
   BadRequestException,
+  ConflictException,
+  NotFoundException,
   Inject,
   forwardRef,
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaystackService } from '../paystack/paystack.service';
@@ -340,6 +343,127 @@ export class SubscriptionService {
       }
       throw error;
     }
+  }
+
+  /**
+   * A platform admin records a subscription payment that happened outside the app (bank transfer,
+   * cash) as if the org had paid through it: the plan switches on, the paid period is stored in
+   * subscription_payments (so it shows in revenue and the org's payment history) and the usual
+   * success email goes out.
+   *
+   * Paid time is never lost: if the org is ACTIVE with time left, the new months stack onto the
+   * current end date; otherwise (trial, lapsed, free) the period starts now. The org's saved card,
+   * bank mandate and auto-renew setting are left alone.
+   */
+  async recordManualPayment(
+    organizationId: string,
+    input: {
+      planTier: 'STARTER' | 'PRO' | 'BUSINESS';
+      months: number;
+      amount?: number;
+      reference?: string;
+      sendEmail?: boolean;
+    },
+    recordedBy?: string,
+  ) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: {
+        id: true,
+        subscriptionStatus: true,
+        subscriptionStartDate: true,
+        subscriptionEndDate: true,
+      },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+
+    const now = new Date();
+    const extending =
+      org.subscriptionStatus === 'ACTIVE' && !!org.subscriptionEndDate && org.subscriptionEndDate > now;
+    const periodStart = extending ? org.subscriptionEndDate! : now;
+    const periodEnd = SubscriptionService.addMonths(periodStart, input.months);
+    const billingPeriod = input.months === 12 ? 'ANNUAL' : 'MONTHLY';
+    const amount = input.amount ?? planAmount(input.planTier, 'MONTHLY') * input.months;
+    // The admin's own reference (e.g. the bank transfer ref) is kept so the payment can be traced;
+    // the prefix makes these rows recognisable and can't clash with a Paystack reference.
+    const reference = `manual:${input.reference?.trim() || randomUUID()}`;
+
+    try {
+      const payment = await this.prisma.$transaction(async (tx) => {
+        await tx.organization.update({
+          where: { id: organizationId },
+          data: {
+            planTier: input.planTier,
+            subscriptionStatus: 'ACTIVE',
+            billingPeriod,
+            subscriptionStartDate: extending ? (org.subscriptionStartDate ?? now) : now,
+            subscriptionEndDate: periodEnd,
+            pendingRenewalReference: null,
+            pendingRenewalStartedAt: null,
+          },
+        });
+        return tx.subscriptionPayment.create({
+          data: {
+            organizationId,
+            amount,
+            billingPeriod,
+            planTier: input.planTier,
+            paystackReference: reference,
+            paidAt: now,
+            periodStart,
+            periodEnd,
+          },
+        });
+      });
+
+      this.logger.log(
+        `Manual subscription payment for org ${organizationId}: ${input.planTier} x${input.months} month(s), ` +
+          `until ${periodEnd.toISOString()} (ref ${reference}${recordedBy ? `, by ${recordedBy}` : ''})`,
+      );
+
+      if (input.sendEmail !== false) {
+        const admin = await this.getOrgAdmin(organizationId);
+        if (admin) {
+          await this.emailService
+            .sendSubscriptionSuccessEmail(
+              admin.email,
+              admin.firstName,
+              input.planTier,
+              billingPeriod,
+              amount,
+              periodEnd.toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' }),
+            )
+            .catch((err) => this.logger.error(`Failed to send subscription success email: ${err.message}`));
+        }
+      }
+
+      return {
+        paymentId: payment.id,
+        reference,
+        planTier: input.planTier,
+        months: input.months,
+        amount,
+        periodStart,
+        periodEnd,
+        extendedExistingPeriod: extending,
+      };
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('A payment with this reference was already recorded');
+      }
+      throw error;
+    }
+  }
+
+  /** Calendar-month addition that stops at month end (31 Jan + 1 month = 28/29 Feb, not 3 Mar). */
+  private static addMonths(date: Date, months: number): Date {
+    const result = new Date(date);
+    const day = result.getDate();
+    result.setDate(1);
+    result.setMonth(result.getMonth() + months);
+    const lastDay = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
+    result.setDate(Math.min(day, lastDay));
+    return result;
   }
 
   // The org's billing contact: its owner (signup makes them SUPER_ADMIN), falling back to the
