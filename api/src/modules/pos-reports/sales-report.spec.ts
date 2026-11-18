@@ -208,26 +208,29 @@ describe('buildCustomerDebt', () => {
     { id: 'd', name: 'Dayo', phone: null, balance: 800, creditLimit: 0 },
   ];
 
-  it('totals what is owed now and flags customers over their credit limit', () => {
-    const d = buildCustomerDebt(customers, []);
-    expect(d).toMatchObject({ totalOwed: 17000, owingCount: 2, overLimitCount: 1, addedInPeriod: 0, repaidInPeriod: 0 });
-    expect(d.customers.map((c) => c.name)).toEqual(['Bayo', 'Ada']);
-    expect(d.customers[0].overLimit).toBe(true);
+  it('lists only customers who put something on account in the period, not older debtors', () => {
+    const d = buildCustomerDebt(customers, [{ customerId: 'a', balanceBefore: -1000, balanceAfter: -5000, createdAt: at(3) }]);
+    expect(d.customers.map((c) => c.name)).toEqual(['Ada']);
+    expect(d).toMatchObject({ totalOwed: 5000, owingCount: 1, overLimitCount: 0, addedInPeriod: 4000, repaidInPeriod: 0 });
+  });
+
+  it('flags customers over their credit limit', () => {
+    const d = buildCustomerDebt(customers, [{ customerId: 'b', balanceBefore: 0, balanceAfter: -12000, createdAt: at(3) }]);
+    expect(d.customers[0]).toMatchObject({ name: 'Bayo', owed: 12000, overLimit: true });
+    expect(d.overLimitCount).toBe(1);
   });
 
   it('counts only the overdrawn part of a purchase and only the debt part of a top-up', () => {
     const d = buildCustomerDebt(customers, [
       { customerId: 'a', balanceBefore: 200, balanceAfter: -800, createdAt: at(3) }, // 200 prepaid spent, 800 on account
       { customerId: 'a', balanceBefore: -800, balanceAfter: -5000, createdAt: at(4) }, // 4200 more
-      { customerId: 'c', balanceBefore: -700, balanceAfter: 300, createdAt: at(5) }, // 700 debt repaid, 300 credit left
+      { customerId: 'a', balanceBefore: -5000, balanceAfter: -4500, createdAt: at(5) }, // 500 repaid
+      { customerId: 'c', balanceBefore: -700, balanceAfter: 300, createdAt: at(5) }, // only repaid: not listed
       { customerId: 'd', balanceBefore: 1000, balanceAfter: 800, createdAt: at(6) }, // prepaid spend, no debt
     ]);
-    expect(d.addedInPeriod).toBe(5000);
-    expect(d.repaidInPeriod).toBe(700);
-    const chi = d.customers.find((c) => c.id === 'c')!;
-    expect(chi).toMatchObject({ owed: 0, repaidInPeriod: 700 });
-    expect(chi.lastRepaidAt).toEqual(at(5));
-    expect(d.customers.find((c) => c.id === 'd')).toBeUndefined();
-    expect(d.owingCount).toBe(2);
+    expect(d.customers).toHaveLength(1);
+    expect(d.customers[0]).toMatchObject({ name: 'Ada', addedInPeriod: 5000, repaidInPeriod: 500, owed: 5000 });
+    expect(d.customers[0].lastRepaidAt).toEqual(at(5));
+    expect(d).toMatchObject({ addedInPeriod: 5000, repaidInPeriod: 500 });
   });
 });

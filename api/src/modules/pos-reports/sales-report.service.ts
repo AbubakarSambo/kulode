@@ -125,12 +125,12 @@ export class SalesReportService {
       this.prisma.order.count({
         where: { organizationId, status: OrderStatus.CLOSED_PAID, closedAt: { gte: cmpPeriod.startDate, lte: cmpPeriod.endDate }, ...staffFilter },
       }),
-      // Customer debt: balances are as of now, the movement is limited to the report's period.
+      // Customer debt: customers who put something on account in the period; balances are as of now.
       this.prisma.customer.findMany({
         where: {
           organizationId,
           isActive: true,
-          OR: [{ walletBalance: { lt: 0 } }, { walletTransactions: { some: { createdAt: { gte: period.startDate, lte: period.endDate } } } }],
+          walletTransactions: { some: { createdAt: { gte: period.startDate, lte: period.endDate } } },
         },
         select: { id: true, name: true, phone: true, walletBalance: true, creditLimit: true },
       }),

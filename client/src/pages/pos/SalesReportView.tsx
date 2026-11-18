@@ -530,17 +530,17 @@ function CustomerDebt({ report }: { report: SalesReport }) {
   const dateText = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
   return (
     <section>
-      <SectionTitle title="Customer debt" note="What customers owe as of now; movement is for the selected period" />
+      <SectionTitle title="Customer debt" note="Customers who put something on account in this period; what they owe is as of now" />
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 print:grid-cols-4 mb-3">
-        <Tile label="Owed now" value={formatCurrency(d.totalOwed)} accent={d.totalOwed > 0 ? 'text-rose-600 dark:text-rose-400' : undefined} sub={`${d.owingCount} customer${d.owingCount === 1 ? '' : 's'}`} />
+        <Tile label="Still owed" value={formatCurrency(d.totalOwed)} accent={d.totalOwed > 0 ? 'text-rose-600 dark:text-rose-400' : undefined} sub={`${d.owingCount} customer${d.owingCount === 1 ? '' : 's'}`} />
         <Tile
           label="Over credit limit"
           value={d.overLimitCount.toLocaleString()}
           accent={d.overLimitCount > 0 ? 'text-rose-600 dark:text-rose-400' : undefined}
-          sub="Owe more than their limit"
+          sub="Of these customers"
         />
         <Tile label="Put on account" value={formatCurrency(d.addedInPeriod)} sub="New debt in this period" />
-        <Tile label="Repaid" value={formatCurrency(d.repaidInPeriod)} sub="Debt cleared in this period" />
+        <Tile label="Repaid" value={formatCurrency(d.repaidInPeriod)} sub="By these customers, this period" />
       </div>
       <Table>
         <thead className="bg-foreground [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
