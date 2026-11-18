@@ -25,6 +25,7 @@ export class SubscriptionService {
   private readonly callbackUrl: string;
   private readonly directDebitMaxAmount: number;
   private readonly bankCheckoutEnabled: boolean;
+  private readonly directDebitCheckoutOrgIds: string[];
 
   constructor(
     private prisma: PrismaService,
@@ -39,6 +40,7 @@ export class SubscriptionService {
     this.callbackUrl = this.configService.get<string>('paystack.callbackUrl') || 'http://localhost:5173/payment/callback';
     this.directDebitMaxAmount = Number(this.configService.get<number>('paystack.directDebitMaxAmount')) || 100000;
     this.bankCheckoutEnabled = this.configService.get<boolean>('paystack.bankCheckoutEnabled') !== false;
+    this.directDebitCheckoutOrgIds = this.configService.get<string[]>('paystack.directDebitCheckoutOrgIds') ?? [];
   }
 
   async getCurrentPlan(organizationId: string) {
@@ -199,7 +201,7 @@ export class SubscriptionService {
         amount: amount * 100, // Convert to kobo
         reference,
         callback_url: `${this.callbackUrl}?type=subscription`,
-        channels: payByBank ? ['bank'] : ['card'],
+        channels: payByBank ? (this.directDebitCheckoutOrgIds.includes(organizationId) ? ['direct_debit'] : ['bank']) : ['card'],
         metadata: {
           type: 'subscription',
           organization_id: organizationId,
@@ -940,6 +942,9 @@ export class SubscriptionService {
       data: {
         directDebitStatus: 'ACTIVE',
         directDebitAuthorizationCode: authorization.authorization_code,
+        // The mandate is now what renews the plan, so renewals must be on even if they were
+        // switched off by an earlier cancel.
+        autoRenew: true,
         ...(email && { directDebitEmail: email }),
         ...(authorization.bank && { directDebitBankName: authorization.bank }),
         ...(authorization.last4 && { directDebitAccountLast4: authorization.last4 }),
