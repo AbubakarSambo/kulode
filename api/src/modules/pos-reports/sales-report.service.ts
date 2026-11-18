@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { applyShiftHours, dateAtTime, DEFAULT_SHIFT_HOURS } from '../../common';
-import { buildSalesReport, CatalogItem, daypartsForShift, DEPARTMENT_NAMES, DepartmentKey, ReportLine } from './sales-report.builder';
+import { buildCustomerDebt, buildSalesReport, CatalogItem, daypartsForShift, DEPARTMENT_NAMES, DepartmentKey, ReportLine } from './sales-report.builder';
 
 const num = (v: Prisma.Decimal | number | null | undefined) => (v == null ? 0 : Number(v));
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -85,7 +85,7 @@ export class SalesReportService {
     const cmpPeriod = window(cmp.from, cmp.to);
     const staffFilter = waiterId ? { waiterId } : {};
 
-    const [orders, voided, categories, menuItems, storeItems, users, cmpSales, cmpOrders] = await Promise.all([
+    const [orders, voided, categories, menuItems, storeItems, users, cmpSales, cmpOrders, debtCustomers, debtMovements] = await Promise.all([
       this.prisma.order.findMany({
         where: { organizationId, status: OrderStatus.CLOSED_PAID, closedAt: { gte: period.startDate, lte: period.endDate }, ...staffFilter },
         select: {
@@ -124,6 +124,19 @@ export class SalesReportService {
       }),
       this.prisma.order.count({
         where: { organizationId, status: OrderStatus.CLOSED_PAID, closedAt: { gte: cmpPeriod.startDate, lte: cmpPeriod.endDate }, ...staffFilter },
+      }),
+      // Customer debt: balances are as of now, the movement is limited to the report's period.
+      this.prisma.customer.findMany({
+        where: {
+          organizationId,
+          isActive: true,
+          OR: [{ walletBalance: { lt: 0 } }, { walletTransactions: { some: { createdAt: { gte: period.startDate, lte: period.endDate } } } }],
+        },
+        select: { id: true, name: true, phone: true, walletBalance: true, creditLimit: true },
+      }),
+      this.prisma.walletTransaction.findMany({
+        where: { organizationId, createdAt: { gte: period.startDate, lte: period.endDate }, customer: { isActive: true } },
+        select: { customerId: true, balanceBefore: true, balanceAfter: true, createdAt: true },
       }),
     ]);
 
@@ -180,6 +193,11 @@ export class SalesReportService {
       dayparts: daypartsForShift(shift),
     });
 
+    const customerDebt = buildCustomerDebt(
+      debtCustomers.map((c) => ({ id: c.id, name: c.name, phone: c.phone, balance: num(c.walletBalance), creditLimit: num(c.creditLimit) })),
+      debtMovements.map((m) => ({ customerId: m.customerId, balanceBefore: num(m.balanceBefore), balanceAfter: num(m.balanceAfter), createdAt: m.createdAt })),
+    );
+
     // Setup problems that make the report misleading, shown above it with how to fix them.
     const setupHints: string[] = [];
     const filedCategories = categories.filter((c) => c.isActive && c._count.menuItems > 0);
@@ -216,6 +234,7 @@ export class SalesReportService {
         orders: cmpOrders,
         changePercent: previousSales > 0 ? Math.round(((body.headline.grossSales - previousSales) / previousSales) * 1000) / 10 : null,
       },
+      customerDebt,
       ...body,
     };
   }
