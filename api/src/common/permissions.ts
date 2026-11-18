@@ -71,8 +71,8 @@ export const PERMISSIONS = {
   // Item-sales report. WAITER only ever sees their own orders (see POS_REPORTS_ALL).
   POS_REPORTS_VIEW: [...WAITER_UP, ...LEGACY],
   POS_REPORTS_ALL: [...CASHIER_UP, ...LEGACY],
-  // The redesigned Sales report (departments, dayparts, staff, controls) — owner-level view
-  POS_SALES_REPORT_VIEW: ADMINS,
+  // The redesigned Sales report (departments, dayparts, staff, controls) — manager-and-up view
+  POS_SALES_REPORT_VIEW: MANAGER_UP,
   POS_DASHBOARD_VIEW: [...SUPERVISOR_UP, ...LEGACY],
   // Staff leaderboard (revenue / average check). Everyone on the floor can see the ranking; only
   // MANAGER and up see other people's actual figures (an org can open that to all — see
