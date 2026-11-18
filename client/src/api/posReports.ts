@@ -74,6 +74,18 @@ export interface SalesTaxRow {
   taxableSales: number
 }
 
+export interface SalesDebtCustomer {
+  id: string
+  name: string
+  phone: string | null
+  owed: number
+  creditLimit: number
+  overLimit: boolean
+  addedInPeriod: number
+  repaidInPeriod: number
+  lastRepaidAt: string | null
+}
+
 /** See api/src/modules/pos-reports/sales-report.builder.ts for how each number is defined. */
 export interface SalesReport {
   organizationName: string
@@ -93,6 +105,15 @@ export interface SalesReport {
     itemsPerOrder: number
   }
   taxes: { vat: SalesTaxRow; entertainmentTax: SalesTaxRow; serviceCharge: SalesTaxRow; totalTax: number }
+  /** Balances are as of now; added/repaid cover the report's period. */
+  customerDebt: {
+    totalOwed: number
+    owingCount: number
+    overLimitCount: number
+    addedInPeriod: number
+    repaidInPeriod: number
+    customers: SalesDebtCustomer[]
+  }
   departments: SalesDepartment[]
   totals: { quantity: number; revenue: number; avgPrice: number }
   dayparts: Array<{ name: string; start: string; end: string; orders: number; sales: number; salesPercent: number; avgCheck: number }>

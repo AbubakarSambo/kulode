@@ -1,4 +1,4 @@
-import { buildSalesReport, daypartsForShift, DEFAULT_DAYPARTS, ReportLine, ReportOrder } from './sales-report.builder';
+import { buildCustomerDebt, buildSalesReport, daypartsForShift, DEFAULT_DAYPARTS, ReportLine, ReportOrder } from './sales-report.builder';
 import { comparisonRange, mostSpecificCategory } from './sales-report.service';
 
 const line = (itemKey: string, category: string, department: ReportLine['department'], quantity: number, amount: number): ReportLine => ({
@@ -196,5 +196,38 @@ describe('buildSalesReport taxes', () => {
     const report = buildSalesReport({ ...base, orders: [order(12, [line('rice', 'Mains', 'FOOD', 1, 500)])] });
     expect(report.taxes.totalTax).toBe(0);
     expect(report.taxes.vat).toEqual({ amount: 0, orders: 0, taxableSales: 0 });
+  });
+});
+
+describe('buildCustomerDebt', () => {
+  const at = (day: number) => new Date(2026, 10, day, 12);
+  const customers = [
+    { id: 'a', name: 'Ada', phone: '0801', balance: -5000, creditLimit: 10000 },
+    { id: 'b', name: 'Bayo', phone: null, balance: -12000, creditLimit: 10000 },
+    { id: 'c', name: 'Chi', phone: null, balance: 300, creditLimit: 0 },
+    { id: 'd', name: 'Dayo', phone: null, balance: 800, creditLimit: 0 },
+  ];
+
+  it('totals what is owed now and flags customers over their credit limit', () => {
+    const d = buildCustomerDebt(customers, []);
+    expect(d).toMatchObject({ totalOwed: 17000, owingCount: 2, overLimitCount: 1, addedInPeriod: 0, repaidInPeriod: 0 });
+    expect(d.customers.map((c) => c.name)).toEqual(['Bayo', 'Ada']);
+    expect(d.customers[0].overLimit).toBe(true);
+  });
+
+  it('counts only the overdrawn part of a purchase and only the debt part of a top-up', () => {
+    const d = buildCustomerDebt(customers, [
+      { customerId: 'a', balanceBefore: 200, balanceAfter: -800, createdAt: at(3) }, // 200 prepaid spent, 800 on account
+      { customerId: 'a', balanceBefore: -800, balanceAfter: -5000, createdAt: at(4) }, // 4200 more
+      { customerId: 'c', balanceBefore: -700, balanceAfter: 300, createdAt: at(5) }, // 700 debt repaid, 300 credit left
+      { customerId: 'd', balanceBefore: 1000, balanceAfter: 800, createdAt: at(6) }, // prepaid spend, no debt
+    ]);
+    expect(d.addedInPeriod).toBe(5000);
+    expect(d.repaidInPeriod).toBe(700);
+    const chi = d.customers.find((c) => c.id === 'c')!;
+    expect(chi).toMatchObject({ owed: 0, repaidInPeriod: 700 });
+    expect(chi.lastRepaidAt).toEqual(at(5));
+    expect(d.customers.find((c) => c.id === 'd')).toBeUndefined();
+    expect(d.owingCount).toBe(2);
   });
 });

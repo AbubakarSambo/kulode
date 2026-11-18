@@ -524,6 +524,74 @@ function Taxes({ report }: { report: SalesReport }) {
   )
 }
 
+function CustomerDebt({ report }: { report: SalesReport }) {
+  const d = report.customerDebt
+  if (d.customers.length === 0) return null
+  const dateText = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  return (
+    <section>
+      <SectionTitle title="Customer debt" note="What customers owe as of now; movement is for the selected period" />
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 print:grid-cols-4 mb-3">
+        <Tile label="Owed now" value={formatCurrency(d.totalOwed)} accent={d.totalOwed > 0 ? 'text-rose-600 dark:text-rose-400' : undefined} sub={`${d.owingCount} customer${d.owingCount === 1 ? '' : 's'}`} />
+        <Tile
+          label="Over credit limit"
+          value={d.overLimitCount.toLocaleString()}
+          accent={d.overLimitCount > 0 ? 'text-rose-600 dark:text-rose-400' : undefined}
+          sub="Owe more than their limit"
+        />
+        <Tile label="Put on account" value={formatCurrency(d.addedInPeriod)} sub="New debt in this period" />
+        <Tile label="Repaid" value={formatCurrency(d.repaidInPeriod)} sub="Debt cleared in this period" />
+      </div>
+      <Table>
+        <thead className="bg-foreground [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
+          <tr>
+            <th className={th}>Customer</th>
+            <th className={cn(th, 'text-right')}>Owes now</th>
+            <th className={cn(th, 'text-right hidden sm:table-cell print:table-cell')}>Limit</th>
+            <th className={cn(th, 'text-right')}>Added</th>
+            <th className={cn(th, 'text-right')}>Repaid</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border/40">
+          {d.customers.map((c) => (
+            <tr key={c.id}>
+              <td className={td}>
+                <Link to={`/pos/customers/${c.id}`} className="font-medium hover:underline print:no-underline">{c.name}</Link>
+                {c.phone && <span className="block text-[11px] text-muted-foreground">{c.phone}</span>}
+              </td>
+              <td className={cn(td, 'text-right')}>
+                {c.owed > 0 ? (
+                  <>
+                    <span className="font-semibold text-rose-600 dark:text-rose-400">{formatCurrency(c.owed)}</span>
+                    {c.overLimit && <span className="block text-[11px] font-semibold text-rose-600 dark:text-rose-400">Over limit</span>}
+                  </>
+                ) : (
+                  '–'
+                )}
+              </td>
+              <td className={cn(td, 'text-right text-muted-foreground hidden sm:table-cell print:table-cell')}>{formatCurrency(c.creditLimit)}</td>
+              <td className={cn(td, 'text-right')}>{c.addedInPeriod > 0 ? formatCurrency(c.addedInPeriod) : '–'}</td>
+              <td className={cn(td, 'text-right')}>
+                {c.repaidInPeriod > 0 ? formatCurrency(c.repaidInPeriod) : '–'}
+                {c.lastRepaidAt && <span className="block text-[11px] text-muted-foreground">{dateText(c.lastRepaidAt)}</span>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="border-t-2 border-border font-bold">
+            <td className={td}>Total</td>
+            <td className={cn(td, 'text-right')}>{formatCurrency(d.totalOwed)}</td>
+            <td className={cn(td, 'hidden sm:table-cell print:table-cell')} />
+            <td className={cn(td, 'text-right')}>{formatCurrency(d.addedInPeriod)}</td>
+            <td className={cn(td, 'text-right')}>{formatCurrency(d.repaidInPeriod)}</td>
+          </tr>
+        </tfoot>
+      </Table>
+    </section>
+  )
+}
+
 function SetupHints({ hints }: { hints: string[] }) {
   if (hints.length === 0) return null
   return (
@@ -556,6 +624,7 @@ export function SalesReportView({ report }: { report: SalesReport }) {
       <OrderTypesAndPayments report={report} />
       <Staff report={report} />
       <Taxes report={report} />
+      <CustomerDebt report={report} />
       <Controls report={report} />
     </div>
   )

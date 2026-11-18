@@ -36,6 +36,11 @@ export function salesReportToCsv(r: SalesReport): string {
     ],
   )
   block(
+    'Customer debt',
+    ['Customer', 'Phone', 'Owes now', 'Credit limit', 'Over limit', 'Added in period', 'Repaid in period'],
+    r.customerDebt.customers.map((c) => [c.name, c.phone ?? '', c.owed, c.creditLimit, c.overLimit ? 'Yes' : '', c.addedInPeriod, c.repaidInPeriod]),
+  )
+  block(
     'Breakdown by category',
     ['Department', 'Category', 'Qty', '% Qty', 'Revenue', '% Revenue', 'Avg price'],
     r.departments.flatMap((d) => [

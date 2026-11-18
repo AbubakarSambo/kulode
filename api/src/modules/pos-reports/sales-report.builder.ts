@@ -424,3 +424,75 @@ export function buildSalesReport({
 }
 
 export type SalesReportBody = ReturnType<typeof buildSalesReport>;
+
+export interface DebtCustomer {
+  id: string;
+  name: string;
+  phone: string | null;
+  /** Wallet balance right now; negative means the customer owes. */
+  balance: number;
+  creditLimit: number;
+}
+
+export interface DebtMovement {
+  customerId: string;
+  balanceBefore: number;
+  balanceAfter: number;
+  createdAt: Date;
+}
+
+/**
+ * Customer debt: who owes now, plus how debt moved in the period. Debt is the negative part of a
+ * wallet balance, so a purchase that spends prepaid credit before going overdrawn only adds the
+ * overdrawn part, and a top-up that first clears the debt then leaves credit only repays the debt.
+ * Rows are customers who owe now or whose debt moved in the period, most owed first.
+ */
+export function buildCustomerDebt(customers: DebtCustomer[], movements: DebtMovement[]) {
+  const debt = (balance: number) => Math.max(0, -balance);
+  const moved = new Map<string, { added: number; repaid: number; lastRepaidAt: Date | null }>();
+  let added = 0;
+  let repaid = 0;
+  for (const m of movements) {
+    const change = debt(m.balanceAfter) - debt(m.balanceBefore);
+    if (change === 0) continue;
+    const row = moved.get(m.customerId) ?? { added: 0, repaid: 0, lastRepaidAt: null };
+    if (change > 0) {
+      row.added += change;
+      added += change;
+    } else {
+      row.repaid -= change;
+      repaid -= change;
+      if (!row.lastRepaidAt || m.createdAt > row.lastRepaidAt) row.lastRepaidAt = m.createdAt;
+    }
+    moved.set(m.customerId, row);
+  }
+
+  const rows = customers
+    .filter((c) => c.balance < 0 || moved.has(c.id))
+    .map((c) => {
+      const m = moved.get(c.id);
+      const owed = debt(c.balance);
+      return {
+        id: c.id,
+        name: c.name,
+        phone: c.phone,
+        owed: round2(owed),
+        creditLimit: round2(c.creditLimit),
+        overLimit: owed > c.creditLimit,
+        addedInPeriod: round2(m?.added ?? 0),
+        repaidInPeriod: round2(m?.repaid ?? 0),
+        lastRepaidAt: m?.lastRepaidAt ?? null,
+      };
+    })
+    .sort((a, b) => b.owed - a.owed || b.addedInPeriod - a.addedInPeriod || a.name.localeCompare(b.name));
+
+  const owing = rows.filter((r) => r.owed > 0);
+  return {
+    totalOwed: round2(owing.reduce((sum, r) => sum + r.owed, 0)),
+    owingCount: owing.length,
+    overLimitCount: owing.filter((r) => r.overLimit).length,
+    addedInPeriod: round2(added),
+    repaidInPeriod: round2(repaid),
+    customers: rows,
+  };
+}
