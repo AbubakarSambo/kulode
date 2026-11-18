@@ -26,6 +26,16 @@ export function salesReportToCsv(r: SalesReport): string {
     [[h.grossSales, h.discounts, h.netSales, h.orders, h.avgCheck, h.itemsSold, h.itemsPerOrder, r.comparison.changePercent ?? '']],
   )
   block(
+    'Taxes',
+    ['Charge', 'Amount', 'Orders', 'Taxable sales'],
+    [
+      ['VAT', r.taxes.vat.amount, r.taxes.vat.orders, r.taxes.vat.taxableSales],
+      ['Entertainment tax', r.taxes.entertainmentTax.amount, r.taxes.entertainmentTax.orders, r.taxes.entertainmentTax.taxableSales],
+      ['Total tax', r.taxes.totalTax, '', ''],
+      ['Service charge (not a tax)', r.taxes.serviceCharge.amount, r.taxes.serviceCharge.orders, r.taxes.serviceCharge.taxableSales],
+    ],
+  )
+  block(
     'Breakdown by category',
     ['Department', 'Category', 'Qty', '% Qty', 'Revenue', '% Revenue', 'Avg price'],
     r.departments.flatMap((d) => [
