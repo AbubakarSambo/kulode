@@ -1138,6 +1138,17 @@ describe('SubscriptionService', () => {
   describe('first payment by bank account', () => {
     const okInit = { status: true, data: { authorization_url: 'https://checkout.paystack.com/x', reference: 'ref-bank', access_code: 'ac' } };
 
+    it('opens the Direct Debit channel instead for an org in the pilot list', async () => {
+      (service as any).directDebitCheckoutOrgIds = [ORG_ID];
+      mockFetch.mockResolvedValue({ json: async () => okInit });
+      prisma.user.count.mockResolvedValue(1);
+      prisma.organization.findUnique.mockResolvedValue({ isTestAccount: true });
+
+      await service.subscribe(ORG_ID, 'PRO', 'MONTHLY', 'admin@example.com', 'BANK');
+
+      expect(JSON.parse(mockFetch.mock.calls[0][1].body).channels).toEqual(['direct_debit']);
+    });
+
     it('opens the Bank checkout channel for a monthly plan', async () => {
       mockFetch.mockResolvedValue({ json: async () => okInit });
       prisma.user.count.mockResolvedValue(1);
@@ -1272,6 +1283,7 @@ describe('SubscriptionService', () => {
         data: {
           directDebitStatus: 'ACTIVE',
           directDebitAuthorizationCode: 'AUTH_bank',
+          autoRenew: true,
           directDebitEmail: 'admin@example.com',
           directDebitBankName: 'Zenith Bank',
           directDebitAccountLast4: '6789',
