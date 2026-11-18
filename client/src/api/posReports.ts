@@ -66,6 +66,14 @@ export interface SalesDepartment extends SalesBreakdownRow {
   zeroSalesCount: number
 }
 
+export interface SalesTaxRow {
+  amount: number
+  /** Orders it was charged on. */
+  orders: number
+  /** Net sales (after discounts) of those orders. */
+  taxableSales: number
+}
+
 /** See api/src/modules/pos-reports/sales-report.builder.ts for how each number is defined. */
 export interface SalesReport {
   organizationName: string
@@ -84,6 +92,7 @@ export interface SalesReport {
     itemsSold: number
     itemsPerOrder: number
   }
+  taxes: { vat: SalesTaxRow; entertainmentTax: SalesTaxRow; serviceCharge: SalesTaxRow; totalTax: number }
   departments: SalesDepartment[]
   totals: { quantity: number; revenue: number; avgPrice: number }
   dayparts: Array<{ name: string; start: string; end: string; orders: number; sales: number; salesPercent: number; avgCheck: number }>

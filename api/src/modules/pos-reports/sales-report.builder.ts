@@ -10,6 +10,10 @@
  *   excluding tax and service charge.
  * - Discounts = sum of order-level discountAmount on those orders.
  * - Net sales = gross − discounts.
+ * - Taxes are what the till collected on those orders on top of the menu price: VAT and
+ *   entertainment tax (both taxes) and service charge (a fee, so reported beside them, not in the
+ *   tax total). Each is read from the amount stored on the order when it was placed, and its
+ *   taxable sales are the order's net sales (lines − discount) for the orders it was charged on.
  * - Voids = CANCELLED orders placed in the period, valued at their line amounts. They were never
  *   in gross, so they are reported beside it, not deducted from it.
  */
@@ -104,6 +108,10 @@ export interface ReportOrder {
   orderType: string;
   staffId: string | null;
   discountAmount: number;
+  /** Amounts charged on the order; absent means none. */
+  vatAmount?: number;
+  entertainmentTaxAmount?: number;
+  serviceChargeAmount?: number;
   lines: ReportLine[];
   payments: Array<{ method: string; amount: number }>;
 }
@@ -163,6 +171,11 @@ export function buildSalesReport({
   let discounts = 0;
   let discountCount = 0;
   let itemsSold = 0;
+  const taxTotals = {
+    vat: { amount: 0, orders: 0, taxableSales: 0 },
+    entertainmentTax: { amount: 0, orders: 0, taxableSales: 0 },
+    serviceCharge: { amount: 0, orders: 0, taxableSales: 0 },
+  };
 
   const departments = new Map<
     DepartmentKey,
@@ -224,6 +237,18 @@ export function buildSalesReport({
     grossSales += orderSales;
     discounts += order.discountAmount;
     if (order.discountAmount > 0) discountCount += 1;
+
+    const netOrderSales = orderSales - order.discountAmount;
+    for (const [key, charged] of [
+      ["vat", order.vatAmount ?? 0],
+      ["entertainmentTax", order.entertainmentTaxAmount ?? 0],
+      ["serviceCharge", order.serviceChargeAmount ?? 0],
+    ] as const) {
+      if (charged <= 0) continue;
+      taxTotals[key].amount += charged;
+      taxTotals[key].orders += 1;
+      taxTotals[key].taxableSales += netOrderSales;
+    }
 
     const minute = order.placedAt.getHours() * 60 + order.placedAt.getMinutes();
     const dp = dayparts.findIndex((d) => inDaypart(minute, d));
@@ -313,6 +338,19 @@ export function buildSalesReport({
         DEPARTMENT_ORDER.indexOf(a.key) - DEPARTMENT_ORDER.indexOf(b.key),
     );
 
+  const taxRow = (t: { amount: number; orders: number; taxableSales: number }) => ({
+    amount: round2(t.amount),
+    orders: t.orders,
+    taxableSales: round2(t.taxableSales),
+  });
+  const taxes = {
+    vat: taxRow(taxTotals.vat),
+    entertainmentTax: taxRow(taxTotals.entertainmentTax),
+    serviceCharge: taxRow(taxTotals.serviceCharge),
+    /** VAT + entertainment tax; service charge is a fee, not a tax, so it is left out. */
+    totalTax: round2(taxTotals.vat.amount + taxTotals.entertainmentTax.amount),
+  };
+
   const paymentsTotal = [...payments.values()].reduce((a, b) => a + b, 0);
 
   return {
@@ -325,6 +363,7 @@ export function buildSalesReport({
       itemsSold: round2(itemsSold),
       itemsPerOrder: avg(itemsSold, orderCount),
     },
+    taxes,
     departments: departmentRows,
     totals: {
       quantity: round2(itemsSold),

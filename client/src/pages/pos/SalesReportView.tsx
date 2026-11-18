@@ -465,6 +465,65 @@ function Controls({ report }: { report: SalesReport }) {
   )
 }
 
+function Taxes({ report }: { report: SalesReport }) {
+  const { vat, entertainmentTax, serviceCharge, totalTax } = report.taxes
+  const rows = [
+    { label: 'VAT', row: vat },
+    { label: 'Entertainment tax', row: entertainmentTax },
+  ]
+  const none = totalTax === 0 && serviceCharge.amount === 0
+  return (
+    <section>
+      <SectionTitle title="Taxes" note="Collected on closed, paid orders in this period" />
+      {none ? (
+        <p className="text-xs text-muted-foreground">No tax or service charge was collected in this period.</p>
+      ) : (
+        <>
+          <Table>
+            <thead className="bg-foreground [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
+              <tr>
+                <th className={th}>Charge</th>
+                <th className={cn(th, 'text-right')}>Collected</th>
+                <th className={cn(th, 'text-right')}>Orders</th>
+                <th className={cn(th, 'text-right')}>Taxable sales</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {rows.map(({ label, row }) => (
+                <tr key={label}>
+                  <td className={cn(td, 'font-medium')}>{label}</td>
+                  <td className={cn(td, 'text-right')}>{formatCurrency(row.amount)}</td>
+                  <td className={cn(td, 'text-right')}>{row.orders > 0 ? row.orders.toLocaleString() : '–'}</td>
+                  <td className={cn(td, 'text-right')}>{row.orders > 0 ? formatCurrency(row.taxableSales) : '–'}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-border font-bold">
+                <td className={td}>Total tax</td>
+                <td className={cn(td, 'text-right')}>{formatCurrency(totalTax)}</td>
+                <td className={td} />
+                <td className={td} />
+              </tr>
+              {serviceCharge.amount > 0 && (
+                <tr className="font-medium text-muted-foreground">
+                  <td className={td}>Service charge (a fee, not a tax)</td>
+                  <td className={cn(td, 'text-right')}>{formatCurrency(serviceCharge.amount)}</td>
+                  <td className={cn(td, 'text-right')}>{serviceCharge.orders.toLocaleString()}</td>
+                  <td className={cn(td, 'text-right')}>{formatCurrency(serviceCharge.taxableSales)}</td>
+                </tr>
+              )}
+            </tfoot>
+          </Table>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Amounts are as charged on each order when it was placed. Taxable sales are the net sales (after discounts) of the orders each charge applied to.
+          </p>
+        </>
+      )}
+    </section>
+  )
+}
+
 function SetupHints({ hints }: { hints: string[] }) {
   if (hints.length === 0) return null
   return (
@@ -496,6 +555,7 @@ export function SalesReportView({ report }: { report: SalesReport }) {
       <Dayparts report={report} />
       <OrderTypesAndPayments report={report} />
       <Staff report={report} />
+      <Taxes report={report} />
       <Controls report={report} />
     </div>
   )

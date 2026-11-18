@@ -171,3 +171,30 @@ describe('daypartsForShift', () => {
     expect(stray.dayparts.find((d) => d.name === 'Outside opening hours')!.orders).toBe(1);
   });
 });
+
+describe('buildSalesReport taxes', () => {
+  const base = { catalog: [], voids: [], staffNames: new Map<string, string>() };
+
+  it('totals VAT, entertainment tax and service charge from the amounts stored on each order', () => {
+    const report = buildSalesReport({
+      ...base,
+      orders: [
+        order(12, [line('rice', 'Mains', 'FOOD', 1, 10000)], { vatAmount: 750, entertainmentTaxAmount: 500, serviceChargeAmount: 1000 }),
+        order(13, [line('rice', 'Mains', 'FOOD', 1, 4000)], { discountAmount: 1000, vatAmount: 225 }),
+        order(14, [line('rice', 'Mains', 'FOOD', 1, 2000)]),
+      ],
+    });
+    expect(report.taxes).toEqual({
+      vat: { amount: 975, orders: 2, taxableSales: 13000 },
+      entertainmentTax: { amount: 500, orders: 1, taxableSales: 10000 },
+      serviceCharge: { amount: 1000, orders: 1, taxableSales: 10000 },
+      totalTax: 1475,
+    });
+  });
+
+  it('reports zeros when nothing was charged', () => {
+    const report = buildSalesReport({ ...base, orders: [order(12, [line('rice', 'Mains', 'FOOD', 1, 500)])] });
+    expect(report.taxes.totalTax).toBe(0);
+    expect(report.taxes.vat).toEqual({ amount: 0, orders: 0, taxableSales: 0 });
+  });
+});
