@@ -58,24 +58,6 @@ export interface DemoStaff {
   waiterIds: string[];
 }
 
-/**
- * Which org a seed builds. The sales demo is one target; scripts/loadtest seeds many more (one per
- * simulated restaurant), so the identity is a parameter rather than the hard-wired demo constants.
- */
-export interface SeedTarget {
-  slug: string;
-  name: string;
-  adminEmail: string;
-  staffEmailDomain: string;
-}
-
-export const DEMO_TARGET: SeedTarget = {
-  slug: DEMO_ORG_SLUG,
-  name: DEMO_ORG_NAME,
-  adminEmail: DEMO_ADMIN_EMAIL,
-  staffEmailDomain: DEMO_STAFF_EMAIL_DOMAIN,
-};
-
 interface DemoCustomer {
   id: string;
   name: string;
@@ -107,29 +89,6 @@ export class DemoSeedService {
   }
 
   /**
-   * Builds (or wipes and rebuilds) a test org for `target` and waits for the full history to be
-   * written. For scripts — reset() is the HTTP-facing version that returns before the rebuild.
-   * Refuses any existing org with that slug that isn't flagged isTestAccount.
-   */
-  async seedTestOrg(target: SeedTarget, now = new Date()) {
-    const existing = await this.prisma.organization.findUnique({ where: { slug: target.slug } });
-    if (existing && !existing.isTestAccount) {
-      throw new BadRequestException(`Organization ${existing.id} has slug ${target.slug} but is not a test account — refusing to seed it`);
-    }
-    const org = existing ?? (await this.createOrg(target));
-    const { staff, adminPassword } = await this.ensureStaff(org.id, target);
-    await this.populate(org.id, staff, now);
-    return { organizationId: org.id, staff, adminPassword };
-  }
-
-  /** Deletes all of a test org's POS data (see wipe). Refuses orgs not flagged isTestAccount. */
-  async wipeTestOrg(organizationId: string) {
-    const org = await this.prisma.organization.findUnique({ where: { id: organizationId } });
-    if (!org?.isTestAccount) throw new BadRequestException(`Organization ${organizationId} is not a test account — refusing to wipe it`);
-    await this.wipe(organizationId);
-  }
-
-  /**
    * Resets the demo org. Creates the org and its logins synchronously (returning the admin
    * password only when the admin login is first created), then rebuilds the data in the
    * background — a full rebuild writes ~10k orders and can outlast an HTTP request.
@@ -141,8 +100,8 @@ export class DemoSeedService {
     if (existing && !existing.isTestAccount) {
       throw new BadRequestException(`Organization ${existing.id} has the demo slug but is not a test account — refusing to reset it`);
     }
-    const org = existing ?? (await this.createOrg(DEMO_TARGET));
-    const { staff, adminPassword } = await this.ensureStaff(org.id, DEMO_TARGET);
+    const org = existing ?? (await this.createOrg());
+    const { staff, adminPassword } = await this.ensureStaff(org.id);
 
     this.populating = true;
     void this.populate(org.id, staff, now)
@@ -158,12 +117,12 @@ export class DemoSeedService {
     };
   }
 
-  async loadStaff(organizationId: string, adminEmail = DEMO_ADMIN_EMAIL): Promise<DemoStaff> {
+  async loadStaff(organizationId: string): Promise<DemoStaff> {
     const users = await this.prisma.user.findMany({
       where: { organizationId, isActive: true },
       select: { id: true, email: true, roles: true },
     });
-    const admin = users.find((u) => u.email === adminEmail);
+    const admin = users.find((u) => u.email === DEMO_ADMIN_EMAIL);
     if (!admin) throw new BadRequestException('Demo admin login is missing — run a demo reset');
     return {
       adminId: admin.id,
@@ -172,12 +131,12 @@ export class DemoSeedService {
     };
   }
 
-  private async createOrg(target: SeedTarget) {
+  private async createOrg() {
     return this.prisma.organization.create({
       data: {
-        name: target.name,
-        slug: target.slug,
-        email: target.adminEmail,
+        name: DEMO_ORG_NAME,
+        slug: DEMO_ORG_SLUG,
+        email: DEMO_ADMIN_EMAIL,
         address: 'Maitama, Abuja',
         businessType: 'Restaurant',
         enabledModules: 'POS',
@@ -194,18 +153,18 @@ export class DemoSeedService {
     });
   }
 
-  private async ensureStaff(organizationId: string, target: SeedTarget): Promise<{ staff: DemoStaff; adminPassword: string | null }> {
+  private async ensureStaff(organizationId: string): Promise<{ staff: DemoStaff; adminPassword: string | null }> {
     let adminPassword: string | null = null;
-    const admin = await this.prisma.user.findUnique({ where: { email: target.adminEmail } });
+    const admin = await this.prisma.user.findUnique({ where: { email: DEMO_ADMIN_EMAIL } });
     if (admin && admin.organizationId !== organizationId) {
-      throw new BadRequestException(`${target.adminEmail} already belongs to another organization`);
+      throw new BadRequestException(`${DEMO_ADMIN_EMAIL} already belongs to another organization`);
     }
     if (!admin) {
       adminPassword = randomBytes(9).toString('base64url');
       await this.prisma.user.create({
         data: {
           organizationId,
-          email: target.adminEmail,
+          email: DEMO_ADMIN_EMAIL,
           passwordHash: await bcrypt.hash(adminPassword, 12),
           firstName: 'Courtyard',
           lastName: 'Demo',
@@ -216,7 +175,7 @@ export class DemoSeedService {
     }
 
     for (const member of STAFF) {
-      const email = `${member.firstName}.${member.lastName}@${target.staffEmailDomain}`.toLowerCase();
+      const email = `${member.firstName}.${member.lastName}@${DEMO_STAFF_EMAIL_DOMAIN}`.toLowerCase();
       await this.prisma.user.upsert({
         where: { email },
         update: {},
@@ -232,7 +191,7 @@ export class DemoSeedService {
       });
     }
 
-    return { staff: await this.loadStaff(organizationId, target.adminEmail), adminPassword };
+    return { staff: await this.loadStaff(organizationId), adminPassword };
   }
 
   /** Deletes all of the org's POS data, children before parents. Keeps the org and its logins. */
