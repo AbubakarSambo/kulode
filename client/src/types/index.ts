@@ -10,7 +10,7 @@ export type PosMode = 'RESTAURANT' | 'RETAIL'
 // Plan types
 export type PlanTier = 'FREE' | 'STARTER' | 'PRO' | 'BUSINESS'
 export type SubscriptionStatus = 'TRIALING' | 'ACTIVE' | 'PAST_DUE' | 'CANCELLED' | 'EXPIRED'
-export type BillingPeriod = 'MONTHLY' | 'ANNUAL'
+export type BillingPeriod = 'MONTHLY' | 'QUARTERLY' | 'BIANNUAL' | 'ANNUAL'
 
 export interface PlanInfo {
   planTier: PlanTier

@@ -35,10 +35,10 @@ describe('EmailService — POS wording matches how the org sells', () => {
     expect(html()).toContain('taking orders and running your floor');
   });
 
-  it("quotes the Starter price from PLAN_PRICES rather than a hard-coded figure", async () => {
+  it('quotes the Pro monthly price from PLAN_PRICES rather than a hard-coded figure', async () => {
     const { service, html } = makeService();
     await service.sendTrialExpiredEmail('a@b.ng', 'Ada');
-    const starter = PLAN_PRICES.STARTER.monthly.toLocaleString('en-NG');
-    expect(html()).toContain(`Starter plan at just ₦${starter}/month`);
+    const pro = PLAN_PRICES.PRO.monthly.toLocaleString('en-NG');
+    expect(html()).toContain(`Subscribe for just ₦${pro}/month`);
   });
 });

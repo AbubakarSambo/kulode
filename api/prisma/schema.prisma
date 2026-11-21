@@ -121,6 +121,8 @@ enum SubscriptionStatus {
 
 enum BillingPeriod {
   MONTHLY
+  QUARTERLY
+  BIANNUAL
   ANNUAL
 }
 

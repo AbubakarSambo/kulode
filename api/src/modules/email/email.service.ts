@@ -448,8 +448,8 @@ export class EmailService {
 
   async sendTrialExpiredEmail(email: string, firstName: string, posMode?: PosMode): Promise<void> {
     const copy = this.floorCopy(posMode);
-    const starterPrice = new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 0 }).format(
-      PLAN_PRICES.STARTER.monthly,
+    const proPrice = new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 0 }).format(
+      PLAN_PRICES.PRO.monthly,
     );
     const billingUrl = `${this.frontendUrl}/settings/billing`;
 
@@ -464,7 +464,7 @@ export class EmailService {
       `,
       ctaText: 'Choose Plan & Upgrade',
       ctaUrl: billingUrl,
-      footerNote: `Select the Starter plan at just ${starterPrice}/month to get started instantly.`,
+      footerNote: `Subscribe for just ${proPrice}/month to get started instantly.`,
     });
 
     await this.sendEmail({
