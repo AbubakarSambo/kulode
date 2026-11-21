@@ -2,15 +2,16 @@ import { IsEnum, IsNotEmpty, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class SubscribeDto {
-  @ApiProperty({ enum: ['STARTER', 'PRO', 'BUSINESS'] })
-  @IsEnum(['STARTER', 'PRO', 'BUSINESS'])
+  // Pro is the only plan on sale; Starter and Business exist only for organizations already on them.
+  @ApiProperty({ enum: ['PRO'] })
+  @IsEnum(['PRO'])
   @IsNotEmpty()
-  planTier: 'STARTER' | 'PRO' | 'BUSINESS';
+  planTier: 'PRO';
 
-  @ApiProperty({ enum: ['MONTHLY', 'ANNUAL'] })
-  @IsEnum(['MONTHLY', 'ANNUAL'])
+  @ApiProperty({ enum: ['MONTHLY', 'QUARTERLY', 'BIANNUAL', 'ANNUAL'] })
+  @IsEnum(['MONTHLY', 'QUARTERLY', 'BIANNUAL', 'ANNUAL'])
   @IsNotEmpty()
-  billingPeriod: 'MONTHLY' | 'ANNUAL';
+  billingPeriod: 'MONTHLY' | 'QUARTERLY' | 'BIANNUAL' | 'ANNUAL';
 
   @ApiProperty({ enum: ['CARD', 'BANK'], required: false, description: 'How the first payment is made. BANK debits a bank account (monthly plans only).' })
   @IsOptional()
