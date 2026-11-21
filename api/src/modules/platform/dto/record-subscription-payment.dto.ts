@@ -12,7 +12,7 @@ export class RecordSubscriptionPaymentDto {
   @Max(36)
   months: number;
 
-  @ApiPropertyOptional({ example: 50000, description: 'Naira received. Defaults to the plan\'s monthly price x months.' })
+  @ApiPropertyOptional({ example: 50000, description: 'Naira received. Defaults to the plan price for that term (3, 6 or 12 months), otherwise monthly price x months.' })
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)

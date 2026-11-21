@@ -23,60 +23,36 @@ import { cn } from '@/lib/utils'
 import type { PlanTier, BillingPeriod } from '@/types'
 import { posthog } from '@/lib/posthog'
 import { useAuthStore } from '@/stores/auth'
+import { BILLING_TERMS, billedLabel, billingTerm, coveredUntil, listPrice, perMonthPrice } from '@/lib/pricing'
 
-const PLAN_MAX_USERS: Record<string, number> = {
-  FREE: 1,
-  STARTER: 1,
-  PRO: 10,
-  BUSINESS: Infinity,
+// Pro is the only plan on sale. Starter and Business remain only as names for organizations that
+// are still on them, so the current-plan card reads correctly.
+const PLAN_NAMES: Record<string, string> = {
+  FREE: 'Free / Expired',
+  STARTER: 'Starter',
+  PRO: 'Pro',
+  BUSINESS: 'Business',
 }
 
-const PLAN_FEATURES: Record<string, { name: string; price: { monthly: number; annual: number }; description: string; features: string[] }> = {
-  FREE: {
-    name: 'Free / Expired',
-    price: { monthly: 0, annual: 0 },
-    description: 'Legacy or expired account state with restricted access.',
-    features: [],
-  },
-  STARTER: {
-    name: 'Starter',
-    price: { monthly: 29000, annual: 290000 },
-    description: 'Perfect for freelancers and side-hustles starting out.',
-    features: [
-      '1 active user seat',
-      'Tableside order taking',
-      'Table & floor management',
-      'Live kitchen display',
-      'Shift & cash reconciliation',
-    ],
-  },
-  PRO: {
-    name: 'Pro',
-    price: { monthly: 49000, annual: 490000 },
-    description: 'For restaurants running a full floor with staff and inventory to manage.',
-    features: [
-      'Up to 20 active users',
-      'Everything in Starter',
-      'Sales dashboard & item reports',
-      'Waiters, order & payment types',
-      'Inventory & stock tracking',
-      'Customer wallets & store credit',
-      'AI Business Chat & Insights',
-      'Offline-first ordering',
-    ],
-  },
-  BUSINESS: {
-    name: 'Business',
-    price: { monthly: 59000, annual: 590000 },
-    description: 'For large organizations managing heavy volume and teams.',
-    features: [
-      'Unlimited active users',
-      'Everything in Pro',
-      'Multiple kitchen & receipt printers',
-      'Priority customer support',
-      'Zero platform transaction fees',
-    ],
-  },
+// Matches PLAN_LIMITS.PRO.maxUsers on the API.
+const PRO_MAX_USERS = 20
+
+const PRO_PLAN = {
+  name: 'Pro',
+  description: 'Everything you need to run your floor, your team and your stock.',
+  features: [
+    'Up to 20 active users',
+    'Tableside order taking',
+    'Table & floor management',
+    'Live kitchen display',
+    'Shift & cash reconciliation',
+    'Sales dashboard & item reports',
+    'Waiters, order & payment types',
+    'Inventory & stock tracking',
+    'Customer wallets & store credit',
+    'AI Business Chat & Insights',
+    'Offline-first ordering',
+  ],
 }
 
 function formatAmount(naira: number) {
@@ -180,9 +156,9 @@ export function BillingPage() {
     },
   })
 
-  // Bank-account payment is for monthly plans only; switching to annual goes back to card.
+  // Bank-account payment is for monthly plans only; picking a longer term goes back to card.
   useEffect(() => {
-    if (billingPeriod === 'ANNUAL' && payWith === 'BANK' && !subscription?.isTestAccount) setPayWith('CARD')
+    if (billingPeriod !== 'MONTHLY' && payWith === 'BANK' && !subscription?.isTestAccount) setPayWith('CARD')
   }, [billingPeriod, payWith, subscription?.isTestAccount])
 
   // Track page view once on mount
@@ -269,14 +245,14 @@ export function BillingPage() {
                 <div className="space-y-2">
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-[#0037b0] dark:text-[#3b82f6]">Your Current Plan</p>
                   <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-                    {PLAN_FEATURES[effectivePlan]?.name ?? effectivePlan}
+                    {PLAN_NAMES[effectivePlan] ?? effectivePlan}
                   </h3>
                   
                   {subscription?.billingPeriod && (
                     <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 font-semibold">
                       <HugeiconsIcon icon={Calendar03Icon} size={14} className="text-slate-400" />
                       <span>
-                        {subscription.billingPeriod === 'MONTHLY' ? 'Billed Monthly' : 'Billed Annually'}
+                        {billedLabel(subscription.billingPeriod)}
                         {subscription.subscriptionEndDate && (
                           <>
                             {' '}&middot;{' '}
@@ -423,7 +399,7 @@ export function BillingPage() {
           const pm = subscription.paymentMethods
           const dd = pm.directDebit
           const bankLabel = dd?.bankName ? `${dd.bankName}${dd.last4 ? ` •••• ${dd.last4}` : ''}` : 'Your bank account'
-          const annualOnCard = subscription.billingPeriod === 'ANNUAL'
+          const annualOnCard = subscription.billingPeriod !== 'MONTHLY'
           return (
             <Card className="rounded-[24px] border-0 shadow-[0_12px_32px_rgba(0,55,176,0.04)] overflow-hidden">
               <CardContent className="p-6 space-y-5">
@@ -483,7 +459,7 @@ export function BillingPage() {
                       <>
                         <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{bankLabel}</p>
                         <Badge className="bg-[#6ffbbe] text-[#006c49] text-[9px] font-bold px-2 py-0.5 border-0">
-                          {annualOnCard ? 'Active · annual plan uses card' : 'Active · used for renewals'}
+                          {annualOnCard ? 'Active · this term is paid by card' : 'Active · used for renewals'}
                         </Badge>
                         <div>
                           <button
@@ -523,213 +499,178 @@ export function BillingPage() {
           )
         })()}
 
-        {/* Plan pricing tables header */}
-        {!isGrandfathered && (
-          <div className="pt-8 space-y-4">
-            <div className="text-center space-y-2">
-              <h2 className="text-2xl font-bold text-slate-950 dark:text-white tracking-tight">Select Subscription Plan</h2>
-              <p className="text-sm text-slate-500 max-w-lg mx-auto font-medium">
-                Choose the pricing plan that matches your monthly billing and user needs. Toggle below to save 17% on annual cycles.
-              </p>
-            </div>
+        {/* One plan: pick how long to pay for */}
+        {!isGrandfathered && (() => {
+          const term = billingTerm(billingPeriod)
+          const isTrialing = subscription?.subscriptionStatus === 'TRIALING'
+          const isCurrent = !isTrialing && effectivePlan === 'PRO'
+          const testPrice = subscription?.testAccountPrice ?? null
+          const price = testPrice ?? term.price
+          const activeUsers = subscription?.usage.activeUsers
+          const seatsExceeded = !isCurrent && activeUsers != null && activeUsers > PRO_MAX_USERS
+          const discounted = testPrice == null && term.price < listPrice(term)
+          const pending = subscribeMutation.isPending
 
-            {/* Toggle Billing Period with modern sliding container */}
-            <div className="flex justify-center pt-2">
-              <div className="bg-[#eef4ff] dark:bg-slate-900 p-1 rounded-2xl flex items-center shadow-inner relative max-w-xs w-full">
-                <button
-                  onClick={() => setBillingPeriod('MONTHLY')}
-                  className={cn(
-                    "flex-1 py-2 px-4 text-xs font-semibold rounded-xl transition-all duration-200 z-10 cursor-pointer min-h-[44px] flex items-center justify-center",
-                    billingPeriod === 'MONTHLY'
-                      ? "bg-[#0037b0] text-white shadow-sm font-bold"
-                      : "text-slate-650 hover:text-slate-905 dark:text-slate-400"
-                  )}
-                >
-                  Monthly
-                </button>
-                <button
-                  onClick={() => setBillingPeriod('ANNUAL')}
-                  className={cn(
-                    "flex-1 py-2 px-4 text-xs font-semibold rounded-xl transition-all duration-200 z-10 cursor-pointer flex items-center justify-center gap-1.5 min-h-[44px]",
-                    billingPeriod === 'ANNUAL'
-                      ? "bg-[#0037b0] text-white shadow-sm font-bold"
-                      : "text-slate-650 hover:text-slate-905 dark:text-slate-400"
-                  )}
-                >
-                  <span>Annual</span>
-                  <span className="bg-[#6ffbbe] text-[#006c49] text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider">
-                    -17%
-                  </span>
-                </button>
+          return (
+            <div className="pt-8 space-y-6">
+              <div className="text-center space-y-2">
+                <h2 className="text-2xl font-bold text-slate-950 dark:text-white tracking-tight">Choose how long to pay for</h2>
+                <p className="text-sm text-slate-500 max-w-lg mx-auto font-medium">
+                  One plan, one price. Pay for more months at once and each month costs less.
+                </p>
               </div>
-            </div>
 
-            {subscription?.isTestAccount && subscription.testAccountPrice != null && (
-              <div className="mx-auto max-w-xl rounded-xl bg-amber-500/10 px-4 py-2 text-center text-xs font-semibold text-amber-700">
-                Test account: any plan costs {formatAmount(subscription.testAccountPrice)}, so real payments can be tried safely.
-              </div>
-            )}
-
-            {/* How to pay: card, or a bank account (monthly plans) */}
-            {subscription?.paymentMethods?.bankFirstPaymentEnabled && (
-            <div className="flex flex-col items-center gap-2 pt-1">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-slate-500">Pay with</span>
-                <div className="bg-[#eef4ff] dark:bg-slate-900 p-1 rounded-xl flex items-center">
-                  {(['CARD', 'BANK'] as const).map((method) => {
-                    const disabled = method === 'BANK' && billingPeriod === 'ANNUAL' && !subscription?.isTestAccount
+              {/* Term selector */}
+              <div className="flex justify-center">
+                <div
+                  role="radiogroup"
+                  aria-label="Billing term"
+                  className="bg-[#eef4ff] dark:bg-slate-900 p-1 rounded-2xl grid grid-cols-4 gap-1 shadow-inner w-full max-w-md"
+                >
+                  {BILLING_TERMS.map((t) => {
+                    const selected = billingPeriod === t.period
                     return (
                       <button
-                        key={method}
-                        onClick={() => setPayWith(method)}
-                        disabled={disabled}
+                        key={t.period}
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => setBillingPeriod(t.period)}
                         className={cn(
-                          'py-1.5 px-4 text-xs font-semibold rounded-lg transition-all cursor-pointer min-h-[36px] disabled:opacity-40 disabled:cursor-not-allowed',
-                          payWith === method ? 'bg-[#0037b0] text-white shadow-sm font-bold' : 'text-slate-600 dark:text-slate-400',
+                          'flex flex-col items-center justify-start gap-1 rounded-xl px-1 py-2 min-h-[56px] transition-all duration-200 cursor-pointer',
+                          selected ? 'bg-[#0037b0] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400',
                         )}
                       >
-                        {method === 'CARD' ? 'Card' : 'Bank account'}
+                        <span className="text-xs font-bold whitespace-nowrap">{t.label}</span>
+                        <span
+                          className={cn(
+                            'rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase leading-tight tracking-wide text-center',
+                            t.badge
+                              ? selected ? 'bg-[#6ffbbe] text-[#006c49]' : 'bg-[#6ffbbe]/60 text-[#006c49]'
+                              : 'invisible',
+                          )}
+                        >
+                          {t.badge ?? 'none'}
+                        </span>
                       </button>
                     )
                   })}
                 </div>
               </div>
-              <p className="text-[11px] text-slate-500 font-medium text-center max-w-md leading-relaxed">
-                {billingPeriod === 'ANNUAL' && !subscription?.isTestAccount
-                  ? 'Annual plans are paid by card. Switch to Monthly to pay from a bank account.'
-                  : payWith === 'BANK'
-                    ? 'You will approve this payment from your bank on Paystack\'s page. It is a one-off payment; to renew from your bank automatically, link the account under Renewal payment method afterwards.'
-                    : 'Pay by card, or choose Bank account to approve the payment from your bank.'}
-              </p>
-            </div>
-            )}
 
-            {/* Redesigned Pricing cards grid */}
-            <div className="grid gap-6 md:grid-cols-3 items-stretch pt-4">
-              {(Object.entries(PLAN_FEATURES) as [PlanTier, typeof PLAN_FEATURES[string]][]).map(
-                ([tier, plan]) => {
-                  if (tier === 'FREE') return null
-                  const isTrialing = subscription?.subscriptionStatus === 'TRIALING'
-                  const isCurrent = !isTrialing && effectivePlan === tier
-                  const price = subscription?.testAccountPrice ?? (billingPeriod === 'MONTHLY' ? plan.price.monthly : plan.price.annual)
-                  const isUpgrade = !isCurrent
-                  const planMaxUsers = PLAN_MAX_USERS[tier]
-                  const activeUsers = subscription?.usage.activeUsers
-                  const seatsExceeded =
-                    !isCurrent &&
-                    planMaxUsers !== Infinity &&
-                    activeUsers != null &&
-                    activeUsers > planMaxUsers
-
-                  // Premium card design tokens
-                  const isPro = tier === 'PRO'
-                  const cardStyles = isPro
-                    ? "relative border-2 border-[#0037b0] shadow-[0_12px_32px_rgba(0,55,176,0.08)] bg-card scale-[1.02] z-10"
-                    : "relative border-0 bg-card shadow-[0_12px_32px_rgba(0,55,176,0.02)]"
-
-                  const buttonStyles = isCurrent || seatsExceeded
-                    ? "w-full rounded-xl bg-slate-50 dark:bg-slate-800/50 py-3.5 text-xs font-semibold text-slate-400 dark:text-slate-500 cursor-not-allowed text-center min-h-[44px] flex items-center justify-center"
-                    : isPro
-                      ? "w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] py-3.5 text-xs font-bold text-white shadow-md hover:shadow-lg hover:from-[#0037b0]/95 hover:to-blue-600/95 active:scale-[0.99] transition-all duration-150 cursor-pointer min-h-[44px]"
-                      : tier === 'BUSINESS'
-                        ? "w-full flex items-center justify-center gap-2 rounded-xl bg-slate-950 dark:bg-slate-50 text-white dark:text-slate-950 py-3.5 text-xs font-bold hover:bg-slate-900 dark:hover:bg-slate-100 transition-all duration-150 cursor-pointer shadow-sm min-h-[44px]"
-                        : "w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-250 py-3.5 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-900 transition-all duration-150 cursor-pointer min-h-[44px]"
-
-                  return (
-                    <Card
-                      key={tier}
-                      className={cn("flex flex-col justify-between rounded-[24px] p-2 transition-all duration-300 hover:shadow-md", cardStyles)}
-                    >
-                      {isPro && (
-                        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                          <Badge className="bg-[#0037b0] hover:bg-[#0037b0]/90 text-white font-bold px-4 py-1 text-[9px] uppercase tracking-widest rounded-full shadow-md border-0">
-                            Most Popular
-                          </Badge>
-                        </div>
-                      )}
-
-                      <div className="p-6 sm:p-8 flex-1 flex flex-col justify-between h-full space-y-8">
-                        <div>
-                          {/* Card Top Details */}
-                          <div className="space-y-4">
-                            <div className="space-y-1">
-                              <h3 className="text-xl font-bold text-slate-950 dark:text-white tracking-tight">{plan.name}</h3>
-                              <p className="text-xs text-slate-500 font-medium leading-relaxed">{plan.description}</p>
-                            </div>
-                            
-                            <div className="flex items-baseline gap-1 pt-2">
-                              <span className="text-3xl font-bold tracking-tight text-slate-950 dark:text-white">
-                                {price === 0 ? 'Free' : formatAmount(price)}
-                              </span>
-                              {price > 0 && (
-                                <span className="text-xs text-slate-500 font-semibold">
-                                  /{billingPeriod === 'MONTHLY' ? 'mo' : 'yr'}
-                                </span>
-                              )}
-                            </div>
-                            {billingPeriod === 'ANNUAL' && price > 0 && (
-                              <p className="text-[10px] text-[#006c49] font-bold tracking-wide uppercase">
-                                Billed annually ({formatAmount(price)})
-                              </p>
-                            )}
-                          </div>
-
-                          {/* List of Plan Features */}
-                          <ul className="space-y-4 border-t border-slate-100 dark:border-slate-800/80 pt-6 mt-6">
-                            {plan.features.map((feature) => (
-                              <li key={feature} className="flex items-start gap-3 text-xs text-slate-650 dark:text-slate-350 leading-relaxed font-medium">
-                                <HugeiconsIcon
-                                  icon={CheckmarkCircle02Icon}
-                                  size={16}
-                                  className={cn("mt-0.5 shrink-0", isPro ? "text-[#0037b0]" : "text-[#006c49]")}
-                                />
-                                <span>{feature}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-
-                        {/* CTA Subscribing Action */}
-                        <div className="pt-2 space-y-2">
-                          {isCurrent ? (
-                            <div className={buttonStyles}>
-                              Current Subscription
-                            </div>
-                          ) : seatsExceeded ? (
-                            <>
-                              <div className={buttonStyles}>
-                                Not enough seats
-                              </div>
-                              <p className="text-[11px] text-slate-500 font-medium text-center leading-relaxed">
-                                You have {activeUsers} active users, above this plan's limit of {planMaxUsers}. Deactivate users to select this plan.
-                              </p>
-                            </>
-                          ) : (
-                            <button
-                              onClick={() => handleSubscribe(tier)}
-                              disabled={subscribeMutation.isPending && subscribingPlan === tier}
-                              className={buttonStyles}
-                            >
-                              {subscribeMutation.isPending && subscribingPlan === tier ? (
-                                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                </svg>
-                              ) : (
-                                <HugeiconsIcon icon={Award01Icon} size={16} className="shrink-0" />
-                              )}
-                              <span>{isUpgrade ? 'Upgrade to ' : 'Select '} {plan.name}</span>
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </Card>
-                  )
-                }
+              {subscription?.isTestAccount && testPrice != null && (
+                <div className="mx-auto max-w-xl rounded-xl bg-amber-500/10 px-4 py-2 text-center text-xs font-semibold text-amber-700">
+                  Test account: any plan costs {formatAmount(testPrice)}, so real payments can be tried safely.
+                </div>
               )}
+
+              {/* How to pay: card, or a bank account (monthly only) */}
+              {subscription?.paymentMethods?.bankFirstPaymentEnabled && (
+                <div className="flex flex-col items-center gap-2 pt-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-500">Pay with</span>
+                    <div className="bg-[#eef4ff] dark:bg-slate-900 p-1 rounded-xl flex items-center">
+                      {(['CARD', 'BANK'] as const).map((method) => {
+                        const disabled = method === 'BANK' && billingPeriod !== 'MONTHLY' && !subscription?.isTestAccount
+                        return (
+                          <button
+                            key={method}
+                            onClick={() => setPayWith(method)}
+                            disabled={disabled}
+                            className={cn(
+                              'py-1.5 px-4 text-xs font-semibold rounded-lg transition-all cursor-pointer min-h-[36px] disabled:opacity-40 disabled:cursor-not-allowed',
+                              payWith === method ? 'bg-[#0037b0] text-white shadow-sm font-bold' : 'text-slate-600 dark:text-slate-400',
+                            )}
+                          >
+                            {method === 'CARD' ? 'Card' : 'Bank account'}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium text-center max-w-md leading-relaxed">
+                    {billingPeriod !== 'MONTHLY' && !subscription?.isTestAccount
+                      ? 'Terms longer than a month are paid by card. Choose 1 month to pay from a bank account.'
+                      : payWith === 'BANK'
+                        ? 'You will approve this payment from your bank on Paystack\'s page. It is a one-off payment; to renew from your bank automatically, link the account under Renewal payment method afterwards.'
+                        : 'Pay by card, or choose Bank account to approve the payment from your bank.'}
+                  </p>
+                </div>
+              )}
+
+              {/* The plan */}
+              <Card className="mx-auto max-w-md flex flex-col rounded-[24px] p-2 border-2 border-[#0037b0] bg-card shadow-[0_12px_32px_rgba(0,55,176,0.08)]">
+                <div className="p-6 sm:p-8 space-y-6">
+                  <div className="space-y-1">
+                    <h3 className="text-xl font-bold text-slate-950 dark:text-white tracking-tight">{PRO_PLAN.name}</h3>
+                    <p className="text-xs text-slate-500 font-medium leading-relaxed">{PRO_PLAN.description}</p>
+                  </div>
+
+                  <div className="space-y-1.5" aria-live="polite">
+                    <div className="flex flex-wrap items-baseline gap-x-2">
+                      <span className="text-4xl font-bold tracking-tight text-slate-950 dark:text-white">{formatAmount(price)}</span>
+                      {discounted && (
+                        <span className="text-sm font-semibold text-slate-400 line-through">{formatAmount(listPrice(term))}</span>
+                      )}
+                    </div>
+                    {testPrice == null && (
+                      <p className="text-xs font-semibold text-slate-500">
+                        {term.months > 1
+                          ? `${formatAmount(perMonthPrice(term))} per month · billed ${formatAmount(term.price)} every ${term.cycleLabel}`
+                          : 'Billed monthly'}
+                      </p>
+                    )}
+                    <p className="text-[11px] font-semibold text-[#006c49]">
+                      Covers you until{' '}
+                      {coveredUntil(term).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </p>
+                  </div>
+
+                  <ul className="space-y-3 border-t border-slate-100 dark:border-slate-800/80 pt-6">
+                    {PRO_PLAN.features.map((feature) => (
+                      <li key={feature} className="flex items-start gap-3 text-xs text-slate-650 dark:text-slate-350 leading-relaxed font-medium">
+                        <HugeiconsIcon icon={CheckmarkCircle02Icon} size={16} className="mt-0.5 shrink-0 text-[#0037b0]" />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className="space-y-2">
+                    {isCurrent ? (
+                      <div className="w-full rounded-xl bg-slate-50 dark:bg-slate-800/50 py-3.5 text-xs font-semibold text-slate-400 dark:text-slate-500 cursor-not-allowed text-center min-h-[44px] flex items-center justify-center">
+                        Current Subscription
+                      </div>
+                    ) : seatsExceeded ? (
+                      <>
+                        <div className="w-full rounded-xl bg-slate-50 dark:bg-slate-800/50 py-3.5 text-xs font-semibold text-slate-400 dark:text-slate-500 cursor-not-allowed text-center min-h-[44px] flex items-center justify-center">
+                          Not enough seats
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-medium text-center leading-relaxed">
+                          You have {activeUsers} active users, above this plan's limit of {PRO_MAX_USERS}. Deactivate users to subscribe.
+                        </p>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => handleSubscribe('PRO')}
+                        disabled={pending}
+                        className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#0037b0] to-[#1d4ed8] py-3.5 text-xs font-bold text-white shadow-md hover:shadow-lg hover:from-[#0037b0]/95 hover:to-blue-600/95 active:scale-[0.99] transition-all duration-150 cursor-pointer min-h-[44px] disabled:opacity-60"
+                      >
+                        {pending ? (
+                          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                        ) : (
+                          <HugeiconsIcon icon={Award01Icon} size={16} className="shrink-0" />
+                        )}
+                        <span>Pay {formatAmount(price)}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </Card>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* Payment history redesigned section */}
         {paymentHistory && paymentHistory.length > 0 && (
@@ -767,7 +708,7 @@ export function BillingPage() {
                           <td className="p-4 font-semibold">{payment.planTier}</td>
                           <td className="p-4">
                             <Badge className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold px-2 py-0.5 text-[10px] rounded-md border-0">
-                              {payment.billingPeriod}
+                              {billingTerm(payment.billingPeriod).label}
                             </Badge>
                           </td>
                           <td className="p-4 text-right font-semibold text-slate-900 dark:text-slate-100">{formatAmount(Number(payment.amount))}</td>

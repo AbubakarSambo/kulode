@@ -390,6 +390,29 @@ describe('SubscriptionService', () => {
       expect(capturedOrgUpdate.data.billingPeriod).toBe('ANNUAL');
     });
 
+    it.each([
+      ['QUARTERLY', 3, 139500],
+      ['BIANNUAL', 6, 264500],
+    ])('activates a %s payment for %i months, not one', async (period, months, amount) => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-11-15T10:00:00Z'));
+      prisma.subscriptionPayment.findUnique.mockResolvedValue(null);
+      let capturedOrgUpdate: any;
+      prisma.$transaction.mockImplementation(async (fn: any) => {
+        await fn({
+          organization: { update: jest.fn().mockImplementation((args: any) => { capturedOrgUpdate = args; }) },
+          subscriptionPayment: { create: jest.fn() },
+        });
+      });
+
+      await service.activateSubscription(ORG_ID, 'PRO', period as string, `REF-${period}`, amount);
+
+      const expectedEnd = new Date('2026-11-15T10:00:00Z');
+      expectedEnd.setMonth(expectedEnd.getMonth() + months);
+      expect(capturedOrgUpdate.data.subscriptionEndDate.toISOString()).toBe(expectedEnd.toISOString());
+      expect(capturedOrgUpdate.data.billingPeriod).toBe(period);
+      jest.useRealTimers();
+    });
+
     it('should skip activation if reference already processed (idempotent)', async () => {
       prisma.subscriptionPayment.findUnique.mockResolvedValue({
         id: 'existing-payment',
@@ -1363,10 +1386,28 @@ describe('SubscriptionService', () => {
 
       expect(res.extendedExistingPeriod).toBe(false);
       expect(res.periodEnd.toISOString()).toBe('2027-02-15T10:00:00.000Z');
-      expect(orgUpdate.mock.calls[0][0].data).toMatchObject({ planTier: 'PRO', subscriptionStatus: 'ACTIVE', billingPeriod: 'MONTHLY' });
+      expect(orgUpdate.mock.calls[0][0].data).toMatchObject({ planTier: 'PRO', subscriptionStatus: 'ACTIVE', billingPeriod: 'QUARTERLY' });
       expect(paymentCreate.mock.calls[0][0].data).toMatchObject({
-        organizationId: ORG_ID, amount: 147000, paystackReference: 'manual:GTB-1', planTier: 'PRO',
+        organizationId: ORG_ID, amount: 139500, billingPeriod: 'QUARTERLY', paystackReference: 'manual:GTB-1', planTier: 'PRO',
       });
+    });
+
+    it('records 6 and 12 months as their own terms at the term price', async () => {
+      prisma.organization.findUnique.mockResolvedValue({
+        id: ORG_ID, subscriptionStatus: 'EXPIRED', subscriptionStartDate: null, subscriptionEndDate: null,
+      });
+      await service.recordManualPayment(ORG_ID, { planTier: 'PRO', months: 6 });
+      await service.recordManualPayment(ORG_ID, { planTier: 'PRO', months: 12 });
+      expect(paymentCreate.mock.calls[0][0].data).toMatchObject({ amount: 264500, billingPeriod: 'BIANNUAL' });
+      expect(paymentCreate.mock.calls[1][0].data).toMatchObject({ amount: 490000, billingPeriod: 'ANNUAL' });
+    });
+
+    it('prices an odd month count at monthly x months and records it as monthly', async () => {
+      prisma.organization.findUnique.mockResolvedValue({
+        id: ORG_ID, subscriptionStatus: 'EXPIRED', subscriptionStartDate: null, subscriptionEndDate: null,
+      });
+      await service.recordManualPayment(ORG_ID, { planTier: 'PRO', months: 5 });
+      expect(paymentCreate.mock.calls[0][0].data).toMatchObject({ amount: 245000, billingPeriod: 'MONTHLY' });
     });
 
     it('stacks onto the current end date when the org is ACTIVE with time left', async () => {

@@ -15,7 +15,15 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { PaystackService } from '../paystack/paystack.service';
 import { EmailService } from '../email/email.service';
-import { PLAN_LIMITS, PLAN_PRICES, TEST_ACCOUNT_PRICE, maxUsersFor, planAmount } from '../../common/plan-limits';
+import {
+  PLAN_LIMITS,
+  PLAN_PRICES,
+  TEST_ACCOUNT_PRICE,
+  billingPeriodForMonths,
+  maxUsersFor,
+  monthsInBillingPeriod,
+  planAmount,
+} from '../../common/plan-limits';
 
 @Injectable()
 export class SubscriptionService {
@@ -154,7 +162,7 @@ export class SubscriptionService {
   async subscribe(
     organizationId: string,
     planTier: 'STARTER' | 'PRO' | 'BUSINESS',
-    billingPeriod: 'MONTHLY' | 'ANNUAL',
+    billingPeriod: 'MONTHLY' | 'QUARTERLY' | 'BIANNUAL' | 'ANNUAL',
     email: string,
     paymentMethod: 'CARD' | 'BANK' = 'CARD',
   ) {
@@ -284,7 +292,7 @@ export class SubscriptionService {
     if (billingPeriod === 'ANNUAL') {
       periodEnd.setFullYear(periodEnd.getFullYear() + 1);
     } else {
-      periodEnd.setMonth(periodEnd.getMonth() + 1);
+      periodEnd.setMonth(periodEnd.getMonth() + monthsInBillingPeriod(billingPeriod));
     }
 
     try {
@@ -393,8 +401,14 @@ export class SubscriptionService {
       org.subscriptionStatus === 'ACTIVE' && !!org.subscriptionEndDate && org.subscriptionEndDate > now;
     const periodStart = extending ? org.subscriptionEndDate! : now;
     const periodEnd = SubscriptionService.addMonths(periodStart, input.months);
-    const billingPeriod = input.months === 12 ? 'ANNUAL' : 'MONTHLY';
-    const amount = input.amount ?? planAmount(input.planTier, 'MONTHLY') * input.months;
+    // 3, 6 and 12 months are recorded as the matching term; any other count as monthly.
+    const billingPeriod = billingPeriodForMonths(input.months) ?? 'MONTHLY';
+    // A whole term defaults to its discounted price; odd month counts default to monthly x months.
+    const amount =
+      input.amount ??
+      (billingPeriodForMonths(input.months)
+        ? planAmount(input.planTier, billingPeriod)
+        : planAmount(input.planTier, 'MONTHLY') * input.months);
     // The admin's own reference (e.g. the bank transfer ref) is kept so the payment can be traced;
     // the prefix makes these rows recognisable and can't clash with a Paystack reference.
     const reference = `manual:${input.reference?.trim() || randomUUID()}`;
