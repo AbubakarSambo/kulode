@@ -257,6 +257,7 @@ export function AdminDashboardPage() {
   const [planFilter, setPlanFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [grandfatheredFilter, setGrandfatheredFilter] = useState<string>('all')
+  const [sortByLastActive, setSortByLastActive] = useState(false)
   const [page, setPage] = useState(1)
   const limit = 100
 
@@ -306,6 +307,7 @@ export function AdminDashboardPage() {
         planTier: planFilter,
         subscriptionStatus: statusFilter,
         isGrandfathered: grandfatheredFilter,
+        sortByLastActive,
         page,
         limit,
       },
@@ -316,6 +318,7 @@ export function AdminDashboardPage() {
         planTier: planFilter || undefined,
         subscriptionStatus: statusFilter || undefined,
         isGrandfathered: grandfatheredFilter === 'all' ? undefined : grandfatheredFilter === 'true',
+        sort: sortByLastActive ? 'lastActive' : undefined,
         page,
         limit,
       }),
@@ -1204,7 +1207,19 @@ export function AdminDashboardPage() {
                           <th className="px-6 py-4">Plan &amp; Status</th>
                           <th className="px-6 py-4">Trial Status</th>
                           <th className="px-6 py-4">Usage</th>
-                          <th className="px-6 py-4">Last Active</th>
+                          <th className="px-6 py-4">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSortByLastActive((v) => !v)
+                                setPage(1)
+                              }}
+                              className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-[#0b1c30]"
+                              title={sortByLastActive ? 'Sorted by most recently active — click for newest joined' : 'Sort by most recently active'}
+                            >
+                              Last Active {sortByLastActive ? '↓' : '↕'}
+                            </button>
+                          </th>
                           <th className="px-6 py-4">Date Joined</th>
                           <th className="px-6 py-4 text-right">Actions</th>
                         </tr>

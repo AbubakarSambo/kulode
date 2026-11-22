@@ -988,6 +988,7 @@ export class PlatformService {
     planTier?: PlanTier;
     subscriptionStatus?: SubscriptionStatus;
     isGrandfathered?: boolean | string;
+    sort?: string;
     page?: number;
     limit?: number;
   }) {
@@ -1018,11 +1019,42 @@ export class PlatformService {
       where.isGrandfathered = query.isGrandfathered === 'true' || query.isGrandfathered === true;
     }
 
-    const [items, total] = await Promise.all([
-      this.prisma.organization.findMany({
+    // "Last active" is derived (latest order / invoice), so it can't be a plain orderBy.
+    // Rank every matching org first, then fetch only the requested page's rows.
+    let pageIds: string[] | null = null;
+    let rankedTotal = 0;
+    if (query.sort === 'lastActive') {
+      const matching = await this.prisma.organization.findMany({
         where,
-        skip,
-        take: limit,
+        select: { id: true, createdAt: true },
+      });
+      rankedTotal = matching.length;
+      const ids = matching.map((o) => o.id);
+      const activity = ids.length
+        ? await this.prisma.$queryRaw<{ organization_id: string; last_active: Date | null }[]>`
+            SELECT o.id AS organization_id,
+                   GREATEST(
+                     (SELECT MAX(ord.created_at) FROM orders ord WHERE ord.organization_id = o.id),
+                     (SELECT MAX(inv.created_at) FROM invoices inv WHERE inv.organization_id = o.id AND inv.deleted_at IS NULL)
+                   ) AS last_active
+            FROM organizations o
+            WHERE o.id = ANY(${ids}::text[])`
+        : [];
+      const lastActiveById = new Map(activity.map((a) => [a.organization_id, a.last_active?.getTime() ?? 0]));
+      pageIds = matching
+        .sort(
+          (a, b) =>
+            (lastActiveById.get(b.id) ?? 0) - (lastActiveById.get(a.id) ?? 0) ||
+            b.createdAt.getTime() - a.createdAt.getTime(),
+        )
+        .slice(skip, skip + limit)
+        .map((o) => o.id);
+    }
+
+    const [fetched, countResult] = await Promise.all([
+      this.prisma.organization.findMany({
+        where: pageIds ? { id: { in: pageIds } } : where,
+        ...(pageIds ? {} : { skip, take: limit }),
         orderBy: { createdAt: 'desc' },
         select: {
           id: true,
@@ -1064,8 +1096,12 @@ export class PlatformService {
           },
         },
       }),
-      this.prisma.organization.count({ where }),
+      pageIds ? Promise.resolve(rankedTotal) : this.prisma.organization.count({ where }),
     ]);
+    const total = countResult;
+    const items = pageIds
+      ? pageIds.map((id) => fetched.find((o) => o.id === id)!).filter(Boolean)
+      : fetched;
 
     const formattedItems = items.map((org) => {
       const daysInTrial = org.trialStartDate
