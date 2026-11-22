@@ -112,6 +112,7 @@ export const platformApi = {
     planTier?: string
     subscriptionStatus?: string
     isGrandfathered?: boolean
+    sort?: 'lastActive'
     page?: number
     limit?: number
   }): Promise<PlatformOrganizationsResponse> => {

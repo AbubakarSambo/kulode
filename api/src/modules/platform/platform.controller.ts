@@ -54,6 +54,7 @@ export class PlatformController {
     @Query('planTier') planTier?: PlanTier,
     @Query('subscriptionStatus') subscriptionStatus?: SubscriptionStatus,
     @Query('isGrandfathered') isGrandfathered?: string,
+    @Query('sort') sort?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
@@ -62,6 +63,7 @@ export class PlatformController {
       planTier,
       subscriptionStatus,
       isGrandfathered,
+      sort,
       page,
       limit,
     });
