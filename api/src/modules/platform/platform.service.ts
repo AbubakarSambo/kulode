@@ -1049,7 +1049,13 @@ export class PlatformService {
               orders: true,
             },
           },
-          // Latest invoice date as "last active" proxy
+          // Latest invoice and latest order — the later of the two is "last active"
+          // (POS-only orgs create orders, never invoices)
+          orders: {
+            select: { createdAt: true },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
           invoices: {
             select: { createdAt: true },
             orderBy: { createdAt: 'desc' },
@@ -1069,10 +1075,16 @@ export class PlatformService {
         ? Math.floor((new Date(org.trialEndDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
         : null;
       const lastInvoiceAt = org.invoices[0]?.createdAt ?? null;
+      const lastOrderAt = org.orders[0]?.createdAt ?? null;
+      const lastActiveAt =
+        lastInvoiceAt && lastOrderAt
+          ? lastInvoiceAt > lastOrderAt ? lastInvoiceAt : lastOrderAt
+          : lastInvoiceAt ?? lastOrderAt;
 
       return {
         ...org,
         invoices: undefined, // strip the raw relation from response
+        orders: undefined,
         userCount: org._count.users,
         invoiceCount: org._count.invoices,
         orderCount: org._count.orders,
@@ -1080,6 +1092,7 @@ export class PlatformService {
         daysInTrial,
         trialDaysRemaining,
         lastInvoiceAt,
+        lastActiveAt,
       };
     });
 

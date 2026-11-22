@@ -1268,7 +1268,7 @@ export function AdminDashboardPage() {
                               )}
                             </td>
                             <td className="px-6 py-4">
-                              <LastActiveIndicator dateString={org.lastInvoiceAt} />
+                              <LastActiveIndicator dateString={org.lastActiveAt ?? org.lastInvoiceAt} />
                             </td>
                             <td className="px-6 py-4">
                               <span className="text-xs text-[#434655] tabular-nums">

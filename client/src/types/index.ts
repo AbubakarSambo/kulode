@@ -997,6 +997,7 @@ export interface PlatformOrganization {
   daysInTrial: number | null
   trialDaysRemaining: number | null
   lastInvoiceAt: string | null
+  lastActiveAt: string | null
 }
 
 export interface PlatformOrganizationsResponse {
