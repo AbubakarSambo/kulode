@@ -73,6 +73,7 @@ export class WhatsappService {
   private readonly templateLanguage: string;
   private readonly webhookVerifyToken: string;
   private readonly appSecret: string;
+  private readonly receiptTemplateName: string;
   private readonly inboundHandlers: InboundMessageHandler[] = [];
 
   constructor(
@@ -88,6 +89,7 @@ export class WhatsappService {
     this.templateLanguage = this.configService.get<string>('whatsapp.templateLanguage') || 'en';
     this.webhookVerifyToken = this.configService.get<string>('whatsapp.webhookVerifyToken') || '';
     this.appSecret = this.configService.get<string>('whatsapp.appSecret') || '';
+    this.receiptTemplateName = this.configService.get<string>('whatsapp.receiptTemplateName') || 'payment_receipt_v1';
   }
 
   private get isMockMode(): boolean {
@@ -383,6 +385,23 @@ export class WhatsappService {
 
   isValidVerifyToken(token: string | undefined): boolean {
     return !!this.webhookVerifyToken && token === this.webhookVerifyToken;
+  }
+
+  /** "Payment received" confirmation to a customer, so they know the money landed and what is left. */
+  async sendPaymentReceiptTemplate(params: {
+    organizationId: string;
+    toPhone: string;
+    clientName: string;
+    amountPaid: string;
+    invoiceNumber: string;
+    balanceLeft: string;
+  }): Promise<{ providerMessageId: string | null }> {
+    return this.sendCustomerTemplate({
+      organizationId: params.organizationId,
+      toPhone: params.toPhone,
+      templateName: this.receiptTemplateName,
+      bodyValues: [params.clientName, params.amountPaid, params.invoiceNumber, params.balanceLeft],
+    });
   }
 
   /** True when a webhook signing secret is configured, so the signature can be checked at all. */

@@ -11,6 +11,7 @@ import { CreateSubaccountDto, VerifyBankAccountDto } from './dto';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { InventoryService } from '../inventory/inventory.service';
 import { EmailService } from '../email/email.service';
+import { WhatsappService } from '../whatsapp/whatsapp.service';
 
 export interface PaystackBank {
   name: string;
@@ -83,6 +84,7 @@ export class PaystackService {
     private prisma: PrismaService,
     private inventoryService: InventoryService,
     private emailService: EmailService,
+    private whatsappService: WhatsappService,
   ) {
     this.baseUrl = this.configService.get<string>('paystack.baseUrl') || 'https://api.paystack.co';
     this.secretKey = this.configService.get<string>('paystack.secretKey') || '';
@@ -1211,6 +1213,9 @@ export class PaystackService {
       }
     }
 
+    // 1b. WhatsApp receipt, for businesses that have switched on automatic reminders and customers who agreed to WhatsApp
+    await this.sendWhatsappReceipt(invoice, amountPaid, outstandingAmount);
+
     // 2. Send alert to Merchant (Org Admins/Users)
     const merchantEmails: string[] = [];
     if (invoice.organization.email) {
@@ -1244,6 +1249,28 @@ export class PaystackService {
       } catch (err) {
         this.logger.error(`Failed to send merchant payment alert to ${email}: ${err.message}`);
       }
+    }
+  }
+
+  private async sendWhatsappReceipt(invoice: any, amountPaid: number, outstandingAmount: string): Promise<void> {
+    const client = invoice.client;
+    if (!client?.phone || !client.whatsappOptIn || client.whatsappOptedOutAt) return;
+    try {
+      const enrolled = await this.prisma.invoiceCollectionPolicy.findFirst({
+        where: { organizationId: invoice.organizationId, clientId: null },
+        select: { id: true },
+      });
+      if (!enrolled) return;
+      await this.whatsappService.sendPaymentReceiptTemplate({
+        organizationId: invoice.organizationId,
+        toPhone: client.phone,
+        clientName: client.name,
+        amountPaid: amountPaid.toLocaleString('en-NG', { style: 'currency', currency: 'NGN' }),
+        invoiceNumber: invoice.invoiceNumber,
+        balanceLeft: outstandingAmount || '₦0.00',
+      });
+    } catch (err) {
+      this.logger.error(`Failed to send WhatsApp payment receipt for invoice ${invoice.invoiceNumber}: ${(err as Error).message}`);
     }
   }
 

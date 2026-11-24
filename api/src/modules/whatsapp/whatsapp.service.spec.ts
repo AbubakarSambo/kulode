@@ -113,3 +113,19 @@ describe('WhatsappService inbound messages and webhook signatures', () => {
     await expect(service.handleWebhookEvent(inboundEvent, { acceptInbound: true })).resolves.toBeUndefined();
   });
 });
+
+describe('WhatsappService payment receipt', () => {
+  it('sends the receipt template with name, amount, invoice number and balance in order', async () => {
+    const prisma: any = {};
+    const config: any = { get: (k: string) => (k === 'whatsapp.receiptTemplateName' ? 'payment_receipt_v1' : undefined) };
+    const service = new WhatsappService(config, prisma);
+    const send = jest.spyOn(service, 'sendCustomerTemplate').mockResolvedValue({ providerMessageId: 'wamid.1' });
+    await service.sendPaymentReceiptTemplate({ organizationId: 'org-1', toPhone: '08031234567', clientName: 'Emeka', amountPaid: '₦20,000.00', invoiceNumber: 'INV-0214', balanceLeft: '₦30,000.00' });
+    expect(send).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      toPhone: '08031234567',
+      templateName: 'payment_receipt_v1',
+      bodyValues: ['Emeka', '₦20,000.00', 'INV-0214', '₦30,000.00'],
+    });
+  });
+});
