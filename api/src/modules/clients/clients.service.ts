@@ -3,6 +3,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateClientDto, UpdateClientDto, ClientFilterDto } from './dto';
 import { paginate } from '../../common';
 
+/** The business ticked the consent box on the customer's behalf; the customer did not opt in themselves. */
+export const OPT_IN_SOURCE_BUSINESS = 'business_attested';
+
 @Injectable()
 export class ClientsService {
   constructor(private prisma: PrismaService) {}
@@ -86,8 +89,8 @@ export class ClientsService {
       data: {
         organizationId,
         ...dto,
-        // Server-stamped consent timestamp, not trusting a client-supplied value
-        whatsappOptInAt: dto.whatsappOptIn ? new Date() : undefined,
+        // Server-stamped consent time and source, not trusting client-supplied values
+        ...(dto.whatsappOptIn ? { whatsappOptInAt: new Date(), whatsappOptInSource: OPT_IN_SOURCE_BUSINESS } : {}),
       },
     });
 
@@ -103,12 +106,19 @@ export class ClientsService {
       throw new NotFoundException('Client not found');
     }
 
+    // A customer who replied STOP stays opted out. Ticking the box again must not quietly override that
+    // (the reminders would stay blocked anyway), so their consent can't be changed from here.
+    const optedOutByCustomer = !!client.whatsappOptedOutAt;
+    const { whatsappOptIn, ...rest } = dto;
+    const turningOn = whatsappOptIn === true && !client.whatsappOptIn && !optedOutByCustomer;
+
     const updated = await this.prisma.client.update({
       where: { id },
       data: {
-        ...dto,
-        // Stamp consent timestamp only on the false -> true transition
-        ...(dto.whatsappOptIn && !client.whatsappOptIn ? { whatsappOptInAt: new Date() } : {}),
+        ...rest,
+        ...(!optedOutByCustomer && whatsappOptIn !== undefined ? { whatsappOptIn } : {}),
+        // Stamp consent time and source only on the false -> true transition
+        ...(turningOn ? { whatsappOptInAt: new Date(), whatsappOptInSource: OPT_IN_SOURCE_BUSINESS } : {}),
       },
     });
 

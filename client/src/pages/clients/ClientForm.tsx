@@ -35,9 +35,11 @@ type ClientForm = z.infer<typeof clientSchema>
 interface ClientFormPageProps {
   mode?: 'create' | 'edit'
   initialData?: ClientForm & { id: string }
+  /** When the customer replied STOP on WhatsApp, if they did. */
+  whatsappOptedOutAt?: string | null
 }
 
-export function ClientFormPage({ mode = 'create', initialData }: ClientFormPageProps) {
+export function ClientFormPage({ mode = 'create', initialData, whatsappOptedOutAt }: ClientFormPageProps) {
   const scrollContainerRef = useOverscrollBounce<HTMLDivElement>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -194,7 +196,12 @@ export function ClientFormPage({ mode = 'create', initialData }: ClientFormPageP
                   {errors.phone?.message && (
                     <p className="text-xs text-red-500">{errors.phone.message}</p>
                   )}
-                  {watch('phone') && (
+                  {watch('phone') && whatsappOptedOutAt && (
+                    <p className="mt-1.5 text-[10px] font-semibold text-amber-700" role="note">
+                      This customer replied STOP on WhatsApp on {new Date(whatsappOptedOutAt).toLocaleDateString()}, so they will not get WhatsApp messages. This cannot be changed here.
+                    </p>
+                  )}
+                  {watch('phone') && !whatsappOptedOutAt && (
                     <label className="flex items-center gap-2 mt-1.5 cursor-pointer select-none">
                       <input
                         type="checkbox"
@@ -286,6 +293,7 @@ export function EditClientPage() {
   return (
     <ClientFormPage
       mode="edit"
+      whatsappOptedOutAt={client.whatsappOptedOutAt}
       initialData={{
         id: client.id,
         name: client.name,
