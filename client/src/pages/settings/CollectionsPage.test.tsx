@@ -1,16 +1,20 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { CollectionsPage } from './CollectionsPage'
 import { invoiceCollectionsApi } from '@/api'
 import { toast } from 'sonner'
 
 vi.mock('@/api', () => ({
-  invoiceCollectionsApi: { policy: vi.fn(), updatePolicy: vi.fn(), pending: vi.fn(), approve: vi.fn(), skip: vi.fn() },
+  invoiceCollectionsApi: { policy: vi.fn(), updatePolicy: vi.fn(), pending: vi.fn(), attention: vi.fn(), approve: vi.fn(), skip: vi.fn() },
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 vi.mock('@/components/layout', () => ({ Header: ({ title }: { title: string }) => <h1>{title}</h1> }))
+
+// react-query passes extra context after the variables, so compare just the first argument
+const firstArg = (fn: unknown) => vi.mocked(fn as (...a: unknown[]) => unknown).mock.calls[0][0]
 
 const policy = {
   enabled: true,
@@ -37,7 +41,9 @@ function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <CollectionsPage />
+      <MemoryRouter>
+        <CollectionsPage />
+      </MemoryRouter>
     </QueryClientProvider>,
   )
   return userEvent.setup()
@@ -47,6 +53,7 @@ describe('CollectionsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(invoiceCollectionsApi.pending).mockResolvedValue([])
+    vi.mocked(invoiceCollectionsApi.attention).mockResolvedValue([])
   })
 
   it('offers to turn reminders on in approve mode when not yet enabled', async () => {
@@ -54,7 +61,7 @@ describe('CollectionsPage', () => {
     vi.mocked(invoiceCollectionsApi.updatePolicy).mockResolvedValue(policy)
     const user = renderPage()
     await user.click(await screen.findByRole('button', { name: 'Turn on reminders' }))
-    expect(invoiceCollectionsApi.updatePolicy).toHaveBeenCalledWith({ mode: 'APPROVE' })
+    expect(firstArg(invoiceCollectionsApi.updatePolicy)).toEqual({ mode: 'APPROVE' })
     expect(invoiceCollectionsApi.pending).toHaveBeenCalled()
   })
 
@@ -83,7 +90,7 @@ describe('CollectionsPage', () => {
     await user.clear(hour)
     await user.type(hour, '10')
     await user.click(screen.getByRole('button', { name: 'Save settings' }))
-    expect(invoiceCollectionsApi.updatePolicy).toHaveBeenCalledWith({ mode: 'AUTO', sendHour: 10, maxMessages: 4 })
+    expect(firstArg(invoiceCollectionsApi.updatePolicy)).toEqual({ mode: 'AUTO', sendHour: 10, maxMessages: 4 })
   })
 
   it('blocks saving an out-of-range send hour', async () => {
@@ -100,7 +107,7 @@ describe('CollectionsPage', () => {
     vi.mocked(invoiceCollectionsApi.updatePolicy).mockResolvedValue({ ...policy, paused: true })
     const user = renderPage()
     await user.click(await screen.findByRole('button', { name: 'Pause' }))
-    expect(invoiceCollectionsApi.updatePolicy).toHaveBeenCalledWith({ paused: true })
+    expect(firstArg(invoiceCollectionsApi.updatePolicy)).toEqual({ paused: true })
   })
 
   it('approving sends and toasts success', async () => {
@@ -129,5 +136,28 @@ describe('CollectionsPage', () => {
     const user = renderPage()
     await user.click(await screen.findByRole('button', { name: 'Skip reminder for INV-0042' }))
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Reminder skipped'))
+  })
+
+  it('shows what the customer said and links to the invoice', async () => {
+    vi.mocked(invoiceCollectionsApi.policy).mockResolvedValue(policy)
+    vi.mocked(invoiceCollectionsApi.attention).mockResolvedValue([
+      {
+        invoiceId: 'i1',
+        messagesSent: 2,
+        lastActionAt: null,
+        invoice: { id: 'i1', invoiceNumber: 'INV-0042', total: '50000', amountPaid: '0', dueDate: '2026-11-20T00:00:00.000Z', status: 'OVERDUE', client: { name: 'Ada Stores' } },
+        lastReply: { body: 'I have paid', intent: 'CLAIMS_PAID', createdAt: '2026-11-24T10:00:00.000Z' },
+      },
+    ])
+    renderPage()
+    expect(await screen.findByText('“I have paid”')).toBeInTheDocument()
+    expect(screen.getByText(/Says they have paid/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open invoice' })).toHaveAttribute('href', '/invoices/i1')
+  })
+
+  it('says so when nothing needs attention', async () => {
+    vi.mocked(invoiceCollectionsApi.policy).mockResolvedValue(policy)
+    renderPage()
+    expect(await screen.findByText('Nothing needs your attention.')).toBeInTheDocument()
   })
 })

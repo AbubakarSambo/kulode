@@ -35,6 +35,24 @@ export interface PendingReminder {
   }
 }
 
+export type ReplyIntent = 'OPT_OUT' | 'CLAIMS_PAID' | 'WILL_PAY_ON' | 'OTHER'
+
+export interface AttentionItem {
+  invoiceId: string
+  messagesSent: number
+  lastActionAt: string | null
+  invoice: {
+    id: string
+    invoiceNumber: string
+    total: number | string
+    amountPaid: number | string
+    dueDate: string
+    status: string
+    client: { name: string } | null
+  }
+  lastReply: { body: string; intent: ReplyIntent | null; createdAt: string } | null
+}
+
 export interface ApproveReminderResult {
   sent: boolean
   reason?: string
@@ -51,6 +69,10 @@ export const invoiceCollectionsApi = {
   },
   pending: async (): Promise<PendingReminder[]> => {
     const response = await apiClient.get<ApiResponse<PendingReminder[]>>('/invoice-collections/reminders/pending')
+    return response.data.data
+  },
+  attention: async (): Promise<AttentionItem[]> => {
+    const response = await apiClient.get<ApiResponse<AttentionItem[]>>('/invoice-collections/attention')
     return response.data.data
   },
   approve: async (id: string): Promise<ApproveReminderResult> => {

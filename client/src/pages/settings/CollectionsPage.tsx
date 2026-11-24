@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Input, Label } from '@/components/ui'
 import { invoiceCollectionsApi } from '@/api'
-import type { CollectionMode, CollectionPolicy, PendingReminder } from '@/api'
+import type { AttentionItem, CollectionMode, CollectionPolicy, PendingReminder } from '@/api'
 
 const apiMessage = (error: any, fallback: string) => error?.response?.data?.message || fallback // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -160,10 +161,57 @@ function PendingList({ reminders }: { reminders: PendingReminder[] }) {
   )
 }
 
+const REPLY_LABELS: Record<string, string> = {
+  CLAIMS_PAID: 'Says they have paid. Check your account, then record the payment.',
+  OTHER: 'Replied. Reminders are paused until you look.',
+  OPT_OUT: 'Asked to stop messages.',
+}
+
+function AttentionList({ items }: { items: AttentionItem[] }) {
+  if (items.length === 0) return <p className="text-sm text-muted-foreground">Nothing needs your attention.</p>
+  return (
+    <div className="space-y-2">
+      {items.map((item) => {
+        const owing = Number(item.invoice.total) - Number(item.invoice.amountPaid)
+        const reply = item.lastReply
+        return (
+          <Card key={item.invoiceId}>
+            <CardContent className="space-y-1 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold">
+                  {item.invoice.client?.name ?? 'Customer'} · {item.invoice.invoiceNumber}
+                </p>
+                <Link to={`/invoices/${item.invoice.id}`} className="text-sm font-medium text-primary underline-offset-2 hover:underline">
+                  Open invoice
+                </Link>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {naira(owing)} owing · due {new Date(item.invoice.dueDate).toLocaleDateString()}
+              </p>
+              {reply ? (
+                <>
+                  <p className="text-sm">“{reply.body}”</p>
+                  <p className="text-xs text-muted-foreground">{REPLY_LABELS[reply.intent ?? 'OTHER'] ?? REPLY_LABELS.OTHER}</p>
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {item.messagesSent > 0 ? 'All reminders sent and no reply.' : 'Could not be reminded: no WhatsApp consent or phone number.'}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )
+      })}
+    </div>
+  )
+}
+
 export function CollectionsPage() {
   const queryClient = useQueryClient()
   const policy = useQuery({ queryKey: ['invoice-collections', 'policy'], queryFn: invoiceCollectionsApi.policy })
   const pending = useQuery({ queryKey: ['invoice-collections', 'pending'], queryFn: invoiceCollectionsApi.pending, enabled: policy.data?.enabled === true })
+
+  const attention = useQuery({ queryKey: ['invoice-collections', 'attention'], queryFn: invoiceCollectionsApi.attention, enabled: policy.data?.enabled === true })
 
   const enable = useMutation({
     mutationFn: () => invoiceCollectionsApi.updatePolicy({ mode: 'APPROVE' }),
@@ -196,6 +244,10 @@ export function CollectionsPage() {
             </Card>
           ) : (
             <>
+              <div className="space-y-2">
+                <p className="text-sm font-semibold">Needs your attention</p>
+                {attention.isLoading ? <p className="text-sm text-muted-foreground">Loading…</p> : <AttentionList items={attention.data ?? []} />}
+              </div>
               <PolicyForm key={`${policy.data.mode}-${policy.data.sendHour}-${policy.data.maxMessages}`} policy={policy.data} />
               <div className="space-y-2">
                 <p className="text-sm font-semibold">Waiting for your approval</p>
