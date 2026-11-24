@@ -344,8 +344,12 @@ export class WhatsappService {
     toPhone: string;
     templateName: string;
     bodyValues: string[];
+    /** Ties the message to a customer/invoice so a reply (e.g. STOP) can be traced back to them. */
+    clientId?: string;
+    invoiceId?: string;
   }): Promise<{ providerMessageId: string | null }> {
     const toPhone = this.normalizePhone(params.toPhone);
+    const link = { clientId: params.clientId ?? null, invoiceId: params.invoiceId ?? null };
     const values = params.bodyValues.map((v) => v.replace(/[\r\n\t]+/g, ' ').replace(/ {4,}/g, '   ').trim());
 
     const payload = {
@@ -362,7 +366,7 @@ export class WhatsappService {
     if (this.isMockMode) {
       this.logger.warn(`[MOCK WHATSAPP] Would send "${params.templateName}" to ${toPhone} for org ${params.organizationId}`);
       await this.prisma.whatsappMessage.create({
-        data: { organizationId: params.organizationId, templateName: params.templateName, toPhone, status: 'SENT', sentAt: new Date() },
+        data: { organizationId: params.organizationId, templateName: params.templateName, toPhone, ...link, status: 'SENT', sentAt: new Date() },
       });
       return { providerMessageId: null };
     }
@@ -371,7 +375,7 @@ export class WhatsappService {
       const data = await this.makeRequest<{ messages?: { id: string }[] }>(`/${this.phoneNumberId}/messages`, payload);
       const providerMessageId = data.messages?.[0]?.id || null;
       await this.prisma.whatsappMessage.create({
-        data: { organizationId: params.organizationId, templateName: params.templateName, toPhone, status: 'SENT', providerMessageId, sentAt: new Date() },
+        data: { organizationId: params.organizationId, templateName: params.templateName, toPhone, ...link, status: 'SENT', providerMessageId, sentAt: new Date() },
       });
       return { providerMessageId };
     } catch (error) {
@@ -380,6 +384,7 @@ export class WhatsappService {
           organizationId: params.organizationId,
           templateName: params.templateName,
           toPhone,
+          ...link,
           status: 'FAILED',
           errorMessage: error instanceof Error ? error.message : 'Unknown error',
         },
@@ -400,10 +405,14 @@ export class WhatsappService {
     amountPaid: string;
     invoiceNumber: string;
     balanceLeft: string;
+    clientId?: string;
+    invoiceId?: string;
   }): Promise<{ providerMessageId: string | null }> {
     return this.sendCustomerTemplate({
       organizationId: params.organizationId,
       toPhone: params.toPhone,
+      clientId: params.clientId,
+      invoiceId: params.invoiceId,
       templateName: this.receiptTemplateName,
       bodyValues: [params.clientName, params.amountPaid, params.invoiceNumber, params.balanceLeft],
     });

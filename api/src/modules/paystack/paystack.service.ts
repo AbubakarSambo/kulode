@@ -1306,6 +1306,8 @@ export class PaystackService {
       await this.whatsappService.sendPaymentReceiptTemplate({
         organizationId: invoice.organizationId,
         toPhone: client.phone,
+        clientId: client.id,
+        invoiceId: invoice.id,
         clientName: client.name,
         amountPaid: amountPaid.toLocaleString('en-NG', { style: 'currency', currency: 'NGN' }),
         invoiceNumber: invoice.invoiceNumber,

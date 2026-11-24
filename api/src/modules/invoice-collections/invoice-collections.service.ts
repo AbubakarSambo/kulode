@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { phoneDigitVariants } from '../../common/phone';
 import { InboundMessage, WhatsappService } from '../whatsapp/whatsapp.service';
 import { classifyReply } from './invoice-collections.inbound';
 import { UpdateCollectionPolicyDto } from './dto';
@@ -19,6 +20,9 @@ const BATCH_SIZE = 200;
 
 const isUniqueViolation = (error: unknown): boolean =>
   error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+
+/** Thrown inside the inbound transaction to roll it back when Meta retried a message we already handled. */
+class DuplicateInboundMessage extends Error {}
 
 /**
  * Automated invoice reminders. A business is enrolled by having a default policy
@@ -60,6 +64,9 @@ export class InvoiceCollectionsService implements OnModuleInit {
           status: { in: [...OPEN_INVOICE_STATUSES] },
           dueDate: { gte: lookbackFrom },
           collection: { is: null },
+          // Only customers we can actually message. Others are picked up on a later run once a phone
+          // number and WhatsApp consent exist (the invoice is still inside the lookback window).
+          client: { phone: { not: null }, whatsappOptIn: true, whatsappOptedOutAt: null },
         },
         select: { id: true, dueDate: true },
         take: 500,
@@ -171,8 +178,14 @@ export class InvoiceCollectionsService implements OnModuleInit {
     if (!policy || policy.paused) return; // untouched: resumes when the policy is unpaused
 
     const { client } = invoice;
-    if (!client.phone || !client.whatsappOptIn || client.whatsappOptedOutAt) {
-      return void (await setState('OWNER_ATTENTION'));
+    if (client.whatsappOptedOutAt) return void (await setState('OWNER_ATTENTION')); // the customer said STOP
+    if (!client.phone || !client.whatsappOptIn) {
+      // Consent or a number may be added later: try again tomorrow instead of dropping the invoice.
+      await this.prisma.invoiceCollection.update({
+        where: { invoiceId },
+        data: { nextActionAt: new Date(now.getTime() + 24 * 60 * 60 * 1000) },
+      });
+      return;
     }
     if (collection.messagesSent >= policy.maxMessages) return void (await setState('OWNER_ATTENTION'));
 
@@ -393,69 +406,117 @@ export class InvoiceCollectionsService implements OnModuleInit {
       : null;
     const reply = classifyReply(message.text, now, org?.timezone ?? 'Africa/Lagos');
 
+    // The dedupe row and every state change commit together. If any step fails the row rolls back too,
+    // so Meta's retry is handled afresh instead of being skipped as "already seen".
     try {
-      await this.prisma.inboundWhatsappMessage.create({
-        data: {
-          providerMessageId: message.providerMessageId,
-          organizationId,
-          invoiceId,
-          clientId,
-          fromPhone: message.from,
-          messageType: message.type,
-          body: message.text.slice(0, 1000),
-          intent: reply.intent,
-          promisedDate: reply.promisedDate ?? null,
-        },
+      await this.prisma.$transaction(async (tx) => {
+        try {
+          await tx.inboundWhatsappMessage.create({
+            data: {
+              providerMessageId: message.providerMessageId,
+              organizationId,
+              invoiceId,
+              clientId,
+              fromPhone: message.from,
+              messageType: message.type,
+              body: message.text.slice(0, 1000),
+              intent: reply.intent,
+              promisedDate: reply.promisedDate ?? null,
+            },
+          });
+        } catch (error) {
+          if (isUniqueViolation(error)) throw new DuplicateInboundMessage(); // Meta retried a message we already handled
+          throw error;
+        }
+        await this.applyInboundReply(tx, message, reply, { organizationId, invoiceId, clientId }, now);
       });
     } catch (error) {
-      if (isUniqueViolation(error)) return; // Meta retried a message we already handled
+      if (error instanceof DuplicateInboundMessage) return;
       throw error;
+    }
+  }
+
+  private async applyInboundReply(
+    db: Prisma.TransactionClient,
+    message: InboundMessage,
+    reply: ReturnType<typeof classifyReply>,
+    match: { organizationId: string | null; invoiceId: string | null; clientId: string | null },
+    now: Date,
+  ): Promise<void> {
+    const { organizationId, invoiceId, clientId } = match;
+
+    if (reply.intent === 'OPT_OUT') {
+      // STOP must always be honoured, even as a reply to a receipt or with no reminder to tie it to:
+      // fall back to whoever holds this phone number.
+      const targets =
+        organizationId && clientId
+          ? [{ organizationId, clientId }]
+          : await this.clientsByPhone(db, message.from, organizationId);
+      if (targets.length === 0) {
+        this.logger.warn(`Collections: STOP from ${message.providerMessageId} matched no customer; recorded only`);
+      }
+      for (const target of targets) await this.optOutClient(db, target.organizationId, target.clientId, now);
+      return;
     }
 
     if (!organizationId) {
       this.logger.warn(`Collections: inbound message ${message.providerMessageId} matched no reminder; recorded only`);
       return;
     }
-
-    if (reply.intent === 'OPT_OUT') {
-      if (clientId) await this.optOutClient(organizationId, clientId, now);
-      return;
-    }
     if (!invoiceId) return;
 
-    const collection = await this.prisma.invoiceCollection.findUnique({ where: { invoiceId } });
+    const collection = await db.invoiceCollection.findUnique({ where: { invoiceId } });
     if (!collection || collection.state === 'PAID' || collection.state === 'CLOSED') return;
 
-    await this.prisma.invoiceCollectionReminder.updateMany({
+    await db.invoiceCollectionReminder.updateMany({
       where: { invoiceId, status: 'PENDING_APPROVAL' },
       data: { status: 'SKIPPED', errorMessage: `customer_replied_${reply.intent.toLowerCase()}` },
     });
 
     if (reply.intent === 'WILL_PAY_ON' && reply.promisedDate) {
-      await this.prisma.invoiceCollection.update({
+      await db.invoiceCollection.update({
         where: { invoiceId },
         data: { state: 'PROMISED', promisedDate: reply.promisedDate, nextActionAt: null, lastActionAt: now },
       });
     } else {
       // "I have paid" and anything unclear: stop chasing and let the owner look.
-      await this.prisma.invoiceCollection.update({
+      await db.invoiceCollection.update({
         where: { invoiceId },
         data: { state: 'OWNER_ATTENTION', nextActionAt: null, lastActionAt: now },
       });
     }
   }
 
+  /** Customers holding this WhatsApp number (saved in any free-text format), in one business or across all. */
+  private async clientsByPhone(
+    db: Prisma.TransactionClient,
+    from: string,
+    organizationId: string | null,
+  ): Promise<{ organizationId: string; clientId: string }[]> {
+    const digits = from.replace(/\D/g, '');
+    if (!digits) return [];
+    const variants = phoneDigitVariants('+' + digits);
+    const rows = await db.$queryRaw<{ id: string; organization_id: string }[]>`
+      SELECT id, organization_id FROM clients
+      WHERE phone IS NOT NULL
+        AND regexp_replace(phone, '[^0-9]', '', 'g') = ANY(${variants}::text[])
+        ${organizationId ? Prisma.sql`AND organization_id = ${organizationId}` : Prisma.empty}
+      LIMIT 50
+    `;
+    return rows.map((r) => ({ organizationId: r.organization_id, clientId: r.id }));
+  }
+
   /** STOP: no more WhatsApp to this customer, and every queued or upcoming reminder to them is dropped. */
-  private async optOutClient(organizationId: string, clientId: string, now: Date): Promise<void> {
-    await this.prisma.client.updateMany({
+  private async optOutClient(db: Prisma.TransactionClient, organizationId: string, clientId: string, now: Date): Promise<void> {
+    await db.client.updateMany({
       where: { id: clientId, organizationId },
       data: { whatsappOptIn: false, whatsappOptedOutAt: now },
     });
-    await this.prisma.invoiceCollectionReminder.updateMany({
+    await db.invoiceCollectionReminder.updateMany({
       where: { organizationId, status: 'PENDING_APPROVAL', invoice: { clientId } },
       data: { status: 'SKIPPED', errorMessage: 'customer_opted_out' },
     });
-    await this.prisma.invoiceCollection.updateMany({
+    await db.invoiceCollection.updateMany({
       where: { organizationId, state: { in: ['SCHEDULED', 'REMINDING', 'PROMISED'] }, invoice: { clientId } },
       data: { state: 'OWNER_ATTENTION', nextActionAt: null, lastActionAt: now },
     });

@@ -78,6 +78,8 @@ function setup() {
       update: jest.fn().mockResolvedValue({}),
     },
   };
+  prisma.$transaction = jest.fn(async (fn: (tx: any) => Promise<unknown>) => fn(prisma));
+  prisma.$queryRaw = jest.fn().mockResolvedValue([]);
   const whatsapp: any = { sendInvoiceReminderTemplate: jest.fn().mockResolvedValue({ providerMessageId: 'wamid.1' }) };
   const service = new InvoiceCollectionsService(prisma, whatsapp);
   return { prisma, whatsapp, service };
@@ -170,11 +172,24 @@ describe('InvoiceCollectionsService', () => {
       });
     });
 
+    it('flags the owner and sends nothing when the customer has opted out', async () => {
+      const { service, prisma, whatsapp } = setup();
+      withDue(prisma, collection({ invoice: invoice({ client: client({ whatsappOptedOutAt: new Date('2026-12-01T00:00:00Z') }) }) }), policy());
+
+      await service.processDue(NOW);
+
+      expect(prisma.invoiceCollectionReminder.create).not.toHaveBeenCalled();
+      expect(whatsapp.sendInvoiceReminderTemplate).not.toHaveBeenCalled();
+      expect(prisma.invoiceCollection.update).toHaveBeenCalledWith({
+        where: { invoiceId: 'inv-1' },
+        data: expect.objectContaining({ state: 'OWNER_ATTENTION', nextActionAt: null }),
+      });
+    });
+
     it.each([
       ['has no phone number', { phone: null }],
       ['has not opted in', { whatsappOptIn: false }],
-      ['has opted out', { whatsappOptedOutAt: new Date('2026-12-01T00:00:00Z') }],
-    ])('flags the owner and sends nothing when the customer %s', async (_label, clientOver) => {
+    ])('sends nothing and tries again tomorrow when the customer %s', async (_label, clientOver) => {
       const { service, prisma, whatsapp } = setup();
       withDue(prisma, collection({ invoice: invoice({ client: client(clientOver) }) }), policy());
 
@@ -184,7 +199,7 @@ describe('InvoiceCollectionsService', () => {
       expect(whatsapp.sendInvoiceReminderTemplate).not.toHaveBeenCalled();
       expect(prisma.invoiceCollection.update).toHaveBeenCalledWith({
         where: { invoiceId: 'inv-1' },
-        data: expect.objectContaining({ state: 'OWNER_ATTENTION', nextActionAt: null }),
+        data: { nextActionAt: new Date('2026-12-11T10:00:00Z') },
       });
     });
 
@@ -452,6 +467,7 @@ describe('InvoiceCollectionsService', () => {
       const { where } = prisma.invoice.findMany.mock.calls[0][0];
       expect(where.status).toEqual({ in: ['SENT', 'PARTIALLY_PAID', 'OVERDUE'] });
       expect(where.collection).toEqual({ is: null });
+      expect(where.client).toEqual({ phone: { not: null }, whatsappOptIn: true, whatsappOptedOutAt: null }); // only customers we can message
       expect(where.deletedAt).toBeNull();
       expect(where.dueDate.gte).toEqual(new Date('2026-11-26T10:00:00.000Z')); // 14 days back
     });
@@ -530,6 +546,42 @@ describe('InvoiceCollectionsService', () => {
       expect(prisma.invoiceCollection.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ state: 'OWNER_ATTENTION' }) }),
       );
+    });
+
+    it('STOP with no client on the matched message still opts out whoever holds that number', async () => {
+      const ctx = setup();
+      ctx.prisma.whatsappMessage.findUnique.mockResolvedValue({ organizationId: 'org-1', invoiceId: null, clientId: null }); // e.g. a receipt sent before clientId was stored
+      ctx.prisma.$queryRaw.mockResolvedValue([{ id: 'client-9', organization_id: 'org-1' }]);
+      await ctx.service.handleInboundMessage(msg('STOP'), NOW);
+      expect(ctx.prisma.client.updateMany).toHaveBeenCalledWith({
+        where: { id: 'client-9', organizationId: 'org-1' },
+        data: { whatsappOptIn: false, whatsappOptedOutAt: NOW },
+      });
+    });
+
+    it('STOP that matches no message at all opts out the number across businesses', async () => {
+      const ctx = setup();
+      ctx.prisma.whatsappMessage.findUnique.mockResolvedValue(null);
+      ctx.prisma.$queryRaw.mockResolvedValue([
+        { id: 'client-1', organization_id: 'org-1' },
+        { id: 'client-2', organization_id: 'org-2' },
+      ]);
+      await ctx.service.handleInboundMessage(msg('STOP'), NOW);
+      expect(ctx.prisma.client.updateMany).toHaveBeenCalledTimes(2);
+      expect(ctx.prisma.client.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'client-2', organizationId: 'org-2' } }));
+    });
+
+    it('a failure while acting rolls everything back, so the retry is not skipped as a duplicate', async () => {
+      const { prisma, run } = inbound('I will pay tomorrow');
+      prisma.invoiceCollection.update.mockRejectedValue(new Error('db blip'));
+      let committed = false;
+      prisma.$transaction = jest.fn(async (fn: (tx: any) => Promise<unknown>) => {
+        const result = await fn(prisma); // throws -> never reaches the commit line
+        committed = true;
+        return result;
+      });
+      await expect(run()).rejects.toThrow('db blip');
+      expect(committed).toBe(false);
     });
 
     it('is idempotent: a retried webhook message is not acted on twice', async () => {
