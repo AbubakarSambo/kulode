@@ -19,7 +19,7 @@ export const DEFAULT_SCHEDULE: ScheduleStep[] = [
 export const QUIET_START_HOUR = 21;
 export const QUIET_END_HOUR = 7;
 
-/** Labels a schedule step may use. Only `payment_reminder` is an approved WhatsApp template today; the rest are recorded labels until Meta approves them. */
+/** Labels a schedule step may use. Each is the name of an approved WhatsApp template (same four body fields and "Visit invoice" button). */
 export const SCHEDULE_TEMPLATE_LABELS = ['pre_due', 'due', 'payment_reminder', 'overdue_2'] as const;
 
 /** Reminders are only sent between these local hours, so a policy's send hour must sit inside them. */

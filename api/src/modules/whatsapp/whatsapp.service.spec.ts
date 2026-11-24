@@ -129,3 +129,27 @@ describe('WhatsappService payment receipt', () => {
     });
   });
 });
+
+describe('WhatsappService invoice reminder template choice', () => {
+  const params = { organizationId: 'org-1', invoiceId: 'inv-1', clientId: 'cl-1', toPhone: '08031234567', clientName: 'Emeka', invoiceNumber: 'INV-0214', amountDue: '₦50,000.00', dueDate: '10 December 2026', shareToken: 'tok' };
+  function build() {
+    const prisma: any = { whatsappMessage: { create: jest.fn().mockResolvedValue({}) } };
+    const config: any = { get: () => undefined };
+    const service = new WhatsappService(config, prisma);
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    return { prisma, service };
+  }
+  afterEach(() => jest.restoreAllMocks());
+
+  it('sends the template the schedule step names', async () => {
+    const { prisma, service } = build();
+    await service.sendInvoiceReminderTemplate({ ...params, templateName: 'overdue_2' });
+    expect(prisma.whatsappMessage.create).toHaveBeenCalledWith({ data: expect.objectContaining({ templateName: 'overdue_2' }) });
+  });
+
+  it('falls back to payment_reminder when no template is named', async () => {
+    const { prisma, service } = build();
+    await service.sendInvoiceReminderTemplate(params);
+    expect(prisma.whatsappMessage.create).toHaveBeenCalledWith({ data: expect.objectContaining({ templateName: 'payment_reminder' }) });
+  });
+});

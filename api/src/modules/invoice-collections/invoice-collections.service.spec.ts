@@ -104,7 +104,7 @@ describe('InvoiceCollectionsService', () => {
       const { service, prisma, whatsapp } = setup();
       withDue(prisma, collection(), policy());
       prisma.invoiceCollectionReminder.findUnique.mockResolvedValue({
-        id: 'rem-1', organizationId: 'org-1', invoice: invoice(),
+        id: 'rem-1', organizationId: 'org-1', template: 'due', invoice: invoice(),
       });
 
       await service.processDue(NOW);
@@ -122,7 +122,7 @@ describe('InvoiceCollectionsService', () => {
       });
       expect(whatsapp.sendInvoiceReminderTemplate).toHaveBeenCalledTimes(1);
       expect(whatsapp.sendInvoiceReminderTemplate).toHaveBeenCalledWith(
-        expect.objectContaining({ toPhone: '08031234567', invoiceNumber: 'INV-0214', shareToken: 'tok' }),
+        expect.objectContaining({ toPhone: '08031234567', invoiceNumber: 'INV-0214', shareToken: 'tok', templateName: 'due' }),
       );
       expect(prisma.invoiceCollectionReminder.update).toHaveBeenCalledWith({
         where: { id: 'rem-1' },

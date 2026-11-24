@@ -273,6 +273,8 @@ export class InvoiceCollectionsService implements OnModuleInit {
         amountDue: outstanding.toLocaleString('en-NG', { style: 'currency', currency: 'NGN' }),
         dueDate: invoice.dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
         shareToken: invoice.shareToken,
+        // `payment_reminder` stays on the configured default (WHATSAPP_REMINDER_TEMPLATE_NAME); the other steps use their own template.
+        templateName: reminder.template === 'payment_reminder' ? undefined : reminder.template,
       });
       await this.prisma.invoiceCollectionReminder.update({
         where: { id: reminderId },

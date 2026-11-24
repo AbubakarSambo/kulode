@@ -18,6 +18,8 @@ export interface SendInvoiceReminderParams {
   amountDue: string;
   dueDate: string;
   shareToken?: string | null;
+  /** Approved template to send. Defaults to the configured reminder template (`payment_reminder`). */
+  templateName?: string;
 }
 
 // Params map 1:1, in order, to the shift report template's {{1}}..{{16}} placeholders (v3+ adds
@@ -138,6 +140,7 @@ export class WhatsappService {
 
   async sendInvoiceReminderTemplate(params: SendInvoiceReminderParams): Promise<{ providerMessageId: string | null }> {
     const toPhone = this.normalizePhone(params.toPhone);
+    const templateName = params.templateName || this.reminderTemplateName;
 
     const components: Record<string, unknown>[] = [
       {
@@ -167,7 +170,7 @@ export class WhatsappService {
       to: toPhone,
       type: 'template',
       template: {
-        name: this.reminderTemplateName,
+        name: templateName,
         language: { code: this.templateLanguage },
         components,
       },
@@ -175,14 +178,14 @@ export class WhatsappService {
 
     if (this.isMockMode) {
       this.logger.warn(
-        `[MOCK WHATSAPP] Would send "${this.reminderTemplateName}" template to ${toPhone} for invoice ${params.invoiceNumber}`,
+        `[MOCK WHATSAPP] Would send "${templateName}" template to ${toPhone} for invoice ${params.invoiceNumber}`,
       );
       await this.prisma.whatsappMessage.create({
         data: {
           organizationId: params.organizationId,
           invoiceId: params.invoiceId,
           clientId: params.clientId,
-          templateName: this.reminderTemplateName,
+          templateName,
           toPhone,
           status: 'SENT',
           sentAt: new Date(),
@@ -203,7 +206,7 @@ export class WhatsappService {
           organizationId: params.organizationId,
           invoiceId: params.invoiceId,
           clientId: params.clientId,
-          templateName: this.reminderTemplateName,
+          templateName,
           toPhone,
           status: 'SENT',
           providerMessageId,
@@ -218,7 +221,7 @@ export class WhatsappService {
           organizationId: params.organizationId,
           invoiceId: params.invoiceId,
           clientId: params.clientId,
-          templateName: this.reminderTemplateName,
+          templateName,
           toPhone,
           status: 'FAILED',
           errorMessage: error instanceof Error ? error.message : 'Unknown error',
