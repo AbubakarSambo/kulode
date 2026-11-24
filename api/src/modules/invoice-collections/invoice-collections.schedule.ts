@@ -19,6 +19,13 @@ export const DEFAULT_SCHEDULE: ScheduleStep[] = [
 export const QUIET_START_HOUR = 21;
 export const QUIET_END_HOUR = 7;
 
+/** Labels a schedule step may use. Only `payment_reminder` is an approved WhatsApp template today; the rest are recorded labels until Meta approves them. */
+export const SCHEDULE_TEMPLATE_LABELS = ['pre_due', 'due', 'payment_reminder', 'overdue_2'] as const;
+
+/** Reminders are only sent between these local hours, so a policy's send hour must sit inside them. */
+export const MIN_SEND_HOUR = QUIET_END_HOUR;
+export const MAX_SEND_HOUR = QUIET_START_HOUR - 1;
+
 /** Invoices more than this many days past due are not auto-enrolled, so switching the feature on never blasts old debt. */
 export const ENROLL_LOOKBACK_DAYS = 14;
 

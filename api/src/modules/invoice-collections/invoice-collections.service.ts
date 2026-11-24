@@ -2,7 +2,9 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
+import { UpdateCollectionPolicyDto } from './dto';
 import {
+  DEFAULT_SCHEDULE,
   ENROLL_LOOKBACK_DAYS,
   firstPendingStepIndex,
   isQuietHour,
@@ -287,7 +289,54 @@ export class InvoiceCollectionsService {
     }
   }
 
-  // ---- Owner actions (APPROVE mode). Controller endpoints follow in the next change. ----
+  // ---- Owner actions ----
+
+  /** The business default policy. Before it is switched on, returns the defaults with `enabled: false`. */
+  async getPolicy(organizationId: string) {
+    const policy = await this.prisma.invoiceCollectionPolicy.findFirst({ where: { organizationId, clientId: null } });
+    if (policy) return { enabled: true, ...this.policyView(policy) };
+    return {
+      enabled: false,
+      schedule: DEFAULT_SCHEDULE,
+      mode: 'APPROVE' as const,
+      sendHour: 9,
+      maxMessages: 4,
+      paused: false,
+    };
+  }
+
+  /**
+   * Creates the business default policy (which enrols the business) or changes the fields sent.
+   * New businesses start in APPROVE mode. Changing the schedule applies to steps not yet planned;
+   * reminders already queued are unaffected.
+   */
+  async upsertPolicy(organizationId: string, dto: UpdateCollectionPolicyDto) {
+    const data = {
+      ...(dto.schedule && { schedule: dto.schedule.map(({ offsetDays, template }) => ({ offsetDays, template })) }),
+      ...(dto.mode && { mode: dto.mode }),
+      ...(dto.sendHour !== undefined && { sendHour: dto.sendHour }),
+      ...(dto.maxMessages !== undefined && { maxMessages: dto.maxMessages }),
+      ...(dto.paused !== undefined && { paused: dto.paused }),
+    };
+    const existing = await this.prisma.invoiceCollectionPolicy.findFirst({ where: { organizationId, clientId: null } });
+    const saved = existing
+      ? await this.prisma.invoiceCollectionPolicy.update({ where: { id: existing.id }, data })
+      : await this.prisma.invoiceCollectionPolicy.create({
+          data: { organizationId, clientId: null, schedule: DEFAULT_SCHEDULE, ...data },
+        });
+    return { enabled: true, ...this.policyView(saved) };
+  }
+
+  private policyView(policy: { schedule: unknown; mode: string; sendHour: number; maxMessages: number; paused: boolean }) {
+    return {
+      schedule: parseSchedule(policy.schedule),
+      mode: policy.mode,
+      sendHour: policy.sendHour,
+      maxMessages: policy.maxMessages,
+      paused: policy.paused,
+    };
+  }
+
 
   listPendingReminders(organizationId: string) {
     return this.prisma.invoiceCollectionReminder.findMany({

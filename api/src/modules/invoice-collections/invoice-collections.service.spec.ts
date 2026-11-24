@@ -350,6 +350,62 @@ describe('InvoiceCollectionsService', () => {
     });
   });
 
+  describe('policy', () => {
+    it('reports the defaults, switched off, for a business that has not enabled reminders', async () => {
+      const { service, prisma } = setup();
+      prisma.invoiceCollectionPolicy.findFirst.mockResolvedValue(null);
+
+      const view = await service.getPolicy('org-1');
+
+      expect(view).toEqual({ enabled: false, schedule: DEFAULT_SCHEDULE, mode: 'APPROVE', sendHour: 9, maxMessages: 4, paused: false });
+    });
+
+    it('enrols a business on first save, starting in APPROVE mode with the default schedule', async () => {
+      const { service, prisma } = setup();
+      prisma.invoiceCollectionPolicy.findFirst.mockResolvedValue(null);
+      prisma.invoiceCollectionPolicy.create = jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ mode: 'APPROVE', sendHour: 9, maxMessages: 4, paused: false, ...data }));
+
+      const view = await service.upsertPolicy('org-1', {});
+
+      expect(prisma.invoiceCollectionPolicy.create).toHaveBeenCalledWith({
+        data: { organizationId: 'org-1', clientId: null, schedule: DEFAULT_SCHEDULE },
+      });
+      expect(view).toEqual(expect.objectContaining({ enabled: true, mode: 'APPROVE' }));
+    });
+
+    it('changes only the fields that were sent', async () => {
+      const { service, prisma } = setup();
+      prisma.invoiceCollectionPolicy.findFirst.mockResolvedValue(policy());
+      prisma.invoiceCollectionPolicy.update = jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ ...policy(), ...data }));
+
+      await service.upsertPolicy('org-1', { paused: true });
+
+      expect(prisma.invoiceCollectionPolicy.update).toHaveBeenCalledWith({ where: { id: 'pol-1' }, data: { paused: true } });
+    });
+
+    it('stores a new schedule as plain steps', async () => {
+      const { service, prisma } = setup();
+      prisma.invoiceCollectionPolicy.findFirst.mockResolvedValue(policy());
+      prisma.invoiceCollectionPolicy.update = jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ ...policy(), ...data }));
+
+      await service.upsertPolicy('org-1', { schedule: [{ offsetDays: 0, template: 'due' }] });
+
+      expect(prisma.invoiceCollectionPolicy.update).toHaveBeenCalledWith({
+        where: { id: 'pol-1' },
+        data: { schedule: [{ offsetDays: 0, template: 'due' }] },
+      });
+    });
+
+    it('looks up the policy by the caller\'s organization only', async () => {
+      const { service, prisma } = setup();
+      prisma.invoiceCollectionPolicy.findFirst.mockResolvedValue(null);
+
+      await service.getPolicy('org-7');
+
+      expect(prisma.invoiceCollectionPolicy.findFirst).toHaveBeenCalledWith({ where: { organizationId: 'org-7', clientId: null } });
+    });
+  });
+
   describe('enrollEligibleInvoices', () => {
     const enrolledPolicy = { ...policy(), organization: { timezone: 'Africa/Lagos' } };
 
