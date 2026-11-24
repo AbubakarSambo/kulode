@@ -48,15 +48,15 @@ export class InvoiceCollectionsSummaryService {
     const firstReminded = payments.length
       ? await this.prisma.invoiceCollectionReminder.groupBy({
           by: ['invoiceId'],
-          where: { status: 'SENT', invoiceId: { in: [...new Set(payments.map((p) => p.invoiceId))] } },
+          where: { status: 'SENT', invoiceId: { in: [...new Set(payments.map((p) => p.invoiceId).filter((id): id is string => !!id))] } },
           _min: { sentAt: true },
         })
       : [];
-    const firstSentAt = new Map(firstReminded.map((r) => [r.invoiceId, r._min.sentAt]));
+    const firstSentAt = new Map(firstReminded.map((r) => [r.invoiceId, r._min?.sentAt]));
 
     const collectedAfterReminders = payments
       .filter((p) => {
-        const first = firstSentAt.get(p.invoiceId);
+        const first = p.invoiceId ? firstSentAt.get(p.invoiceId) : null;
         return !!first && p.paymentDate > first;
       })
       .reduce((sum, p) => sum + Number(p.amount), 0);
