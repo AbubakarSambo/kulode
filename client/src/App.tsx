@@ -93,6 +93,7 @@ const PosPaymentsPage = lazyPage(() => import('@/pages/pos/PosPaymentsPage'), 'P
 const UnreconciledTransfersPage = lazyPage(() => import('@/pages/pos/UnreconciledTransfersPage'), 'UnreconciledTransfersPage')
 const PosAiChatPage = lazyPage(() => import('@/pages/pos/PosAiChatPage'), 'PosAiChatPage')
 const PrintersPage = lazyPage(() => import('@/pages/settings/PrintersPage'), 'PrintersPage')
+const CollectionsPage = lazyPage(() => import('@/pages/settings/CollectionsPage'), 'CollectionsPage')
 const LoyaltyPage = lazyPage(() => import('@/pages/settings/LoyaltyPage'), 'LoyaltyPage')
 const LoyaltyReportPage = lazyPage(() => import('@/pages/pos/LoyaltyReportPage'), 'LoyaltyReportPage')
 
@@ -328,6 +329,9 @@ function App() {
               </Route>
               <Route path="/settings/billing" element={<BillingPage />} />
               <Route path="/settings/paystack" element={<PaystackPage />} />
+              <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT', 'STAFF']} />}>
+                <Route path="/settings/collections" element={<CollectionsPage />} />
+              </Route>
               <Route path="/settings/categories" element={<CategoriesPage />} />
               <Route path="/settings/services" element={<ServiceItemsPage />} />
               <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']} />}>

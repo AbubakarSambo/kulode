@@ -226,6 +226,9 @@ export interface Client {
   clientType?: 'individual' | 'business' | string
   whatsappOptIn?: boolean
   whatsappOptInAt?: string
+  whatsappOptInSource?: string | null
+  /** Set when the customer replied STOP on WhatsApp. They stay opted out until re-consent. */
+  whatsappOptedOutAt?: string | null
   createdAt: string
   _count?: {
     invoices: number

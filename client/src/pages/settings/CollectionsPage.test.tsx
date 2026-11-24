@@ -1,0 +1,207 @@
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router-dom'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { CollectionsPage } from './CollectionsPage'
+import { invoiceCollectionsApi } from '@/api'
+import { toast } from 'sonner'
+
+vi.mock('@/api', () => ({
+  invoiceCollectionsApi: { policy: vi.fn(), updatePolicy: vi.fn(), pending: vi.fn(), attention: vi.fn(), approve: vi.fn(), skip: vi.fn() },
+}))
+const auth = vi.hoisted(() => ({ roles: ['ADMIN'] as string[] }))
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: (select: (s: { user: { roles: string[] } }) => unknown) => select({ user: { roles: auth.roles } }),
+}))
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('@/components/layout', () => ({ Header: ({ title }: { title: string }) => <h1>{title}</h1> }))
+
+// react-query passes extra context after the variables, so compare just the first argument
+const firstArg = (fn: unknown) => vi.mocked(fn as (...a: unknown[]) => unknown).mock.calls[0][0]
+
+const policy = {
+  enabled: true,
+  schedule: [
+    { offsetDays: -2, template: 'pre_due' },
+    { offsetDays: 3, template: 'payment_reminder' },
+  ],
+  mode: 'APPROVE' as const,
+  sendHour: 9,
+  maxMessages: 4,
+  paused: false,
+}
+
+const reminder = {
+  id: 'r1',
+  invoiceId: 'i1',
+  stepIndex: 1,
+  template: 'payment_reminder',
+  scheduledFor: '2026-11-25T08:00:00.000Z',
+  invoice: { invoiceNumber: 'INV-0042', total: '50000', amountPaid: '20000', dueDate: '2026-11-20T00:00:00.000Z', client: { name: 'Ada Stores' } },
+}
+
+function renderPage() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <CollectionsPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+  return userEvent.setup()
+}
+
+describe('CollectionsPage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    auth.roles = ['ADMIN']
+    vi.mocked(invoiceCollectionsApi.pending).mockResolvedValue([])
+    vi.mocked(invoiceCollectionsApi.attention).mockResolvedValue([])
+  })
+
+  it('offers to turn reminders on in approve mode when not yet enabled', async () => {
+    vi.mocked(invoiceCollectionsApi.policy).mockResolvedValue({ ...policy, enabled: false })
+    vi.mocked(invoiceCollectionsApi.updatePolicy).mockResolvedValue(policy)
+    const user = renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Turn on reminders' }))
+    expect(firstArg(invoiceCollectionsApi.updatePolicy)).toEqual({ mode: 'APPROVE' })
+    expect(invoiceCollectionsApi.pending).toHaveBeenCalled()
+  })
+
+  it('does not load pending reminders while disabled', async () => {
+    vi.mocked(invoiceCollectionsApi.policy).mockResolvedValue({ ...policy, enabled: false })
+    renderPage()
+    await screen.findByRole('button', { name: 'Turn on reminders' })
+    expect(invoiceCollectionsApi.pending).not.toHaveBeenCalled()
+  })
+
+  it('shows the schedule and the amount still owing on a pending reminder', async () => {
+    vi.mocked(invoiceCollectionsApi.policy).mockResolvedValue(policy)
+    vi.mocked(invoiceCollectionsApi.pending).mockResolvedValue([reminder])
+    renderPage()
+    expect(await screen.findByText(/2 days before due/)).toBeInTheDocument()
+    expect(await screen.findByText(/Ada Stores · INV-0042/)).toBeInTheDocument()
+    expect(screen.getByText(/₦30,000 owing/)).toBeInTheDocument()
+  })
+
+  it('saves edited settings', async () => {
+    vi.mocked(invoiceCollectionsApi.policy).mockResolvedValue(policy)
+    vi.mocked(invoiceCollectionsApi.updatePolicy).mockResolvedValue({ ...policy, mode: 'AUTO', sendHour: 10 })
+    const user = renderPage()
+    await user.click(await screen.findByLabelText(/Send automatically/))
+    const hour = screen.getByLabelText(/Send at/)
+    await user.clear(hour)
+    await user.type(hour, '10')
+    await user.click(screen.getByRole('button', { name: 'Save settings' }))
+    expect(firstArg(invoiceCollectionsApi.updatePolicy)).toEqual({ mode: 'AUTO', sendHour: 10, maxMessages: 4 })
+  })
+
+  it('blocks saving an out-of-range send hour', async () => {
+    vi.mocked(invoiceCollectionsApi.policy).mockResolvedValue(policy)
+    const user = renderPage()
+    const hour = await screen.findByLabelText(/Send at/)
+    await user.clear(hour)
+    await user.type(hour, '23')
+    expect(screen.getByRole('button', { name: 'Save settings' })).toBeDisabled()
+  })
+
+  it('pauses reminders', async () => {
+    vi.mocked(invoiceCollectionsApi.policy).mockResolvedValue(policy)
+    vi.mocked(invoiceCollectionsApi.updatePolicy).mockResolvedValue({ ...policy, paused: true })
+    const user = renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Pause' }))
+    expect(firstArg(invoiceCollectionsApi.updatePolicy)).toEqual({ paused: true })
+  })
+
+  it('approving sends and toasts success', async () => {
+    vi.mocked(invoiceCollectionsApi.policy).mockResolvedValue(policy)
+    vi.mocked(invoiceCollectionsApi.pending).mockResolvedValue([reminder])
+    vi.mocked(invoiceCollectionsApi.approve).mockResolvedValue({ sent: true })
+    const user = renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Send reminder for INV-0042' }))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Reminder sent'))
+    expect(vi.mocked(invoiceCollectionsApi.approve).mock.calls[0][0]).toBe('r1')
+  })
+
+  it('explains why an approved reminder was not sent', async () => {
+    vi.mocked(invoiceCollectionsApi.policy).mockResolvedValue(policy)
+    vi.mocked(invoiceCollectionsApi.pending).mockResolvedValue([reminder])
+    vi.mocked(invoiceCollectionsApi.approve).mockResolvedValue({ sent: false, reason: 'no_consent' })
+    const user = renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Send reminder for INV-0042' }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/not agreed to WhatsApp/)))
+  })
+
+  it('skips a reminder', async () => {
+    vi.mocked(invoiceCollectionsApi.policy).mockResolvedValue(policy)
+    vi.mocked(invoiceCollectionsApi.pending).mockResolvedValue([reminder])
+    vi.mocked(invoiceCollectionsApi.skip).mockResolvedValue()
+    const user = renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Skip reminder for INV-0042' }))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Reminder skipped'))
+  })
+
+  it('shows what the customer said and links to the invoice', async () => {
+    vi.mocked(invoiceCollectionsApi.policy).mockResolvedValue(policy)
+    vi.mocked(invoiceCollectionsApi.attention).mockResolvedValue([
+      {
+        invoiceId: 'i1',
+        messagesSent: 2,
+        lastActionAt: null,
+        invoice: { id: 'i1', invoiceNumber: 'INV-0042', total: '50000', amountPaid: '0', dueDate: '2026-11-20T00:00:00.000Z', status: 'OVERDUE', client: { name: 'Ada Stores' } },
+        lastReply: { body: 'I have paid', intent: 'CLAIMS_PAID', createdAt: '2026-11-24T10:00:00.000Z' },
+        reason: 'replied' as const,
+      },
+    ])
+    renderPage()
+    expect(await screen.findByText('“I have paid”')).toBeInTheDocument()
+    expect(screen.getByText(/Says they have paid/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open invoice' })).toHaveAttribute('href', '/invoices/i1')
+  })
+
+  it.each([
+    ['opted_out', /asked to stop WhatsApp messages/],
+    ['no_consent', /no phone number or has not agreed/],
+    ['all_sent', /All reminders sent and no reply/],
+    ['none_sent', /dates had already passed/],
+  ] as const)('explains the real reason for "%s", not a guess', async (reason, text) => {
+    vi.mocked(invoiceCollectionsApi.policy).mockResolvedValue(policy)
+    vi.mocked(invoiceCollectionsApi.attention).mockResolvedValue([
+      {
+        invoiceId: 'i1',
+        messagesSent: reason === 'all_sent' ? 3 : 0,
+        lastActionAt: null,
+        invoice: { id: 'i1', invoiceNumber: 'INV-0042', total: '50000', amountPaid: '0', dueDate: '2026-11-20T00:00:00.000Z', status: 'OVERDUE', client: { name: 'Ada Stores' } },
+        lastReply: null,
+        reason,
+      },
+    ])
+    renderPage()
+    expect(await screen.findByText(text)).toBeInTheDocument()
+  })
+
+  it('does not offer admin-only controls to staff, who would only get a 403', async () => {
+    auth.roles = ['STAFF']
+    vi.mocked(invoiceCollectionsApi.policy).mockResolvedValue(policy)
+    renderPage()
+    expect(await screen.findByText('Only an admin can change these settings.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Pause' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save settings' })).not.toBeInTheDocument()
+  })
+
+  it('asks staff to get an admin to turn reminders on', async () => {
+    auth.roles = ['ACCOUNTANT']
+    vi.mocked(invoiceCollectionsApi.policy).mockResolvedValue({ ...policy, enabled: false })
+    renderPage()
+    expect(await screen.findByText('Ask an admin to turn on reminders.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Turn on reminders' })).not.toBeInTheDocument()
+  })
+
+  it('says so when nothing needs attention', async () => {
+    vi.mocked(invoiceCollectionsApi.policy).mockResolvedValue(policy)
+    renderPage()
+    expect(await screen.findByText('Nothing needs your attention.')).toBeInTheDocument()
+  })
+})

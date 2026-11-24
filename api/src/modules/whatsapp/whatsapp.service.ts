@@ -5,6 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface SendInvoiceReminderParams {
@@ -17,6 +18,8 @@ export interface SendInvoiceReminderParams {
   amountDue: string;
   dueDate: string;
   shareToken?: string | null;
+  /** Approved template to send. Defaults to the configured reminder template (`payment_reminder`). */
+  templateName?: string;
 }
 
 // Params map 1:1, in order, to the shift report template's {{1}}..{{16}} placeholders (v3+ adds
@@ -49,6 +52,24 @@ export interface SendShiftReportParams {
   mtdCredits?: string;
 }
 
+/** A customer's message, reduced to what handlers need. `contextId` is the message they replied to. */
+export interface InboundMessage {
+  providerMessageId: string;
+  from: string;
+  type: string;
+  text: string;
+  contextId: string | null;
+}
+
+/**
+ * A customer message could not be processed (e.g. a transient database error). Thrown after the rest of
+ * the webhook was handled, so the controller can answer 5xx and Meta redelivers it. Safe because inbound
+ * handling is idempotent per message id.
+ */
+export class InboundHandlingError extends Error {}
+
+export type InboundMessageHandler = (message: InboundMessage) => Promise<void>;
+
 @Injectable()
 export class WhatsappService {
   private readonly logger = new Logger(WhatsappService.name);
@@ -60,6 +81,10 @@ export class WhatsappService {
   private readonly shiftReportTemplateName: string;
   private readonly templateLanguage: string;
   private readonly webhookVerifyToken: string;
+  private readonly appSecret: string;
+  private readonly receiptTemplateName: string;
+  readonly weeklySummaryTemplateName: string;
+  private readonly inboundHandlers: InboundMessageHandler[] = [];
 
   constructor(
     private configService: ConfigService,
@@ -73,6 +98,9 @@ export class WhatsappService {
     this.shiftReportTemplateName = this.configService.get<string>('whatsapp.shiftReportTemplateName') || 'shift_report_v3';
     this.templateLanguage = this.configService.get<string>('whatsapp.templateLanguage') || 'en';
     this.webhookVerifyToken = this.configService.get<string>('whatsapp.webhookVerifyToken') || '';
+    this.appSecret = this.configService.get<string>('whatsapp.appSecret') || '';
+    this.weeklySummaryTemplateName = this.configService.get<string>('whatsapp.weeklySummaryTemplateName') || 'collections_weekly_summary_v1';
+    this.receiptTemplateName = this.configService.get<string>('whatsapp.receiptTemplateName') || 'payment_receipt_v1';
   }
 
   private get isMockMode(): boolean {
@@ -119,6 +147,7 @@ export class WhatsappService {
 
   async sendInvoiceReminderTemplate(params: SendInvoiceReminderParams): Promise<{ providerMessageId: string | null }> {
     const toPhone = this.normalizePhone(params.toPhone);
+    const templateName = params.templateName || this.reminderTemplateName;
 
     const components: Record<string, unknown>[] = [
       {
@@ -148,7 +177,7 @@ export class WhatsappService {
       to: toPhone,
       type: 'template',
       template: {
-        name: this.reminderTemplateName,
+        name: templateName,
         language: { code: this.templateLanguage },
         components,
       },
@@ -156,14 +185,14 @@ export class WhatsappService {
 
     if (this.isMockMode) {
       this.logger.warn(
-        `[MOCK WHATSAPP] Would send "${this.reminderTemplateName}" template to ${toPhone} for invoice ${params.invoiceNumber}`,
+        `[MOCK WHATSAPP] Would send "${templateName}" template to ${toPhone} for invoice ${params.invoiceNumber}`,
       );
       await this.prisma.whatsappMessage.create({
         data: {
           organizationId: params.organizationId,
           invoiceId: params.invoiceId,
           clientId: params.clientId,
-          templateName: this.reminderTemplateName,
+          templateName,
           toPhone,
           status: 'SENT',
           sentAt: new Date(),
@@ -184,7 +213,7 @@ export class WhatsappService {
           organizationId: params.organizationId,
           invoiceId: params.invoiceId,
           clientId: params.clientId,
-          templateName: this.reminderTemplateName,
+          templateName,
           toPhone,
           status: 'SENT',
           providerMessageId,
@@ -199,7 +228,7 @@ export class WhatsappService {
           organizationId: params.organizationId,
           invoiceId: params.invoiceId,
           clientId: params.clientId,
-          templateName: this.reminderTemplateName,
+          templateName,
           toPhone,
           status: 'FAILED',
           errorMessage: error instanceof Error ? error.message : 'Unknown error',
@@ -322,8 +351,12 @@ export class WhatsappService {
     toPhone: string;
     templateName: string;
     bodyValues: string[];
+    /** Ties the message to a customer/invoice so a reply (e.g. STOP) can be traced back to them. */
+    clientId?: string;
+    invoiceId?: string;
   }): Promise<{ providerMessageId: string | null }> {
     const toPhone = this.normalizePhone(params.toPhone);
+    const link = { clientId: params.clientId ?? null, invoiceId: params.invoiceId ?? null };
     const values = params.bodyValues.map((v) => v.replace(/[\r\n\t]+/g, ' ').replace(/ {4,}/g, '   ').trim());
 
     const payload = {
@@ -340,7 +373,7 @@ export class WhatsappService {
     if (this.isMockMode) {
       this.logger.warn(`[MOCK WHATSAPP] Would send "${params.templateName}" to ${toPhone} for org ${params.organizationId}`);
       await this.prisma.whatsappMessage.create({
-        data: { organizationId: params.organizationId, templateName: params.templateName, toPhone, status: 'SENT', sentAt: new Date() },
+        data: { organizationId: params.organizationId, templateName: params.templateName, toPhone, ...link, status: 'SENT', sentAt: new Date() },
       });
       return { providerMessageId: null };
     }
@@ -349,7 +382,7 @@ export class WhatsappService {
       const data = await this.makeRequest<{ messages?: { id: string }[] }>(`/${this.phoneNumberId}/messages`, payload);
       const providerMessageId = data.messages?.[0]?.id || null;
       await this.prisma.whatsappMessage.create({
-        data: { organizationId: params.organizationId, templateName: params.templateName, toPhone, status: 'SENT', providerMessageId, sentAt: new Date() },
+        data: { organizationId: params.organizationId, templateName: params.templateName, toPhone, ...link, status: 'SENT', providerMessageId, sentAt: new Date() },
       });
       return { providerMessageId };
     } catch (error) {
@@ -358,6 +391,7 @@ export class WhatsappService {
           organizationId: params.organizationId,
           templateName: params.templateName,
           toPhone,
+          ...link,
           status: 'FAILED',
           errorMessage: error instanceof Error ? error.message : 'Unknown error',
         },
@@ -370,8 +404,53 @@ export class WhatsappService {
     return !!this.webhookVerifyToken && token === this.webhookVerifyToken;
   }
 
-  async handleWebhookEvent(payload: any): Promise<void> {
+  /** "Payment received" confirmation to a customer, so they know the money landed and what is left. */
+  async sendPaymentReceiptTemplate(params: {
+    organizationId: string;
+    toPhone: string;
+    clientName: string;
+    amountPaid: string;
+    invoiceNumber: string;
+    balanceLeft: string;
+    clientId?: string;
+    invoiceId?: string;
+  }): Promise<{ providerMessageId: string | null }> {
+    return this.sendCustomerTemplate({
+      organizationId: params.organizationId,
+      toPhone: params.toPhone,
+      clientId: params.clientId,
+      invoiceId: params.invoiceId,
+      templateName: this.receiptTemplateName,
+      bodyValues: [params.clientName, params.amountPaid, params.invoiceNumber, params.balanceLeft],
+    });
+  }
+
+  /** True when a webhook signing secret is configured, so the signature can be checked at all. */
+  get canVerifySignatures(): boolean {
+    return !!this.appSecret;
+  }
+
+  /** Checks Meta's X-Hub-Signature-256 header ("sha256=<hex hmac of the raw body>"). */
+  isValidSignature(rawBody: Buffer | undefined, header: string | undefined): boolean {
+    if (!this.appSecret || !rawBody || !header?.startsWith('sha256=')) return false;
+    const expected = createHmac('sha256', this.appSecret).update(rawBody).digest();
+    const given = Buffer.from(header.slice('sha256='.length), 'hex');
+    return given.length === expected.length && timingSafeEqual(given, expected);
+  }
+
+  /** Other modules subscribe to customer messages here (avoids a circular module import). */
+  onInboundMessage(handler: InboundMessageHandler): void {
+    this.inboundHandlers.push(handler);
+  }
+
+  /**
+   * `acceptInbound` is true only for a payload whose signature was verified. Delivery statuses are
+   * harmless bookkeeping and are always applied; customer messages change invoice state, so they are
+   * only passed on when authentic.
+   */
+  async handleWebhookEvent(payload: any, options: { acceptInbound?: boolean } = {}): Promise<void> {
     const entries = payload?.entry || [];
+    let inboundFailure: Error | null = null;
 
     for (const entry of entries) {
       for (const change of entry?.changes || []) {
@@ -383,11 +462,33 @@ export class WhatsappService {
         }
 
         for (const message of value.messages || []) {
-          // Inbound replies aren't acted on yet - just recorded for visibility.
-          this.logger.log(`[WHATSAPP INBOUND] from ${message.from}: ${JSON.stringify(message)}`);
+          if (!options.acceptInbound) {
+            this.logger.warn('Ignoring WhatsApp inbound message: webhook signature was not verified');
+            continue;
+          }
+          const inbound = this.toInboundMessage(message);
+          if (!inbound) continue;
+          for (const handler of this.inboundHandlers) {
+            try {
+              await handler(inbound);
+            } catch (error) {
+              this.logger.error(`WhatsApp inbound handler failed: ${(error as Error).message}`);
+              inboundFailure ??= error as Error;
+            }
+          }
         }
       }
     }
+    // Everything else in the payload has been applied; ask Meta to redeliver so a lost STOP or promise is retried.
+    if (inboundFailure) throw new InboundHandlingError(inboundFailure.message);
+  }
+
+  private toInboundMessage(message: any): InboundMessage | null {
+    if (!message?.id || !message?.from) return null;
+    const type = String(message.type || 'unknown');
+    const text =
+      message.text?.body ?? message.button?.text ?? message.interactive?.button_reply?.title ?? message.interactive?.list_reply?.title ?? '';
+    return { providerMessageId: message.id, from: String(message.from), type, text: String(text), contextId: message.context?.id ?? null };
   }
 
   private async applyStatusUpdate(status: any): Promise<void> {
