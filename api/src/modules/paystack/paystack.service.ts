@@ -921,6 +921,48 @@ export class PaystackService {
     }
   }
 
+  /**
+   * Safety net for a missed `charge.success` webhook. Asks Paystack about every recent payment link
+   * that is still unpaid on our side; a link that turns out to be paid is reconciled through the normal
+   * (idempotent) path. Without this, a customer who paid could keep getting payment reminders.
+   * Only links created within `lookbackDays` are checked, and at most `limit` of each kind per run.
+   */
+  async reconcilePendingPayments(now = new Date(), lookbackDays = 3, limit = 100): Promise<{ checked: number; recovered: number }> {
+    if (!this.secretKey) return { checked: 0, recovered: 0 };
+    const since = new Date(now.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
+    const open = { status: { in: ['SENT', 'PARTIALLY_PAID', 'OVERDUE'] as ('SENT' | 'PARTIALLY_PAID' | 'OVERDUE')[] }, deletedAt: null };
+
+    const [invoices, installments] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where: { ...open, paystackReference: { not: null }, paystackTokenGeneratedAt: { gte: since } },
+        select: { paystackReference: true },
+        orderBy: { paystackTokenGeneratedAt: 'desc' },
+        take: limit,
+      }),
+      this.prisma.paymentInstallment.findMany({
+        where: { isPaid: false, paystackReference: { not: null }, paystackTokenGeneratedAt: { gte: since }, invoice: open },
+        select: { paystackReference: true },
+        orderBy: { paystackTokenGeneratedAt: 'desc' },
+        take: limit,
+      }),
+    ]);
+
+    const references = [...new Set([...invoices, ...installments].map((r) => r.paystackReference as string))];
+    let recovered = 0;
+    for (const reference of references) {
+      try {
+        const result = await this.verifyTransaction(reference);
+        if (result.status === 'success') {
+          recovered++;
+          this.logger.warn(`Paystack reconciliation recovered a payment the webhook missed (invoice ${result.invoiceNumber ?? 'unknown'})`);
+        }
+      } catch {
+        // verifyTransaction already logged it; one bad reference must not stop the rest
+      }
+    }
+    return { checked: references.length, recovered };
+  }
+
   async verifyTransaction(reference: string) {
     try {
       const data = await this.makeRequest<{
