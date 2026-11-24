@@ -11,7 +11,7 @@ describe('classifyReply', () => {
     expect(classify(t).intent).toBe('OPT_OUT');
   });
 
-  it.each(['please stop by the shop tomorrow, I will pay', "don't send the old invoice, I'll pay Friday", 'stop calling me boss, I will pay tomorrow', 'I will stop by the office'])('%s is not an opt-out', (t) => {
+  it.each(['please stop by the shop tomorrow, I will pay', "don't send the old invoice, I'll pay Friday", 'stop calling me boss, I will pay tomorrow', 'I will stop by the office', 'cancel', 'cancel please'])('%s is not an opt-out', (t) => {
     expect(classify(t).intent).not.toBe('OPT_OUT');
   });
 

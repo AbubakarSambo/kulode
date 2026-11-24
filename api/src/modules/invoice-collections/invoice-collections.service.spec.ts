@@ -287,14 +287,26 @@ describe('InvoiceCollectionsService', () => {
       });
     });
 
-    it('does nothing for a paused policy, so reminders resume when it is unpaused', async () => {
+    it('leaves businesses with a paused default policy out of the batch, so they cannot starve others', async () => {
+      const { service, prisma } = setup();
+
+      await service.processDue(NOW);
+
+      expect(prisma.invoiceCollection.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ organization: { invoiceCollectionPolicies: { none: { clientId: null, paused: true } } } }),
+        }),
+      );
+    });
+
+    it('sends nothing for a paused policy', async () => {
       const { service, prisma, whatsapp } = setup();
       withDue(prisma, collection(), policy({ paused: true }));
 
       await service.processDue(NOW);
 
       expect(whatsapp.sendInvoiceReminderTemplate).not.toHaveBeenCalled();
-      expect(prisma.invoiceCollection.update).not.toHaveBeenCalled();
+      expect(prisma.invoiceCollectionReminder.create).not.toHaveBeenCalled();
     });
 
     it('closes an invoice that was paid before its next reminder', async () => {
@@ -320,6 +332,11 @@ describe('InvoiceCollectionsService', () => {
       await service.processDue(NOW);
 
       expect(whatsapp.sendInvoiceReminderTemplate).not.toHaveBeenCalled();
+      // a paused per-customer override is looked at again in an hour, not at the front of every batch
+      expect(prisma.invoiceCollection.update).toHaveBeenCalledWith({
+        where: { invoiceId: 'inv-1' },
+        data: { nextActionAt: new Date('2026-12-10T11:00:00Z') },
+      });
     });
 
     it('drops queued reminders and closes collections for finished invoices on every tick', async () => {
@@ -387,6 +404,52 @@ describe('InvoiceCollectionsService', () => {
       expect(amountDue.replace(/[^0-9]/g, '')).toBe('15000000'); // 150,000.00
     });
 
+    it('a bookkeeping failure after delivery never relabels the reminder as failed', async () => {
+      const { service, prisma, whatsapp } = setup();
+      prisma.invoiceCollectionReminder.findUnique.mockResolvedValue(pending());
+      prisma.invoiceCollection.updateMany.mockRejectedValue(new Error('db blip'));
+
+      const result = await service.sendReminder('rem-1');
+
+      expect(result).toEqual({ sent: true });
+      expect(whatsapp.sendInvoiceReminderTemplate).toHaveBeenCalledTimes(1);
+      expect(prisma.invoiceCollectionReminder.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'FAILED' }) }),
+      );
+    });
+
+    it('owner approval at night is held back, not sent and not consumed', async () => {
+      const { service, prisma, whatsapp } = setup();
+      jest.useFakeTimers().setSystemTime(new Date('2026-12-10T21:30:00Z')); // 22:30 Lagos
+      prisma.invoiceCollectionReminder.findUnique.mockResolvedValue(pending());
+
+      const result = await service.sendReminder('rem-1');
+      jest.useRealTimers();
+
+      expect(result).toEqual({ sent: false, reason: 'quiet_hours' });
+      expect(whatsapp.sendInvoiceReminderTemplate).not.toHaveBeenCalled();
+      expect(prisma.invoiceCollectionReminder.update).toHaveBeenCalledWith({ where: { id: 'rem-1' }, data: { status: 'PENDING_APPROVAL' } });
+    });
+
+    it('owner approval past the message cap is skipped', async () => {
+      const { service, prisma, whatsapp } = setup();
+      prisma.invoiceCollectionReminder.findUnique.mockResolvedValue(pending());
+      prisma.invoiceCollectionPolicy.findFirst.mockResolvedValue(policy({ maxMessages: 2 }));
+      prisma.invoiceCollection.findUnique.mockResolvedValue(collection({ messagesSent: 2 }));
+
+      const result = await service.sendReminder('rem-1');
+
+      expect(result).toEqual({ sent: false, reason: 'max_messages' });
+      expect(whatsapp.sendInvoiceReminderTemplate).not.toHaveBeenCalled();
+    });
+
+    it('formats the due date in UTC so it cannot shift a day on a western server', async () => {
+      const { service, prisma, whatsapp } = setup();
+      prisma.invoiceCollectionReminder.findUnique.mockResolvedValue(pending(invoice({ dueDate: new Date('2026-03-15T00:00:00Z') })));
+      await service.sendReminder('rem-1');
+      expect(whatsapp.sendInvoiceReminderTemplate.mock.calls[0][0].dueDate).toBe('15 March 2026');
+    });
+
     it('records a failure without throwing and does not count it as sent', async () => {
       const { service, prisma, whatsapp } = setup();
       prisma.invoiceCollectionReminder.findUnique.mockResolvedValue(pending());
@@ -435,6 +498,18 @@ describe('InvoiceCollectionsService', () => {
       const view = await service.getPolicy('org-1');
 
       expect(view).toEqual({ enabled: false, schedule: DEFAULT_SCHEDULE, mode: 'APPROVE', sendHour: 9, maxMessages: 4, paused: false });
+    });
+
+    it('a concurrent first save falls back to updating the policy the other request created', async () => {
+      const { service, prisma } = setup();
+      prisma.invoiceCollectionPolicy.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'pol-9' });
+      prisma.invoiceCollectionPolicy.create = jest.fn().mockRejectedValue(uniqueViolation());
+      prisma.invoiceCollectionPolicy.update = jest.fn().mockResolvedValue({ mode: 'APPROVE', sendHour: 9, maxMessages: 4, paused: true, schedule: DEFAULT_SCHEDULE });
+
+      const view = await service.upsertPolicy('org-1', { paused: true });
+
+      expect(prisma.invoiceCollectionPolicy.update).toHaveBeenCalledWith({ where: { id: 'pol-9' }, data: { paused: true } });
+      expect(view.enabled).toBe(true);
     });
 
     it('enrols a business on first save, starting in APPROVE mode with the default schedule', async () => {
@@ -671,7 +746,8 @@ describe('InvoiceCollectionsService', () => {
       ctx.prisma.invoiceCollection.findUnique.mockResolvedValue(collection());
       await ctx.service.handleInboundMessage(msg('I will pay tomorrow', { contextId: null }), NOW);
       expect(ctx.prisma.whatsappMessage.findFirst).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { toPhone: '2348031234567', invoiceId: { not: null } } }),
+        // only a reminder from the last 72 hours; an old one is not "the conversation"
+        expect.objectContaining({ where: { toPhone: '2348031234567', invoiceId: { not: null }, createdAt: { gte: new Date('2026-12-07T10:00:00Z') } } }),
       );
       expect(ctx.prisma.invoiceCollection.update).toHaveBeenCalled();
     });

@@ -22,7 +22,8 @@ const NOT_SENT_REASONS: Record<string, string> = {
   invoice_closed: 'The invoice is already paid or cancelled, so nothing was sent',
   no_consent: 'This customer has not agreed to WhatsApp messages',
   no_phone: 'This customer has no phone number',
-  quiet_hours: 'Held back because it is outside sending hours',
+  quiet_hours: 'Held back because it is outside sending hours (7am to 9pm). It stays in this list; send it in the morning',
+  max_messages: 'This invoice has already had the most reminders you allow, so nothing was sent',
 }
 
 const ATTENTION_REASONS: Record<Exclude<AttentionReason, 'replied'>, string> = {

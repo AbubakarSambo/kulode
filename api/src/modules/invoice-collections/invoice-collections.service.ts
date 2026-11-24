@@ -19,6 +19,9 @@ const OPEN_INVOICE_STATUSES = ['SENT', 'PARTIALLY_PAID', 'OVERDUE'] as const;
 const BATCH_SIZE = 200;
 /** Two reminders to the same customer are never closer than this; the next send hour after it is usually the next morning. */
 /** A reminder stuck in SENDING longer than this was interrupted. */
+/** A reply with no WhatsApp context is tied to the last reminder sent to that number only within this window. */
+const REPLY_MATCH_WINDOW_MS = 72 * 60 * 60 * 1000;
+const PAUSED_RECHECK_MS = 60 * 60 * 1000;
 const STALE_SENDING_MS = 30 * 60 * 1000;
 const MIN_STEP_GAP_MS = 12 * 60 * 60 * 1000;
 
@@ -106,7 +109,12 @@ export class InvoiceCollectionsService implements OnModuleInit {
     await this.resumeBrokenPromises(now);
 
     const due = await this.prisma.invoiceCollection.findMany({
-      where: { state: { in: ['SCHEDULED', 'REMINDING'] }, nextActionAt: { lte: now } },
+      where: {
+        state: { in: ['SCHEDULED', 'REMINDING'] },
+        nextActionAt: { lte: now },
+        // A paused business must not fill the batch with rows that can't move and starve everyone else.
+        organization: { invoiceCollectionPolicies: { none: { clientId: null, paused: true } } },
+      },
       orderBy: { nextActionAt: 'asc' },
       take: BATCH_SIZE,
       select: { invoiceId: true },
@@ -192,7 +200,15 @@ export class InvoiceCollectionsService implements OnModuleInit {
     if (invoice.status === 'CANCELLED' || invoice.deletedAt) return void (await setState('CLOSED'));
 
     const policy = await this.effectivePolicy(collection.organizationId, invoice.clientId);
-    if (!policy || policy.paused) return; // untouched: resumes when the policy is unpaused
+    if (!policy) return;
+    if (policy.paused) {
+      // A paused per-customer override: look again in an hour so the row doesn't sit at the front of every batch.
+      await this.prisma.invoiceCollection.update({
+        where: { invoiceId },
+        data: { nextActionAt: new Date(now.getTime() + PAUSED_RECHECK_MS) },
+      });
+      return;
+    }
 
     const { client } = invoice;
     if (client.whatsappOptedOutAt) return void (await setState('OWNER_ATTENTION')); // the customer said STOP
@@ -287,7 +303,7 @@ export class InvoiceCollectionsService implements OnModuleInit {
 
     const reminder = await this.prisma.invoiceCollectionReminder.findUnique({
       where: { id: reminderId },
-      include: { invoice: { include: { client: true } } },
+      include: { invoice: { include: { client: true, organization: { select: { timezone: true } } } } },
     });
     if (!reminder) return { sent: false, reason: 'not_found' };
 
@@ -307,9 +323,21 @@ export class InvoiceCollectionsService implements OnModuleInit {
     }
     if (!client.phone || !client.whatsappOptIn || client.whatsappOptedOutAt) return skip('no_consent');
 
+    // The same rules the scheduler applies: nothing goes out at night, or past the business's message cap,
+    // even when the owner taps Approve.
+    const policy = await this.effectivePolicy(reminder.organizationId, invoice.clientId);
+    const collection = await this.prisma.invoiceCollection.findUnique({ where: { invoiceId: invoice.id } });
+    if (policy && collection && collection.messagesSent >= policy.maxMessages) return skip('max_messages');
+    if (isQuietHour(new Date(), invoice.organization?.timezone ?? 'Africa/Lagos')) {
+      // Not sent, not consumed: back to the approval list to try again in the morning.
+      await this.prisma.invoiceCollectionReminder.update({ where: { id: reminderId }, data: { status: 'PENDING_APPROVAL' } });
+      return { sent: false, reason: 'quiet_hours' };
+    }
+
+    let providerMessageId: string | null;
     try {
       const outstanding = Math.max(Number(invoice.total) - Number(invoice.amountPaid), 0);
-      const { providerMessageId } = await this.whatsapp.sendInvoiceReminderTemplate({
+      ({ providerMessageId } = await this.whatsapp.sendInvoiceReminderTemplate({
         organizationId: reminder.organizationId,
         invoiceId: invoice.id,
         clientId: client.id,
@@ -317,20 +345,12 @@ export class InvoiceCollectionsService implements OnModuleInit {
         clientName: client.name,
         invoiceNumber: invoice.invoiceNumber,
         amountDue: outstanding.toLocaleString('en-NG', { style: 'currency', currency: 'NGN' }),
-        dueDate: invoice.dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+        // dueDate is a calendar date stored as UTC midnight; format it in UTC so it never shifts a day.
+        dueDate: invoice.dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }),
         shareToken: invoice.shareToken,
         // `payment_reminder` stays on the configured default (WHATSAPP_REMINDER_TEMPLATE_NAME); the other steps use their own template.
         templateName: reminder.template === 'payment_reminder' ? undefined : reminder.template,
-      });
-      await this.prisma.invoiceCollectionReminder.update({
-        where: { id: reminderId },
-        data: { status: 'SENT', sentAt: new Date(), providerMessageId },
-      });
-      await this.prisma.invoiceCollection.updateMany({
-        where: { invoiceId: invoice.id },
-        data: { messagesSent: { increment: 1 } },
-      });
-      return { sent: true };
+      }));
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       await this.prisma.invoiceCollectionReminder.update({
@@ -340,6 +360,21 @@ export class InvoiceCollectionsService implements OnModuleInit {
       this.logger.warn(`Collections: reminder ${reminderId} failed to send: ${message}`);
       return { sent: false, reason: 'send_failed' };
     }
+
+    // The customer has the message. A bookkeeping failure from here on must never relabel it as failed.
+    try {
+      await this.prisma.invoiceCollectionReminder.update({
+        where: { id: reminderId },
+        data: { status: 'SENT', sentAt: new Date(), providerMessageId },
+      });
+      await this.prisma.invoiceCollection.updateMany({
+        where: { invoiceId: invoice.id },
+        data: { messagesSent: { increment: 1 } },
+      });
+    } catch (error) {
+      this.logger.error(`Collections: reminder ${reminderId} was sent but recording it failed: ${(error as Error).message}`);
+    }
+    return { sent: true };
   }
 
   // ---- Owner actions ----
@@ -371,12 +406,24 @@ export class InvoiceCollectionsService implements OnModuleInit {
       ...(dto.maxMessages !== undefined && { maxMessages: dto.maxMessages }),
       ...(dto.paused !== undefined && { paused: dto.paused }),
     };
+    const update = async (id: string) => this.prisma.invoiceCollectionPolicy.update({ where: { id }, data });
     const existing = await this.prisma.invoiceCollectionPolicy.findFirst({ where: { organizationId, clientId: null } });
-    const saved = existing
-      ? await this.prisma.invoiceCollectionPolicy.update({ where: { id: existing.id }, data })
-      : await this.prisma.invoiceCollectionPolicy.create({
+    let saved;
+    if (existing) {
+      saved = await update(existing.id);
+    } else {
+      try {
+        saved = await this.prisma.invoiceCollectionPolicy.create({
           data: { organizationId, clientId: null, schedule: DEFAULT_SCHEDULE, ...data },
         });
+      } catch (error) {
+        if (!isUniqueViolation(error)) throw error;
+        // A concurrent first request created it (the unique index allows one default policy per business).
+        const created = await this.prisma.invoiceCollectionPolicy.findFirst({ where: { organizationId, clientId: null } });
+        if (!created) throw error;
+        saved = await update(created.id);
+      }
+    }
     return { enabled: true, ...this.policyView(saved) };
   }
 
@@ -419,7 +466,7 @@ export class InvoiceCollectionsService implements OnModuleInit {
 
   /**
    * A customer replied on WhatsApp. Ties the reply to an invoice (the message they replied to, else the
-   * last reminder we sent that number), classifies it, and acts. Safe to call twice for the same message.
+   * last reminder we sent that number in the past 72 hours), classifies it, and acts. Safe to call twice for the same message.
    *
    * Nothing here decides money state: "I have paid" asks the owner to check, it never marks the invoice paid.
    */
@@ -427,7 +474,8 @@ export class InvoiceCollectionsService implements OnModuleInit {
     const outbound = message.contextId
       ? await this.prisma.whatsappMessage.findUnique({ where: { providerMessageId: message.contextId } })
       : await this.prisma.whatsappMessage.findFirst({
-          where: { toPhone: message.from, invoiceId: { not: null } },
+          // Only a recent reminder: an unprompted "ok thanks" months later must not touch an old invoice.
+          where: { toPhone: message.from, invoiceId: { not: null }, createdAt: { gte: new Date(now.getTime() - REPLY_MATCH_WINDOW_MS) } },
           orderBy: { createdAt: 'desc' },
         });
     const organizationId = outbound?.organizationId ?? null;

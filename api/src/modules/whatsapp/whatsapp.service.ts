@@ -61,6 +61,13 @@ export interface InboundMessage {
   contextId: string | null;
 }
 
+/**
+ * A customer message could not be processed (e.g. a transient database error). Thrown after the rest of
+ * the webhook was handled, so the controller can answer 5xx and Meta redelivers it. Safe because inbound
+ * handling is idempotent per message id.
+ */
+export class InboundHandlingError extends Error {}
+
 export type InboundMessageHandler = (message: InboundMessage) => Promise<void>;
 
 @Injectable()
@@ -443,6 +450,7 @@ export class WhatsappService {
    */
   async handleWebhookEvent(payload: any, options: { acceptInbound?: boolean } = {}): Promise<void> {
     const entries = payload?.entry || [];
+    let inboundFailure: Error | null = null;
 
     for (const entry of entries) {
       for (const change of entry?.changes || []) {
@@ -465,11 +473,14 @@ export class WhatsappService {
               await handler(inbound);
             } catch (error) {
               this.logger.error(`WhatsApp inbound handler failed: ${(error as Error).message}`);
+              inboundFailure ??= error as Error;
             }
           }
         }
       }
     }
+    // Everything else in the payload has been applied; ask Meta to redeliver so a lost STOP or promise is retried.
+    if (inboundFailure) throw new InboundHandlingError(inboundFailure.message);
   }
 
   private toInboundMessage(message: any): InboundMessage | null {

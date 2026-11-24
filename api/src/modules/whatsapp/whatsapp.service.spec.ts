@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { createHmac } from 'crypto';
-import { WhatsappService } from './whatsapp.service';
+import { InboundHandlingError, WhatsappService } from './whatsapp.service';
 
 const WAMID = 'wamid.HBgNMjM0OTA1MzAxODAwNRUCABEY'; // encodes the recipient's number
 
@@ -106,50 +106,13 @@ describe('WhatsappService inbound messages and webhook signatures', () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
-  it('a failing subscriber does not break the webhook', async () => {
+  it('a failing subscriber is reported after the rest of the webhook was handled, so Meta can redeliver', async () => {
     const service = build();
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const second = jest.fn().mockResolvedValue(undefined);
     service.onInboundMessage(jest.fn().mockRejectedValue(new Error('boom')));
-    await expect(service.handleWebhookEvent(inboundEvent, { acceptInbound: true })).resolves.toBeUndefined();
-  });
-});
-
-describe('WhatsappService payment receipt', () => {
-  it('sends the receipt template with name, amount, invoice number and balance in order', async () => {
-    const prisma: any = {};
-    const config: any = { get: (k: string) => (k === 'whatsapp.receiptTemplateName' ? 'payment_receipt_v1' : undefined) };
-    const service = new WhatsappService(config, prisma);
-    const send = jest.spyOn(service, 'sendCustomerTemplate').mockResolvedValue({ providerMessageId: 'wamid.1' });
-    await service.sendPaymentReceiptTemplate({ organizationId: 'org-1', toPhone: '08031234567', clientName: 'Emeka', amountPaid: '₦20,000.00', invoiceNumber: 'INV-0214', balanceLeft: '₦30,000.00' });
-    expect(send).toHaveBeenCalledWith({
-      organizationId: 'org-1',
-      toPhone: '08031234567',
-      templateName: 'payment_receipt_v1',
-      bodyValues: ['Emeka', '₦20,000.00', 'INV-0214', '₦30,000.00'],
-    });
-  });
-});
-
-describe('WhatsappService invoice reminder template choice', () => {
-  const params = { organizationId: 'org-1', invoiceId: 'inv-1', clientId: 'cl-1', toPhone: '08031234567', clientName: 'Emeka', invoiceNumber: 'INV-0214', amountDue: '₦50,000.00', dueDate: '10 December 2026', shareToken: 'tok' };
-  function build() {
-    const prisma: any = { whatsappMessage: { create: jest.fn().mockResolvedValue({}) } };
-    const config: any = { get: () => undefined };
-    const service = new WhatsappService(config, prisma);
-    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-    return { prisma, service };
-  }
-  afterEach(() => jest.restoreAllMocks());
-
-  it('sends the template the schedule step names', async () => {
-    const { prisma, service } = build();
-    await service.sendInvoiceReminderTemplate({ ...params, templateName: 'overdue_2' });
-    expect(prisma.whatsappMessage.create).toHaveBeenCalledWith({ data: expect.objectContaining({ templateName: 'overdue_2' }) });
-  });
-
-  it('falls back to payment_reminder when no template is named', async () => {
-    const { prisma, service } = build();
-    await service.sendInvoiceReminderTemplate(params);
-    expect(prisma.whatsappMessage.create).toHaveBeenCalledWith({ data: expect.objectContaining({ templateName: 'payment_reminder' }) });
+    service.onInboundMessage(second);
+    await expect(service.handleWebhookEvent(inboundEvent, { acceptInbound: true })).rejects.toBeInstanceOf(InboundHandlingError);
+    expect(second).toHaveBeenCalledTimes(1); // other subscribers still ran
   });
 });

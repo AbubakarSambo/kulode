@@ -16,8 +16,23 @@ const invoice = (client: Record<string, unknown> = {}) => ({
 });
 
 describe('WhatsApp payment receipt', () => {
-  beforeEach(() => jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined));
-  afterEach(() => jest.restoreAllMocks());
+  const flag = process.env.INVOICE_COLLECTIONS_ENABLED;
+  beforeEach(() => {
+    process.env.INVOICE_COLLECTIONS_ENABLED = 'true';
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+    if (flag === undefined) delete process.env.INVOICE_COLLECTIONS_ENABLED;
+    else process.env.INVOICE_COLLECTIONS_ENABLED = flag;
+  });
+
+  it('sends nothing when the INVOICE_COLLECTIONS_ENABLED kill switch is off', async () => {
+    process.env.INVOICE_COLLECTIONS_ENABLED = 'false';
+    const { whatsapp, send } = setup(true);
+    await send(invoice());
+    expect(whatsapp.sendPaymentReceiptTemplate).not.toHaveBeenCalled();
+  });
 
   it('sends the amount paid and the balance left to an opted-in customer of an enrolled business', async () => {
     const { whatsapp, send } = setup(true);

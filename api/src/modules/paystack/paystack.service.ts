@@ -1302,6 +1302,8 @@ export class PaystackService {
   }
 
   private async sendWhatsappReceipt(invoice: any, amountPaid: number, outstandingAmount: string): Promise<void> {
+    // Same kill switch as the reminders: an environment with the flag off (staging, a restored database) sends nothing.
+    if (process.env.INVOICE_COLLECTIONS_ENABLED !== 'true') return;
     const client = invoice.client;
     if (!client?.phone || !client.whatsappOptIn || client.whatsappOptedOutAt) return;
     try {

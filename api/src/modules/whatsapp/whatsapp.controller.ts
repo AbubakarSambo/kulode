@@ -1,8 +1,8 @@
-import { Controller, Get, Post, Query, Body, Req, Res, Headers, HttpStatus, Logger, ForbiddenException, UnauthorizedException, RawBodyRequest } from '@nestjs/common';
+import { Controller, Get, Post, Query, Body, Req, Res, Headers, HttpStatus, Logger, ForbiddenException, InternalServerErrorException, UnauthorizedException, RawBodyRequest } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { Public } from '../../common';
-import { WhatsappService } from './whatsapp.service';
+import { InboundHandlingError, WhatsappService } from './whatsapp.service';
 
 @ApiExcludeController()
 @Controller('whatsapp')
@@ -27,8 +27,8 @@ export class WhatsappController {
     res.status(HttpStatus.OK).send(challenge);
   }
 
-  // Meta expects a fast 200 regardless of processing outcome - a non-2xx (or a
-  // timeout) causes aggressive retries and can eventually disable the subscription.
+  // Meta expects a fast 200 - a non-2xx (or a timeout) causes retries and, if sustained, can disable the
+  // subscription. So only one failure is allowed to surface as 5xx: a customer message we failed to act on.
   @Public()
   @Post('webhook')
   async receiveWebhook(
@@ -50,6 +50,9 @@ export class WhatsappController {
       await this.whatsappService.handleWebhookEvent(payload, { acceptInbound: authentic });
     } catch (error) {
       this.logger.error('Failed to process WhatsApp webhook event', error);
+      // A customer message we could not act on (a STOP, a promise) must not be acknowledged: answer 5xx so
+      // Meta redelivers it. Anything else stays a 200 so a bad payload cannot trigger endless retries.
+      if (error instanceof InboundHandlingError) throw new InternalServerErrorException('Inbound message not processed');
     }
     return { received: true };
   }

@@ -17,10 +17,10 @@ const WEEKDAYS = ['sun(?:day)?', 'mon(?:day)?', 'tue(?:s|sday)?', 'wed(?:nesday)
 
 // An opt-out is permanent, so only a message that IS the request counts ("STOP", "please unsubscribe me",
 // "don't message me again"). A longer sentence that merely contains the word ("please stop by the shop")
-// goes to the owner as OTHER instead.
+// goes to the owner as OTHER instead. ("cancel" is not here: it more likely means the order or invoice.)
 const FILLER = '(?:\\s+(?:all|these|the|my|sending|messaging|texting|messages?|texts?|reminders?|whatsapp|me|us|any|more|again|anymore|now|please|pls))*';
 const OPT_OUT = new RegExp(
-  `^(?:(?:please|pls|kindly)\\s+)*(?:stop|unsubscribe|opt[ -]?out|cancel)${FILLER}$|` +
+  `^(?:(?:please|pls|kindly)\\s+)*(?:stop|unsubscribe|opt[ -]?out)${FILLER}$|` +
     `^(?:(?:please|pls|kindly)\\s+)*(?:remove\\s+(?:me|my number)|do(?:n'?t| not)\\s+(?:message|text|contact|whatsapp|send)\\s+(?:me|us))${FILLER}$`,
 );
 const NEGATED_PAYMENT = /\b(not|never|haven'?t|hasn'?t|didn'?t|yet to|am yet to|am not yet|still (need|have) to)\b.{0,20}\b(paid|pay|sent|send|transferred)\b/;
