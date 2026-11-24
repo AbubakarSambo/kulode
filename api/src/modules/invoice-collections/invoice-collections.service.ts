@@ -414,7 +414,7 @@ export class InvoiceCollectionsService implements OnModuleInit {
     } else {
       try {
         saved = await this.prisma.invoiceCollectionPolicy.create({
-          data: { organizationId, clientId: null, schedule: DEFAULT_SCHEDULE, ...data },
+          data: { organizationId, clientId: null, schedule: DEFAULT_SCHEDULE as unknown as Prisma.InputJsonValue, ...data },
         });
       } catch (error) {
         if (!isUniqueViolation(error)) throw error;
