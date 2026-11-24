@@ -117,6 +117,8 @@ export const whatsappConfig = registerAs("whatsapp", () => ({
   // Meta app secret: signs every webhook POST (X-Hub-Signature-256). Required before replies are acted on.
   appSecret: process.env.WHATSAPP_APP_SECRET || "",
   // Approved template for payment receipts. Body: {{1}} customer, {{2}} amount paid, {{3}} invoice number, {{4}} balance left.
+  // Owner-facing weekly collections summary. Body: {{1}} collected after reminders, {{2}} reminders sent, {{3}} overdue total, {{4}} invoices needing attention.
+  weeklySummaryTemplateName: process.env.WHATSAPP_COLLECTIONS_SUMMARY_TEMPLATE_NAME || "collections_weekly_summary_v1",
   receiptTemplateName: process.env.WHATSAPP_RECEIPT_TEMPLATE_NAME || "payment_receipt_v1",
 }));
 

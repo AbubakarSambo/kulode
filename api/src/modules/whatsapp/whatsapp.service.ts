@@ -74,6 +74,7 @@ export class WhatsappService {
   private readonly webhookVerifyToken: string;
   private readonly appSecret: string;
   private readonly receiptTemplateName: string;
+  readonly weeklySummaryTemplateName: string;
   private readonly inboundHandlers: InboundMessageHandler[] = [];
 
   constructor(
@@ -89,6 +90,7 @@ export class WhatsappService {
     this.templateLanguage = this.configService.get<string>('whatsapp.templateLanguage') || 'en';
     this.webhookVerifyToken = this.configService.get<string>('whatsapp.webhookVerifyToken') || '';
     this.appSecret = this.configService.get<string>('whatsapp.appSecret') || '';
+    this.weeklySummaryTemplateName = this.configService.get<string>('whatsapp.weeklySummaryTemplateName') || 'collections_weekly_summary_v1';
     this.receiptTemplateName = this.configService.get<string>('whatsapp.receiptTemplateName') || 'payment_receipt_v1';
   }
 
