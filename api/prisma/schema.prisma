@@ -72,6 +72,28 @@ enum WhatsappMessageStatus {
   FAILED
 }
 
+enum InvoiceCollectionState {
+  SCHEDULED
+  REMINDING
+  PROMISED
+  PAID
+  CLOSED
+  OWNER_ATTENTION
+}
+
+enum InvoiceCollectionMode {
+  APPROVE
+  AUTO
+}
+
+enum InvoiceCollectionReminderStatus {
+  PENDING_APPROVAL
+  SENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
 enum TokenType {
   EMAIL_VERIFICATION
   PASSWORD_SETUP
@@ -413,6 +435,9 @@ model Organization {
   taxReportLogs        TaxReportLog[]
   chatSessions         ChatSession[]
   whatsappMessages     WhatsappMessage[]
+  invoiceCollectionPolicies  InvoiceCollectionPolicy[]
+  invoiceCollections         InvoiceCollection[]
+  invoiceCollectionReminders InvoiceCollectionReminder[]
   directors            OrganizationDirector[]
 
   // Restaurant POS
@@ -577,6 +602,8 @@ model Client {
   // WhatsApp Business API consent (self-attested by the org, required before API-driven messaging)
   whatsappOptIn   Boolean   @default(false) @map("whatsapp_opt_in")
   whatsappOptInAt DateTime? @map("whatsapp_opt_in_at")
+  whatsappOptInSource String?   @map("whatsapp_opt_in_source")
+  whatsappOptedOutAt  DateTime? @map("whatsapp_opted_out_at")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -585,6 +612,7 @@ model Client {
   organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   invoices         Invoice[]
   whatsappMessages WhatsappMessage[]
+  invoiceCollectionPolicies InvoiceCollectionPolicy[]
 
   @@index([organizationId])
   @@map("clients")
@@ -882,6 +910,8 @@ model Invoice {
   payments         Payment[]
   installments     PaymentInstallment[]
   whatsappMessages WhatsappMessage[]
+  collection          InvoiceCollection?
+  collectionReminders InvoiceCollectionReminder[]
 
   @@unique([organizationId, invoiceNumber])
   @@index([organizationId])
@@ -1392,6 +1422,80 @@ model WhatsappMessage {
   @@index([organizationId])
   @@index([invoiceId])
   @@map("whatsapp_messages")
+}
+
+// Automated invoice collections ("collections agent"): per-business reminder policy, per-invoice
+// progress, and one row per planned reminder. Named InvoiceCollection* because CollectionModule is
+// the unrelated staff phone-collection leaderboard.
+//
+// A business is enrolled by having a policy row with client_id NULL (its default). A row with a
+// client_id overrides the default for that client. The "one default per org" rule is enforced in code
+// (Postgres treats NULLs as distinct in the unique index below).
+model InvoiceCollectionPolicy {
+  id             String                @id @default(uuid())
+  organizationId String                @map("organization_id")
+  clientId       String?               @map("client_id")
+  // [{ "offsetDays": -2, "template": "pre_due" }, ...] — offsets are days from the invoice due date
+  schedule       Json
+  mode           InvoiceCollectionMode @default(APPROVE)
+  // Local hour (0-23, organization timezone) at which a due reminder is sent
+  sendHour       Int                   @default(9) @map("send_hour")
+  maxMessages    Int                   @default(4) @map("max_messages")
+  paused         Boolean               @default(false)
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client?      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, clientId])
+  @@index([organizationId])
+  @@map("invoice_collection_policies")
+}
+
+model InvoiceCollection {
+  invoiceId      String                 @id @map("invoice_id")
+  organizationId String                 @map("organization_id")
+  state          InvoiceCollectionState @default(SCHEDULED)
+  // Index into the policy schedule of the next reminder to plan
+  stepIndex      Int                    @default(0) @map("step_index")
+  messagesSent   Int                    @default(0) @map("messages_sent")
+  nextActionAt   DateTime?              @map("next_action_at")
+  promisedDate   DateTime?              @map("promised_date") @db.Date
+  lastActionAt   DateTime?              @map("last_action_at")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  updatedAt      DateTime               @updatedAt @map("updated_at")
+
+  invoice      Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([state, nextActionAt])
+  @@index([organizationId])
+  @@map("invoice_collections")
+}
+
+// One planned reminder. The unique (invoice_id, step_index) key is the idempotency guarantee: a
+// retried or concurrent scheduler run can never plan, or send, the same step twice.
+model InvoiceCollectionReminder {
+  id                String                          @id @default(uuid())
+  invoiceId         String                          @map("invoice_id")
+  organizationId    String                          @map("organization_id")
+  stepIndex         Int                             @map("step_index")
+  template          String
+  status            InvoiceCollectionReminderStatus @default(PENDING_APPROVAL)
+  scheduledFor      DateTime                        @map("scheduled_for")
+  providerMessageId String?                         @map("provider_message_id")
+  errorMessage      String?                         @map("error_message")
+  sentAt            DateTime?                       @map("sent_at")
+  createdAt         DateTime                        @default(now()) @map("created_at")
+  updatedAt         DateTime                        @updatedAt @map("updated_at")
+
+  invoice      Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([invoiceId, stepIndex])
+  @@index([organizationId, status])
+  @@map("invoice_collection_reminders")
 }
 
 // ─── Restaurant POS ─────────────────────────────────────────────────────────
