@@ -136,6 +136,24 @@ describe('InvoiceCollectionsService', () => {
       });
     });
 
+    it('a schedule that is behind spaces the next step a day out instead of firing on the next tick', async () => {
+      const { service, prisma } = setup();
+      // Due 9 days ago, resumed now at step 2 (+3 days): step 3 (+7 days) is already in the past.
+      const dueDate = new Date('2026-12-01T00:00:00Z');
+      withDue(prisma, collection({ stepIndex: 2, invoice: invoice({ dueDate }) }), policy({ mode: 'APPROVE' }));
+
+      await service.processDue(NOW);
+
+      expect(prisma.invoiceCollection.update).toHaveBeenCalledWith({
+        where: { invoiceId: 'inv-1' },
+        data: expect.objectContaining({
+          stepIndex: 3,
+          state: 'REMINDING',
+          nextActionAt: new Date('2026-12-11T08:00:00.000Z'), // next 09:00 Lagos, a day later
+        }),
+      });
+    });
+
     it('APPROVE mode: plans and advances but sends nothing until the owner approves', async () => {
       const { service, prisma, whatsapp } = setup();
       withDue(prisma, collection(), policy({ mode: 'APPROVE' }));

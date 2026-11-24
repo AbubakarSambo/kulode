@@ -99,6 +99,33 @@ describe('InvoiceCollectionsSummaryService', () => {
       expect(whatsapp.sendCustomerTemplate).not.toHaveBeenCalled();
     });
 
+    it('a failed earlier attempt does not count as "already sent" this week', async () => {
+      const { service, prisma } = setup();
+      prisma.invoiceCollectionPolicy.findMany.mockResolvedValue(enrolled('08031234567'));
+      prisma.invoiceCollectionReminder.count.mockResolvedValue(3);
+      await service.sendWeeklySummaries(NOW);
+      expect(prisma.whatsappMessage.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ status: { not: 'FAILED' } }) }),
+      );
+    });
+
+    it('one failing owner number does not stop the next one', async () => {
+      const { service, prisma, whatsapp } = setup();
+      prisma.invoiceCollectionPolicy.findMany.mockResolvedValue(enrolled('08031234567, 08039999999'));
+      prisma.invoiceCollectionReminder.count.mockResolvedValue(3);
+      whatsapp.sendCustomerTemplate.mockRejectedValueOnce(new Error('bad number')).mockResolvedValue({ providerMessageId: 'w' });
+      expect(await service.sendWeeklySummaries(NOW)).toBe(1);
+      expect(whatsapp.sendCustomerTemplate).toHaveBeenCalledTimes(2);
+    });
+
+    it('counts a business as messaged only if at least one number got it', async () => {
+      const { service, prisma, whatsapp } = setup();
+      prisma.invoiceCollectionPolicy.findMany.mockResolvedValue(enrolled('08031234567'));
+      prisma.invoiceCollectionReminder.count.mockResolvedValue(3);
+      whatsapp.sendCustomerTemplate.mockRejectedValue(new Error('Meta down'));
+      expect(await service.sendWeeklySummaries(NOW)).toBe(0);
+    });
+
     it('one business failing does not stop the others', async () => {
       const { service, prisma, whatsapp } = setup();
       prisma.invoiceCollectionPolicy.findMany.mockResolvedValue([

@@ -83,7 +83,7 @@ export class InvoiceCollectionsSummaryService {
       if (phones.length === 0) continue;
       try {
         const recent = await this.prisma.whatsappMessage.findFirst({
-          where: { organizationId, templateName: this.whatsapp.weeklySummaryTemplateName, createdAt: { gte: new Date(now.getTime() - 6 * DAY_MS) } },
+          where: { organizationId, templateName: this.whatsapp.weeklySummaryTemplateName, status: { not: 'FAILED' }, createdAt: { gte: new Date(now.getTime() - 6 * DAY_MS) } },
           select: { id: true },
         });
         if (recent) continue;
@@ -92,14 +92,22 @@ export class InvoiceCollectionsSummaryService {
         // A quiet week with nothing outstanding is not worth a message.
         if (summary.remindersSent === 0 && summary.collectedAfterReminders === 0 && summary.needsAttention === 0) continue;
 
+        // Each number is tried on its own, so one bad number never stops the others.
+        let delivered = 0;
         for (const toPhone of phones) {
-          await this.whatsapp.sendCustomerTemplate({
-            organizationId,
-            toPhone,
-            templateName: this.whatsapp.weeklySummaryTemplateName,
-            bodyValues: [naira(summary.collectedAfterReminders), String(summary.remindersSent), naira(summary.overdueTotal), String(summary.needsAttention)],
-          });
+          try {
+            await this.whatsapp.sendCustomerTemplate({
+              organizationId,
+              toPhone,
+              templateName: this.whatsapp.weeklySummaryTemplateName,
+              bodyValues: [naira(summary.collectedAfterReminders), String(summary.remindersSent), naira(summary.overdueTotal), String(summary.needsAttention)],
+            });
+            delivered++;
+          } catch (error) {
+            this.logger.error(`Collections: weekly summary to ${toPhone} failed for organization ${organizationId}: ${(error as Error).message}`);
+          }
         }
+        if (delivered === 0) continue;
         messaged++;
       } catch (error) {
         this.logger.error(`Collections: weekly summary failed for organization ${organizationId}: ${(error as Error).message}`);

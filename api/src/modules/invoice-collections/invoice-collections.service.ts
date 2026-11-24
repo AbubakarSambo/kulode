@@ -17,6 +17,8 @@ import {
 
 const OPEN_INVOICE_STATUSES = ['SENT', 'PARTIALLY_PAID', 'OVERDUE'] as const;
 const BATCH_SIZE = 200;
+/** Two reminders to the same customer are never closer than this; the next send hour after it is usually the next morning. */
+const MIN_STEP_GAP_MS = 12 * 60 * 60 * 1000;
 
 const isUniqueViolation = (error: unknown): boolean =>
   error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
@@ -221,12 +223,21 @@ export class InvoiceCollectionsService implements OnModuleInit {
 
     // Advance before sending so a crash mid-send can never plan this step again.
     const next = schedule[collection.stepIndex + 1];
+    // When the schedule is behind (resumed after a pause, a broken promise, an outage) the next step's
+    // date is already past: space it to the next send hour at least 12h away rather than firing on the very next tick.
+    let nextActionAt: Date | null = null;
+    if (next) {
+      nextActionAt = stepDueAt(invoice.dueDate, next, policy.sendHour, timeZone);
+      if (nextActionAt.getTime() < now.getTime() + MIN_STEP_GAP_MS) {
+        nextActionAt = nextSendTime(new Date(now.getTime() + MIN_STEP_GAP_MS), policy.sendHour, timeZone);
+      }
+    }
     await this.prisma.invoiceCollection.update({
       where: { invoiceId },
       data: {
         stepIndex: collection.stepIndex + 1,
         state: next ? 'REMINDING' : 'OWNER_ATTENTION',
-        nextActionAt: next ? stepDueAt(invoice.dueDate, next, policy.sendHour, timeZone) : null,
+        nextActionAt,
         lastActionAt: now,
       },
     });
