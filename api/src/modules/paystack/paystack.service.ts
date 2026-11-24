@@ -11,6 +11,7 @@ import { CreateSubaccountDto, VerifyBankAccountDto } from './dto';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { InventoryService } from '../inventory/inventory.service';
 import { EmailService } from '../email/email.service';
+import { WhatsappService } from '../whatsapp/whatsapp.service';
 
 export interface PaystackBank {
   name: string;
@@ -83,6 +84,7 @@ export class PaystackService {
     private prisma: PrismaService,
     private inventoryService: InventoryService,
     private emailService: EmailService,
+    private whatsappService: WhatsappService,
   ) {
     this.baseUrl = this.configService.get<string>('paystack.baseUrl') || 'https://api.paystack.co';
     this.secretKey = this.configService.get<string>('paystack.secretKey') || '';
@@ -919,6 +921,50 @@ export class PaystackService {
     }
   }
 
+  /**
+   * Safety net for a missed `charge.success` webhook. Asks Paystack about every recent payment link
+   * that is still unpaid on our side; a link that turns out to be paid is reconciled through the normal
+   * (idempotent) path. Without this, a customer who paid could keep getting payment reminders.
+   * Only links created within `lookbackDays` are checked, and at most `limit` of each kind per run.
+   */
+  async reconcilePendingPayments(now = new Date(), lookbackDays = 3, limit = 100): Promise<{ checked: number; recovered: number }> {
+    if (!this.secretKey) return { checked: 0, recovered: 0 };
+    const since = new Date(now.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
+    const open = { status: { in: ['SENT', 'PARTIALLY_PAID', 'OVERDUE'] as ('SENT' | 'PARTIALLY_PAID' | 'OVERDUE')[] }, deletedAt: null };
+
+    const [invoices, installments] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where: { ...open, paystackReference: { not: null }, paystackTokenGeneratedAt: { gte: since } },
+        select: { paystackReference: true },
+        orderBy: { paystackTokenGeneratedAt: 'desc' },
+        take: limit,
+      }),
+      this.prisma.paymentInstallment.findMany({
+        where: { isPaid: false, paystackReference: { not: null }, paystackTokenGeneratedAt: { gte: since }, invoice: open },
+        select: { paystackReference: true },
+        orderBy: { paystackTokenGeneratedAt: 'desc' },
+        take: limit,
+      }),
+    ]);
+
+    const references = [...new Set([...invoices, ...installments].map((r) => r.paystackReference as string))];
+    let recovered = 0;
+    for (const reference of references) {
+      try {
+        const result = await this.verifyTransaction(reference);
+        // `newlyReconciled` is true only when this check created the payment; a link that was already
+        // reconciled (or a partly-paid invoice) verifies as success again every hour and must not count.
+        if (result.status === 'success' && result.newlyReconciled) {
+          recovered++;
+          this.logger.warn(`Paystack reconciliation recovered a payment the webhook missed (invoice ${result.invoiceNumber ?? 'unknown'})`);
+        }
+      } catch {
+        // verifyTransaction already logged it; one bad reference must not stop the rest
+      }
+    }
+    return { checked: references.length, recovered };
+  }
+
   async verifyTransaction(reference: string) {
     try {
       const data = await this.makeRequest<{
@@ -932,16 +978,19 @@ export class PaystackService {
         metadata?: PaystackTransaction['metadata'] & { invoice_number?: string };
       }>(`/transaction/verify/${reference}`);
 
+      // Set when this call actually recorded the payment (not when it was already on file).
+      let newlyReconciled = false;
       if (data.status === 'success') {
+        let outcome: { success?: boolean; alreadyProcessed?: boolean } | void;
         if (data.metadata?.type === 'vendor_payout') {
-          await this.reconcileVendorPayout(reference, {
+          outcome = await this.reconcileVendorPayout(reference, {
             amount: data.amount,
             paid_at: data.paid_at || new Date().toISOString(),
             fees: data.fees || 0,
             metadata: data.metadata,
           });
         } else if (data.metadata?.type === 'order') {
-          await this.reconcileOrderPayment(reference, {
+          outcome = await this.reconcileOrderPayment(reference, {
             amount: data.amount,
             channel: data.channel || 'card',
             paid_at: data.paid_at || new Date().toISOString(),
@@ -949,7 +998,7 @@ export class PaystackService {
             metadata: data.metadata,
           });
         } else {
-          await this.reconcilePayment(reference, {
+          outcome = await this.reconcilePayment(reference, {
             amount: data.amount,
             channel: data.channel || 'card',
             paid_at: data.paid_at || new Date().toISOString(),
@@ -957,10 +1006,12 @@ export class PaystackService {
             metadata: data.metadata,
           });
         }
+        newlyReconciled = !!outcome && outcome.success === true && !outcome.alreadyProcessed;
       }
 
       return {
         status: data.status,
+        newlyReconciled,
         amount: data.amount / 100, // Convert from kobo
         currency: data.currency,
         reference: data.reference,
@@ -1211,6 +1262,9 @@ export class PaystackService {
       }
     }
 
+    // 1b. WhatsApp receipt, for businesses that have switched on automatic reminders and customers who agreed to WhatsApp
+    await this.sendWhatsappReceipt(invoice, amountPaid, outstandingAmount);
+
     // 2. Send alert to Merchant (Org Admins/Users)
     const merchantEmails: string[] = [];
     if (invoice.organization.email) {
@@ -1244,6 +1298,32 @@ export class PaystackService {
       } catch (err) {
         this.logger.error(`Failed to send merchant payment alert to ${email}: ${err.message}`);
       }
+    }
+  }
+
+  private async sendWhatsappReceipt(invoice: any, amountPaid: number, outstandingAmount: string): Promise<void> {
+    // Same kill switch as the reminders: an environment with the flag off (staging, a restored database) sends nothing.
+    if (process.env.INVOICE_COLLECTIONS_ENABLED !== 'true') return;
+    const client = invoice.client;
+    if (!client?.phone || !client.whatsappOptIn || client.whatsappOptedOutAt) return;
+    try {
+      const enrolled = await this.prisma.invoiceCollectionPolicy.findFirst({
+        where: { organizationId: invoice.organizationId, clientId: null },
+        select: { id: true },
+      });
+      if (!enrolled) return;
+      await this.whatsappService.sendPaymentReceiptTemplate({
+        organizationId: invoice.organizationId,
+        toPhone: client.phone,
+        clientId: client.id,
+        invoiceId: invoice.id,
+        clientName: client.name,
+        amountPaid: amountPaid.toLocaleString('en-NG', { style: 'currency', currency: 'NGN' }),
+        invoiceNumber: invoice.invoiceNumber,
+        balanceLeft: outstandingAmount || '₦0.00',
+      });
+    } catch (err) {
+      this.logger.error(`Failed to send WhatsApp payment receipt for invoice ${invoice.invoiceNumber}: ${(err as Error).message}`);
     }
   }
 

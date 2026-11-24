@@ -36,6 +36,7 @@ import { SheetSyncModule } from './modules/sheet-sync';
 import { PosReportsModule } from './modules/pos-reports';
 import { LeaderboardModule } from './modules/leaderboard';
 import { CollectionModule } from './modules/collection';
+import { InvoiceCollectionsModule } from './modules/invoice-collections';
 import { LoyaltyModule } from './modules/loyalty';
 import { PrintersModule } from './modules/printers';
 import { OrderTypesModule } from './modules/order-types';
@@ -101,6 +102,7 @@ import {
     PosReportsModule,
     LeaderboardModule,
     CollectionModule,
+    InvoiceCollectionsModule,
     LoyaltyModule,
     PrintersModule,
     OrderTypesModule,

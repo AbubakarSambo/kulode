@@ -1,7 +1,7 @@
 import { Header } from '@/components/layout'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui'
 import { Link } from 'react-router-dom'
-import { Building, CreditCard, Tags, Sparkles, UserCog, Printer, Radio, Gift } from 'lucide-react'
+import { Building, CreditCard, Tags, Sparkles, UserCog, Printer, Radio, Gift, BellRing } from 'lucide-react'
 import { useSubscription } from '@/hooks/useSubscription'
 import { useOverscrollBounce, useOrgModules } from '@/hooks'
 
@@ -28,6 +28,12 @@ export function SettingsPage() {
       description: 'Configure payment integration',
       icon: CreditCard,
       href: '/settings/paystack',
+    },
+    {
+      title: 'Automatic reminders',
+      description: 'Chase overdue invoices on WhatsApp',
+      icon: BellRing,
+      href: '/settings/collections',
     },
     {
       title: 'System Updates',
