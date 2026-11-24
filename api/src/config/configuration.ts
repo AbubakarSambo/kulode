@@ -114,6 +114,8 @@ export const whatsappConfig = registerAs("whatsapp", () => ({
   loyaltyRewardTemplateName:
     process.env.WHATSAPP_LOYALTY_REWARD_TEMPLATE_NAME || "loyalty_reward_earned_v1",
   webhookVerifyToken: process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "",
+  // Meta app secret: signs every webhook POST (X-Hub-Signature-256). Required before replies are acted on.
+  appSecret: process.env.WHATSAPP_APP_SECRET || "",
 }));
 
 export const demoConfig = registerAs("demo", () => ({

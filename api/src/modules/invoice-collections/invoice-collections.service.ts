@@ -1,7 +1,8 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { WhatsappService } from '../whatsapp/whatsapp.service';
+import { InboundMessage, WhatsappService } from '../whatsapp/whatsapp.service';
+import { classifyReply } from './invoice-collections.inbound';
 import { UpdateCollectionPolicyDto } from './dto';
 import {
   DEFAULT_SCHEDULE,
@@ -27,13 +28,17 @@ const isUniqueViolation = (error: unknown): boolean =>
  * PAID through the existing payment reconciliation, and this service merely notices that and stops.
  */
 @Injectable()
-export class InvoiceCollectionsService {
+export class InvoiceCollectionsService implements OnModuleInit {
   private readonly logger = new Logger(InvoiceCollectionsService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly whatsapp: WhatsappService,
   ) {}
+
+  onModuleInit(): void {
+    this.whatsapp.onInboundMessage((message) => this.handleInboundMessage(message));
+  }
 
   /** Starts tracking open invoices of enrolled businesses. Returns how many were enrolled. */
   async enrollEligibleInvoices(now = new Date()): Promise<number> {
@@ -362,5 +367,121 @@ export class InvoiceCollectionsService {
     });
     if (result.count === 0) throw new NotFoundException('No pending reminder with that id');
     return { skipped: true };
+  }
+
+  /**
+   * A customer replied on WhatsApp. Ties the reply to an invoice (the message they replied to, else the
+   * last reminder we sent that number), classifies it, and acts. Safe to call twice for the same message.
+   *
+   * Nothing here decides money state: "I have paid" asks the owner to check, it never marks the invoice paid.
+   */
+  async handleInboundMessage(message: InboundMessage, now = new Date()): Promise<void> {
+    const outbound = message.contextId
+      ? await this.prisma.whatsappMessage.findUnique({ where: { providerMessageId: message.contextId } })
+      : await this.prisma.whatsappMessage.findFirst({
+          where: { toPhone: message.from, invoiceId: { not: null } },
+          orderBy: { createdAt: 'desc' },
+        });
+    const organizationId = outbound?.organizationId ?? null;
+    const invoiceId = outbound?.invoiceId ?? null;
+    const clientId = outbound?.clientId ?? null;
+
+    const org = organizationId
+      ? await this.prisma.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } })
+      : null;
+    const reply = classifyReply(message.text, now, org?.timezone ?? 'Africa/Lagos');
+
+    try {
+      await this.prisma.inboundWhatsappMessage.create({
+        data: {
+          providerMessageId: message.providerMessageId,
+          organizationId,
+          invoiceId,
+          clientId,
+          fromPhone: message.from,
+          messageType: message.type,
+          body: message.text.slice(0, 1000),
+          intent: reply.intent,
+          promisedDate: reply.promisedDate ?? null,
+        },
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) return; // Meta retried a message we already handled
+      throw error;
+    }
+
+    if (!organizationId) {
+      this.logger.warn(`Collections: inbound message ${message.providerMessageId} matched no reminder; recorded only`);
+      return;
+    }
+
+    if (reply.intent === 'OPT_OUT') {
+      if (clientId) await this.optOutClient(organizationId, clientId, now);
+      return;
+    }
+    if (!invoiceId) return;
+
+    const collection = await this.prisma.invoiceCollection.findUnique({ where: { invoiceId } });
+    if (!collection || collection.state === 'PAID' || collection.state === 'CLOSED') return;
+
+    await this.prisma.invoiceCollectionReminder.updateMany({
+      where: { invoiceId, status: 'PENDING_APPROVAL' },
+      data: { status: 'SKIPPED', errorMessage: `customer_replied_${reply.intent.toLowerCase()}` },
+    });
+
+    if (reply.intent === 'WILL_PAY_ON' && reply.promisedDate) {
+      await this.prisma.invoiceCollection.update({
+        where: { invoiceId },
+        data: { state: 'PROMISED', promisedDate: reply.promisedDate, nextActionAt: null, lastActionAt: now },
+      });
+    } else {
+      // "I have paid" and anything unclear: stop chasing and let the owner look.
+      await this.prisma.invoiceCollection.update({
+        where: { invoiceId },
+        data: { state: 'OWNER_ATTENTION', nextActionAt: null, lastActionAt: now },
+      });
+    }
+  }
+
+  /** STOP: no more WhatsApp to this customer, and every queued or upcoming reminder to them is dropped. */
+  private async optOutClient(organizationId: string, clientId: string, now: Date): Promise<void> {
+    await this.prisma.client.updateMany({
+      where: { id: clientId, organizationId },
+      data: { whatsappOptIn: false, whatsappOptedOutAt: now },
+    });
+    await this.prisma.invoiceCollectionReminder.updateMany({
+      where: { organizationId, status: 'PENDING_APPROVAL', invoice: { clientId } },
+      data: { status: 'SKIPPED', errorMessage: 'customer_opted_out' },
+    });
+    await this.prisma.invoiceCollection.updateMany({
+      where: { organizationId, state: { in: ['SCHEDULED', 'REMINDING', 'PROMISED'] }, invoice: { clientId } },
+      data: { state: 'OWNER_ATTENTION', nextActionAt: null, lastActionAt: now },
+    });
+  }
+
+  /** Invoices that need a person: a customer said they paid or wrote something unclear, or reminders ran out. */
+  async listNeedingAttention(organizationId: string) {
+    const collections = await this.prisma.invoiceCollection.findMany({
+      where: { organizationId, state: 'OWNER_ATTENTION' },
+      orderBy: { lastActionAt: 'desc' },
+      take: 100,
+      include: {
+        invoice: { select: { id: true, invoiceNumber: true, total: true, amountPaid: true, dueDate: true, status: true, client: { select: { name: true } } } },
+      },
+    });
+    const replies = await this.prisma.inboundWhatsappMessage.findMany({
+      where: { organizationId, invoiceId: { in: collections.map((c) => c.invoiceId) } },
+      orderBy: { createdAt: 'desc' },
+      select: { invoiceId: true, body: true, intent: true, createdAt: true },
+    });
+    const latest = new Map<string, (typeof replies)[number]>();
+    for (const r of replies) if (r.invoiceId && !latest.has(r.invoiceId)) latest.set(r.invoiceId, r);
+    return collections.map((c) => ({
+      invoiceId: c.invoiceId,
+      messagesSent: c.messagesSent,
+      lastActionAt: c.lastActionAt,
+      invoice: c.invoice,
+      lastReply: latest.get(c.invoiceId) ?? null,
+    }));
   }
 }

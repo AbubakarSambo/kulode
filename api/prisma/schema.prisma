@@ -2175,3 +2175,24 @@ model CoverageSnapshot {
   @@id([organizationId, date])
   @@map("coverage_snapshots")
 }
+
+// A reply from a customer to a collections reminder (or any inbound WhatsApp message we could tie to
+// an invoice). The unique provider id makes Meta's webhook retries harmless. The classified intent is
+// what the collections service acted on; the text is kept so the owner can read what was said.
+model InboundWhatsappMessage {
+  id                String   @id @default(uuid())
+  providerMessageId String   @unique @map("provider_message_id")
+  organizationId    String?  @map("organization_id")
+  invoiceId         String?  @map("invoice_id")
+  clientId          String?  @map("client_id")
+  fromPhone         String   @map("from_phone")
+  messageType       String   @map("message_type")
+  body              String   @default("")
+  intent            String?
+  promisedDate      DateTime? @map("promised_date")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([invoiceId, createdAt])
+  @@index([organizationId])
+  @@map("inbound_whatsapp_messages")
+}

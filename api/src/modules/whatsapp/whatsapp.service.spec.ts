@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { createHmac } from 'crypto';
 import { WhatsappService } from './whatsapp.service';
 
 const WAMID = 'wamid.HBgNMjM0OTA1MzAxODAwNRUCABEY'; // encodes the recipient's number
@@ -53,5 +54,62 @@ describe('WhatsappService delivery status callbacks', () => {
     const { service, prisma } = setup();
     await service.handleWebhookEvent(statusEvent('typing'));
     expect(prisma.whatsappMessage.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('WhatsappService inbound messages and webhook signatures', () => {
+  const SECRET = 'app-secret';
+  const build = (secret = SECRET) => {
+    const prisma: any = { whatsappMessage: { findUnique: jest.fn().mockResolvedValue(null), updateMany: jest.fn().mockResolvedValue({ count: 0 }) } };
+    const config: any = { get: (k: string) => (k === 'whatsapp.appSecret' ? secret : undefined) };
+    return new WhatsappService(config, prisma);
+  };
+  const sign = (body: Buffer, secret = SECRET) => `sha256=${createHmac('sha256', secret).update(body).digest('hex')}`;
+  const inboundEvent = { entry: [{ changes: [{ value: { messages: [{ id: 'wamid.in', from: '2348031234567', type: 'text', text: { body: 'I will pay tomorrow' }, context: { id: 'wamid.out' } }] } }] }] };
+
+  beforeEach(() => {
+    jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it('accepts the right signature and rejects a wrong, missing or malformed one', () => {
+    const service = build();
+    const body = Buffer.from('{"a":1}');
+    expect(service.isValidSignature(body, sign(body))).toBe(true);
+    expect(service.isValidSignature(body, sign(body, 'other-secret'))).toBe(false);
+    expect(service.isValidSignature(Buffer.from('{"a":2}'), sign(body))).toBe(false);
+    expect(service.isValidSignature(body, undefined)).toBe(false);
+    expect(service.isValidSignature(body, 'sha256=zz')).toBe(false);
+    expect(service.isValidSignature(undefined, sign(body))).toBe(false);
+  });
+
+  it('cannot verify anything when no secret is configured', () => {
+    const service = build('');
+    expect(service.canVerifySignatures).toBe(false);
+    expect(service.isValidSignature(Buffer.from('x'), 'sha256=00')).toBe(false);
+  });
+
+  it('passes an authentic customer message to subscribers', async () => {
+    const service = build();
+    const handler = jest.fn().mockResolvedValue(undefined);
+    service.onInboundMessage(handler);
+    await service.handleWebhookEvent(inboundEvent, { acceptInbound: true });
+    expect(handler).toHaveBeenCalledWith({ providerMessageId: 'wamid.in', from: '2348031234567', type: 'text', text: 'I will pay tomorrow', contextId: 'wamid.out' });
+  });
+
+  it('does not pass on a message whose signature was not verified', async () => {
+    const service = build();
+    const handler = jest.fn();
+    service.onInboundMessage(handler);
+    await service.handleWebhookEvent(inboundEvent);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('a failing subscriber does not break the webhook', async () => {
+    const service = build();
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    service.onInboundMessage(jest.fn().mockRejectedValue(new Error('boom')));
+    await expect(service.handleWebhookEvent(inboundEvent, { acceptInbound: true })).resolves.toBeUndefined();
   });
 });

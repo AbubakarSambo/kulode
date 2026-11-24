@@ -5,6 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface SendInvoiceReminderParams {
@@ -49,6 +50,17 @@ export interface SendShiftReportParams {
   mtdCredits?: string;
 }
 
+/** A customer's message, reduced to what handlers need. `contextId` is the message they replied to. */
+export interface InboundMessage {
+  providerMessageId: string;
+  from: string;
+  type: string;
+  text: string;
+  contextId: string | null;
+}
+
+export type InboundMessageHandler = (message: InboundMessage) => Promise<void>;
+
 @Injectable()
 export class WhatsappService {
   private readonly logger = new Logger(WhatsappService.name);
@@ -60,6 +72,8 @@ export class WhatsappService {
   private readonly shiftReportTemplateName: string;
   private readonly templateLanguage: string;
   private readonly webhookVerifyToken: string;
+  private readonly appSecret: string;
+  private readonly inboundHandlers: InboundMessageHandler[] = [];
 
   constructor(
     private configService: ConfigService,
@@ -73,6 +87,7 @@ export class WhatsappService {
     this.shiftReportTemplateName = this.configService.get<string>('whatsapp.shiftReportTemplateName') || 'shift_report_v3';
     this.templateLanguage = this.configService.get<string>('whatsapp.templateLanguage') || 'en';
     this.webhookVerifyToken = this.configService.get<string>('whatsapp.webhookVerifyToken') || '';
+    this.appSecret = this.configService.get<string>('whatsapp.appSecret') || '';
   }
 
   private get isMockMode(): boolean {
@@ -370,7 +385,30 @@ export class WhatsappService {
     return !!this.webhookVerifyToken && token === this.webhookVerifyToken;
   }
 
-  async handleWebhookEvent(payload: any): Promise<void> {
+  /** True when a webhook signing secret is configured, so the signature can be checked at all. */
+  get canVerifySignatures(): boolean {
+    return !!this.appSecret;
+  }
+
+  /** Checks Meta's X-Hub-Signature-256 header ("sha256=<hex hmac of the raw body>"). */
+  isValidSignature(rawBody: Buffer | undefined, header: string | undefined): boolean {
+    if (!this.appSecret || !rawBody || !header?.startsWith('sha256=')) return false;
+    const expected = createHmac('sha256', this.appSecret).update(rawBody).digest();
+    const given = Buffer.from(header.slice('sha256='.length), 'hex');
+    return given.length === expected.length && timingSafeEqual(given, expected);
+  }
+
+  /** Other modules subscribe to customer messages here (avoids a circular module import). */
+  onInboundMessage(handler: InboundMessageHandler): void {
+    this.inboundHandlers.push(handler);
+  }
+
+  /**
+   * `acceptInbound` is true only for a payload whose signature was verified. Delivery statuses are
+   * harmless bookkeeping and are always applied; customer messages change invoice state, so they are
+   * only passed on when authentic.
+   */
+  async handleWebhookEvent(payload: any, options: { acceptInbound?: boolean } = {}): Promise<void> {
     const entries = payload?.entry || [];
 
     for (const entry of entries) {
@@ -383,11 +421,30 @@ export class WhatsappService {
         }
 
         for (const message of value.messages || []) {
-          // Inbound replies aren't acted on yet - just recorded for visibility.
-          this.logger.log(`[WHATSAPP INBOUND] from ${message.from}: ${JSON.stringify(message)}`);
+          if (!options.acceptInbound) {
+            this.logger.warn('Ignoring WhatsApp inbound message: webhook signature was not verified');
+            continue;
+          }
+          const inbound = this.toInboundMessage(message);
+          if (!inbound) continue;
+          for (const handler of this.inboundHandlers) {
+            try {
+              await handler(inbound);
+            } catch (error) {
+              this.logger.error(`WhatsApp inbound handler failed: ${(error as Error).message}`);
+            }
+          }
         }
       }
     }
+  }
+
+  private toInboundMessage(message: any): InboundMessage | null {
+    if (!message?.id || !message?.from) return null;
+    const type = String(message.type || 'unknown');
+    const text =
+      message.text?.body ?? message.button?.text ?? message.interactive?.button_reply?.title ?? message.interactive?.list_reply?.title ?? '';
+    return { providerMessageId: message.id, from: String(message.from), type, text: String(text), contextId: message.context?.id ?? null };
   }
 
   private async applyStatusUpdate(status: any): Promise<void> {

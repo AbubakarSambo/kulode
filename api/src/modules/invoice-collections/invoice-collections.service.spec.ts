@@ -65,6 +65,10 @@ function setup() {
       update: jest.fn().mockResolvedValue({}),
       updateMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
+    whatsappMessage: { findUnique: jest.fn(), findFirst: jest.fn() },
+    organization: { findUnique: jest.fn().mockResolvedValue({ timezone: 'Africa/Lagos' }) },
+    client: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    inboundWhatsappMessage: { create: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) },
     invoiceCollectionPolicy: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn() },
     invoiceCollectionReminder: {
       create: jest.fn().mockResolvedValue({ id: 'rem-1' }),
@@ -459,6 +463,123 @@ describe('InvoiceCollectionsService', () => {
       prisma.invoiceCollection.create.mockRejectedValue(uniqueViolation());
 
       await expect(service.enrollEligibleInvoices(NOW)).resolves.toBe(0);
+    });
+  });
+
+  describe('handleInboundMessage', () => {
+    const msg = (text: string, over: Record<string, unknown> = {}) => ({
+      providerMessageId: 'wamid.in-1',
+      from: '2348031234567',
+      type: 'text',
+      text,
+      contextId: 'wamid.out-1',
+      ...over,
+    });
+    const outbound = { organizationId: 'org-1', invoiceId: 'inv-1', clientId: 'client-1' };
+
+    function inbound(text: string, state = 'REMINDING', over: Record<string, unknown> = {}) {
+      const ctx = setup();
+      ctx.prisma.whatsappMessage.findUnique.mockResolvedValue(outbound);
+      ctx.prisma.invoiceCollection.findUnique.mockResolvedValue(collection({ state }));
+      return { ...ctx, run: () => ctx.service.handleInboundMessage(msg(text, over), NOW) };
+    }
+
+    it('a promise parks the invoice until that day and drops the queued reminder', async () => {
+      const { prisma, run } = inbound('I will pay tomorrow');
+      await run();
+      expect(prisma.inboundWhatsappMessage.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ invoiceId: 'inv-1', intent: 'WILL_PAY_ON', promisedDate: new Date('2026-12-11T00:00:00.000Z') }),
+      });
+      expect(prisma.invoiceCollection.update).toHaveBeenCalledWith({
+        where: { invoiceId: 'inv-1' },
+        data: expect.objectContaining({ state: 'PROMISED', promisedDate: new Date('2026-12-11T00:00:00.000Z'), nextActionAt: null }),
+      });
+      expect(prisma.invoiceCollectionReminder.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { invoiceId: 'inv-1', status: 'PENDING_APPROVAL' } }),
+      );
+    });
+
+    it('"I have paid" asks the owner to check and never touches the invoice', async () => {
+      const { prisma, run } = inbound('I have paid');
+      await run();
+      expect(prisma.invoiceCollection.update).toHaveBeenCalledWith({
+        where: { invoiceId: 'inv-1' },
+        data: expect.objectContaining({ state: 'OWNER_ATTENTION', nextActionAt: null }),
+      });
+      expect(prisma.invoice.update).toBeUndefined();
+    });
+
+    it('anything unclear goes to the owner', async () => {
+      const { prisma, run } = inbound('who is this?');
+      await run();
+      expect(prisma.invoiceCollection.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ state: 'OWNER_ATTENTION' }) }),
+      );
+    });
+
+    it('STOP records the opt-out, drops queued reminders and stops chasing that customer', async () => {
+      const { prisma, run } = inbound('STOP');
+      await run();
+      expect(prisma.client.updateMany).toHaveBeenCalledWith({
+        where: { id: 'client-1', organizationId: 'org-1' },
+        data: { whatsappOptIn: false, whatsappOptedOutAt: NOW },
+      });
+      expect(prisma.invoiceCollectionReminder.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ invoice: { clientId: 'client-1' } }) }),
+      );
+      expect(prisma.invoiceCollection.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ state: 'OWNER_ATTENTION' }) }),
+      );
+    });
+
+    it('is idempotent: a retried webhook message is not acted on twice', async () => {
+      const { prisma, run } = inbound('I will pay tomorrow');
+      prisma.inboundWhatsappMessage.create.mockRejectedValue(uniqueViolation());
+      await run();
+      expect(prisma.invoiceCollection.update).not.toHaveBeenCalled();
+    });
+
+    it('ignores replies about invoices that are already paid or closed', async () => {
+      const { prisma, run } = inbound('I will pay tomorrow', 'PAID');
+      await run();
+      expect(prisma.invoiceCollection.update).not.toHaveBeenCalled();
+    });
+
+    it('records but does not act on a message that matches no reminder', async () => {
+      const ctx = setup();
+      ctx.prisma.whatsappMessage.findUnique.mockResolvedValue(null);
+      await ctx.service.handleInboundMessage(msg('I will pay tomorrow'), NOW);
+      expect(ctx.prisma.inboundWhatsappMessage.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ organizationId: null, invoiceId: null }),
+      });
+      expect(ctx.prisma.invoiceCollection.update).not.toHaveBeenCalled();
+    });
+
+    it('without a reply context, falls back to the last reminder sent to that number', async () => {
+      const ctx = setup();
+      ctx.prisma.whatsappMessage.findFirst.mockResolvedValue(outbound);
+      ctx.prisma.invoiceCollection.findUnique.mockResolvedValue(collection());
+      await ctx.service.handleInboundMessage(msg('I will pay tomorrow', { contextId: null }), NOW);
+      expect(ctx.prisma.whatsappMessage.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { toPhone: '2348031234567', invoiceId: { not: null } } }),
+      );
+      expect(ctx.prisma.invoiceCollection.update).toHaveBeenCalled();
+    });
+  });
+
+  describe('listNeedingAttention', () => {
+    it('pairs each invoice with the customer\'s latest reply', async () => {
+      const { service, prisma } = setup();
+      prisma.invoiceCollection.findMany.mockResolvedValue([{ invoiceId: 'inv-1', messagesSent: 2, lastActionAt: NOW, invoice: { invoiceNumber: 'INV-0214' } }]);
+      prisma.inboundWhatsappMessage.findMany.mockResolvedValue([
+        { invoiceId: 'inv-1', body: 'I have paid', intent: 'CLAIMS_PAID', createdAt: NOW },
+        { invoiceId: 'inv-1', body: 'older', intent: 'OTHER', createdAt: new Date('2026-12-01') },
+      ]);
+      const result = await service.listNeedingAttention('org-1');
+      expect(result[0].lastReply?.body).toBe('I have paid');
+      expect(prisma.invoiceCollection.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { organizationId: 'org-1', state: 'OWNER_ATTENTION' } }),
+      );
     });
   });
 });

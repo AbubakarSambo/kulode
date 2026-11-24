@@ -40,6 +40,13 @@ export class InvoiceCollectionsController {
     return this.collections.listPendingReminders(organizationId);
   }
 
+  @Get('attention')
+  @Roles(...REMINDER_ROLES)
+  @ApiOperation({ summary: 'Invoices where a customer replied or reminders ran out and a person needs to look' })
+  async listAttention(@CurrentUser('organizationId') organizationId: string) {
+    return this.collections.listNeedingAttention(organizationId);
+  }
+
   @Post('reminders/:id/approve')
   @HttpCode(200)
   @Roles(...REMINDER_ROLES)
