@@ -18,6 +18,8 @@ import {
 const OPEN_INVOICE_STATUSES = ['SENT', 'PARTIALLY_PAID', 'OVERDUE'] as const;
 const BATCH_SIZE = 200;
 /** Two reminders to the same customer are never closer than this; the next send hour after it is usually the next morning. */
+/** A reminder stuck in SENDING longer than this was interrupted. */
+const STALE_SENDING_MS = 30 * 60 * 1000;
 const MIN_STEP_GAP_MS = 12 * 60 * 60 * 1000;
 
 const isUniqueViolation = (error: unknown): boolean =>
@@ -100,6 +102,7 @@ export class InvoiceCollectionsService implements OnModuleInit {
   /** One scheduler tick: close finished work, then plan (and in AUTO mode send) every due reminder. */
   async processDue(now = new Date()): Promise<number> {
     await this.closeFinishedCollections();
+    await this.failStaleSending(now);
     await this.resumeBrokenPromises(now);
 
     const due = await this.prisma.invoiceCollection.findMany({
@@ -119,6 +122,18 @@ export class InvoiceCollectionsService implements OnModuleInit {
       }
     }
     return processed;
+  }
+
+  /**
+   * A reminder is claimed as SENDING just before the WhatsApp call. If the process died in between, the
+   * row would stay SENDING forever and never appear for approval. After a generous wait, mark it FAILED so
+   * the owner can see it, rather than risk sending it twice automatically.
+   */
+  private async failStaleSending(now: Date): Promise<void> {
+    await this.prisma.invoiceCollectionReminder.updateMany({
+      where: { status: 'SENDING', updatedAt: { lt: new Date(now.getTime() - STALE_SENDING_MS) } },
+      data: { status: 'FAILED', errorMessage: 'interrupted_while_sending' },
+    });
   }
 
   /** Invoices that were paid, cancelled or deleted stop being chased, and their queued reminders are dropped. */
@@ -219,6 +234,13 @@ export class InvoiceCollectionsService implements OnModuleInit {
       reminderId = reminder.id;
     } catch (error) {
       if (!isUniqueViolation(error)) throw error;
+      // Planned on an earlier tick that died before advancing the step. In AUTO mode that reminder was
+      // never sent, so pick it back up (sendReminder only acts on PENDING_APPROVAL, so a double run is safe).
+      const existing = await this.prisma.invoiceCollectionReminder.findFirst({
+        where: { invoiceId, stepIndex: collection.stepIndex, status: 'PENDING_APPROVAL' },
+        select: { id: true },
+      });
+      reminderId = existing?.id ?? null;
     }
 
     // Advance before sending so a crash mid-send can never plan this step again.
@@ -540,7 +562,12 @@ export class InvoiceCollectionsService implements OnModuleInit {
       orderBy: { lastActionAt: 'desc' },
       take: 100,
       include: {
-        invoice: { select: { id: true, invoiceNumber: true, total: true, amountPaid: true, dueDate: true, status: true, client: { select: { name: true } } } },
+        invoice: {
+          select: {
+            id: true, invoiceNumber: true, total: true, amountPaid: true, dueDate: true, status: true,
+            client: { select: { name: true, phone: true, whatsappOptIn: true, whatsappOptedOutAt: true } },
+          },
+        },
       },
     });
     const replies = await this.prisma.inboundWhatsappMessage.findMany({
@@ -550,12 +577,32 @@ export class InvoiceCollectionsService implements OnModuleInit {
     });
     const latest = new Map<string, (typeof replies)[number]>();
     for (const r of replies) if (r.invoiceId && !latest.has(r.invoiceId)) latest.set(r.invoiceId, r);
-    return collections.map((c) => ({
-      invoiceId: c.invoiceId,
-      messagesSent: c.messagesSent,
-      lastActionAt: c.lastActionAt,
-      invoice: c.invoice,
-      lastReply: latest.get(c.invoiceId) ?? null,
-    }));
+    return collections.map((c) => {
+      const client = c.invoice?.client;
+      const lastReply = latest.get(c.invoiceId) ?? null;
+      return {
+        invoiceId: c.invoiceId,
+        messagesSent: c.messagesSent,
+        lastActionAt: c.lastActionAt,
+        // Contact details stay server-side; the page only needs the name.
+        invoice: c.invoice && { ...c.invoice, client: client ? { name: client.name } : null },
+        lastReply,
+        reason: attentionReason({ lastReply, messagesSent: c.messagesSent, client }),
+      };
+    });
   }
+}
+
+export type AttentionReason = 'replied' | 'opted_out' | 'no_consent' | 'all_sent' | 'none_sent';
+
+/** Why an invoice is waiting on the owner, so the page can say so instead of guessing. */
+function attentionReason(input: {
+  lastReply: unknown;
+  messagesSent: number;
+  client?: { phone: string | null; whatsappOptIn: boolean; whatsappOptedOutAt: Date | null } | null;
+}): AttentionReason {
+  if (input.lastReply) return 'replied';
+  if (input.client?.whatsappOptedOutAt) return 'opted_out';
+  if (input.client && (!input.client.phone || !input.client.whatsappOptIn)) return 'no_consent';
+  return input.messagesSent > 0 ? 'all_sent' : 'none_sent';
 }

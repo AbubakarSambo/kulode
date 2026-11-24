@@ -11,6 +11,22 @@ describe('classifyReply', () => {
     expect(classify(t).intent).toBe('OPT_OUT');
   });
 
+  it.each(['please stop by the shop tomorrow, I will pay', "don't send the old invoice, I'll pay Friday", 'stop calling me boss, I will pay tomorrow', 'I will stop by the office'])('%s is not an opt-out', (t) => {
+    expect(classify(t).intent).not.toBe('OPT_OUT');
+  });
+
+  it.each(['Stop!', 'STOP MESSAGES', 'stop messaging me', 'pls stop', 'Unsubscribe', 'do not send me messages'])('%s is an opt-out', (t) => {
+    expect(classify(t).intent).toBe('OPT_OUT');
+  });
+
+  it.each([
+    ['I will pay 50.00 on Friday', '2026-12-11'],
+    ['I will pay 2.5 million on friday', '2026-12-11'],
+    ['will send 99/99 monday', '2026-12-14'],
+  ])('an amount or impossible date does not hide the real one: "%s"', (text, iso) => {
+    expect(classify(text)).toEqual({ intent: 'WILL_PAY_ON', promisedDate: day(iso) });
+  });
+
   it.each(['I have paid', "i've paid already", 'Payment done', 'I don pay', 'I just transferred it', 'already paid o'])('%s claims payment', (t) => {
     expect(classify(t).intent).toBe('CLAIMS_PAID');
   });

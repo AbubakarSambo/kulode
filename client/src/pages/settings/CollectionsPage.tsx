@@ -5,7 +5,8 @@ import { toast } from 'sonner'
 import { Header } from '@/components/layout'
 import { Button, Card, CardContent, Input, Label } from '@/components/ui'
 import { invoiceCollectionsApi } from '@/api'
-import type { AttentionItem, CollectionMode, CollectionPolicy, PendingReminder } from '@/api'
+import { useAuthStore } from '@/stores/auth'
+import type { AttentionItem, AttentionReason, CollectionMode, CollectionPolicy, PendingReminder } from '@/api'
 
 const apiMessage = (error: any, fallback: string) => error?.response?.data?.message || fallback // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -24,11 +25,18 @@ const NOT_SENT_REASONS: Record<string, string> = {
   quiet_hours: 'Held back because it is outside sending hours',
 }
 
+const ATTENTION_REASONS: Record<Exclude<AttentionReason, 'replied'>, string> = {
+  opted_out: 'This customer asked to stop WhatsApp messages. Follow up another way.',
+  no_consent: 'Could not be reminded: this customer has no phone number or has not agreed to WhatsApp messages.',
+  all_sent: 'All reminders sent and no reply.',
+  none_sent: 'No reminder was sent. Its reminder dates had already passed when reminders were switched on, or the reminders were skipped.',
+}
+
 const dayLabel = (n: number) => (n === 0 ? 'On the due date' : n < 0 ? `${-n} day${n === -1 ? '' : 's'} before due` : `${n} day${n === 1 ? '' : 's'} after due`)
 
 const naira = (v: number | string) => `₦${Number(v).toLocaleString('en-NG')}`
 
-function PolicyForm({ policy }: { policy: CollectionPolicy }) {
+function PolicyForm({ policy, canEdit }: { policy: CollectionPolicy; canEdit: boolean }) {
   const queryClient = useQueryClient()
   const [mode, setMode] = useState<CollectionMode>(policy.mode)
   const [sendHour, setSendHour] = useState(String(policy.sendHour))
@@ -55,20 +63,22 @@ function PolicyForm({ policy }: { policy: CollectionPolicy }) {
             <p className="text-sm font-semibold">Pause reminders</p>
             <p className="text-xs text-muted-foreground">Stops all new messages until you resume. Nothing is lost.</p>
           </div>
-          <Button variant="outline" onClick={() => save.mutate({ paused: !policy.paused })} disabled={save.isPending}>
-            {policy.paused ? 'Resume' : 'Pause'}
-          </Button>
+          {canEdit && (
+            <Button variant="outline" onClick={() => save.mutate({ paused: !policy.paused })} disabled={save.isPending}>
+              {policy.paused ? 'Resume' : 'Pause'}
+            </Button>
+          )}
         </div>
 
         <div>
           <Label>Before a reminder goes out</Label>
           <div className="mt-1 space-y-1">
             <label className="flex items-center gap-2 text-sm">
-              <input type="radio" name="mode" checked={mode === 'APPROVE'} onChange={() => setMode('APPROVE')} />
+              <input type="radio" name="mode" disabled={!canEdit} checked={mode === 'APPROVE'} onChange={() => setMode('APPROVE')} />
               I approve each reminder first (recommended to start)
             </label>
             <label className="flex items-center gap-2 text-sm">
-              <input type="radio" name="mode" checked={mode === 'AUTO'} onChange={() => setMode('AUTO')} />
+              <input type="radio" name="mode" disabled={!canEdit} checked={mode === 'AUTO'} onChange={() => setMode('AUTO')} />
               Send automatically
             </label>
           </div>
@@ -77,11 +87,11 @@ function PolicyForm({ policy }: { policy: CollectionPolicy }) {
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <Label htmlFor="send-hour">Send at (hour, 7 to 20)</Label>
-            <Input id="send-hour" type="number" min={7} max={20} value={sendHour} onChange={(e) => setSendHour(e.target.value)} />
+            <Input id="send-hour" type="number" min={7} max={20} disabled={!canEdit} value={sendHour} onChange={(e) => setSendHour(e.target.value)} />
           </div>
           <div>
             <Label htmlFor="max-messages">Most reminders per invoice</Label>
-            <Input id="max-messages" type="number" min={1} max={10} value={maxMessages} onChange={(e) => setMaxMessages(e.target.value)} />
+            <Input id="max-messages" type="number" min={1} max={10} disabled={!canEdit} value={maxMessages} onChange={(e) => setMaxMessages(e.target.value)} />
           </div>
         </div>
 
@@ -97,9 +107,13 @@ function PolicyForm({ policy }: { policy: CollectionPolicy }) {
           <p className="mt-1 text-xs text-muted-foreground">Messages are never sent between 9pm and 7am.</p>
         </div>
 
-        <Button onClick={() => save.mutate({ mode, sendHour: hour, maxMessages: max })} disabled={!valid || save.isPending}>
-          Save settings
-        </Button>
+        {canEdit ? (
+          <Button onClick={() => save.mutate({ mode, sendHour: hour, maxMessages: max })} disabled={!valid || save.isPending}>
+            Save settings
+          </Button>
+        ) : (
+          <p className="text-xs text-muted-foreground">Only an admin can change these settings.</p>
+        )}
       </CardContent>
     </Card>
   )
@@ -195,7 +209,7 @@ function AttentionList({ items }: { items: AttentionItem[] }) {
                 </>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  {item.messagesSent > 0 ? 'All reminders sent and no reply.' : 'Could not be reminded: no WhatsApp consent or phone number.'}
+                  {item.reason === 'replied' ? ATTENTION_REASONS.all_sent : ATTENTION_REASONS[item.reason]}
                 </p>
               )}
             </CardContent>
@@ -208,6 +222,9 @@ function AttentionList({ items }: { items: AttentionItem[] }) {
 
 export function CollectionsPage() {
   const queryClient = useQueryClient()
+  const userRoles = useAuthStore((state) => state.user?.roles) ?? []
+  // Changing the policy is admin-only on the API; everyone else can still approve, skip and read.
+  const canEditPolicy = userRoles.includes('SUPER_ADMIN') || userRoles.includes('ADMIN')
   const policy = useQuery({ queryKey: ['invoice-collections', 'policy'], queryFn: invoiceCollectionsApi.policy })
   const pending = useQuery({ queryKey: ['invoice-collections', 'pending'], queryFn: invoiceCollectionsApi.pending, enabled: policy.data?.enabled === true })
 
@@ -237,9 +254,13 @@ export function CollectionsPage() {
                 <p className="text-sm">
                   Tarione can message customers on WhatsApp before and after an invoice is due, with a link to pay. Reminders only go to customers who agreed to WhatsApp messages. You approve each one until you choose otherwise.
                 </p>
-                <Button onClick={() => enable.mutate()} disabled={enable.isPending}>
-                  Turn on reminders
-                </Button>
+                {canEditPolicy ? (
+                  <Button onClick={() => enable.mutate()} disabled={enable.isPending}>
+                    Turn on reminders
+                  </Button>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Ask an admin to turn on reminders.</p>
+                )}
               </CardContent>
             </Card>
           ) : (
@@ -248,7 +269,7 @@ export function CollectionsPage() {
                 <p className="text-sm font-semibold">Needs your attention</p>
                 {attention.isLoading ? <p className="text-sm text-muted-foreground">Loading…</p> : <AttentionList items={attention.data ?? []} />}
               </div>
-              <PolicyForm key={`${policy.data.mode}-${policy.data.sendHour}-${policy.data.maxMessages}`} policy={policy.data} />
+              <PolicyForm key={`${policy.data.mode}-${policy.data.sendHour}-${policy.data.maxMessages}`} policy={policy.data} canEdit={canEditPolicy} />
               <div className="space-y-2">
                 <p className="text-sm font-semibold">Waiting for your approval</p>
                 {pending.isLoading ? <p className="text-sm text-muted-foreground">Loading…</p> : <PendingList reminders={pending.data ?? []} />}

@@ -154,6 +154,46 @@ describe('InvoiceCollectionsService', () => {
       });
     });
 
+    it('AUTO mode: picks up a reminder planned on a tick that died before advancing, and sends it', async () => {
+      const { service, prisma, whatsapp } = setup();
+      withDue(prisma, collection(), policy());
+      prisma.invoiceCollectionReminder.create.mockRejectedValue(uniqueViolation());
+      prisma.invoiceCollectionReminder.findFirst.mockResolvedValue({ id: 'rem-old' });
+      prisma.invoiceCollectionReminder.findUnique.mockResolvedValue({
+        id: 'rem-old', organizationId: 'org-1', template: 'due', invoice: invoice(),
+      });
+
+      await service.processDue(NOW);
+
+      expect(prisma.invoiceCollectionReminder.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { invoiceId: 'inv-1', stepIndex: 1, status: 'PENDING_APPROVAL' } }),
+      );
+      expect(whatsapp.sendInvoiceReminderTemplate).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not resend a step whose reminder was already sent or handled', async () => {
+      const { service, prisma, whatsapp } = setup();
+      withDue(prisma, collection(), policy());
+      prisma.invoiceCollectionReminder.create.mockRejectedValue(uniqueViolation());
+      prisma.invoiceCollectionReminder.findFirst.mockResolvedValue(null); // already SENT / SKIPPED
+
+      await service.processDue(NOW);
+
+      expect(whatsapp.sendInvoiceReminderTemplate).not.toHaveBeenCalled();
+      expect(prisma.invoiceCollection.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ stepIndex: 2 }) }),
+      );
+    });
+
+    it('marks reminders stuck in SENDING for 30+ minutes as interrupted', async () => {
+      const { service, prisma } = setup();
+      await service.processDue(NOW);
+      expect(prisma.invoiceCollectionReminder.updateMany).toHaveBeenCalledWith({
+        where: { status: 'SENDING', updatedAt: { lt: new Date('2026-12-10T09:30:00Z') } },
+        data: { status: 'FAILED', errorMessage: 'interrupted_while_sending' },
+      });
+    });
+
     it('APPROVE mode: plans and advances but sends nothing until the owner approves', async () => {
       const { service, prisma, whatsapp } = setup();
       withDue(prisma, collection(), policy({ mode: 'APPROVE' }));
@@ -638,6 +678,25 @@ describe('InvoiceCollectionsService', () => {
   });
 
   describe('listNeedingAttention', () => {
+    it.each([
+      ['a reply', { lastReply: true }, 'replied'],
+      ['the customer opted out', { client: { whatsappOptedOutAt: NOW } }, 'opted_out'],
+      ['no phone number', { client: { phone: null } }, 'no_consent'],
+      ['no WhatsApp consent', { client: { whatsappOptIn: false } }, 'no_consent'],
+      ['reminders were sent and nobody replied', { messagesSent: 3 }, 'all_sent'],
+      ['nothing was ever sent to a messageable customer', {}, 'none_sent'],
+    ])('explains why: %s -> %s', async (_label, over: any, reason) => {
+      const { service, prisma } = setup();
+      prisma.invoiceCollection.findMany.mockResolvedValue([{
+        invoiceId: 'inv-1', messagesSent: over.messagesSent ?? 0, lastActionAt: NOW,
+        invoice: { invoiceNumber: 'INV-1', client: { name: 'Emeka', phone: '0803', whatsappOptIn: true, whatsappOptedOutAt: null, ...(over.client ?? {}) } },
+      }]);
+      prisma.inboundWhatsappMessage.findMany.mockResolvedValue(over.lastReply ? [{ invoiceId: 'inv-1', body: 'hi', intent: 'OTHER', createdAt: NOW }] : []);
+      const [item] = await service.listNeedingAttention('org-1');
+      expect(item.reason).toBe(reason);
+      expect(item.invoice.client).toEqual({ name: 'Emeka' }); // contact details are not sent to the page
+    });
+
     it('pairs each invoice with the customer\'s latest reply', async () => {
       const { service, prisma } = setup();
       prisma.invoiceCollection.findMany.mockResolvedValue([{ invoiceId: 'inv-1', messagesSent: 2, lastActionAt: NOW, invoice: { invoiceNumber: 'INV-0214' } }]);

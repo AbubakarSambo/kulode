@@ -952,7 +952,9 @@ export class PaystackService {
     for (const reference of references) {
       try {
         const result = await this.verifyTransaction(reference);
-        if (result.status === 'success') {
+        // `newlyReconciled` is true only when this check created the payment; a link that was already
+        // reconciled (or a partly-paid invoice) verifies as success again every hour and must not count.
+        if (result.status === 'success' && result.newlyReconciled) {
           recovered++;
           this.logger.warn(`Paystack reconciliation recovered a payment the webhook missed (invoice ${result.invoiceNumber ?? 'unknown'})`);
         }
@@ -976,16 +978,19 @@ export class PaystackService {
         metadata?: PaystackTransaction['metadata'] & { invoice_number?: string };
       }>(`/transaction/verify/${reference}`);
 
+      // Set when this call actually recorded the payment (not when it was already on file).
+      let newlyReconciled = false;
       if (data.status === 'success') {
+        let outcome: { success?: boolean; alreadyProcessed?: boolean } | void;
         if (data.metadata?.type === 'vendor_payout') {
-          await this.reconcileVendorPayout(reference, {
+          outcome = await this.reconcileVendorPayout(reference, {
             amount: data.amount,
             paid_at: data.paid_at || new Date().toISOString(),
             fees: data.fees || 0,
             metadata: data.metadata,
           });
         } else if (data.metadata?.type === 'order') {
-          await this.reconcileOrderPayment(reference, {
+          outcome = await this.reconcileOrderPayment(reference, {
             amount: data.amount,
             channel: data.channel || 'card',
             paid_at: data.paid_at || new Date().toISOString(),
@@ -993,7 +998,7 @@ export class PaystackService {
             metadata: data.metadata,
           });
         } else {
-          await this.reconcilePayment(reference, {
+          outcome = await this.reconcilePayment(reference, {
             amount: data.amount,
             channel: data.channel || 'card',
             paid_at: data.paid_at || new Date().toISOString(),
@@ -1001,10 +1006,12 @@ export class PaystackService {
             metadata: data.metadata,
           });
         }
+        newlyReconciled = !!outcome && outcome.success === true && !outcome.alreadyProcessed;
       }
 
       return {
         status: data.status,
+        newlyReconciled,
         amount: data.amount / 100, // Convert from kobo
         currency: data.currency,
         reference: data.reference,

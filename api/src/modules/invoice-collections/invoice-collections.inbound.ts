@@ -15,7 +15,14 @@ export const MAX_PROMISE_DAYS = 30;
 const MONTHS = ['jan(?:uary)?', 'feb(?:ruary)?', 'mar(?:ch)?', 'apr(?:il)?', 'may', 'june?', 'july?', 'aug(?:ust)?', 'sep(?:t|tember)?', 'oct(?:ober)?', 'nov(?:ember)?', 'dec(?:ember)?'];
 const WEEKDAYS = ['sun(?:day)?', 'mon(?:day)?', 'tue(?:s|sday)?', 'wed(?:nesday)?', 'thu(?:r|rs|rsday)?', 'fri(?:day)?', 'sat(?:urday)?'];
 
-const OPT_OUT = /\b(stop|unsubscribe|opt[ -]?out|remove (me|my number)|do(n'?t| not) (message|text|contact|whatsapp|send))\b/;
+// An opt-out is permanent, so only a message that IS the request counts ("STOP", "please unsubscribe me",
+// "don't message me again"). A longer sentence that merely contains the word ("please stop by the shop")
+// goes to the owner as OTHER instead.
+const FILLER = '(?:\\s+(?:all|these|the|my|sending|messaging|texting|messages?|texts?|reminders?|whatsapp|me|us|any|more|again|anymore|now|please|pls))*';
+const OPT_OUT = new RegExp(
+  `^(?:(?:please|pls|kindly)\\s+)*(?:stop|unsubscribe|opt[ -]?out|cancel)${FILLER}$|` +
+    `^(?:(?:please|pls|kindly)\\s+)*(?:remove\\s+(?:me|my number)|do(?:n'?t| not)\\s+(?:message|text|contact|whatsapp|send)\\s+(?:me|us))${FILLER}$`,
+);
 const NEGATED_PAYMENT = /\b(not|never|haven'?t|hasn'?t|didn'?t|yet to|am yet to|am not yet|still (need|have) to)\b.{0,20}\b(paid|pay|sent|send|transferred)\b/;
 const CLAIMS_PAID =
   /\b(i|we)\s*(have|'ve|don|already|just)?\s*(already\s+)?(paid|sent|transferred|made (the )?payment)\b|\balready (paid|sent|transferred)\b|\bpayment (is |has been )?(done|made|sent)\b|\b(paid|transfer(red)?) (already|done|now)\b|\bi don pay\b/;
@@ -32,7 +39,7 @@ export function classifyReply(text: string, now: Date, timeZone: string): Classi
   const t = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!t) return { intent: 'OTHER' };
 
-  if (OPT_OUT.test(t)) return { intent: 'OPT_OUT' };
+  if (OPT_OUT.test(t.replace(/[.!?,;:]+/g, '').trim())) return { intent: 'OPT_OUT' };
   if (NEGATED_PAYMENT.test(t)) return { intent: 'OTHER' };
   if (CLAIMS_PAID.test(t)) return { intent: 'CLAIMS_PAID' };
 
@@ -66,8 +73,13 @@ function parsePromisedDate(t: string, now: Date, timeZone: string): Date | undef
     if (day) return explicitDate(Number(day[1]), i, today, todayMs, at);
   }
 
-  const numeric = t.match(/\b(\d{1,2})[/.-](\d{1,2})\b/); // day/month, the Nigerian order
-  if (numeric) return explicitDate(Number(numeric[1]), Number(numeric[2]) - 1, today, todayMs, at);
+  // day/month, the Nigerian order. Not part of a longer number or an amount ("50.00", "2.5 million"),
+  // and a numeric match that is not a real date falls through to the weekday/month-end rules below.
+  const numeric = t.match(/(?<![\d.,/-])(\d{1,2})[/.-](\d{1,2})(?![\d,]|[./-]\d|\s*(?:k|m|million|thousand|naira|ngn|₦))/);
+  if (numeric) {
+    const date = explicitDate(Number(numeric[1]), Number(numeric[2]) - 1, today, todayMs, at);
+    if (date) return date;
+  }
 
   if (/\b(end of (the )?month|month[ -]?end)\b/.test(t)) {
     return at(Date.UTC(today.year, today.monthIndex + 1, 0));

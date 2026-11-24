@@ -37,6 +37,8 @@ export interface PendingReminder {
 
 export type ReplyIntent = 'OPT_OUT' | 'CLAIMS_PAID' | 'WILL_PAY_ON' | 'OTHER'
 
+export type AttentionReason = 'replied' | 'opted_out' | 'no_consent' | 'all_sent' | 'none_sent'
+
 export interface AttentionItem {
   invoiceId: string
   messagesSent: number
@@ -51,6 +53,7 @@ export interface AttentionItem {
     client: { name: string } | null
   }
   lastReply: { body: string; intent: ReplyIntent | null; createdAt: string } | null
+  reason: AttentionReason
 }
 
 export interface ApproveReminderResult {

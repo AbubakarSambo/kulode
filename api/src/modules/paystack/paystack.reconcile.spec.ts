@@ -44,7 +44,7 @@ describe('PaystackService.reconcilePendingPayments', () => {
     const { service, prisma } = setup();
     prisma.invoice.findMany.mockResolvedValue([{ paystackReference: 'ref-1' }, { paystackReference: 'ref-2' }]);
     prisma.paymentInstallment.findMany.mockResolvedValue([{ paystackReference: 'ref-2' }, { paystackReference: 'ref-3' }]);
-    service.verifyTransaction.mockImplementation(async (ref: string) => ({ status: ref === 'ref-2' ? 'success' : 'abandoned', invoiceNumber: 'INV-1' }));
+    service.verifyTransaction.mockImplementation(async (ref: string) => ({ status: ref === 'ref-2' ? 'success' : 'abandoned', newlyReconciled: ref === 'ref-2', invoiceNumber: 'INV-1' }));
 
     const result = await service.reconcilePendingPayments(NOW);
 
@@ -52,12 +52,22 @@ describe('PaystackService.reconcilePendingPayments', () => {
     expect(result).toEqual({ checked: 3, recovered: 1 });
   });
 
+  it('does not count a payment that was already on file as recovered', async () => {
+    const { service, prisma } = setup();
+    prisma.invoice.findMany.mockResolvedValue([{ paystackReference: 'ref-1' }, { paystackReference: 'ref-2' }]);
+    service.verifyTransaction.mockImplementation(async (ref: string) => ({ status: 'success', newlyReconciled: ref === 'ref-2' }));
+    const warn = jest.spyOn(Logger.prototype, 'warn');
+
+    await expect(service.reconcilePendingPayments(NOW)).resolves.toEqual({ checked: 2, recovered: 1 });
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps going when one verification fails', async () => {
     const { service, prisma } = setup();
     prisma.invoice.findMany.mockResolvedValue([{ paystackReference: 'bad' }, { paystackReference: 'good' }]);
     service.verifyTransaction.mockImplementation(async (ref: string) => {
       if (ref === 'bad') throw new Error('Paystack 500');
-      return { status: 'success' };
+      return { status: 'success', newlyReconciled: true };
     });
     await expect(service.reconcilePendingPayments(NOW)).resolves.toEqual({ checked: 2, recovered: 1 });
   });
