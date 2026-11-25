@@ -200,6 +200,7 @@ export interface Organization {
   receiptBankAccountNumber?: string
   receiptBankAccountName?: string
   ownerWhatsappPhone?: string
+  ownerReportEmail?: string
   businessType?: string
   organizationSize?: string
   enabledModules?: OrgModule

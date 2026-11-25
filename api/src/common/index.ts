@@ -14,3 +14,4 @@ export * from './org-modules';
 export * from './csv';
 export * from './zoned-date';
 export * from './phone';
+export * from './email-list';

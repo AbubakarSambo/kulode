@@ -3,6 +3,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ShiftsService } from './shifts.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
+import { EmailService } from '../email/email.service';
 
 // ─── Mock helpers ────────────────────────────────────────────────────────────
 
@@ -54,6 +55,7 @@ describe('ShiftsService', () => {
   let service: ShiftsService;
   let prisma: ReturnType<typeof createMockPrisma>;
   let whatsapp: { sendShiftReportTemplate: jest.Mock };
+  let email: { sendShiftReportEmail: jest.Mock };
 
   beforeEach(async () => {
     prisma = createMockPrisma();
@@ -63,6 +65,7 @@ describe('ShiftsService', () => {
         ShiftsService,
         { provide: PrismaService, useValue: prisma },
         { provide: WhatsappService, useValue: (whatsapp = { sendShiftReportTemplate: jest.fn() }) },
+        { provide: EmailService, useValue: (email = { sendShiftReportEmail: jest.fn().mockResolvedValue(undefined) }) },
       ],
     }).compile();
 
@@ -194,6 +197,53 @@ describe('ShiftsService', () => {
           walletTopUps: '₦5,000.00',
         }),
       );
+    });
+
+    describe('emailing the report to the boss', () => {
+      const setup = (org: Record<string, unknown>) => {
+        const openedAt = new Date('2026-08-30T19:00:00.000Z');
+        prisma.shift.findFirst.mockResolvedValue(shiftWith({ openingFloat: 0, openedAt }));
+        prisma.shift.update.mockResolvedValue(shiftWith({ status: 'CLOSED' }));
+        prisma.organization.findUnique.mockResolvedValue({ name: 'Almond House', enabledModules: 'POS', ...org });
+        prisma.payment.groupBy.mockResolvedValue([{ paymentMethod: 'CASH', _sum: { amount: 10000 } }]);
+        prisma.walletTransaction.groupBy.mockResolvedValue([]);
+        prisma.order.aggregate
+          .mockResolvedValueOnce({ _sum: { total: 10000 }, _count: { id: 1 } })
+          .mockResolvedValueOnce({ _sum: { total: 0, amountPaid: 0 }, _count: { id: 0 } });
+        prisma.payment.aggregate.mockResolvedValue({ _sum: { amount: 0 } });
+        prisma.walletTransaction.findMany.mockResolvedValue([]);
+      };
+
+      it('emails every address, even when no WhatsApp number is set', async () => {
+        setup({ ownerWhatsappPhone: null, ownerReportEmail: 'Boss@x.com, accounts@x.com' });
+        await service.close(ORG_ID, SHIFT_ID, USER_ID, { countedCash: 10000 });
+        expect(whatsapp.sendShiftReportTemplate).not.toHaveBeenCalled();
+        expect(email.sendShiftReportEmail).toHaveBeenCalledTimes(2);
+        const [to, org, , , sections] = email.sendShiftReportEmail.mock.calls[0];
+        expect(to).toBe('boss@x.com');
+        expect(org).toBe('Almond House');
+        expect(JSON.stringify(sections)).toContain('₦10,000.00');
+      });
+
+      it('sends both WhatsApp and email when both are set', async () => {
+        setup({ ownerWhatsappPhone: '2348000000000', ownerReportEmail: 'boss@x.com' });
+        await service.close(ORG_ID, SHIFT_ID, USER_ID, { countedCash: 10000 });
+        expect(whatsapp.sendShiftReportTemplate).toHaveBeenCalledTimes(1);
+        expect(email.sendShiftReportEmail).toHaveBeenCalledTimes(1);
+      });
+
+      it('sends nothing when neither is set', async () => {
+        setup({ ownerWhatsappPhone: null, ownerReportEmail: null });
+        await service.close(ORG_ID, SHIFT_ID, USER_ID, { countedCash: 10000 });
+        expect(email.sendShiftReportEmail).not.toHaveBeenCalled();
+      });
+
+      it('one bad address does not stop the others or fail the shift close', async () => {
+        setup({ ownerWhatsappPhone: null, ownerReportEmail: 'bad@x.com, good@x.com' });
+        email.sendShiftReportEmail.mockRejectedValueOnce(new Error('bounce'));
+        await expect(service.close(ORG_ID, SHIFT_ID, USER_ID, { countedCash: 10000 })).resolves.toBeDefined();
+        expect(email.sendShiftReportEmail).toHaveBeenCalledTimes(2);
+      });
     });
 
     it('adds a month-to-date block when the report template supports it, and omits it otherwise', async () => {

@@ -3,6 +3,8 @@ import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
+import { EmailService } from '../email/email.service';
+import { parseEmailList } from '../../common/email-list';
 import { OpenShiftDto, CloseShiftDto, BackdateShiftDto } from './dto';
 import { bucketCollections, splitTopUp, splitWalletDebit } from './shift-report-figures';
 
@@ -17,6 +19,7 @@ export class ShiftsService {
   constructor(
     private prisma: PrismaService,
     private readonly whatsappService: WhatsappService,
+    private readonly emailService: EmailService,
     @Optional() private analytics?: AnalyticsService,
   ) {}
 
@@ -322,12 +325,13 @@ export class ShiftsService {
   ): Promise<void> {
     const org = await this.prisma.organization.findUnique({
       where: { id: organizationId },
-      select: { name: true, ownerWhatsappPhone: true, enabledModules: true },
+      select: { name: true, ownerWhatsappPhone: true, ownerReportEmail: true, enabledModules: true },
     });
     if (!org || !['POS', 'BOTH'].includes(org.enabledModules)) return;
 
     const phones = (org.ownerWhatsappPhone ?? '').split(',').map((p) => p.trim()).filter(Boolean);
-    if (phones.length === 0) return;
+    const emails = parseEmailList(org.ownerReportEmail);
+    if (phones.length === 0 && emails.length === 0) return;
 
     const window = { gte: openedAt, lte: closedAt };
     const [closedPaidAgg, closedUnpaidAgg, oldOrderRepaymentsAgg, walletDebits, walletReversals, topUps] =
@@ -435,6 +439,59 @@ export class ShiftsService {
         });
       } catch (err) {
         this.logger.error(`Failed to send shift close report to ${phone} for org ${organizationId}: ${err.message}`);
+      }
+    }
+
+    // Same figures by email. Each address is tried on its own, and WhatsApp above is unaffected.
+    if (emails.length > 0) {
+      const sections = [
+        {
+          title: 'Sales',
+          rows: [
+            { label: 'Total sales', value: currency(totalSales) },
+            { label: 'Orders', value: String(orderCount) },
+            { label: 'Average order', value: currency(avgOrder) },
+          ],
+        },
+        {
+          title: 'Money received',
+          rows: [
+            { label: 'Card', value: currency(collections.card) },
+            { label: 'Transfer', value: currency(collections.transfer) },
+            { label: 'Cash', value: currency(collections.cash) },
+            { label: 'Other', value: currency(collections.other) },
+            { label: 'Total received', value: currency(totalReceived) },
+          ],
+        },
+        {
+          title: 'Credit and wallets',
+          rows: [
+            { label: 'Paid from wallet', value: currency(paidFromWallet) },
+            { label: 'Credit sales', value: currency(creditSales) },
+            { label: 'Credit repayments', value: currency(creditRepayments) },
+            { label: 'Wallet top-ups', value: currency(deposits) },
+          ],
+        },
+        { title: 'Cash drawer', rows: [{ label: 'Variance', value: currency(variance) }] },
+        ...(mtd
+          ? [
+              {
+                title: 'Month to date',
+                rows: [
+                  { label: 'Sales', value: currency(mtd.sales) },
+                  { label: 'Payments', value: currency(mtd.payments) },
+                  { label: 'Credits', value: currency(mtd.credits) },
+                ],
+              },
+            ]
+          : []),
+      ];
+      for (const to of emails) {
+        try {
+          await this.emailService.sendShiftReportEmail(to, org.name, reportDate, timeRange, sections);
+        } catch (err) {
+          this.logger.error(`Failed to email shift close report to ${to} for org ${organizationId}: ${err.message}`);
+        }
       }
     }
   }

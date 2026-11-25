@@ -678,6 +678,42 @@ export class EmailService {
     });
   }
 
+  /** The end-of-day (shift close) sales summary, for the owner/boss. Sections are label/value rows. */
+  async sendShiftReportEmail(
+    email: string,
+    orgName: string,
+    reportDate: string,
+    timeRange: string,
+    sections: { title: string; rows: { label: string; value: string }[] }[],
+  ): Promise<void> {
+    const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const block = (sec: { title: string; rows: { label: string; value: string }[] }) => `
+        <div class="receipt-box" style="margin: 16px 0; padding: 20px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
+          <h4 style="margin-top: 0; margin-bottom: 12px; font-size: 14px;" class="receipt-value">${esc(sec.title)}</h4>
+          <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 14px; line-height: 1.6;">
+            ${sec.rows
+              .map(
+                (r) => `<tr>
+              <td class="receipt-label" style="padding-bottom: 6px;">${esc(r.label)}</td>
+              <td align="right" class="receipt-value" style="padding-bottom: 6px;">${esc(r.value)}</td>
+            </tr>`,
+              )
+              .join('')}
+          </table>
+        </div>`;
+    const html = this.buildEmailHtml({
+      accentColor: '#0037b0',
+      contextLabel: 'Daily Report',
+      headline: `${esc(orgName)}: sales summary`,
+      bodyHtml: `
+        <p>${esc(reportDate)} &middot; ${esc(timeRange)}</p>
+        ${sections.map(block).join('')}
+      `,
+    });
+
+    await this.sendEmail({ to: email, subject: `${orgName}: sales summary for ${reportDate}`, html });
+  }
+
   async sendMerchantPaymentAlertEmail(
     email: string,
     merchantName: string,

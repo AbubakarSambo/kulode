@@ -254,6 +254,10 @@ model Organization {
   // recipient doesn't need (or want) a Tarione login.
   ownerWhatsappPhone String? @map("owner_whatsapp_phone")
 
+  // Email address(es), comma-separated, that the same end-of-day summary is emailed to. Same idea
+  // as ownerWhatsappPhone: the boss doesn't need a Tarione login.
+  ownerReportEmail String? @map("owner_report_email")
+
   // Drives "today"/"same business day" for period pacing and locking, and how phone numbers typed
   // without a country code are read. Defaults suit the existing Nigerian customers.
   timezone          String    @default("Africa/Lagos")
