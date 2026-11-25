@@ -208,7 +208,7 @@ export class EmailService {
 </html>`;
   }
 
-  private async sendEmail(options: { to: string; subject: string; html: string }): Promise<void> {
+  private async sendEmail(options: { to: string; subject: string; html: string; attachments?: { filename: string; content: Buffer }[] }): Promise<void> {
     if (this.isMock) {
       this.logger.log(`[MOCK EMAIL] Sending to: ${options.to}`);
       this.logger.log(`[MOCK EMAIL] Subject: ${options.subject}`);
@@ -631,6 +631,50 @@ export class EmailService {
       to: email,
       subject: `Payment Confirmation: Invoice ${invoiceNumber} - ${orgName}`,
       html,
+    });
+  }
+
+  /** A restaurant order's receipt, with the receipt PDF attached. Throws if the email can't be sent. */
+  async sendOrderReceiptEmail(
+    email: string,
+    orgName: string,
+    receiptNumber: string,
+    total: string,
+    paidOn: string,
+    pdf: Buffer,
+  ): Promise<void> {
+    const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const html = this.buildEmailHtml({
+      accentColor: '#006c49',
+      contextLabel: 'Receipt',
+      headline: `Your receipt from ${esc(orgName)}`,
+      bodyHtml: `
+        <p>Thank you for dining with <strong>${esc(orgName)}</strong>. Your receipt is attached to this email.</p>
+        <div class="receipt-box" style="margin: 24px 0; padding: 20px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 14px; line-height: 1.6;">
+            <tr>
+              <td class="receipt-label" style="padding-bottom: 8px;">Receipt</td>
+              <td align="right" class="receipt-value" style="padding-bottom: 8px;">${esc(receiptNumber)}</td>
+            </tr>
+            <tr>
+              <td class="receipt-label" style="padding-bottom: 8px;">Date</td>
+              <td align="right" class="receipt-value" style="padding-bottom: 8px;">${esc(paidOn)}</td>
+            </tr>
+            <tr>
+              <td class="receipt-label">Total paid</td>
+              <td align="right" class="receipt-value" style="color: #006c49 !important;">${esc(total)}</td>
+            </tr>
+          </table>
+        </div>
+        <p>If you have any questions about this receipt, please contact <strong>${esc(orgName)}</strong> directly.</p>
+      `,
+    });
+
+    await this.sendEmail({
+      to: email,
+      subject: `Your receipt from ${orgName}`,
+      html,
+      attachments: [{ filename: `${receiptNumber}.pdf`, content: pdf }],
     });
   }
 

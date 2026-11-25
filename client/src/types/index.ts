@@ -594,7 +594,7 @@ export interface Order {
   tableId?: string
   table?: { id: string; name: string; section?: string } | null
   customerId?: string
-  customer?: { id: string; name: string; phone?: string; isMember?: boolean } | null
+  customer?: { id: string; name: string; phone?: string; email?: string | null; isMember?: boolean } | null
   waiterId?: string
   waiter?: { id: string; firstName: string; lastName: string; phone?: string } | null
   createdById: string

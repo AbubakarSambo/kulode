@@ -10,12 +10,16 @@ import {
   Res,
   ParseUUIDPipe,
   BadRequestException,
+  Logger,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Response } from 'express';
+import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiBearerAuth, ApiProduces } from '@nestjs/swagger';
 import { OrdersService } from './orders.service';
 import { OrderReceiptPdfService } from './order-receipt-pdf.service';
 import { PaystackService } from '../paystack/paystack.service';
+import { EmailService } from '../email/email.service';
 import {
   CreateOrderDto,
   AddOrderItemsDto,
@@ -36,6 +40,7 @@ import {
   ReassignOrderPaymentDto,
   CancelOrderDto,
   PrintBillPreviewDto,
+  EmailReceiptDto,
 } from './dto';
 import { CurrentUser, CurrentUserData, Can } from '../../common';
 
@@ -43,10 +48,13 @@ import { CurrentUser, CurrentUserData, Can } from '../../common';
 @ApiBearerAuth()
 @Controller('orders')
 export class OrdersController {
+  private readonly logger = new Logger(OrdersController.name);
+
   constructor(
     private readonly ordersService: OrdersService,
     private readonly orderReceiptPdfService: OrderReceiptPdfService,
     private readonly paystackService: PaystackService,
+    private readonly emailService: EmailService,
   ) {}
 
   @Get()
@@ -313,5 +321,35 @@ export class OrdersController {
       'Content-Length': pdfBuffer.length,
     });
     res.send(pdfBuffer);
+  }
+
+  // Emails the paid order's receipt (PDF attached) to an address the cashier confirms. Unlike the
+  // payment-time notifications this is something a person asked for, so a failed send is an error.
+  @Post(':id/receipt/email')
+  @Can('ORDER_SELL')
+  @Throttle({ global: { limit: 10, ttl: 60000 } })
+  async emailReceipt(
+    @CurrentUser('organizationId') organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: EmailReceiptDto,
+  ) {
+    const receipt = await this.ordersService.getReceiptData(organizationId, id);
+    if (receipt.status !== 'CLOSED_PAID') {
+      throw new BadRequestException('A receipt can only be emailed once the order is paid');
+    }
+    const pdf = await this.orderReceiptPdfService.generatePdf(receipt as any);
+    const paidOn = new Date(receipt.closedAt ?? receipt.createdAt).toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+    const total = receipt.total.toLocaleString('en-NG', { style: 'currency', currency: receipt.organization.currency || 'NGN' });
+    try {
+      await this.emailService.sendOrderReceiptEmail(dto.email, receipt.organization.name, receipt.receiptNumber, total, paidOn, pdf);
+    } catch (err) {
+      this.logger.error(`Failed to email receipt ${receipt.receiptNumber}: ${(err as Error).message}`);
+      throw new ServiceUnavailableException('We could not send the email. Please try again.');
+    }
+    return { sent: true };
   }
 }

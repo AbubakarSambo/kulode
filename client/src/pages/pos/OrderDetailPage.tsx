@@ -403,6 +403,8 @@ function SyncedOrderView({ id }: { id: string }) {
   const [notesModalOpen, setNotesModalOpen] = useState(false)
   const [selectedNotes, setSelectedNotes] = useState('')
   const [mergeModalOpen, setMergeModalOpen] = useState(false)
+  const [emailReceiptOpen, setEmailReceiptOpen] = useState(false)
+  const [receiptEmail, setReceiptEmail] = useState('')
   const [sourceModalOpen, setSourceModalOpen] = useState(false)
   const [selectedSource, setSelectedSource] = useState<OrderSource>('Dine In')
   const [selectedSourceTableId, setSelectedSourceTableId] = useState('')
@@ -781,6 +783,19 @@ function SyncedOrderView({ id }: { id: string }) {
     onError: () => {
       posthog.capture('pos_bill_print_failed')
       toast.error('Failed to print bill')
+    },
+  })
+
+  const emailReceiptMutation = useMutation({
+    mutationFn: (email: string) => ordersApi.emailReceipt(id, email),
+    onSuccess: (_d, email) => {
+      posthog.capture('pos_receipt_emailed')
+      toast.success(`Receipt emailed to ${email}`)
+      setEmailReceiptOpen(false)
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to email receipt')
     },
   })
 
@@ -1372,6 +1387,21 @@ function SyncedOrderView({ id }: { id: string }) {
               isLoading={printBillMutation.isPending}
             >
               {order.status === 'CLOSED_PAID' ? 'Print Receipt' : 'Print Bill'}
+            </Button>
+          </div>
+        )}
+
+        {order.status === 'CLOSED_PAID' && (
+          <div className="mt-3">
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                setReceiptEmail(order.customer?.email ?? '')
+                setEmailReceiptOpen(true)
+              }}
+            >
+              Email Receipt
             </Button>
           </div>
         )}
@@ -2017,6 +2047,41 @@ function SyncedOrderView({ id }: { id: string }) {
             Save
           </Button>
         </div>
+      </Modal>
+
+      <Modal isOpen={emailReceiptOpen} onClose={() => setEmailReceiptOpen(false)} title="Email Receipt">
+        <form
+          className="space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault()
+            const email = receiptEmail.trim()
+            if (email) emailReceiptMutation.mutate(email)
+          }}
+        >
+          <p className="text-sm text-muted-foreground">
+            Send the receipt for this order as a PDF. Check the address with the customer before sending.
+          </p>
+          <div>
+            <Label htmlFor="receipt-email">Customer email</Label>
+            <Input
+              id="receipt-email"
+              type="email"
+              required
+              autoFocus
+              placeholder="name@example.com"
+              value={receiptEmail}
+              onChange={(e) => setReceiptEmail(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-3">
+            <Button type="button" variant="outline" className="flex-1" onClick={() => setEmailReceiptOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" className="flex-1" isLoading={emailReceiptMutation.isPending} disabled={!receiptEmail.trim()}>
+              Send
+            </Button>
+          </div>
+        </form>
       </Modal>
 
       <Modal isOpen={mergeModalOpen} onClose={() => setMergeModalOpen(false)} title="Merge Another Order In">

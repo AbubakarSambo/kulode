@@ -17,3 +17,4 @@ export { CancelOrderDto } from './cancel-order.dto';
 export { PrintBillPreviewDto } from './print-bill-preview.dto';
 export { RedeemRewardDto } from './redeem-reward.dto';
 export { ApplyMemberDiscountDto } from './member-discount.dto';
+export { EmailReceiptDto } from './email-receipt.dto';
