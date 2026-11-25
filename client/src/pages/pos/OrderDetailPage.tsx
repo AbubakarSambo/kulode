@@ -14,6 +14,7 @@ import { TipSection } from '@/components/pos/TipSection'
 import { ConfirmDialog } from '@/components/ui/dialog'
 import { isTipEligibleMethod, tipNeedsConfirmation } from '@/lib/tips'
 import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, usersApi, tablesApi, orderTypesApi, paymentTypesApi, organizationsApi, tipsApi } from '@/api'
+import { moniepointApi } from '@/api/moniepoint'
 import { getQueuedActionsForLocalOrder, discardFailedAction, LOCAL_ORDER_PREFIX } from '@/lib/offlineOrderQueue'
 import { formatCurrency, formatPaymentMethod, normalizePhoneForWhatsApp, cn } from '@/lib/utils'
 import { printOrderBill } from '@/lib/sendBill'
@@ -394,6 +395,8 @@ function SyncedOrderView({ id }: { id: string }) {
   // being asked to confirm an unusually large one before it is sent.
   const [tipAmount, setTipAmount] = useState(0)
   const [confirmTipOpen, setConfirmTipOpen] = useState(false)
+  // Whether the open confirmation is for saving a terminal/transfer tip rather than taking payment here.
+  const [savingTipForTerminal, setSavingTipForTerminal] = useState(false)
   const [customerEmail, setCustomerEmail] = useState('')
   const [otherPaymentNote, setOtherPaymentNote] = useState('')
   // Bill splitting: no split state is persisted server-side — each split is just another partial
@@ -477,6 +480,11 @@ function SyncedOrderView({ id }: { id: string }) {
   const { data: tipSettings } = useQuery({
     queryKey: ['tip-settings'],
     queryFn: () => tipsApi.settings(),
+    enabled: closeModalOpen,
+  })
+  const { data: moniepointStatus } = useQuery({
+    queryKey: ['moniepoint-status'],
+    queryFn: () => moniepointApi.getStatus(),
     enabled: closeModalOpen,
   })
   // Org-managed methods first, Paystack/Wallet always tacked on last — those are
@@ -967,6 +975,27 @@ function SyncedOrderView({ id }: { id: string }) {
     },
   })
 
+  // The guest is paying on the Moniepoint terminal or by transfer, which closes the order from a
+  // webhook — so the tip is saved on the order now and matched (bill + tip) when the money lands.
+  const savePendingTip = useMutation({
+    mutationFn: (opts: { amount: number; tipConfirmed?: boolean }) => ordersApi.setPendingTip(id, opts),
+    onSuccess: (_o, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['order', id] })
+      if (vars.amount > 0) {
+        toast.success(`Tip saved — charge ${formatCurrency(remainingBalance + vars.amount)} on the terminal or transfer`)
+        setCloseModalOpen(false)
+        setTipAmount(0)
+      } else {
+        toast.success('Tip cleared')
+      }
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'Failed to save the tip')
+    },
+  })
+  const pendingTip = Number(order?.pendingTipAmount ?? 0)
+
   const downloadReceipt = async () => {
     const blob = await ordersApi.downloadReceipt(id)
     const url = URL.createObjectURL(blob)
@@ -1368,6 +1397,25 @@ function SyncedOrderView({ id }: { id: string }) {
           </CardContent>
         </Card>
 
+        {isOpenStatus && pendingTip > 0 && (
+          <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3 text-sm">
+            <div>
+              <p className="font-medium text-foreground">Tip of {formatCurrency(pendingTip)} waiting for the terminal / transfer</p>
+              <p className="text-xs text-muted-foreground">
+                Charge {formatCurrency(remainingBalance + pendingTip)} — the bill plus the tip. It is held for the waiter once the payment arrives.
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={savePendingTip.isPending}
+              onClick={() => savePendingTip.mutate({ amount: 0 })}
+              className="shrink-0 text-xs font-medium text-destructive hover:underline"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
         {isOpenStatus && (
           <div className="mt-4 flex gap-3">
             {canVoid && (
@@ -1630,6 +1678,18 @@ function SyncedOrderView({ id }: { id: string }) {
               onChange={setTipAmount}
               waiterName={tipWaiterName}
               billDue={paymentAmount}
+              onSaveForTerminal={
+                moniepointStatus?.isSetup && paymentAmount >= remainingBalance - 0.01
+                  ? () => {
+                      // Same large-tip check as taking the payment here; the confirm dialog finishes it.
+                      if (tipNeedsConfirmation(tipAmount, orderTotal)) {
+                        setSavingTipForTerminal(true)
+                        setConfirmTipOpen(true)
+                      } else savePendingTip.mutate({ amount: tipAmount })
+                    }
+                  : undefined
+              }
+              savingForTerminal={savePendingTip.isPending}
             />
           )}
 
@@ -1696,10 +1756,18 @@ function SyncedOrderView({ id }: { id: string }) {
 
       <ConfirmDialog
         isOpen={confirmTipOpen}
-        onClose={() => setConfirmTipOpen(false)}
+        onClose={() => {
+          setConfirmTipOpen(false)
+          setSavingTipForTerminal(false)
+        }}
         onConfirm={() => {
           setConfirmTipOpen(false)
-          closeOrder.mutate({ tipConfirmed: true })
+          if (savingTipForTerminal) {
+            setSavingTipForTerminal(false)
+            savePendingTip.mutate({ amount: tipAmount, tipConfirmed: true })
+          } else {
+            closeOrder.mutate({ tipConfirmed: true })
+          }
         }}
         title="Confirm this tip"
         description={`The guest is adding a tip of ${formatCurrency(effectiveTip)} to a ${formatCurrency(orderTotal)} bill. Is that right?`}

@@ -11,7 +11,8 @@ export interface RecordTipInput {
   waiterId: string | null;
   paymentMethod: string;
   amount: number;
-  recordedById: string;
+  // Null when a Moniepoint webhook recorded it — there is no user to attribute it to.
+  recordedById: string | null;
 }
 
 export async function recordTip(tx: Prisma.TransactionClient, input: RecordTipInput) {

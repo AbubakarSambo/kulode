@@ -19,3 +19,30 @@ export function tipNeedsConfirmation(tipAmount: number, billTotal: number): bool
 
 export const DEFAULT_TIP_PRESETS = [1000, 3000, 5000];
 export const MAX_TIP_PRESETS = 6;
+
+export interface TipAwareMatch {
+  matches: boolean;
+  // The part of the received amount that is a tip (0 when it matched the bill alone).
+  tip: number;
+}
+
+/**
+ * Whether an incoming Moniepoint card/transfer amount settles an order's outstanding balance, and
+ * how much of it is a tip. A payment that matches the bill alone wins outright. Otherwise, if the
+ * guest told the cashier they would tip (`pendingTip`) and tipping is on, the payment is expected
+ * to be bill + tip — so the tip is the pending amount, and the bill portion is the rest.
+ * All amounts are in kobo to keep the comparison exact; `tip` is returned in Naira.
+ */
+export function matchPaymentToOrder(
+  dueKobo: number,
+  pendingTipKobo: number,
+  amountKobo: number,
+  toleranceKobo: number,
+  tipsEnabled: boolean,
+): TipAwareMatch {
+  if (Math.abs(dueKobo - amountKobo) <= toleranceKobo) return { matches: true, tip: 0 };
+  if (tipsEnabled && pendingTipKobo > 0 && Math.abs(dueKobo + pendingTipKobo - amountKobo) <= toleranceKobo) {
+    return { matches: true, tip: pendingTipKobo / 100 };
+  }
+  return { matches: false, tip: 0 };
+}

@@ -10,6 +10,10 @@ interface TipSectionProps {
   // Who the tip is for — shown so the guest knows it is not going to the cashier.
   waiterName: string | null
   billDue: number
+  // Offered when the guest pays on the Moniepoint terminal or by transfer: those payments close the
+  // order by webhook, so the tip is saved ahead of time and matched when the money lands.
+  onSaveForTerminal?: () => void
+  savingForTerminal?: boolean
 }
 
 function Chips({
@@ -58,7 +62,7 @@ function Chips({
  * "Hand to guest" shows a stripped-down full-screen view with nothing but the tip choice, so the
  * guest can pick their own amount without seeing the rest of the till.
  */
-export function TipSection({ presets, value, onChange, waiterName, billDue }: TipSectionProps) {
+export function TipSection({ presets, value, onChange, waiterName, billDue, onSaveForTerminal, savingForTerminal }: TipSectionProps) {
   const [open, setOpen] = useState(value > 0)
   const [custom, setCustom] = useState(false)
   const [customText, setCustomText] = useState('')
@@ -139,6 +143,16 @@ export function TipSection({ presets, value, onChange, waiterName, billDue }: Ti
           <p className="text-xs text-muted-foreground">
             Kept separate from the bill, VAT and service charge — held for {waiterName ?? 'whoever the manager assigns'}.
           </p>
+        )}
+        {value > 0 && onSaveForTerminal && (
+          <button
+            type="button"
+            disabled={savingForTerminal}
+            onClick={onSaveForTerminal}
+            className="w-full cursor-pointer rounded-lg border border-primary/30 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/5 disabled:opacity-50"
+          >
+            Guest pays on the terminal or by transfer — save tip, charge {formatCurrency(billDue + value)}
+          </button>
         )}
       </div>
 

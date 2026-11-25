@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Put,
   Delete,
   Body,
   Param,
@@ -41,6 +42,7 @@ import {
   CancelOrderDto,
   PrintBillPreviewDto,
   EmailReceiptDto,
+  SetPendingTipDto,
 } from './dto';
 import { CurrentUser, CurrentUserData, Can } from '../../common';
 
@@ -242,6 +244,16 @@ export class OrdersController {
     @CurrentUser() user: CurrentUserData,
   ) {
     return this.ordersService.applyDiscount(user.organizationId, id, user, dto);
+  }
+
+  @Put(':id/pending-tip')
+  @Can('PAYMENT_TAKE')
+  setPendingTip(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetPendingTipDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.ordersService.setPendingTip(user.organizationId, id, dto);
   }
 
   @Post(':id/close')

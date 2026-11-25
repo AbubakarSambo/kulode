@@ -466,6 +466,44 @@ describe('OrdersService — status transitions across the waiter/cashier split',
     });
   });
 
+  // ─── setPendingTip (tip announced for a terminal/transfer payment) ──────────
+
+  describe('setPendingTip', () => {
+    beforeEach(() => {
+      prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'READY', total: 23500 }));
+      prisma.order.update.mockResolvedValue(orderWith({ pendingTipAmount: 3000 }));
+    });
+
+    it('stores the tip the guest says they will add', async () => {
+      await service.setPendingTip(ORG_ID, ORDER_ID, { amount: 3000 });
+      expect(prisma.order.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: ORDER_ID }, data: { pendingTipAmount: 3000 } }));
+    });
+
+    it('clears it at 0 without needing tipping to be on', async () => {
+      prisma.organization.findUnique.mockResolvedValue({ tipsEnabled: false });
+      await service.setPendingTip(ORG_ID, ORDER_ID, { amount: 0 });
+      expect(prisma.order.update).toHaveBeenCalledWith(expect.objectContaining({ data: { pendingTipAmount: 0 } }));
+    });
+
+    it('refuses when tipping is off', async () => {
+      prisma.organization.findUnique.mockResolvedValue({ tipsEnabled: false });
+      await expect(service.setPendingTip(ORG_ID, ORDER_ID, { amount: 3000 })).rejects.toThrow('Tipping is not turned on');
+    });
+
+    it('asks for confirmation on a very large tip', async () => {
+      await expect(service.setPendingTip(ORG_ID, ORDER_ID, { amount: 25000 })).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'TIP_CONFIRMATION_REQUIRED' }),
+      });
+      await service.setPendingTip(ORG_ID, ORDER_ID, { amount: 25000, tipConfirmed: true });
+      expect(prisma.order.update).toHaveBeenCalled();
+    });
+
+    it('refuses on an order that is already closed', async () => {
+      prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'CLOSED_PAID' }));
+      await expect(service.setPendingTip(ORG_ID, ORDER_ID, { amount: 3000 })).rejects.toThrow(BadRequestException);
+    });
+  });
+
   // ─── closeWithPayment (accepting payment) ──────────────────────────────────
 
   describe('closeWithPayment', () => {
@@ -547,6 +585,13 @@ describe('OrdersService — status transitions across the waiter/cashier split',
         prisma.order.findFirst.mockResolvedValue(orderWith({ status: 'OPEN', total: 23500, waiterId: null }));
         await service.closeWithPayment(ORG_ID, ORDER_ID, USER_ID, cardDto);
         expect(prisma.__tx.tipLedgerEntry.create).toHaveBeenCalledWith({ data: expect.objectContaining({ waiterId: null }) });
+      });
+
+      it('spends a tip promised for the terminal once the order closes at the till', async () => {
+        await service.closeWithPayment(ORG_ID, ORDER_ID, USER_ID, { paymentMethod: 'CASH', clientRequestId: 'req-c' });
+        expect(prisma.__tx.order.updateMany).toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining({ pendingTipAmount: 0 }) }),
+        );
       });
 
       it('records no tip when none is sent', async () => {

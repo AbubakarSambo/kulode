@@ -25,6 +25,7 @@ import {
   ApplyDiscountDto,
   ReassignOrderPaymentDto,
   PrintBillPreviewDto,
+  SetPendingTipDto,
 } from './dto';
 import { creditOrderSpendSafe, reverseOrderSpend } from '../loyalty/loyalty.earn';
 import { loyaltyReceipt } from '../loyalty/loyalty.receipt';
@@ -1856,9 +1857,14 @@ export class OrdersService {
       // ready; only the payment that actually finishes covering the total closes it out.
       const result = await tx.order.updateMany({
         where: { id, organizationId, status: { in: PAYABLE_STATUSES } },
-        data: isFinalPayment
-          ? { amountPaid: newAmountPaid, status: 'CLOSED_PAID', closedAt: new Date() }
-          : { amountPaid: newAmountPaid, status: 'CLOSED_UNPAID' },
+        data: {
+          ...(isFinalPayment
+            ? { amountPaid: newAmountPaid, status: 'CLOSED_PAID' as const, closedAt: new Date() }
+            : { amountPaid: newAmountPaid, status: 'CLOSED_UNPAID' as const }),
+          // A tip promised for the terminal/transfer is spent once the order closes, or once this
+          // tender carries a tip of its own — never left behind to attach to some later payment.
+          ...((isFinalPayment || tipAmount > 0) && { pendingTipAmount: 0 }),
+        },
       });
       if (result.count === 0) {
         throw new BadRequestException('Order was already closed or cancelled');
@@ -1957,6 +1963,38 @@ export class OrdersService {
       if (loyalty) return { ...closed, loyalty };
     }
     return closed;
+  }
+
+  /**
+   * Notes a tip the guest has said they will add when they pay on the Moniepoint terminal or by
+   * transfer. Those payments close the order from a webhook with no cashier tap to carry the tip,
+   * so it has to be known beforehand: the webhook then expects bill + this amount and records the
+   * tip when it matches. 0 clears it. Nothing is held until the money actually arrives.
+   */
+  async setPendingTip(organizationId: string, id: string, dto: SetPendingTipDto) {
+    const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
+    if (!order) throw new NotFoundException('Order not found');
+    if (!PAYABLE_STATUSES.includes(order.status)) {
+      throw new BadRequestException(`Cannot add a tip to a ${order.status.toLowerCase()} order`);
+    }
+    const amount = Math.round(dto.amount * 100) / 100;
+    if (amount > 0) {
+      const org = await this.prisma.organization.findUnique({ where: { id: organizationId }, select: { tipsEnabled: true } });
+      if (!org?.tipsEnabled) throw new BadRequestException('Tipping is not turned on for this organization');
+      if (!dto.tipConfirmed && tipNeedsConfirmation(amount, toNumber(order.total))) {
+        throw new BadRequestException({
+          statusCode: 400,
+          code: 'TIP_CONFIRMATION_REQUIRED',
+          message: 'This is an unusually large tip — confirm it with the guest first',
+        });
+      }
+    }
+    const updated = await this.prisma.order.update({
+      where: { id },
+      data: { pendingTipAmount: amount },
+      include: this.orderInclude,
+    });
+    return updated;
   }
 
   // Sends the bill to the org's bill printer(s) through the print agent. `queued: false` means

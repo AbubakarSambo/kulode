@@ -90,7 +90,10 @@ export class MoniepointController {
     @Body() dto: AssignUnreconciledTransferDto,
     @CurrentUser() user: CurrentUserData,
   ) {
-    return this.moniepointService.assignUnreconciledTransfer(user.organizationId, id, dto.orderId, user.id);
+    return this.moniepointService.assignUnreconciledTransfer(user.organizationId, id, dto.orderId, user.id, {
+      excessAsTip: dto.excessAsTip,
+      tipConfirmed: dto.tipConfirmed,
+    });
   }
 
   @Post('moniepoint-unreconciled-transfers/:id/resolve-wallet')

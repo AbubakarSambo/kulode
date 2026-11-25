@@ -51,4 +51,20 @@ describe('TipSection', () => {
     expect(onChange).toHaveBeenCalledWith(5000)
     expect(screen.queryByText('It goes to Amina B.')).toBeNull()
   })
+
+  it('offers to save the tip for a terminal/transfer payment only once a tip is chosen, naming the amount to charge', () => {
+    const onSave = vi.fn()
+    const { rerender } = render(<TipSection {...base} value={0} onChange={() => {}} onSaveForTerminal={onSave} />)
+    fireEvent.click(screen.getByText('Add tip'))
+    expect(screen.queryByText(/save tip, charge/)).toBeNull()
+
+    rerender(<TipSection {...base} value={3000} onChange={() => {}} onSaveForTerminal={onSave} />)
+    fireEvent.click(screen.getByText(/save tip, charge ₦26,500/))
+    expect(onSave).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not offer it when the org has no terminal/transfer matching', () => {
+    render(<TipSection {...base} value={3000} onChange={() => {}} />)
+    expect(screen.queryByText(/save tip, charge/)).toBeNull()
+  })
 })

@@ -292,6 +292,11 @@ export const ordersApi = {
     return response.data.data
   },
 
+  /** Notes a tip the guest will add when they pay on the terminal/transfer; 0 clears it. */
+  setPendingTip: async (id: string, data: { amount: number; tipConfirmed?: boolean }): Promise<Order> => {
+    const response = await apiClient.put<ApiResponse<Order>>(`/orders/${id}/pending-tip`, data)
+    return response.data.data
+  },
   /**
    * Closes an order against an immediate (non-PAYSTACK) payment method — those queue offline the
    * same way addItems does. PAYSTACK never queues (it needs a live checkout redirect); calling it
