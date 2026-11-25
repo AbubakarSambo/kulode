@@ -36,6 +36,17 @@ const organizationSchema = z.object({
   receiptBankAccountNumber: z.string().max(50).optional(),
   receiptBankAccountName: z.string().max(255).optional(),
   ownerWhatsappPhone: z.string().max(500).optional(),
+  ownerReportEmail: z
+    .string()
+    .max(500)
+    .optional()
+    .refine(
+      (v) => {
+        const parts = (v ?? '').split(/[,;\n]/).map((p) => p.trim()).filter(Boolean)
+        return parts.length <= 5 && parts.every((p) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p))
+      },
+      'Enter up to 5 valid email addresses, separated by commas',
+    ),
 })
 
 type OrganizationFormData = z.infer<typeof organizationSchema>
@@ -105,6 +116,7 @@ export function OrganizationPage() {
       receiptBankAccountNumber: '',
       receiptBankAccountName: '',
       ownerWhatsappPhone: '',
+      ownerReportEmail: '',
     },
   })
 
@@ -134,6 +146,7 @@ export function OrganizationPage() {
         receiptBankAccountNumber: organization.receiptBankAccountNumber || '',
         receiptBankAccountName: organization.receiptBankAccountName || '',
         ownerWhatsappPhone: organization.ownerWhatsappPhone || '',
+        ownerReportEmail: organization.ownerReportEmail || '',
       })
     }
   }, [organization, reset])
@@ -303,6 +316,20 @@ export function OrganizationPage() {
                 <p className="text-xs text-muted-foreground">
                   Where the "Send via WhatsApp" button on the Dashboard sends the sales summary. Separate multiple
                   numbers with commas.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="ownerReportEmail">Boss's Email Address(es)</Label>
+                <Input
+                  id="ownerReportEmail"
+                  placeholder="e.g., boss@example.com, accounts@example.com"
+                  {...register('ownerReportEmail')}
+                  error={errors.ownerReportEmail?.message}
+                />
+                <p className="text-xs text-muted-foreground">
+                  The sales summary is also emailed here when a shift is closed. Separate multiple addresses with
+                  commas. Leave empty to turn it off.
                 </p>
               </div>
 

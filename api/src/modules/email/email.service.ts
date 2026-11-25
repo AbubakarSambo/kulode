@@ -208,7 +208,7 @@ export class EmailService {
 </html>`;
   }
 
-  private async sendEmail(options: { to: string; subject: string; html: string }): Promise<void> {
+  private async sendEmail(options: { to: string; subject: string; html: string; attachments?: { filename: string; content: Buffer }[] }): Promise<void> {
     if (this.isMock) {
       this.logger.log(`[MOCK EMAIL] Sending to: ${options.to}`);
       this.logger.log(`[MOCK EMAIL] Subject: ${options.subject}`);
@@ -632,6 +632,86 @@ export class EmailService {
       subject: `Payment Confirmation: Invoice ${invoiceNumber} - ${orgName}`,
       html,
     });
+  }
+
+  /** A restaurant order's receipt, with the receipt PDF attached. Throws if the email can't be sent. */
+  async sendOrderReceiptEmail(
+    email: string,
+    orgName: string,
+    receiptNumber: string,
+    total: string,
+    paidOn: string,
+    pdf: Buffer,
+  ): Promise<void> {
+    const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const html = this.buildEmailHtml({
+      accentColor: '#006c49',
+      contextLabel: 'Receipt',
+      headline: `Your receipt from ${esc(orgName)}`,
+      bodyHtml: `
+        <p>Thank you for dining with <strong>${esc(orgName)}</strong>. Your receipt is attached to this email.</p>
+        <div class="receipt-box" style="margin: 24px 0; padding: 20px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 14px; line-height: 1.6;">
+            <tr>
+              <td class="receipt-label" style="padding-bottom: 8px;">Receipt</td>
+              <td align="right" class="receipt-value" style="padding-bottom: 8px;">${esc(receiptNumber)}</td>
+            </tr>
+            <tr>
+              <td class="receipt-label" style="padding-bottom: 8px;">Date</td>
+              <td align="right" class="receipt-value" style="padding-bottom: 8px;">${esc(paidOn)}</td>
+            </tr>
+            <tr>
+              <td class="receipt-label">Total paid</td>
+              <td align="right" class="receipt-value" style="color: #006c49 !important;">${esc(total)}</td>
+            </tr>
+          </table>
+        </div>
+        <p>If you have any questions about this receipt, please contact <strong>${esc(orgName)}</strong> directly.</p>
+      `,
+    });
+
+    await this.sendEmail({
+      to: email,
+      subject: `Your receipt from ${orgName}`,
+      html,
+      attachments: [{ filename: `${receiptNumber}.pdf`, content: pdf }],
+    });
+  }
+
+  /** The end-of-day (shift close) sales summary, for the owner/boss. Sections are label/value rows. */
+  async sendShiftReportEmail(
+    email: string,
+    orgName: string,
+    reportDate: string,
+    timeRange: string,
+    sections: { title: string; rows: { label: string; value: string }[] }[],
+  ): Promise<void> {
+    const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const block = (sec: { title: string; rows: { label: string; value: string }[] }) => `
+        <div class="receipt-box" style="margin: 16px 0; padding: 20px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
+          <h4 style="margin-top: 0; margin-bottom: 12px; font-size: 14px;" class="receipt-value">${esc(sec.title)}</h4>
+          <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 14px; line-height: 1.6;">
+            ${sec.rows
+              .map(
+                (r) => `<tr>
+              <td class="receipt-label" style="padding-bottom: 6px;">${esc(r.label)}</td>
+              <td align="right" class="receipt-value" style="padding-bottom: 6px;">${esc(r.value)}</td>
+            </tr>`,
+              )
+              .join('')}
+          </table>
+        </div>`;
+    const html = this.buildEmailHtml({
+      accentColor: '#0037b0',
+      contextLabel: 'Daily Report',
+      headline: `${esc(orgName)}: sales summary`,
+      bodyHtml: `
+        <p>${esc(reportDate)} &middot; ${esc(timeRange)}</p>
+        ${sections.map(block).join('')}
+      `,
+    });
+
+    await this.sendEmail({ to: email, subject: `${orgName}: sales summary for ${reportDate}`, html });
   }
 
   async sendMerchantPaymentAlertEmail(

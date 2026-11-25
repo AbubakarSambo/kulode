@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { assertNotBecomingInvoicingOnly } from '../../common/org-modules';
+import { parseEmailList } from '../../common/email-list';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateOrganizationDto, CreateDirectorDto, UpdateDirectorDto } from './dto';
 
@@ -41,6 +42,7 @@ export class OrganizationsService {
         receiptBankAccountNumber: true,
         receiptBankAccountName: true,
         ownerWhatsappPhone: true,
+        ownerReportEmail: true,
         businessType: true,
         organizationSize: true,
         enabledModules: true,
@@ -105,6 +107,7 @@ export class OrganizationsService {
         ...(dto.receiptBankAccountNumber !== undefined && { receiptBankAccountNumber: dto.receiptBankAccountNumber }),
         ...(dto.receiptBankAccountName !== undefined && { receiptBankAccountName: dto.receiptBankAccountName }),
         ...(dto.ownerWhatsappPhone !== undefined && { ownerWhatsappPhone: dto.ownerWhatsappPhone }),
+        ...(dto.ownerReportEmail !== undefined && { ownerReportEmail: parseEmailList(dto.ownerReportEmail).join(', ') || null }),
       },
       select: {
         id: true,
@@ -135,6 +138,7 @@ export class OrganizationsService {
         receiptBankAccountNumber: true,
         receiptBankAccountName: true,
         ownerWhatsappPhone: true,
+        ownerReportEmail: true,
         businessType: true,
         organizationSize: true,
         enabledModules: true,
