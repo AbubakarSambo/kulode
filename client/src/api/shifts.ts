@@ -20,7 +20,12 @@ export interface CloseShiftData {
 
 export interface ShiftClosePreview {
   openingFloat: number
+  // Expected per method, with any card/transfer tips that came in on it included.
   breakdown: { paymentMethod: string; expectedAmount: number }[]
+  // Total of those tips — held for waiters, not takings.
+  tipsHeld?: number
+  // Cash paid out of the drawer to waiters this shift; the cash count should be this much lower.
+  tipPayoutsFromTill?: number
 }
 
 export const shiftsApi = {
