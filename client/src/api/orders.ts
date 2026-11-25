@@ -342,6 +342,11 @@ export const ordersApi = {
     return response.data
   },
 
+  /** Emails the paid order's receipt (PDF attached) to the given address. */
+  emailReceipt: async (id: string, email: string): Promise<void> => {
+    await apiClient.post(`/orders/${id}/receipt/email`, { email })
+  },
+
   /** Same data the PDF receipt is built from, as JSON — used to render the print-only bill/receipt. */
   getReceiptData: async (id: string): Promise<ReceiptData> => {
     const response = await apiClient.get<ApiResponse<ReceiptData>>(`/orders/${id}/receipt-data`)

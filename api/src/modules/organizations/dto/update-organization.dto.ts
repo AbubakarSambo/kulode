@@ -1,4 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { EmailListConstraint } from '../../../common/email-list';
 import {
   IsString,
   IsEmail,
@@ -8,6 +9,7 @@ import {
   IsBoolean,
   IsEnum,
   Matches,
+  Validate,
   Min,
   Max,
 } from 'class-validator';
@@ -203,4 +205,14 @@ export class UpdateOrganizationDto {
   @IsString()
   @MaxLength(500)
   ownerWhatsappPhone?: string;
+
+  @ApiPropertyOptional({
+    example: 'boss@example.com, accounts@example.com',
+    description: 'Comma-separated email address(es) the end-of-day sales summary is emailed to (up to 5). Empty clears it.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  @Validate(EmailListConstraint)
+  ownerReportEmail?: string;
 }

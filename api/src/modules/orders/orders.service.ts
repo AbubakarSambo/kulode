@@ -183,7 +183,7 @@ export class OrdersService {
 
   private readonly orderInclude = {
     table: { select: { id: true, name: true, section: true } },
-    customer: { select: { id: true, name: true, phone: true, isMember: true } },
+    customer: { select: { id: true, name: true, phone: true, email: true, isMember: true } },
     waiter: { select: { id: true, firstName: true, lastName: true, phone: true } },
     createdBy: { select: { id: true, firstName: true, lastName: true } },
     cancelledBy: { select: { id: true, firstName: true, lastName: true } },
@@ -2020,6 +2020,7 @@ export class OrdersService {
 
     return {
       receiptNumber: `ORD-${order.id.slice(0, 5).toUpperCase()}`,
+      status: order.status,
       createdAt: order.createdAt,
       closedAt: order.closedAt,
       source: order.source,
