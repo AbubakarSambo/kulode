@@ -35,6 +35,7 @@ import { GoogleSheetsModule } from './modules/google-sheets';
 import { SheetSyncModule } from './modules/sheet-sync';
 import { PosReportsModule } from './modules/pos-reports';
 import { LeaderboardModule } from './modules/leaderboard';
+import { TipsModule } from './modules/tips';
 import { CollectionModule } from './modules/collection';
 import { InvoiceCollectionsModule } from './modules/invoice-collections';
 import { LoyaltyModule } from './modules/loyalty';
@@ -101,6 +102,7 @@ import {
     SheetSyncModule,
     PosReportsModule,
     LeaderboardModule,
+    TipsModule,
     CollectionModule,
     InvoiceCollectionsModule,
     LoyaltyModule,

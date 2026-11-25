@@ -26,6 +26,8 @@ export interface BillReceipt {
   serviceChargeApplied: boolean;
   serviceChargeRate: number;
   serviceChargeAmount: number;
+  // A guest's card/transfer tip — its own line below the total, never part of it.
+  tipAmount?: number;
   payments: Array<{ amount: number; paymentMethod: string; paymentDate: Date | string }>;
   organization: {
     name: string;
@@ -212,6 +214,11 @@ export function formatBillEscPos(receipt: BillReceipt, paperWidthMm = 80): strin
     );
   }
   out.push(BOLD_ON, DOUBLE_HEIGHT_ON, row('TOTAL', `${currency} ${money(receipt.total)}`, width), DOUBLE_HEIGHT_OFF, BOLD_OFF);
+  const tip = receipt.tipAmount ?? 0;
+  if (tip > 0) {
+    out.push(row('Tip', `${currency} ${money(tip)}`, width));
+    out.push(BOLD_ON, row('TOTAL CHARGED', `${currency} ${money(receipt.total + tip)}`, width), BOLD_OFF);
+  }
 
   const hasBankDetails = !!(org.receiptBankName || org.receiptBankAccountNumber || org.receiptBankAccountName);
   if (isPaid) {
@@ -220,7 +227,7 @@ export function formatBillEscPos(receipt: BillReceipt, paperWidthMm = 80): strin
       out.push(row(`${payment.paymentMethod} - ${dateTime(payment.paymentDate)}`, money(payment.amount), width));
     }
     out.push(divider);
-    out.push(BOLD_ON, row('Paid', `${currency} ${money(receipt.amountPaid)}`, width), BOLD_OFF);
+    out.push(BOLD_ON, row('Paid', `${currency} ${money(receipt.amountPaid + tip)}`, width), BOLD_OFF);
   } else if (hasBankDetails) {
     out.push(divider);
     out.push(CENTER, BOLD_ON, 'Pay by Transfer\n', BOLD_OFF, LEFT);

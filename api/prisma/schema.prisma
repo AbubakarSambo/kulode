@@ -325,6 +325,10 @@ model Organization {
   // separately. Same stackable, per-order-toggleable pattern as entertainment tax.
   serviceChargeRate       Decimal   @default(0) @map("service_charge_rate") @db.Decimal(5, 2)
   serviceChargeEnabled    Boolean   @default(false) @map("service_charge_enabled")
+  // Card/transfer tips held on behalf of waiters (cash tips stay out of the system). Off by
+  // default. tipPresets are the whole-Naira quick-pick amounts shown at checkout, editable in settings.
+  tipsEnabled             Boolean   @default(false) @map("tips_enabled")
+  tipPresets              Int[]     @default([1000, 3000, 5000]) @map("tip_presets")
   showQrCode              Boolean   @default(false) @map("show_qr_code")
   // Shows floor staff (waiter and up) a live strip of today's paid/open takings on the POS pages.
   // Off by default — some owners don't want the floor seeing the branch's money.
@@ -459,6 +463,8 @@ model Organization {
   printers                        Printer[]
   printAgentLogs                  PrintAgentLog[]
   moniepointUnreconciledTransfers MoniepointUnreconciledTransfer[]
+  tips                            Tip[]
+  tipLedgerEntries                TipLedgerEntry[]
   userMemberships                 UserOrganization[]
   impersonationSessions           ImpersonationSession[]
 
@@ -509,6 +515,7 @@ model User {
   chatSessions                  ChatSession[]
   createdOrders                 Order[]                          @relation("OrderCreatedByUser")
   waiterOrders                  Order[]                          @relation("OrderWaiter")
+  tipLedgerEntries              TipLedgerEntry[]                 @relation("TipLedgerWaiter")
   assignedOrderItems            OrderItem[]                      @relation("OrderItemAssignedTo")
   discountsApplied              Order[]                          @relation("OrderDiscountAppliedBy")
   discountsApproved             Order[]                          @relation("OrderDiscountApprovedBy")
@@ -1860,6 +1867,7 @@ model Order {
   walletTransactions              WalletTransaction[]
   printJobs                       PrintJob[]
   moniepointUnreconciledTransfers MoniepointUnreconciledTransfer[]
+  tips                            Tip[]
 
   @@index([organizationId])
   @@index([tableId])
@@ -2199,4 +2207,70 @@ model InboundWhatsappMessage {
   @@index([invoiceId, createdAt])
   @@index([organizationId])
   @@map("inbound_whatsapp_messages")
+}
+
+// A card or transfer tip a guest added at checkout. Deliberately NOT part of Order.total,
+// Order.amountPaid or Payment.amount — it is money held for staff, not sales, so it stays out of
+// revenue, VAT, service charge and the order-vs-payment reconciliation. Cash tips never get a row.
+model Tip {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  orderId        String    @map("order_id")
+  // The card/transfer PaymentType name the tip came in on.
+  paymentMethod  String    @map("payment_method")
+  amount         Decimal   @db.Decimal(12, 2)
+  status         TipStatus @default(ACTIVE)
+  recordedById   String    @map("recorded_by")
+  voidedAt       DateTime? @map("voided_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  organization  Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  order         Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ledgerEntries TipLedgerEntry[]
+
+  @@index([organizationId])
+  @@index([orderId])
+  @@map("tips")
+}
+
+enum TipStatus {
+  ACTIVE
+  VOIDED
+}
+
+// Append-only per-waiter ledger. A waiter's balance owed is the sum of `amount` (positive when a
+// tip is earned, negative on a void reversal or a payout) — never edited, so carry-forward and the
+// audit trail come for free. waiterId is null for tips on orders nobody owns ("unassigned").
+model TipLedgerEntry {
+  id             String             @id @default(uuid())
+  organizationId String             @map("organization_id")
+  waiterId       String?            @map("waiter_id")
+  tipId          String?            @map("tip_id")
+  type           TipLedgerEntryType
+  amount         Decimal            @db.Decimal(12, 2)
+  paidFrom       TipPayoutSource?   @map("paid_from")
+  approvedById   String?            @map("approved_by")
+  recordedById   String?            @map("recorded_by")
+  note           String?
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  waiter       User?        @relation("TipLedgerWaiter", fields: [waiterId], references: [id], onDelete: SetNull)
+  tip          Tip?         @relation(fields: [tipId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, waiterId])
+  @@index([tipId])
+  @@map("tip_ledger_entries")
+}
+
+enum TipLedgerEntryType {
+  EARNED
+  VOIDED
+  PAYOUT
+}
+
+// Where a payout's cash came from — a till payout lowers the drawer's expected cash at shift close.
+enum TipPayoutSource {
+  CASH_DRAWER
+  BANK
 }

@@ -22,6 +22,7 @@ function createMockPrisma() {
       aggregate: jest.fn().mockResolvedValue({ _sum: { amount: 0 } }),
     },
     order: { aggregate: jest.fn() },
+    tipLedgerEntry: { aggregate: jest.fn().mockResolvedValue({ _sum: { amount: null } }) },
     // close() looks the org up to decide whether to send the WhatsApp shift summary; no org
     // means no summary, which keeps these tests focused on the shift itself.
     organization: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -333,6 +334,27 @@ describe('ShiftsService', () => {
           countedCash: 127800,
           variance: -200,
         }),
+      });
+    });
+
+    it('expects less cash in the drawer after tips were paid out of the till', async () => {
+      prisma.shift.findFirst.mockResolvedValue(shiftWith({ openingFloat: 20000 }));
+      prisma.payment.groupBy.mockResolvedValue([{ paymentMethod: 'CASH', _sum: { amount: 108000 } }]);
+      prisma.tipLedgerEntry.aggregate.mockResolvedValue({ _sum: { amount: -18000 } });
+      prisma.shift.update.mockResolvedValue(shiftWith({ status: 'CLOSED' }));
+      prisma.shift.findFirst.mockResolvedValueOnce(shiftWith({ openingFloat: 20000 })).mockResolvedValueOnce(
+        shiftWith({ status: 'CLOSED' }),
+      );
+
+      // 20,000 float + 108,000 cash sales - 18,000 paid to Amina = 110,000 — counting exactly that is no shortage.
+      await service.close(ORG_ID, SHIFT_ID, USER_ID, { countedCash: 110000 });
+
+      expect(prisma.tipLedgerEntry.aggregate).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ type: 'PAYOUT', paidFrom: 'CASH_DRAWER' }) }),
+      );
+      expect(prisma.shift.update).toHaveBeenCalledWith({
+        where: { id: SHIFT_ID },
+        data: expect.objectContaining({ expectedCash: 110000, variance: 0 }),
       });
     });
 

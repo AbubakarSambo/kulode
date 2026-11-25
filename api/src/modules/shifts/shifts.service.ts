@@ -161,8 +161,10 @@ export class ShiftsService {
       throw new BadRequestException('Shift is already closed');
     }
 
-    const breakdown = await this.paymentBreakdownDuringShift(organizationId, shift.openedAt, new Date());
-    return { openingFloat: toNumber(shift.openingFloat), breakdown };
+    const now = new Date();
+    const breakdown = await this.paymentBreakdownDuringShift(organizationId, shift.openedAt, now);
+    const tipPayoutsFromTill = await this.tipPayoutsFromTill(organizationId, shift.openedAt, now);
+    return { openingFloat: toNumber(shift.openingFloat), breakdown, tipPayoutsFromTill };
   }
 
   async open(organizationId: string, userId: string, dto: OpenShiftDto) {
@@ -252,6 +254,19 @@ export class ShiftsService {
     return breakdown;
   }
 
+  // Cash taken out of the drawer during the shift to pay waiters their card/transfer tips. The
+  // drawer expects less cash because of it — without this, paying out tips from the till would show
+  // up as a shortage at close. Kept out of paymentBreakdownDuringShift because that feeds the
+  // "collected" figures in the shift report, and a payout isn't a collection.
+  private async tipPayoutsFromTill(organizationId: string, openedAt: Date, until: Date) {
+    const sum = await this.prisma.tipLedgerEntry.aggregate({
+      where: { organizationId, type: 'PAYOUT', paidFrom: 'CASH_DRAWER', createdAt: { gte: openedAt, lte: until } },
+      _sum: { amount: true },
+    });
+    // Payout entries are stored negative.
+    return Math.abs(toNumber(sum._sum.amount ?? 0));
+  }
+
   async close(organizationId: string, id: string, userId: string, dto: CloseShiftDto) {
     const shift = await this.prisma.shift.findFirst({ where: { id, organizationId } });
     if (!shift) throw new NotFoundException('Shift not found');
@@ -263,7 +278,8 @@ export class ShiftsService {
     const breakdown = await this.paymentBreakdownDuringShift(organizationId, shift.openedAt, closedAt);
 
     const cashTaken = breakdown.find((b) => b.paymentMethod === 'CASH')?.expectedAmount ?? 0;
-    const expectedCash = toNumber(shift.openingFloat) + cashTaken;
+    const tipPayouts = await this.tipPayoutsFromTill(organizationId, shift.openedAt, closedAt);
+    const expectedCash = toNumber(shift.openingFloat) + cashTaken - tipPayouts;
     const variance = dto.countedCash - expectedCash;
 
     const breakdownRows = breakdown.map(({ paymentMethod, expectedAmount }) => {

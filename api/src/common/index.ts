@@ -15,3 +15,4 @@ export * from './csv';
 export * from './zoned-date';
 export * from './phone';
 export * from './email-list';
+export * from './tip-rules';

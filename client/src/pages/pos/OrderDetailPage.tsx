@@ -10,7 +10,10 @@ import { Modal } from '@/components/shared/Modal'
 import { CustomerPhoneCapture } from '@/components/pos/CustomerPhoneCapture'
 import { useLoyaltyOn } from '@/hooks/useLoyaltyOn'
 import { MemberPanel } from '@/components/pos/MemberPanel'
-import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, usersApi, tablesApi, orderTypesApi, paymentTypesApi, organizationsApi } from '@/api'
+import { TipSection } from '@/components/pos/TipSection'
+import { ConfirmDialog } from '@/components/ui/dialog'
+import { isTipEligibleMethod, tipNeedsConfirmation } from '@/lib/tips'
+import { ordersApi, menuCategoriesApi, menuItemsApi, customersApi, walletApi, usersApi, tablesApi, orderTypesApi, paymentTypesApi, organizationsApi, tipsApi } from '@/api'
 import { getQueuedActionsForLocalOrder, discardFailedAction, LOCAL_ORDER_PREFIX } from '@/lib/offlineOrderQueue'
 import { formatCurrency, formatPaymentMethod, normalizePhoneForWhatsApp, cn } from '@/lib/utils'
 import { printOrderBill } from '@/lib/sendBill'
@@ -387,6 +390,10 @@ function SyncedOrderView({ id }: { id: string }) {
   const [addItemsOpen, setAddItemsOpen] = useState(false)
   const [closeModalOpen, setCloseModalOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<string>('CASH')
+  // A card/transfer tip the guest is adding on this tender (0 = none), and whether the cashier is
+  // being asked to confirm an unusually large one before it is sent.
+  const [tipAmount, setTipAmount] = useState(0)
+  const [confirmTipOpen, setConfirmTipOpen] = useState(false)
   const [customerEmail, setCustomerEmail] = useState('')
   const [otherPaymentNote, setOtherPaymentNote] = useState('')
   // Bill splitting: no split state is persisted server-side — each split is just another partial
@@ -465,6 +472,11 @@ function SyncedOrderView({ id }: { id: string }) {
   const { data: paymentTypes } = useQuery({
     queryKey: ['payment-types'],
     queryFn: () => paymentTypesApi.list(),
+    enabled: closeModalOpen,
+  })
+  const { data: tipSettings } = useQuery({
+    queryKey: ['tip-settings'],
+    queryFn: () => tipsApi.settings(),
     enabled: closeModalOpen,
   })
   // Org-managed methods first, Paystack/Wallet always tacked on last — those are
@@ -873,11 +885,16 @@ function SyncedOrderView({ id }: { id: string }) {
   // An order of only zero-priced items (e.g. a partner-covered meal) has nothing to collect, but
   // still has to be closed. The server ignores the payment method for these.
   const nothingToPay = !!order && orderTotal <= 0
+  // Tips are card/transfer only, and only when the org has switched them on. Switching to a method
+  // that can't take one drops any tip already chosen, so it can never ride along on a cash tender.
+  const tipAvailable = !!tipSettings?.enabled && !nothingToPay && paymentMethod !== 'PAYSTACK' && isTipEligibleMethod(paymentMethod)
+  const effectiveTip = tipAvailable ? tipAmount : 0
+  const tipWaiterName = order?.waiter ? `${order.waiter.firstName} ${order.waiter.lastName}`.trim() : null
 
   const [rewardEarned, setRewardEarned] = useState<LoyaltyEarned | null>(null)
 
   const closeOrder = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (opts?: { tipConfirmed?: boolean }) => {
       if (nothingToPay) {
         return ordersApi.close(id, { paymentMethod: 'NO_CHARGE' })
       }
@@ -888,6 +905,7 @@ function SyncedOrderView({ id }: { id: string }) {
         paymentMethod,
         amount: paymentAmount,
         notes: paymentMethod === 'OTHER' ? otherPaymentNote : undefined,
+        ...(effectiveTip > 0 && { tipAmount: effectiveTip, tipConfirmed: opts?.tipConfirmed }),
       })
     },
     onSuccess: (result) => {
@@ -896,6 +914,7 @@ function SyncedOrderView({ id }: { id: string }) {
         no_charge: nothingToPay,
         split_mode: splitMode,
         amount: nothingToPay ? 0 : paymentAmount,
+        tip_amount: effectiveTip,
         order_total: orderTotal,
         has_customer: !!order?.customerId,
       }
@@ -922,6 +941,7 @@ function SyncedOrderView({ id }: { id: string }) {
         queryClient.invalidateQueries({ queryKey: ['orders'] })
         if (splitMode === 'even') setEvenWays((w) => Math.max(1, w - 1))
         setCustomAmount('')
+        setTipAmount(0)
         return
       }
       posthog.capture('pos_order_closed', closeProps)
@@ -936,6 +956,7 @@ function SyncedOrderView({ id }: { id: string }) {
       setSplitMode('full')
       setEvenWays(2)
       setCustomAmount('')
+      setTipAmount(0)
       queryClient.invalidateQueries({ queryKey: ['order', id] })
       queryClient.invalidateQueries({ queryKey: ['orders'] })
     },
@@ -1602,6 +1623,16 @@ function SyncedOrderView({ id }: { id: string }) {
             </div>
           )}
 
+          {tipAvailable && (
+            <TipSection
+              presets={tipSettings?.presets ?? []}
+              value={tipAmount}
+              onChange={setTipAmount}
+              waiterName={tipWaiterName}
+              billDue={paymentAmount}
+            />
+          )}
+
           {nothingToPay && (
             <p className="text-sm text-muted-foreground">
               There is nothing to pay on this order. Closing it records the items as served; no payment is taken.
@@ -1621,7 +1652,17 @@ function SyncedOrderView({ id }: { id: string }) {
             {splitMode !== 'full' && paymentAmount < remainingBalance - 0.01 && (
               <div className="mt-1 text-xs text-muted-foreground">
                 {formatCurrency(remainingBalance - paymentAmount)} will remain after this
+                {effectiveTip > 0 && (
+              <div className="mt-3 border-t border-border pt-3 text-sm">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Tip</span>
+                  <span className="font-semibold text-foreground">{formatCurrency(effectiveTip)}</span>
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">Charge the guest</div>
+                <div className="text-xl font-bold text-foreground">{formatCurrency(paymentAmount + effectiveTip)}</div>
               </div>
+            )}
+          </div>
             )}
           </div>
           <Button
@@ -1636,7 +1677,11 @@ function SyncedOrderView({ id }: { id: string }) {
                 walletBalance.balance - paymentAmount < -walletBalance.creditLimit) ||
               (paymentMethod !== 'PAYSTACK' && (paymentAmount <= 0 || paymentAmount > remainingBalance + 0.01)))
             }
-            onClick={() => closeOrder.mutate()}
+            onClick={() => {
+              // A very large tip is usually a slip of the finger — ask before sending it.
+              if (effectiveTip > 0 && tipNeedsConfirmation(effectiveTip, orderTotal)) setConfirmTipOpen(true)
+              else closeOrder.mutate({})
+            }}
           >
             {nothingToPay
               ? 'Close Order (No Charge)'
@@ -1648,6 +1693,18 @@ function SyncedOrderView({ id }: { id: string }) {
           </Button>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={confirmTipOpen}
+        onClose={() => setConfirmTipOpen(false)}
+        onConfirm={() => {
+          setConfirmTipOpen(false)
+          closeOrder.mutate({ tipConfirmed: true })
+        }}
+        title="Confirm this tip"
+        description={`The guest is adding a tip of ${formatCurrency(effectiveTip)} to a ${formatCurrency(orderTotal)} bill. Is that right?`}
+        confirmText="Yes, add the tip"
+      />
 
       <Modal isOpen={rewardEarned !== null} onClose={() => setRewardEarned(null)} title="Reward earned">
         <div className="space-y-4">

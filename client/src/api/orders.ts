@@ -35,6 +35,9 @@ export interface CloseOrderData {
   customerEmail?: string
   reference?: string
   notes?: string
+  // A card/transfer tip held for the order's waiter — never part of the bill or `amount`.
+  tipAmount?: number
+  tipConfirmed?: boolean
 }
 
 export interface OrderFilter {

@@ -25,6 +25,8 @@ interface OrderReceiptData {
   serviceChargeApplied?: boolean;
   serviceChargeRate?: number;
   serviceChargeAmount?: number;
+  // A guest's card/transfer tip — its own line below the total, never part of it.
+  tipAmount?: number;
   organization: { name: string; email?: string | null; phone?: string | null; address?: string | null; currency: string };
 }
 
@@ -130,6 +132,12 @@ export class OrderReceiptPdfService {
     doc.font('Helvetica-Bold').fontSize(10);
     this.row(doc, width, 'TOTAL', money(receipt.total));
     doc.font('Helvetica').fontSize(8);
+    if ((receipt.tipAmount ?? 0) > 0) {
+      this.row(doc, width, 'Tip', money(receipt.tipAmount ?? 0));
+      doc.font('Helvetica-Bold');
+      this.row(doc, width, 'TOTAL CHARGED', money(receipt.total + (receipt.tipAmount ?? 0)));
+      doc.font('Helvetica');
+    }
     this.divider(doc, width);
 
     for (const payment of receipt.payments) {
