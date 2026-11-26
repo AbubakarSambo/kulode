@@ -69,7 +69,7 @@ export function DirectDebitChargeForm({ planTier, billingPeriod, priceLabel }: P
         <p className="text-sm font-bold">Make a one-time transfer to confirm your account</p>
         <dl className="space-y-1.5 rounded-xl border p-4 text-sm">
           {[
-            ['Amount', transfer.amount && `₦${transfer.amount}`],
+            ['Amount', `₦${Number(transfer.amount).toLocaleString('en-NG', { minimumFractionDigits: 2 })}`],
             ['Bank', transfer.bankName],
             ['Account number', transfer.accountNumber],
             ['Account name', transfer.accountName],
