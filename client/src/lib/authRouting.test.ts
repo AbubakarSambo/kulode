@@ -32,8 +32,13 @@ describe('getPostAuthRoute', () => {
       expect(getPostAuthRoute(user)).toBe('/dashboard')
     })
 
-    it('lands on /dashboard when the org has BOTH modules enabled', () => {
+    it('lands an admin on the POS dashboard when a restaurant org has BOTH modules', () => {
       const user = makeUser({ roles: ['ADMIN'], organization: { id: 'o1', name: 'Org', slug: 'org', isPaystackVerified: false, enabledModules: 'BOTH' } })
+      expect(getPostAuthRoute(user)).toBe('/pos/dashboard')
+    })
+
+    it('keeps an accountant on the invoicing dashboard when the org has BOTH modules', () => {
+      const user = makeUser({ roles: ['ACCOUNTANT'], organization: { id: 'o1', name: 'Org', slug: 'org', isPaystackVerified: false, enabledModules: 'BOTH' } })
       expect(getPostAuthRoute(user)).toBe('/dashboard')
     })
 

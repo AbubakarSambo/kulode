@@ -1,3 +1,5 @@
+import { navPageTitle } from './navTitle'
+
 // Retail-mode navigation rules, shared by Sidebar.tsx (desktop) and AppLayout.tsx (mobile dock,
 // "More" drawer and page titles) so the two can't drift apart — the same reason posRoleNav.ts exists.
 
@@ -44,8 +46,5 @@ export function retailNavLabel(href: string, fallback: string): string {
 
 /** The retail page title for a path (longest matching href wins, so /pos/payments beats /payments). */
 export function retailPageTitle(path: string): string | undefined {
-  const match = Object.keys(RETAIL_NAV_LABELS)
-    .filter((href) => path === href || path.startsWith(`${href}/`))
-    .sort((a, b) => b.length - a.length)[0]
-  return match && RETAIL_NAV_LABELS[match]
+  return navPageTitle(RETAIL_NAV_LABELS, path)
 }

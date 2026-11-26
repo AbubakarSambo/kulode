@@ -12,6 +12,7 @@ import { useSubscription } from '@/hooks/useSubscription'
 import { useOrgModules, usePosMode } from '@/hooks/useOrgModules'
 import { getRestrictedHrefsUnion } from '@/lib/posRoleNav'
 import { isRetailHidden, retailNavLabel } from '@/lib/retailNav'
+import { RESTAURANT_GROUP_HREFS, RESTAURANT_NAV_LABELS } from '@/lib/restaurantNav'
 import { can, canHoldPin } from '@/lib/permissions'
 import { useLoyaltyOn } from '@/hooks/useLoyaltyOn'
 import type { PlanTier } from '@/types'
@@ -134,10 +135,13 @@ const RETAIL_GROUP_HREFS: { title: string; hrefs: string[] }[] = [
 
 const NAV_ITEMS_BY_HREF = new Map(navigationGroups.flatMap((group) => group.items.map((item) => [item.href, item])))
 
-const retailNavigationGroups = RETAIL_GROUP_HREFS.map(({ title, hrefs }) => ({
-  title,
-  items: hrefs.map((href) => NAV_ITEMS_BY_HREF.get(href)!),
-}))
+function regroup(groups: { title: string; hrefs: string[] }[]) {
+  return groups.map(({ title, hrefs }) => ({ title, items: hrefs.map((href) => NAV_ITEMS_BY_HREF.get(href)!) }))
+}
+
+const retailNavigationGroups = regroup(RETAIL_GROUP_HREFS)
+// Used when a restaurant org also has invoicing — see restaurantNav.ts
+const restaurantNavigationGroups = regroup(RESTAURANT_GROUP_HREFS)
 
 const adminNavigation = [
   { name: 'Users', href: '/settings/users', icon: UserCog },
@@ -206,8 +210,15 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   // file's header comment for the incident history.
   const restrictedHrefsUnion = getRestrictedHrefsUnion(userRoles)
 
+  const isRestaurantWithInvoicing = !isRetail && hasPos && hasInvoicing
+  const baseGroups = isRetail
+    ? retailNavigationGroups
+    : isRestaurantWithInvoicing
+      ? restaurantNavigationGroups
+      : navigationGroups
+
   // Filter groups and items
-  const filteredNavGroups = (isRetail ? retailNavigationGroups : navigationGroups)
+  const permittedNavGroups = baseGroups
     .filter((group) => !POS_NAV_GROUP_TITLES.includes(group.title) || hasPos)
     .map((group) => ({
       ...group,
@@ -237,9 +248,12 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       })
         // Retail names: Sales for the orders list (a retail sale is created and paid in one step),
         // Catalog for inventory, and a distinct name for each of the POS/invoicing look-alikes
-        .map((item) => (isRetail ? { ...item, name: retailNavLabel(item.href, item.name) } : item)),
+        .map((item) => {
+          if (isRetail) return { ...item, name: retailNavLabel(item.href, item.name) }
+          if (isRestaurantWithInvoicing) return { ...item, name: RESTAURANT_NAV_LABELS[item.href] ?? item.name }
+          return item
+        }),
     }))
-    .filter((group) => group.items.length > 0)
 
   // Managers get the Users page (floor staff only) without the rest of the admin configuration.
   // Billing is also open to supervisors and managers, who can start an upgrade (not cancel).
@@ -251,6 +265,15 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         ? canOpenBilling
         : isAdmin,
   )
+
+  // A restaurant with invoicing lists the admin items under "Setup" instead of a separate
+  // "Configuration" block
+  if (isRestaurantWithInvoicing) {
+    permittedNavGroups.find((group) => group.title === 'Setup')!.items.push(
+      ...visibleAdminNavigation.map((item) => ({ ...item, requiresPlan: undefined })),
+    )
+  }
+  const filteredNavGroups = permittedNavGroups.filter((group) => group.items.length > 0)
 
   const handleNavClick = () => {
     if (onClose) onClose()
@@ -310,7 +333,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             <div key={group.title} className="space-y-1">
               <div className={cn(
                 "grid transition-all duration-200 ease-in-out",
-                collapsedPref ? "lg:grid-rows-[0fr] lg:opacity-0" : "grid-rows-[1fr] opacity-100"
+                effectiveCollapsed ? "lg:grid-rows-[0fr] lg:opacity-0" : "grid-rows-[1fr] opacity-100"
               )}>
                 <div className="overflow-hidden">
                   <div className="px-3 pt-3 pb-1 text-[11px] font-bold uppercase tracking-widest text-slate-400 select-none">
@@ -325,6 +348,8 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                     <NavLink
                       key={item.href}
                       to={item.href}
+                      // Otherwise "Settings" stays highlighted on every /settings/* page
+                      end={item.href === '/settings'}
                       onClick={handleNavClick}
                       className={({ isActive }) =>
                         cn(
@@ -362,11 +387,11 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           ))}
 
           {/* Admin Group */}
-          {visibleAdminNavigation.length > 0 && (
+          {visibleAdminNavigation.length > 0 && !isRestaurantWithInvoicing && (
             <div className="space-y-1">
               <div className={cn(
                 "grid transition-all duration-200 ease-in-out",
-                collapsedPref ? "lg:grid-rows-[0fr] lg:opacity-0" : "grid-rows-[1fr] opacity-100"
+                effectiveCollapsed ? "lg:grid-rows-[0fr] lg:opacity-0" : "grid-rows-[1fr] opacity-100"
               )}>
                 <div className="overflow-hidden">
                   <div className="px-3 pt-3 pb-1 text-[11px] font-bold uppercase tracking-widest text-slate-400 select-none">
@@ -413,7 +438,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             <div className="space-y-1">
               <div className={cn(
                 "grid transition-all duration-200 ease-in-out",
-                collapsedPref ? "lg:grid-rows-[0fr] lg:opacity-0" : "grid-rows-[1fr] opacity-100"
+                effectiveCollapsed ? "lg:grid-rows-[0fr] lg:opacity-0" : "grid-rows-[1fr] opacity-100"
               )}>
                 <div className="overflow-hidden">
                   <div className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400/80 select-none">
