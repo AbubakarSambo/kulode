@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { SubscriptionService } from './subscription.service';
-import { SubscribeDto } from './dto';
+import { DirectDebitChargeDto, SubscribeDto } from './dto';
 import { CurrentUser, Roles, Role } from '../../common';
 
 @ApiTags('Subscription')
@@ -61,6 +61,18 @@ export class SubscriptionController {
     @CurrentUser('email') email: string,
   ) {
     return this.subscriptionService.setupDirectDebit(organizationId, email);
+  }
+
+  @Post('direct-debit/charge')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: 'Pay for a plan from a bank account and create the renewal mandate' })
+  @ApiResponse({ status: 201, description: 'Next step: transfer details, a bank approval link, or done' })
+  async chargeDirectDebit(
+    @Body() dto: DirectDebitChargeDto,
+    @CurrentUser('organizationId') organizationId: string,
+    @CurrentUser('email') email: string,
+  ) {
+    return this.subscriptionService.chargeDirectDebit(organizationId, email, dto);
   }
 
   @Delete('direct-debit')
