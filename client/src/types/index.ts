@@ -41,6 +41,8 @@ export interface SubscriptionDetails {
     // Whether the Upgrade page may offer paying the first plan from a bank account.
     bankFirstPaymentEnabled?: boolean
     renewalPending: boolean
+    // Pilot: pay from a bank account and create the renewal mandate in one step.
+    directDebitChargeEnabled?: boolean
   }
   limits: {
     // The API's Infinity (BUSINESS plan, or users during a live trial) arrives as null once

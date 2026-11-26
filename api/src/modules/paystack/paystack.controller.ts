@@ -17,6 +17,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { Request } from 'express';
 import { PaystackService, PaystackTransaction } from './paystack.service';
 import { SubscriptionService } from '../subscription/subscription.service';
+import { isBankDebitPayment, isMandateAuthorization } from '../subscription/bank-debit';
 import { CreateSubaccountDto, VerifyBankAccountDto } from './dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUser, Public, Roles, Role } from '../../common';
@@ -114,8 +115,7 @@ export class PaystackController {
     // Route subscription webhooks to SubscriptionService
     if (result.type === 'subscription' && result.metadata) {
       const { organization_id, plan_tier, billing_period } = result.metadata;
-      const isBankDebit =
-        result.authorization?.channel === 'direct_debit' || result.authorization?.card_type === 'mandate';
+      const isBankDebit = isBankDebitPayment(result.authorization, result.metadata);
       if (organization_id && plan_tier && billing_period) {
         await this.subscriptionService.activateSubscription(
           organization_id,
@@ -130,7 +130,7 @@ export class PaystackController {
           isBankDebit ? undefined : result.authorization?.last4,
           { keepPaymentMethod: isBankDebit },
         );
-        if (isBankDebit) {
+        if (isMandateAuthorization(result.authorization)) {
           await this.subscriptionService.saveBankMandateFromCharge(organization_id, result.authorization, result.customerEmail);
         }
       }

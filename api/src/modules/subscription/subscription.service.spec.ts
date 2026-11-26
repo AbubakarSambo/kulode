@@ -1156,21 +1156,121 @@ describe('SubscriptionService', () => {
     });
   });
 
+  // ─── Direct Debit charge: payment and mandate in one request ──────
+
+  describe('chargeDirectDebit', () => {
+    const dto = {
+      planTier: 'PRO' as const,
+      billingPeriod: 'MONTHLY' as const,
+      accountNumber: '0123456789',
+      bankCode: '057',
+      street: '1 Test Street',
+      city: 'Ikeja',
+      state: 'Lagos',
+      phone: '+2348012345678',
+    };
+    const noMandate = {
+      isTestAccount: true,
+      directDebitStatus: null,
+      directDebitAuthorizationCode: null,
+      directDebitEmail: null,
+      directDebitBankName: null,
+      directDebitAccountLast4: null,
+      directDebitReference: null,
+    };
+    const answer = (body: object) => mockFetch.mockResolvedValue({ json: async () => body });
+    const charge = () => service.chargeDirectDebit(ORG_ID, 'admin@example.com', dto);
+
+    beforeEach(() => {
+      (service as any).directDebitCheckoutOrgIds = [ORG_ID];
+      prisma.user.count.mockResolvedValue(1);
+      prisma.organization.findUnique.mockResolvedValue(noMandate);
+    });
+
+    it('charges the account and marks the mandate pending before calling Paystack', async () => {
+      answer({ status: true, data: { status: 'open_url', redirect_url: 'https://bank.example/approve' } });
+
+      const result = await charge();
+
+      expect(String(mockFetch.mock.calls[0][0])).toMatch(/\/charge$/);
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body).toMatchObject({
+        email: 'admin@example.com',
+        amount: 10000,
+        currency: 'NGN',
+        direct_debit: {
+          account: { number: '0123456789', bank_code: '057' },
+          address: { street: '1 Test Street', city: 'Ikeja', state: 'Lagos' },
+          phone: '+2348012345678',
+        },
+        metadata: { type: 'subscription', organization_id: ORG_ID, payment_flow: 'direct_debit_charge' },
+      });
+      expect(prisma.organization.update).toHaveBeenCalledWith({
+        where: { id: ORG_ID },
+        data: expect.objectContaining({ directDebitStatus: 'PENDING', directDebitEmail: 'admin@example.com', directDebitReference: body.reference }),
+      });
+      expect(prisma.organization.update.mock.invocationCallOrder[0]).toBeLessThan(mockFetch.mock.invocationCallOrder[0]);
+      expect(result).toEqual({ status: 'open_url', reference: body.reference, redirectUrl: 'https://bank.example/approve' });
+    });
+
+    it.each([
+      ['flat', { account_number: '9880218357', bank_name: 'Paystack-Titan', amount: '50.00' }],
+      ['nested', { transferDetails: { account_number: '9880218357', bank_name: 'Paystack-Titan', amount: '50.00' } }],
+    ])('returns the transfer details (%s response)', async (_shape, details) => {
+      answer({ status: true, data: { status: 'pending_bank_transfer', ...details } });
+
+      await expect(charge()).resolves.toMatchObject({
+        status: 'pending_bank_transfer',
+        transfer: { accountNumber: '9880218357', bankName: 'Paystack-Titan', amount: '50.00' },
+      });
+      expect(prisma.organization.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('shows Paystack\'s reason and puts the previous mandate fields back when refused', async () => {
+      answer({ status: false, message: 'Direct debit charge not enabled for bank' });
+
+      await expect(charge()).rejects.toThrow('Direct debit charge not enabled for bank');
+      const { isTestAccount: _ignored, ...previous } = noMandate;
+      expect(prisma.organization.updateMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({ id: ORG_ID, directDebitStatus: 'PENDING' }),
+        data: previous,
+      });
+    });
+
+    it('keeps waiting when Paystack gives no answer, since the request may have gone through', async () => {
+      mockFetch.mockRejectedValue(new Error('network'));
+
+      await expect(charge()).rejects.toThrow(/could not confirm/);
+      expect(prisma.organization.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('does not overwrite an active mandate', async () => {
+      prisma.organization.findUnique.mockResolvedValue({ ...noMandate, directDebitStatus: 'ACTIVE' });
+
+      await expect(charge()).rejects.toThrow(/already linked/);
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(prisma.organization.update).not.toHaveBeenCalled();
+    });
+
+    it('is closed to organizations outside the pilot list', async () => {
+      (service as any).directDebitCheckoutOrgIds = [];
+
+      await expect(charge()).rejects.toThrow(/not available/);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('reports a charge still waiting on the bank as neither paid nor failed', async () => {
+      answer({ status: true, data: { status: 'pending', metadata: { type: 'subscription', organization_id: ORG_ID, payment_flow: 'direct_debit_charge' } } });
+
+      await expect(service.verifyAndActivatePayment(ORG_ID, 'SUB-x')).resolves.toEqual({ activated: false, awaitingBank: true });
+      expect(prisma.organization.update).not.toHaveBeenCalled();
+    });
+  });
+
   // ─── first payment by bank account, with a grace period ───────────
 
   describe('first payment by bank account', () => {
     const okInit = { status: true, data: { authorization_url: 'https://checkout.paystack.com/x', reference: 'ref-bank', access_code: 'ac' } };
-
-    it('opens the Direct Debit channel instead for an org in the pilot list', async () => {
-      (service as any).directDebitCheckoutOrgIds = [ORG_ID];
-      mockFetch.mockResolvedValue({ json: async () => okInit });
-      prisma.user.count.mockResolvedValue(1);
-      prisma.organization.findUnique.mockResolvedValue({ isTestAccount: true });
-
-      await service.subscribe(ORG_ID, 'PRO', 'MONTHLY', 'admin@example.com', 'BANK');
-
-      expect(JSON.parse(mockFetch.mock.calls[0][1].body).channels).toEqual(['direct_debit']);
-    });
 
     it('opens the Bank checkout channel for a monthly plan', async () => {
       mockFetch.mockResolvedValue({ json: async () => okInit });

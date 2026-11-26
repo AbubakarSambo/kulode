@@ -24,6 +24,8 @@ import {
   monthsInBillingPeriod,
   planAmount,
 } from '../../common/plan-limits';
+import { DIRECT_DEBIT_CHARGE_FLOW, isBankDebitPayment, isMandateAuthorization } from './bank-debit';
+import type { DirectDebitChargeDto } from './dto';
 
 @Injectable()
 export class SubscriptionService {
@@ -146,6 +148,8 @@ export class SubscriptionService {
         // Whether the Upgrade page may offer "pay from a bank account" (test accounts always may).
         bankFirstPaymentEnabled: this.bankCheckoutEnabled || org.isTestAccount,
         renewalPending: !!org.pendingRenewalReference,
+        // Pilot: pay from a bank account and create the renewal mandate in one step.
+        directDebitChargeEnabled: this.directDebitCheckoutOrgIds.includes(organizationId),
       },
       limits: {
         maxUsers: maxUsersFor(effectivePlan, org.subscriptionStatus),
@@ -171,17 +175,7 @@ export class SubscriptionService {
       throw new BadRequestException('Invalid plan tier');
     }
 
-    const maxUsers = PLAN_LIMITS[planTier].maxUsers;
-    if (maxUsers !== Infinity) {
-      const activeUsers = await this.prisma.user.count({
-        where: { organizationId, isActive: true },
-      });
-      if (activeUsers > maxUsers) {
-        throw new BadRequestException(
-          `Your organization has ${activeUsers} active users, which exceeds the ${planTier} plan's limit of ${maxUsers}. Deactivate users or choose a higher plan.`,
-        );
-      }
-    }
+    await this.assertSeatsFit(organizationId, planTier);
 
     const org = await this.prisma.organization.findUnique({ where: { id: organizationId }, select: { isTestAccount: true } });
     const amount = planAmount(planTier, billingPeriod, !!org?.isTestAccount);
@@ -209,7 +203,7 @@ export class SubscriptionService {
         amount: amount * 100, // Convert to kobo
         reference,
         callback_url: `${this.callbackUrl}?type=subscription`,
-        channels: payByBank ? (this.directDebitCheckoutOrgIds.includes(organizationId) ? ['direct_debit'] : ['bank']) : ['card'],
+        channels: payByBank ? ['bank'] : ['card'],
         metadata: {
           type: 'subscription',
           organization_id: organizationId,
@@ -244,6 +238,150 @@ export class SubscriptionService {
       reference: data.data.reference,
       accessCode: data.data.access_code,
     };
+  }
+
+  private async assertSeatsFit(organizationId: string, planTier: 'STARTER' | 'PRO' | 'BUSINESS') {
+    const maxUsers = PLAN_LIMITS[planTier].maxUsers;
+    if (maxUsers === Infinity) return;
+    const activeUsers = await this.prisma.user.count({
+      where: { organizationId, isActive: true },
+    });
+    if (activeUsers > maxUsers) {
+      throw new BadRequestException(
+        `Your organization has ${activeUsers} active users, which exceeds the ${planTier} plan's limit of ${maxUsers}. Deactivate users or choose a higher plan.`,
+      );
+    }
+  }
+
+  /**
+   * Pays for a plan from a bank account and creates the renewal mandate in one Paystack charge
+   * (POST /charge with a direct_debit object). What happens next depends on the customer's bank:
+   * a one-time transfer, or approval on the bank's own page. The plan is switched on by the
+   * charge.success webhook, the mandate by direct_debit.authorization.active; nothing is granted
+   * before Paystack confirms the money.
+   */
+  async chargeDirectDebit(organizationId: string, email: string, dto: DirectDebitChargeDto) {
+    if (!this.directDebitCheckoutOrgIds.includes(organizationId)) {
+      throw new BadRequestException('Paying this way is not available for your account yet.');
+    }
+
+    await this.assertSeatsFit(organizationId, dto.planTier);
+
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: {
+        isTestAccount: true,
+        directDebitStatus: true,
+        directDebitAuthorizationCode: true,
+        directDebitEmail: true,
+        directDebitBankName: true,
+        directDebitAccountLast4: true,
+        directDebitReference: true,
+      },
+    });
+    if (!org) throw new BadRequestException('Organization not found');
+    if (org.directDebitStatus === 'ACTIVE') {
+      throw new BadRequestException('A bank account is already linked. Remove it before linking another.');
+    }
+
+    const { isTestAccount, ...previousMandate } = org;
+    const amount = planAmount(dto.planTier, dto.billingPeriod, !!isTestAccount);
+    if (amount > this.directDebitMaxAmount) {
+      throw new BadRequestException(
+        `Paying from a bank account is available for payments up to ${this.directDebitMaxAmount.toLocaleString('en-NG')} naira (monthly plans). Please pay this one by card.`,
+      );
+    }
+    const reference = `SUB-${organizationId.slice(0, 8)}-${Date.now()}`;
+
+    // Saved before calling Paystack: the mandate webhooks are matched to an org by these, and can
+    // arrive before the charge call returns.
+    await this.prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        directDebitStatus: 'PENDING',
+        directDebitEmail: email,
+        directDebitReference: reference,
+        directDebitAuthorizationCode: null,
+        directDebitBankName: null,
+        directDebitAccountLast4: null,
+      },
+    });
+    const restorePreviousMandate = () =>
+      // Only if nothing else (a webhook) has moved it on in the meantime.
+      this.prisma.organization.updateMany({
+        where: { id: organizationId, directDebitReference: reference, directDebitStatus: 'PENDING' },
+        data: previousMandate,
+      });
+
+    const result = await fetch(`${this.paystackBaseUrl}/charge`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.paystackSecretKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        amount: amount * 100, // Convert to kobo
+        currency: 'NGN',
+        reference,
+        direct_debit: {
+          account: { number: dto.accountNumber, bank_code: dto.bankCode },
+          address: { street: dto.street, city: dto.city, state: dto.state },
+          phone: dto.phone,
+        },
+        metadata: {
+          type: 'subscription',
+          organization_id: organizationId,
+          plan_tier: dto.planTier,
+          billing_period: dto.billingPeriod,
+          payment_method: 'BANK',
+          payment_flow: DIRECT_DEBIT_CHARGE_FLOW,
+        },
+      }),
+    })
+      .then((r) => r.json())
+      .catch(() => null);
+
+    // No answer says nothing about whether Paystack took the request, so keep waiting for webhooks.
+    if (!result) {
+      throw new BadRequestException(`We could not confirm the request with Paystack. Check Billing again shortly before retrying (reference ${reference}).`);
+    }
+
+    const data = result.data ?? {};
+    const status: string | undefined = data.status;
+    // Never log the request: it holds the account number.
+    this.logger.log(`Direct debit charge for org ${organizationId} (${reference}): status=${status ?? 'none'}`);
+
+    if (result.status && status === 'open_url' && data.redirect_url) {
+      return { status: 'open_url' as const, reference, redirectUrl: data.redirect_url as string };
+    }
+
+    if (result.status && status === 'pending_bank_transfer') {
+      const transfer = data.transferDetails ?? data;
+      if (transfer.account_number) {
+        return {
+          status: 'pending_bank_transfer' as const,
+          reference,
+          transfer: {
+            accountNumber: String(transfer.account_number),
+            accountName: (transfer.account_name as string | undefined) ?? null,
+            bankName: (transfer.bank_name as string | undefined) ?? null,
+            amount: transfer.amount != null ? String(transfer.amount) : null,
+          },
+        };
+      }
+      this.logger.error(`Direct debit charge ${reference} asked for a transfer without an account; keys=${Object.keys(data).join(',')}`);
+      throw new BadRequestException(`Paystack did not return the account to transfer to (reference ${reference}).`);
+    }
+
+    if (result.status && (status === 'success' || status === 'processing' || status === 'pending')) {
+      return { status: status === 'success' ? ('success' as const) : ('processing' as const), reference };
+    }
+
+    await restorePreviousMandate();
+    const reason: string = data.gateway_response || data.message || result.message || 'Paystack refused the request';
+    this.logger.warn(`Direct debit charge refused for org ${organizationId} (${reference}): ${reason}`);
+    throw new BadRequestException(reason);
   }
 
   async activateSubscription(
@@ -860,6 +998,14 @@ export class SubscriptionService {
     // "processing"). That is not a failure — see grantBankPaymentGrace.
     const processing = !!result.status && status === 'processing';
 
+    // A Direct Debit charge waits on the customer's bank: not paid yet, but not failed either.
+    const awaitingBank =
+      !!result.status &&
+      (status === 'pending' || status === 'ongoing') &&
+      result.data?.metadata?.payment_flow === DIRECT_DEBIT_CHARGE_FLOW &&
+      result.data?.metadata?.organization_id === organizationId;
+    if (awaitingBank) return { activated: false, awaitingBank: true };
+
     if (!paid && !processing) {
       throw new BadRequestException('Payment verification failed');
     }
@@ -888,7 +1034,7 @@ export class SubscriptionService {
       };
     }
 
-    const isBankDebit = authorization?.channel === 'direct_debit' || authorization?.card_type === 'mandate';
+    const isBankDebit = isBankDebitPayment(authorization, metadata);
     await this.activateSubscription(
       organizationId,
       metadata.plan_tier,
@@ -901,7 +1047,7 @@ export class SubscriptionService {
       isBankDebit ? undefined : authorization?.last4,
       { keepPaymentMethod: isBankDebit },
     );
-    if (isBankDebit) await this.saveBankMandateFromCharge(organizationId, authorization, customer?.email);
+    if (isMandateAuthorization(authorization)) await this.saveBankMandateFromCharge(organizationId, authorization, customer?.email);
 
     return { activated: true, planTier: metadata.plan_tier, billingPeriod: metadata.billing_period };
   }

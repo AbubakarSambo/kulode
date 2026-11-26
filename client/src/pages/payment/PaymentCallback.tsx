@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui'
 import apiClient from '@/api/client'
 import { posthog } from '@/lib/posthog'
 
-type PaymentStatus = 'loading' | 'success' | 'failed' | 'processing' | 'unconfirmed'
+type PaymentStatus = 'loading' | 'success' | 'failed' | 'processing' | 'awaiting-bank' | 'unconfirmed'
 
 // Verification can fail for reasons that say nothing about the payment (network blip, expired
 // session, server error). Retry a few times, then say plainly that we could not confirm it —
@@ -33,7 +33,9 @@ export function PaymentCallbackPage() {
   const [details, setDetails] = useState<VerificationResult | null>(null)
 
   const reference = searchParams.get('reference') || searchParams.get('trxref')
-  const isSubscription = searchParams.get('type') === 'subscription'
+  // A bank's approval page returns to the callback URL set on the Paystack dashboard, which carries no
+  // type, so subscription payments are also recognised by their reference.
+  const isSubscription = searchParams.get('type') === 'subscription' || !!reference?.startsWith('SUB-')
   // Linking a bank account takes no payment, so there is nothing to verify here: the bank confirms
   // the mandate in its own time and Paystack tells our server when it is ready.
   const isDirectDebit = searchParams.get('type') === 'direct_debit'
@@ -54,7 +56,10 @@ export function PaymentCallbackPage() {
             const response = await apiClient.post('/subscription/verify-payment', { reference })
             // A bank-account payment is still settling: the plan is switched on for a short grace
             // and confirms by itself once the bank completes the debit.
-            if (response?.data?.data?.pending) {
+            if (response?.data?.data?.awaitingBank) {
+              setStatus('awaiting-bank')
+              posthog.capture('subscription_bank_payment_awaiting', { reference })
+            } else if (response?.data?.data?.pending) {
               setStatus('processing')
               posthog.capture('subscription_bank_payment_processing', { reference })
             } else {
@@ -146,6 +151,23 @@ export function PaymentCallbackPage() {
               <p className="mt-6 text-sm">
                 <a href="/dashboard" className="font-medium text-primary hover:underline">
                   Go to Dashboard
+                </a>
+              </p>
+            </div>
+          )}
+
+          {status === 'awaiting-bank' && (
+            <div className="text-center">
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-warning/10">
+                <Loader2 className="h-12 w-12 text-warning" />
+              </div>
+              <h1 className="mt-4 text-2xl font-semibold">Waiting for your bank</h1>
+              <p className="mt-2 text-muted-foreground">
+                Your plan switches on once your bank confirms the payment. You don't need to pay again.
+              </p>
+              <p className="mt-6 text-sm">
+                <a href="/settings/billing" className="font-medium text-primary hover:underline">
+                  Back to Billing
                 </a>
               </p>
             </div>

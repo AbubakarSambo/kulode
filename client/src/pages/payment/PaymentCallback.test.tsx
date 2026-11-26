@@ -47,6 +47,18 @@ describe('PaymentCallbackPage', () => {
     expect(screen.getByText(/within 24 hours/)).toBeInTheDocument()
   })
 
+  it('treats a return from a bank approval page, with no type, as a subscription still waiting on the bank', async () => {
+    ;(apiClient.post as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { data: { activated: false, awaitingBank: true } } })
+    render(
+      <MemoryRouter initialEntries={['/payment/callback?trxref=SUB-9&reference=SUB-9']}>
+        <PaymentCallbackPage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('Waiting for your bank')).toBeInTheDocument()
+    expect(apiClient.post).toHaveBeenCalledWith('/subscription/verify-payment', { reference: 'SUB-9' })
+  })
+
   describe('when verification errors', () => {
     const post = () => apiClient.post as ReturnType<typeof vi.fn>
     const renderSub = () =>
