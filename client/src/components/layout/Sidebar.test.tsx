@@ -17,6 +17,9 @@ vi.mock('@/stores/auth', () => ({
 
 const mockSwitchUser = vi.fn()
 
+const mockLoyaltyOn = vi.fn(() => false)
+vi.mock('@/hooks/useLoyaltyOn', () => ({ useLoyaltyOn: () => mockLoyaltyOn() }))
+
 vi.mock('@/hooks', () => ({
   useLogout: () => mockLogout,
   useSwitchUser: () => mockSwitchUser,
@@ -478,5 +481,15 @@ describe('Sidebar', () => {
     for (const hidden of ['Money', 'Invoicing', 'Setup', 'Invoices', 'Settings']) {
       expect(screen.queryByText(hidden)).not.toBeInTheDocument()
     }
+  })
+
+  it.each(['RESTAURANT', 'RETAIL'])('lists Loyalty for a %s org with the programme on', (posMode) => {
+    mockUseAuthStore.mockReturnValue({ ...adminUser, organization: { enabledModules: 'BOTH', posMode } })
+    mockUseSubscription.mockReturnValue({ hasRequiredPlan: () => true })
+    mockLoyaltyOn.mockReturnValue(true)
+
+    renderSidebar()
+
+    expect(screen.getByText('Loyalty').closest('a')).toHaveAttribute('href', '/pos/loyalty')
   })
 })

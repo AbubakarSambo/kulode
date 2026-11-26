@@ -20,6 +20,7 @@ import {
   KeyRound,
   Package,
   Trophy,
+  Gift,
 } from 'lucide-react'
 import {
   DashboardIcon,
@@ -52,6 +53,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useLogout, useSwitchUser, useIdleLogout } from '@/hooks'
 import { useSubscription } from '@/hooks/useSubscription'
 import { useOrgModules, usePosMode } from '@/hooks/useOrgModules'
+import { useLoyaltyOn } from '@/hooks/useLoyaltyOn'
 import { cn } from '@/lib/utils'
 import { isPinEligible } from '@/lib/pin'
 import { can, canHoldPin } from '@/lib/permissions'
@@ -77,6 +79,7 @@ export function AppLayout() {
   const { hasRequiredPlan } = useSubscription()
   const { hasPos, hasInvoicing } = useOrgModules()
   const { isRetail } = usePosMode()
+  const loyaltyOn = useLoyaltyOn()
   const isRestaurantWithInvoicing = !isRetail && hasPos && hasInvoicing
   // With both modules the till comes first: it takes the dock, and invoicing moves into More
   const posFirst = hasInvoicing && (isRetail || hasPos)
@@ -116,6 +119,7 @@ export function AppLayout() {
     if (path.startsWith('/pos/drinks')) return 'Drinks'
     if (path.startsWith('/pos/reports')) return 'POS Reports'
     if (path.startsWith('/pos/leaderboard')) return 'Leaderboard'
+    if (path.startsWith('/pos/loyalty')) return 'Loyalty'
     if (path.startsWith('/pos/waiters')) return 'Waiters'
     if (path.startsWith('/pos/shift')) return 'Shift'
     if (path.startsWith('/pos/order')) return 'Order'
@@ -258,6 +262,7 @@ export function AppLayout() {
         { name: 'Reports', href: '/reports', icon: ReportsIcon, requiresPlan: 'PRO' as PlanTier, visible: canViewReports && hasInvoicing },
         { name: 'POS Reports', href: '/pos/reports', icon: ReportsIcon, visible: hasPos },
         { name: 'Leaderboard', href: '/pos/leaderboard', icon: Trophy, visible: hasPos && !isRetail && can(user, 'LEADERBOARD_VIEW') },
+        { name: 'Loyalty', href: '/pos/loyalty', icon: Gift, visible: hasPos && can(user, 'LOYALTY_REPORT') && loyaltyOn },
         { name: 'AI Chat', href: '/ai-chat', icon: AiChatIcon, requiresPlan: 'PRO' as PlanTier, visible: canViewReports && hasInvoicing },
         { name: 'AI Chat', href: '/pos/ai-chat', icon: AiChatIcon, requiresPlan: 'PRO' as PlanTier, visible: hasPos && isAdmin },
         { name: 'Payments', href: '/pos/payments', icon: CreditCard, visible: hasPos && can(user, 'POS_PAYMENTS_VIEW') },
