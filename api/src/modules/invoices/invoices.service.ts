@@ -215,6 +215,36 @@ export class InvoicesService {
     };
   }
 
+  /**
+   * Sets each dish line's stock link from the menu, ignoring whatever the client sent: a dish tied to
+   * one whole stock item is reserved and deducted like a product, while a recipe dish carries no
+   * inventoryItemId and has its ingredients deducted on payment. Same precedence as POS orders.
+   */
+  private async resolveItems<T extends { menuItemId?: string; serviceItemId?: string; inventoryItemId?: string }>(
+    organizationId: string,
+    items: T[],
+  ): Promise<(T & { serviceItemId?: string; inventoryItemId?: string })[]> {
+    const ids = [...new Set(items.flatMap((item) => (item.menuItemId ? [item.menuItemId] : [])))];
+    if (ids.length === 0) return items;
+
+    const menuItems = await this.prisma.menuItem.findMany({
+      where: { id: { in: ids }, organizationId },
+      select: { id: true, inventoryItemId: true, ingredients: { select: { id: true } } },
+    });
+    const byId = new Map(menuItems.map((menuItem) => [menuItem.id, menuItem]));
+
+    return items.map((item) => {
+      if (!item.menuItemId) return item;
+      const menuItem = byId.get(item.menuItemId);
+      if (!menuItem) throw new BadRequestException('Menu item not found');
+      return {
+        ...item,
+        serviceItemId: undefined,
+        inventoryItemId: menuItem.ingredients.length ? undefined : (menuItem.inventoryItemId ?? undefined),
+      };
+    });
+  }
+
   async create(organizationId: string, userId: string, dto: CreateInvoiceDto) {
     // Verify client belongs to organization
     const client = await this.prisma.client.findFirst({
@@ -277,13 +307,15 @@ export class InvoicesService {
     const invoiceNumber = await this.generateInvoiceNumber(organizationId, organization!.invoicePrefix);
 
     // Calculate totals
-    const items = dto.items.map((item) => ({
+    const resolvedItems = await this.resolveItems(organizationId, dto.items);
+    const items = resolvedItems.map((item) => ({
       description: item.description || '',
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       amount: item.quantity * item.unitPrice,
       ...(item.serviceItemId && { serviceItemId: item.serviceItemId }),
       ...(item.inventoryItemId && { inventoryItemId: item.inventoryItemId }),
+      ...(item.menuItemId && { menuItemId: item.menuItemId }),
     }));
 
     const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
@@ -348,7 +380,7 @@ export class InvoicesService {
       });
 
       // Reserve inventory for items with inventoryItemId
-      const inventoryItems = dto.items
+      const inventoryItems = resolvedItems
         .filter((item) => item.inventoryItemId)
         .map((item) => ({ inventoryItemId: item.inventoryItemId!, quantity: item.quantity }));
 
@@ -406,6 +438,8 @@ export class InvoicesService {
     const discountChanged = typeof dto.discountPercent === 'number' || dto.discountType !== undefined;
 
     if (dto.items && dto.items.length > 0) {
+      const resolvedItems = await this.resolveItems(organizationId, dto.items);
+
       // Release existing inventory reservations, delete items, create new ones, re-reserve
       await this.prisma.$transaction(async (tx) => {
         // Release old inventory reservations
@@ -414,7 +448,7 @@ export class InvoicesService {
         // Delete existing items and create new ones
         await tx.invoiceItem.deleteMany({ where: { invoiceId: id } });
 
-        const items = dto.items!.map((item) => ({
+        const items = resolvedItems.map((item) => ({
           invoiceId: id,
           description: item.description || '',
           quantity: item.quantity || 1,
@@ -422,6 +456,7 @@ export class InvoicesService {
           amount: (item.quantity || 1) * (item.unitPrice || 0),
           ...(item.serviceItemId && { serviceItemId: item.serviceItemId }),
           ...(item.inventoryItemId && { inventoryItemId: item.inventoryItemId }),
+          ...(item.menuItemId && { menuItemId: item.menuItemId }),
         }));
 
         await tx.invoiceItem.createMany({ data: items });
@@ -451,7 +486,7 @@ export class InvoicesService {
         await tx.invoice.update({ where: { id }, data: updateData });
 
         // Re-reserve inventory for new items
-        const inventoryItems = dto.items!
+        const inventoryItems = resolvedItems
           .filter((item) => item.inventoryItemId)
           .map((item) => ({ inventoryItemId: item.inventoryItemId!, quantity: item.quantity || 1 }));
 
@@ -777,39 +812,63 @@ export class InvoicesService {
     issueDate.setHours(0, 0, 0, 0);
     const dueDate = new Date(issueDate.getTime() + originalDurationMs);
 
-    const newInvoice = await this.prisma.invoice.create({
-      data: {
-        organizationId,
-        clientId: source.clientId,
-        createdById: userId,
-        invoiceNumber,
-        issueDate,
-        dueDate,
-        subtotal: source.subtotal,
-        discountType: source.discountType,
-        discountPercent: source.discountPercent,
-        discountAmount: source.discountAmount,
-        taxRate: source.taxRate,
-        taxAmount: source.taxAmount,
-        total: source.total,
-        notes: source.notes,
-        terms: source.terms,
-        shareToken: randomBytes(16).toString('hex'),
-        status: 'DRAFT',
-        items: {
-          create: source.items.map((item) => ({
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            amount: item.amount,
-            ...(item.serviceItemId && { serviceItemId: item.serviceItemId }),
-          })),
+    // A copied dish picks up its current stock link, and reserves it like a new invoice would
+    const menuLines = await this.resolveItems(
+      organizationId,
+      source.items.flatMap((item) =>
+        item.menuItemId ? [{ menuItemId: item.menuItemId, quantity: Number(item.quantity) }] : [],
+      ),
+    );
+    const stockByMenuItemId = new Map(menuLines.map((line) => [line.menuItemId, line.inventoryItemId]));
+
+    const newInvoice = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.invoice.create({
+        data: {
+          organizationId,
+          clientId: source.clientId,
+          createdById: userId,
+          invoiceNumber,
+          issueDate,
+          dueDate,
+          subtotal: source.subtotal,
+          discountType: source.discountType,
+          discountPercent: source.discountPercent,
+          discountAmount: source.discountAmount,
+          taxRate: source.taxRate,
+          taxAmount: source.taxAmount,
+          total: source.total,
+          notes: source.notes,
+          terms: source.terms,
+          shareToken: randomBytes(16).toString('hex'),
+          status: 'DRAFT',
+          items: {
+            create: source.items.map((item) => ({
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              amount: item.amount,
+              ...(item.serviceItemId && { serviceItemId: item.serviceItemId }),
+              ...(item.menuItemId && {
+                menuItemId: item.menuItemId,
+                inventoryItemId: stockByMenuItemId.get(item.menuItemId),
+              }),
+            })),
+          },
         },
-      },
-      include: {
-        client: true,
-        items: true,
-      },
+        include: {
+          client: true,
+          items: true,
+        },
+      });
+
+      const reservations = menuLines.flatMap((line) =>
+        line.inventoryItemId ? [{ inventoryItemId: line.inventoryItemId, quantity: line.quantity }] : [],
+      );
+      if (reservations.length > 0) {
+        await this.inventoryService.reserveForInvoice(tx, created.id, organizationId, reservations);
+      }
+
+      return created;
     });
 
     return newInvoice;

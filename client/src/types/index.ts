@@ -292,6 +292,7 @@ export interface InvoiceItem {
   id?: string
   serviceItemId?: string
   inventoryItemId?: string
+  menuItemId?: string
   description: string
   quantity: number
   unitPrice: number
