@@ -18,6 +18,7 @@ import { Header } from '@/components/layout'
 import { Card, CardContent, Badge } from '@/components/ui'
 import { subscriptionApi } from '@/api/subscription'
 import { DirectDebitChargeForm } from './DirectDebitChargeForm'
+import { renewalWording } from '@/lib/renewalWording'
 import { useSubscription } from '@/hooks/useSubscription'
 import { Modal } from '@/components/shared'
 import { cn } from '@/lib/utils'
@@ -74,6 +75,7 @@ export function BillingPage() {
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [subscribingPlan, setSubscribingPlan] = useState<PlanTier | null>(null)
   const [payWith, setPayWith] = useState<'CARD' | 'BANK'>('CARD')
+  const renewal = renewalWording(subscription)
 
   const { data: paymentHistory } = useQuery({
     queryKey: ['subscription', 'payment-history'],
@@ -284,7 +286,7 @@ export function BillingPage() {
                         {subscription.subscriptionStatus === 'TRIALING' 
                           ? 'No credit card required for trial'
                           : subscription.subscriptionStatus === 'ACTIVE' 
-                            ? 'Secure card authorization saved via Paystack'
+                            ? renewal.authorization
                             : 'No payment token active'}
                       </p>
                     </div>
@@ -365,15 +367,15 @@ export function BillingPage() {
             <CardContent className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="space-y-1 max-w-xl">
                 <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                  <span>Automatic Card Renewals</span>
+                  <span>Automatic Renewals</span>
                   <Badge className={cn("text-[9px] font-bold px-2 py-0.5 border-0", autoRenew ? "bg-[#6ffbbe] text-[#006c49]" : "bg-slate-100 text-slate-500")}>
                     {autoRenew ? 'Enabled' : 'Disabled'}
                   </Badge>
                 </h4>
                 <p className="text-xs text-slate-500 leading-relaxed font-medium">
                   {autoRenew
-                    ? 'Your connected credit card will be automatically charged on each renewal cycle to keep services active.'
-                    : 'Auto-renewal is disabled. We will not charge your card. You will need to manually subscribe on the expiration date to prevent lockout.'}
+                    ? renewal.enabled
+                    : renewal.disabled}
                 </p>
               </div>
               <button
@@ -400,15 +402,14 @@ export function BillingPage() {
           const pm = subscription.paymentMethods
           const dd = pm.directDebit
           const bankLabel = dd?.bankName ? `${dd.bankName}${dd.last4 ? ` •••• ${dd.last4}` : ''}` : 'Your bank account'
-          const annualOnCard = subscription.billingPeriod !== 'MONTHLY'
           return (
             <Card className="rounded-[24px] border-0 shadow-[0_12px_32px_rgba(0,55,176,0.04)] overflow-hidden">
               <CardContent className="p-6 space-y-5">
                 <div className="space-y-1">
                   <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">Renewal payment method</h4>
                   <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                    Link a bank account and we will take monthly renewals from it. If a debit ever fails, we fall back to your card.
-                    {' '}Annual plans (over {formatAmount(pm.directDebitMaxAmount)}) always renew from your card.
+                    Link a bank account and we will take monthly renewals from it. If you also have a card saved, we fall back to it when a debit fails.
+                    {' '}Longer plans (over {formatAmount(pm.directDebitMaxAmount)}) can only renew from a card.
                   </p>
                 </div>
 
@@ -460,7 +461,7 @@ export function BillingPage() {
                       <>
                         <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{bankLabel}</p>
                         <Badge className="bg-[#6ffbbe] text-[#006c49] text-[9px] font-bold px-2 py-0.5 border-0">
-                          {annualOnCard ? 'Active · this term is paid by card' : 'Active · used for renewals'}
+                          {renewal.useBank ? 'Active · used for renewals' : 'Active · not used for this term'}
                         </Badge>
                         <div>
                           <button
@@ -741,7 +742,7 @@ export function BillingPage() {
             <div className="space-y-2">
               <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Are you absolutely sure?</h3>
               <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                By cancelling your subscription, your card will not be automatically billed again. You will continue to maintain access to your plan benefits until the end of the current billing cycle, after which your account limits will expire and trigger a locking page.
+                By cancelling your subscription, you will not be billed automatically again. You will continue to maintain access to your plan benefits until the end of the current billing cycle, after which your account limits will expire and trigger a locking page.
               </p>
             </div>
             <div className="flex justify-end gap-3 pt-2">
