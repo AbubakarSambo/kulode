@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { SubscriptionService } from './subscription.service';
+import { describeResponseShape } from './transfer-details';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 
@@ -1214,16 +1215,35 @@ describe('SubscriptionService', () => {
     });
 
     it.each([
-      ['flat', { account_number: '9880218357', bank_name: 'Paystack-Titan', amount: '50.00' }],
-      ['nested', { transferDetails: { account_number: '9880218357', bank_name: 'Paystack-Titan', amount: '50.00' } }],
-    ])('returns the transfer details (%s response)', async (_shape, details) => {
+      ['flat, in kobo', { account_number: '9933250004', bank_name: 'Paystack-Titan', amount: '10000' }, '100.00'],
+      ['flat, bank as an object', { account_number: '9933250004', bank: { name: 'Paystack-Titan' }, amount: 10000 }, '100.00'],
+      ['nested, in naira', { transferDetails: { account_number: '9933250004', bank_name: 'Paystack-Titan', amount: '50.00' } }, '50.00'],
+    ])('returns the transfer details with the amount in naira (%s)', async (_shape, details, naira) => {
       answer({ status: true, data: { status: 'pending_bank_transfer', ...details } });
 
       await expect(charge()).resolves.toMatchObject({
         status: 'pending_bank_transfer',
-        transfer: { accountNumber: '9880218357', bankName: 'Paystack-Titan', amount: '50.00' },
+        transfer: { accountNumber: '9933250004', bankName: 'Paystack-Titan', amount: naira },
       });
       expect(prisma.organization.updateMany).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['no bank', { account_number: '9933250004', amount: '10000' }],
+      ['no amount', { account_number: '9933250004', bank_name: 'Paystack-Titan' }],
+      ['no account', { bank_name: 'Paystack-Titan', amount: '10000' }],
+    ])('never shows a partial transfer instruction (%s)', async (_missing, details) => {
+      answer({ status: true, data: { status: 'pending_bank_transfer', ...details } });
+
+      await expect(charge()).rejects.toThrow(/do not send any money/);
+      // The charge exists at Paystack, so the mandate stays pending for its webhooks.
+      expect(prisma.organization.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('describes an unreadable response without the values of customer fields', () => {
+      expect(
+        describeResponseShape({ amount: 10000, recipient: { bankLabel: 'x', bank_name: 'Titan' }, customer: { email: 'a@b.com' } }),
+      ).toEqual(['amount=10000', 'recipient.bankLabel', 'recipient.bank_name=Titan', 'customer.email']);
     });
 
     it('shows Paystack\'s reason and puts the previous mandate fields back when refused', async () => {

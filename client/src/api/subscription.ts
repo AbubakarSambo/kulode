@@ -17,7 +17,7 @@ export type DirectDebitChargeResult =
   | {
       status: 'pending_bank_transfer'
       reference: string
-      transfer: { accountNumber: string; accountName: string | null; bankName: string | null; amount: string | null }
+      transfer: { accountNumber: string; accountName: string | null; bankName: string; amount: string }
     }
   | { status: 'success' | 'processing'; reference: string }
 
