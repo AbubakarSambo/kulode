@@ -26,11 +26,12 @@ import {
 import { Header } from '@/components/layout'
 import { Button, Input, Label, Textarea, Card, CardContent, CardHeader, CardTitle, DatePicker } from '@/components/ui'
 import { PhoneInput } from '@/components/ui/phone-input'
-import { clientsApi, invoicesApi, organizationsApi, inventoryApi } from '@/api'
+import { clientsApi, invoicesApi, organizationsApi, inventoryApi, menuItemsApi } from '@/api'
 import type { CreateInventoryItemData } from '@/api/inventory'
 import { cn, formatCurrency } from '@/lib/utils'
 import { posthog } from '@/lib/posthog'
-import type { Client, ServiceItem, InventoryItem, Organization } from '@/types'
+import type { Client, ServiceItem, InventoryItem, MenuItem, Organization } from '@/types'
+import { useOrgModules, usePosMode } from '@/hooks/useOrgModules'
 
 function CreateClientModal({
   isOpen,
@@ -797,17 +798,25 @@ function ClientCombobox({
   )
 }
 
+type ItemSelection =
+  | { kind: 'service'; id: string; item?: ServiceItem }
+  | { kind: 'inventory'; id: string; item?: InventoryItem }
+  | { kind: 'menu'; id: string; item: MenuItem }
+  | { kind: 'custom' }
+
 function ItemCombobox({
   serviceItems,
   inventoryItems,
+  menuItems,
   onSelect,
   value,
   onCreateItemClick,
 }: {
   serviceItems: ServiceItem[]
   inventoryItems: InventoryItem[]
-  onSelect: (selection: { kind: 'service'; id: string; item?: ServiceItem } | { kind: 'inventory'; id: string; item?: InventoryItem } | { kind: 'custom' }) => void
-  value?: { serviceItemId?: string; inventoryItemId?: string }
+  menuItems: MenuItem[]
+  onSelect: (selection: ItemSelection) => void
+  value?: { serviceItemId?: string; inventoryItemId?: string; menuItemId?: string }
   onCreateItemClick: (kind: 'service' | 'inventory', initialName: string) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -826,6 +835,11 @@ function ItemCombobox({
 
   const selected = (() => {
     if (!value) return null
+    // First: a dish linked to a stock item carries both ids once saved
+    if (value.menuItemId) {
+      const item = menuItems.find(i => i.id === value.menuItemId)
+      return item ? { kind: 'menu' as const, item } : null
+    }
     if (value.serviceItemId) {
       const item = serviceItems.find(i => i.id === value.serviceItemId)
       return item ? { kind: 'service' as const, item } : null
@@ -840,12 +854,12 @@ function ItemCombobox({
   const q = query.toLowerCase()
   const filteredServices = serviceItems.filter((i) => i.name.toLowerCase().includes(q))
   const filteredInventory = inventoryItems.filter((i) => i.name.toLowerCase().includes(q))
-  const hasResults = filteredServices.length > 0 || filteredInventory.length > 0
+  // Dishes off today's menu are left out
+  const filteredMenu = menuItems.filter((i) => i.isAvailable && i.name.toLowerCase().includes(q))
+  const hasResults = filteredServices.length > 0 || filteredInventory.length > 0 || filteredMenu.length > 0
 
   const selectedLabel = selected
-    ? selected.kind === 'service'
-      ? `${selected.item.name} — ${formatCurrency(selected.item.unitPrice)}`
-      : `${selected.item.name} — ${formatCurrency((selected.item as InventoryItem).unitPrice)}`
+    ? `${selected.item.name} — ${formatCurrency(selected.kind === 'menu' ? selected.item.price : selected.item.unitPrice)}`
     : null
 
   function startCreating(kind: 'service' | 'inventory') {
@@ -881,6 +895,34 @@ function ItemCombobox({
             />
           </div>
           <div className="max-h-64 overflow-y-auto p-1.5 space-y-0.5">
+            {filteredMenu.length > 0 && (
+              <>
+                <p className="px-3.5 py-1.5 text-[10px] font-bold text-slate-450 uppercase tracking-widest select-none text-left">
+                  Menu
+                </p>
+                {filteredMenu.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      onSelect({ kind: 'menu', id: item.id, item })
+                      setOpen(false)
+                      setQuery('')
+                    }}
+                    className={cn(
+                      "flex w-full items-center justify-between rounded-lg px-3.5 py-2.5 text-xs transition-colors hover:bg-slate-50 cursor-pointer text-left border-0 bg-transparent",
+                      value?.menuItemId === item.id && "bg-[#0037b0]/5 text-[#0037b0] font-semibold"
+                    )}
+                  >
+                    <span className="font-bold text-slate-800 truncate max-w-[200px]">{item.name}</span>
+                    <span className="text-[#0037b0] font-bold bg-[#eef4ff] px-2.5 py-1 rounded-full text-[10px] tabular-nums shrink-0 ml-2">
+                      {formatCurrency(item.price)}
+                    </span>
+                  </button>
+                ))}
+              </>
+            )}
+
             {filteredServices.length > 0 && (
               <>
                 <p className="px-3.5 py-1.5 text-[10px] font-bold text-slate-450 uppercase tracking-widest flex items-center gap-1.5 select-none text-left">
@@ -997,6 +1039,7 @@ function ItemCombobox({
 const invoiceItemSchema = z.object({
   serviceItemId: z.string().optional(),
   inventoryItemId: z.string().optional(),
+  menuItemId: z.string().optional(),
   description: z.string(),
   quantity: z.number().min(0.01, 'Quantity must be greater than 0'),
   unitPrice: z.number().min(0, 'Price must be 0 or greater'),
@@ -1059,6 +1102,15 @@ export function NewInvoicePage() {
     queryFn: () => inventoryApi.list(),
   })
 
+  // Restaurants can bill their dishes, e.g. for a catering job
+  const { hasPos } = useOrgModules()
+  const { isRestaurant } = usePosMode()
+  const { data: menuItems } = useQuery({
+    queryKey: ['menu-items', 'all'],
+    queryFn: () => menuItemsApi.list(),
+    enabled: hasPos && isRestaurant,
+  })
+
   const { data: organization } = useQuery({
     queryKey: ['organization'],
     queryFn: () => organizationsApi.getCurrent(),
@@ -1084,7 +1136,7 @@ export function NewInvoicePage() {
       clientId: preselectedClientId,
       issueDate: new Date().toISOString().split('T')[0],
       dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      items: [{ serviceItemId: undefined, inventoryItemId: undefined, description: '', quantity: 1, unitPrice: 0 }],
+      items: [{ serviceItemId: undefined, inventoryItemId: undefined, menuItemId: undefined, description: '', quantity: 1, unitPrice: 0 }],
       discountType: 'PERCENTAGE',
       discountPercent: 0,
       installments: [],
@@ -1135,8 +1187,18 @@ export function NewInvoicePage() {
 
   const handleItemSelect = (
     index: number,
-    selection: { kind: 'service'; id: string; item?: ServiceItem } | { kind: 'inventory'; id: string; item?: InventoryItem } | { kind: 'custom' },
+    selection: ItemSelection,
   ) => {
+    if (selection.kind === 'menu') {
+      setValue(`items.${index}.menuItemId`, selection.item.id)
+      setValue(`items.${index}.serviceItemId`, undefined)
+      setValue(`items.${index}.inventoryItemId`, undefined)
+      setValue(`items.${index}.description`, selection.item.name)
+      setValue(`items.${index}.unitPrice`, selection.item.price)
+      if (!getValues(`items.${index}.quantity`)) setValue(`items.${index}.quantity`, 1)
+      return
+    }
+    setValue(`items.${index}.menuItemId`, undefined)
     if (selection.kind === 'custom') {
       setValue(`items.${index}.serviceItemId`, undefined)
       setValue(`items.${index}.inventoryItemId`, undefined)
@@ -1206,6 +1268,7 @@ export function NewInvoicePage() {
         items: data.items.map(item => ({
           serviceItemId: item.serviceItemId,
           inventoryItemId: item.inventoryItemId,
+          menuItemId: item.menuItemId,
           description: item.description,
           quantity: Number(item.quantity),
           unitPrice: Number(item.unitPrice),
@@ -1428,7 +1491,7 @@ export function NewInvoicePage() {
                     variant="outline"
                     size="sm"
                     className="h-10 rounded-xl"
-                    onClick={() => append({ serviceItemId: undefined, inventoryItemId: undefined, description: '', quantity: 1, unitPrice: 0 })}
+                    onClick={() => append({ serviceItemId: undefined, inventoryItemId: undefined, menuItemId: undefined, description: '', quantity: 1, unitPrice: 0 })}
                   >
                     <HugeiconsIcon icon={PlusSignIcon} size={16} strokeWidth={1.5} className="mr-2" />
                     Add Item
@@ -1462,10 +1525,12 @@ export function NewInvoicePage() {
                             <ItemCombobox
                               serviceItems={serviceItems || []}
                               inventoryItems={inventoryItems || []}
+                              menuItems={menuItems || []}
                               onSelect={(sel) => handleItemSelect(index, sel)}
                               value={{
                                 serviceItemId: watchItems[index]?.serviceItemId,
-                                inventoryItemId: watchItems[index]?.inventoryItemId
+                                inventoryItemId: watchItems[index]?.inventoryItemId,
+                                menuItemId: watchItems[index]?.menuItemId
                               }}
                               onCreateItemClick={(kind, name) => {
                                 setModalItemInitialKind(kind)
@@ -1919,7 +1984,7 @@ export function NewInvoicePage() {
                     className="h-9 text-xs rounded-xl"
                     onClick={() => {
                       const newIdx = fields.length
-                      append({ serviceItemId: undefined, inventoryItemId: undefined, description: '', quantity: 1, unitPrice: 0 })
+                      append({ serviceItemId: undefined, inventoryItemId: undefined, menuItemId: undefined, description: '', quantity: 1, unitPrice: 0 })
                       setActiveItemIndex(newIdx)
                       setIsItemDrawerOpen(true)
                     }}
@@ -2397,10 +2462,12 @@ export function NewInvoicePage() {
               <ItemCombobox
                 serviceItems={serviceItems || []}
                 inventoryItems={inventoryItems || []}
+                menuItems={menuItems || []}
                 onSelect={(sel) => handleItemSelect(activeItemIndex, sel)}
                 value={{
                   serviceItemId: watchItems[activeItemIndex]?.serviceItemId,
-                  inventoryItemId: watchItems[activeItemIndex]?.inventoryItemId
+                  inventoryItemId: watchItems[activeItemIndex]?.inventoryItemId,
+                  menuItemId: watchItems[activeItemIndex]?.menuItemId
                 }}
                 onCreateItemClick={(kind, name) => {
                   setModalItemInitialKind(kind)

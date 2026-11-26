@@ -960,6 +960,9 @@ model InvoiceItem {
   invoiceId       String  @map("invoice_id")
   serviceItemId   String? @map("service_item_id")
   inventoryItemId String? @map("inventory_item_id")
+  // A restaurant dish billed on an invoice. inventoryItemId is also set when the dish is linked to
+  // one whole stock item (see InvoicesService.resolveItems); recipe dishes leave it null.
+  menuItemId      String? @map("menu_item_id")
   description     String
   quantity        Decimal @db.Decimal(10, 2)
   unitPrice       Decimal @map("unit_price") @db.Decimal(12, 2)
@@ -972,10 +975,12 @@ model InvoiceItem {
   invoice       Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   serviceItem   ServiceItem?   @relation(fields: [serviceItemId], references: [id], onDelete: SetNull)
   inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  menuItem      MenuItem?      @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
 
   @@index([invoiceId])
   @@index([serviceItemId])
   @@index([inventoryItemId])
+  @@index([menuItemId])
   @@map("invoice_items")
 }
 
@@ -1657,6 +1662,7 @@ model MenuItem {
   organization     Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   inventoryItem    InventoryItem?          @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
   orderItems       OrderItem[]
+  invoiceItems     InvoiceItem[]
   categories       MenuItemCategory[]
   ingredients      MenuItemIngredient[]
   loyaltyRuleItems LoyaltyRewardRuleItem[]

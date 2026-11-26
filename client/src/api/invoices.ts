@@ -22,6 +22,7 @@ export interface CreateInvoiceData {
   items: Array<{
     serviceItemId?: string
     inventoryItemId?: string
+    menuItemId?: string
     description: string
     quantity: number
     unitPrice: number
