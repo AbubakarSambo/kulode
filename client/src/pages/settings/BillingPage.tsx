@@ -17,6 +17,7 @@ import { Link } from 'react-router-dom'
 import { Header } from '@/components/layout'
 import { Card, CardContent, Badge } from '@/components/ui'
 import { subscriptionApi } from '@/api/subscription'
+import { DirectDebitChargeForm } from './DirectDebitChargeForm'
 import { useSubscription } from '@/hooks/useSubscription'
 import { Modal } from '@/components/shared'
 import { cn } from '@/lib/utils'
@@ -590,6 +591,8 @@ export function BillingPage() {
                   <p className="text-[11px] text-slate-500 font-medium text-center max-w-md leading-relaxed">
                     {billingPeriod !== 'MONTHLY' && !subscription?.isTestAccount
                       ? 'Terms longer than a month are paid by card. Choose 1 month to pay from a bank account.'
+                      : payWith === 'BANK' && isAdmin && subscription.paymentMethods.directDebitChargeEnabled
+                        ? 'Pay from your bank account and set it up for renewals in one step.'
                       : payWith === 'BANK'
                         ? 'You will approve this payment from your bank on Paystack\'s page. It is a one-off payment; to renew from your bank automatically, link the account under Renewal payment method afterwards.'
                         : 'Pay by card, or choose Bank account to approve the payment from your bank.'}
@@ -648,6 +651,8 @@ export function BillingPage() {
                           You have {activeUsers} active users, above this plan's limit of {PRO_MAX_USERS}. Deactivate users to subscribe.
                         </p>
                       </>
+                    ) : payWith === 'BANK' && isAdmin && subscription?.paymentMethods?.directDebitChargeEnabled ? (
+                      <DirectDebitChargeForm planTier="PRO" billingPeriod={billingPeriod} priceLabel={formatAmount(price)} />
                     ) : (
                       <button
                         onClick={() => handleSubscribe('PRO')}

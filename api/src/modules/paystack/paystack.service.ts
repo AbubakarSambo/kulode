@@ -44,6 +44,7 @@ export interface PaystackTransaction {
     organization_id?: string;
     plan_tier?: string;
     billing_period?: string;
+    payment_flow?: string;
     vendor_id?: string;
     user_id?: string;
     requested_amount?: number;

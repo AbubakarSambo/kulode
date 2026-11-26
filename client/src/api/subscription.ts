@@ -1,6 +1,26 @@
 import apiClient from './client'
 import type { SubscriptionDetails, SubscriptionPaymentRecord, BillingPeriod, PlanTier, ApiResponse } from '@/types'
 
+export interface DirectDebitChargeInput {
+  planTier: PlanTier
+  billingPeriod: BillingPeriod
+  accountNumber: string
+  bankCode: string
+  street: string
+  city: string
+  state: string
+  phone: string
+}
+
+export type DirectDebitChargeResult =
+  | { status: 'open_url'; reference: string; redirectUrl: string }
+  | {
+      status: 'pending_bank_transfer'
+      reference: string
+      transfer: { accountNumber: string; accountName: string | null; bankName: string | null; amount: string | null }
+    }
+  | { status: 'success' | 'processing'; reference: string }
+
 export const subscriptionApi = {
   getCurrent: async (): Promise<SubscriptionDetails> => {
     const response = await apiClient.get<ApiResponse<SubscriptionDetails>>('/subscription/current')
@@ -37,6 +57,11 @@ export const subscriptionApi = {
 
   setupDirectDebit: async (): Promise<{ paymentUrl: string; reference: string }> => {
     const response = await apiClient.post<ApiResponse<{ paymentUrl: string; reference: string }>>('/subscription/direct-debit/setup')
+    return response.data.data
+  },
+
+  chargeDirectDebit: async (data: DirectDebitChargeInput): Promise<DirectDebitChargeResult> => {
+    const response = await apiClient.post<ApiResponse<DirectDebitChargeResult>>('/subscription/direct-debit/charge', data)
     return response.data.data
   },
 

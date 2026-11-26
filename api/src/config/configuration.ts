@@ -51,8 +51,8 @@ export const paystackConfig = registerAs("paystack", () => ({
   // debit the customer approves with their bank). It is on by default; set BANK_CHECKOUT_ENABLED=false
   // to hide it from customers (platform-flagged test accounts can still try it).
   bankCheckoutEnabled: process.env.BANK_CHECKOUT_ENABLED !== 'false',
-  // Pilot: comma-separated org ids whose "pay by bank" first payment opens Paystack's Direct Debit
-  // channel (which also links a mandate for renewals) instead of the one-off Bank channel.
+  // Pilot: comma-separated org ids whose "pay by bank" first payment is a Direct Debit charge, which
+  // takes the payment and creates the renewal mandate in one step, instead of Bank checkout.
   directDebitCheckoutOrgIds: (process.env.DIRECT_DEBIT_CHECKOUT_ORG_IDS || '')
     .split(',')
     .map((id) => id.trim())
