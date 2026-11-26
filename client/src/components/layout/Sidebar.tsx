@@ -129,7 +129,7 @@ const RETAIL_GROUP_HREFS: { title: string; hrefs: string[] }[] = [
   { title: 'Shop', hrefs: ['/pos/dashboard', '/pos/order/new', '/pos/orders', '/pos/shift', '/inventory', '/pos/customers'] },
   { title: 'Invoicing', hrefs: ['/clients', '/invoices', '/payments', '/settings/services'] },
   { title: 'Money', hrefs: ['/pos/payments', '/pos/unreconciled-transfers', '/expenses', '/vendors', '/tax'] },
-  { title: 'Insights', hrefs: ['/dashboard', '/pos/reports', '/reports', '/pos/ai-chat', '/ai-chat'] },
+  { title: 'Insights', hrefs: ['/dashboard', '/pos/reports', '/reports', '/pos/loyalty', '/pos/ai-chat', '/ai-chat'] },
   { title: 'Setup', hrefs: ['/pos/payment-types'] },
 ]
 
