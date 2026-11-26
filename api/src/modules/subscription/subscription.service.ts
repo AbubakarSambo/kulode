@@ -26,6 +26,7 @@ import {
 } from '../../common/plan-limits';
 import { DIRECT_DEBIT_CHARGE_FLOW, isBankDebitPayment, isMandateAuthorization } from './bank-debit';
 import type { DirectDebitChargeDto } from './dto';
+import { describeResponseShape, readTransferDetails } from './transfer-details';
 
 @Injectable()
 export class SubscriptionService {
@@ -357,21 +358,10 @@ export class SubscriptionService {
     }
 
     if (result.status && status === 'pending_bank_transfer') {
-      const transfer = data.transferDetails ?? data;
-      if (transfer.account_number) {
-        return {
-          status: 'pending_bank_transfer' as const,
-          reference,
-          transfer: {
-            accountNumber: String(transfer.account_number),
-            accountName: (transfer.account_name as string | undefined) ?? null,
-            bankName: (transfer.bank_name as string | undefined) ?? null,
-            amount: transfer.amount != null ? String(transfer.amount) : null,
-          },
-        };
-      }
-      this.logger.error(`Direct debit charge ${reference} asked for a transfer without an account; keys=${Object.keys(data).join(',')}`);
-      throw new BadRequestException(`Paystack did not return the account to transfer to (reference ${reference}).`);
+      const transfer = readTransferDetails(data);
+      if (transfer) return { status: 'pending_bank_transfer' as const, reference, transfer };
+      this.logger.error(`Direct debit charge ${reference}: unreadable transfer details; fields=${describeResponseShape(data).join(', ')}`);
+      throw new BadRequestException(`Paystack did not return complete transfer details. Please do not send any money yet (reference ${reference}).`);
     }
 
     if (result.status && (status === 'success' || status === 'processing' || status === 'pending')) {
