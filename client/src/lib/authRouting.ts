@@ -28,6 +28,9 @@ export function getPostAuthRoute(user: User | null | undefined): string {
     // A retail org with invoicing is a shop first — its admins start on the sales dashboard, not
     // the invoicing one
     if (user.organization?.posMode === 'RETAIL' && user.organization?.enabledModules === 'BOTH') return '/pos/dashboard'
+    // Same for a restaurant's admins. Accountants and staff stay on invoicing.
+    const isAdmin = roles.includes('ADMIN') || roles.includes('SUPER_ADMIN')
+    if (isAdmin && user.organization?.enabledModules === 'BOTH') return '/pos/dashboard'
     return (user.organization?.enabledModules ?? 'POS') === 'POS' ? '/pos/order/new' : '/dashboard'
   }
   if (roles.includes('WAITER')) return '/pos/order/new'

@@ -57,6 +57,8 @@ import { isPinEligible } from '@/lib/pin'
 import { can, canHoldPin } from '@/lib/permissions'
 import { getRestrictedHrefsUnion, type AllowedHref } from '@/lib/posRoleNav'
 import { isRetailHidden, retailNavLabel, retailPageTitle } from '@/lib/retailNav'
+import { RESTAURANT_GROUP_HREFS, RESTAURANT_NAV_LABELS } from '@/lib/restaurantNav'
+import { navPageTitle } from '@/lib/navTitle'
 import type { PlanTier } from '@/types'
 
 export function AppLayout() {
@@ -75,6 +77,9 @@ export function AppLayout() {
   const { hasRequiredPlan } = useSubscription()
   const { hasPos, hasInvoicing } = useOrgModules()
   const { isRetail } = usePosMode()
+  const isRestaurantWithInvoicing = !isRetail && hasPos && hasInvoicing
+  // With both modules the till comes first: it takes the dock, and invoicing moves into More
+  const posFirst = hasInvoicing && (isRetail || hasPos)
   // A retail sale is created and paid in one step at checkout, so the /pos/orders list is really a
   // sales history there — mirrors the same relabel in Sidebar.tsx.
   const ordersLabel = isRetail ? 'Sales' : 'Orders'
@@ -87,8 +92,12 @@ export function AppLayout() {
 
   const getPageTitle = () => {
     const path = location.pathname
-    const retailTitle = isRetail ? retailPageTitle(path) : undefined
-    if (retailTitle) return retailTitle
+    const moduleTitle = isRetail
+      ? retailPageTitle(path)
+      : isRestaurantWithInvoicing
+        ? navPageTitle(RESTAURANT_NAV_LABELS, path)
+        : undefined
+    if (moduleTitle) return moduleTitle
     if (path.startsWith('/dashboard')) return 'Overview'
     if (path.startsWith('/pos/dashboard')) return 'Dashboard'
     if (path.startsWith('/clients')) return 'Clients'
@@ -152,10 +161,10 @@ export function AppLayout() {
           const item = RESTRICTED_NAV_ITEMS_BY_HREF[href]
           return { href, ...item, name: isRetail ? retailNavLabel(href, item.name) : item.name }
         })
-    : hasInvoicing && isRetail
+    : posFirst
     ? [
-        // A retail org's main job is the till, so the shop stays in the dock even with invoicing
-        // on — the invoicing pages move to the "Invoicing" group in More instead
+        // A shop's or restaurant's main job is the till, so it stays in the dock even with
+        // invoicing on — the invoicing pages move to the "Invoicing" group in More instead
         { name: 'Dashboard', href: '/pos/dashboard', icon: DashboardIcon },
         { name: 'Sell', href: '/pos/order/new', icon: ShoppingCart },
         { name: ordersLabel, href: '/pos/orders', icon: Receipt },
@@ -179,15 +188,15 @@ export function AppLayout() {
 
   type MoreItem = { name: string; href: string; icon: React.ComponentType<{ className?: string }>; requiresPlan?: PlanTier; visible?: boolean }
 
-  const moreGroups: Array<{ label: string; items: MoreItem[] }> = [
+  const defaultMoreGroups: Array<{ label: string; items: MoreItem[] }> = [
     {
-      // Only for retail + invoicing: these sit in the dock for every other invoicing org, but a
-      // retail dock holds the shop instead (see navItems above)
+      // Only for POS + invoicing: these sit in the dock for an invoicing-only org, but otherwise
+      // the dock holds the till instead (see navItems above)
       label: 'Invoicing',
       items: [
-        { name: 'Overview', href: '/dashboard', icon: DashboardIcon, requiresPlan: 'PRO' as PlanTier, visible: hasInvoicing && isRetail },
-        { name: 'Clients', href: '/clients', icon: ClientsIcon, visible: hasInvoicing && isRetail },
-        { name: 'Payments', href: '/payments', icon: PaymentsIcon, visible: hasInvoicing && isRetail },
+        { name: 'Overview', href: '/dashboard', icon: DashboardIcon, requiresPlan: 'PRO' as PlanTier, visible: posFirst },
+        { name: 'Clients', href: '/clients', icon: ClientsIcon, visible: posFirst },
+        { name: 'Payments', href: '/payments', icon: PaymentsIcon, visible: posFirst },
       ] as MoreItem[],
     },
     {
@@ -269,6 +278,17 @@ export function AppLayout() {
       ] as MoreItem[],
     },
   ]
+
+  const moreItemsByHref = new Map(defaultMoreGroups.flatMap((group) => group.items.map((item) => [item.href, item])))
+  const regroupedForRestaurant = RESTAURANT_GROUP_HREFS.map(({ title, hrefs }) => ({
+    label: title,
+    // Setup also takes the admin items, as in Sidebar.tsx
+    items: (title === 'Setup' ? [...hrefs, '/settings/users', '/settings', '/settings/billing'] : hrefs).flatMap(
+      (href) => moreItemsByHref.get(href) ?? [],
+    ),
+  }))
+
+  const moreGroups = (isRestaurantWithInvoicing ? regroupedForRestaurant : defaultMoreGroups)
     .map((group) => ({
       ...group,
       label: isRetail && group.label === 'Floor Operations' ? 'Shop' : group.label,
@@ -277,7 +297,11 @@ export function AppLayout() {
         .filter((item) =>
           restrictedHrefsUnion ? (restrictedHrefsUnion as string[]).includes(item.href) : item.visible !== false,
         )
-        .map((item) => (isRetail ? { ...item, name: retailNavLabel(item.href, item.name) } : item)),
+        .map((item) => {
+          if (isRetail) return { ...item, name: retailNavLabel(item.href, item.name) }
+          if (isRestaurantWithInvoicing) return { ...item, name: RESTAURANT_NAV_LABELS[item.href] ?? item.name }
+          return item
+        }),
     }))
     .filter((group) => group.items.length > 0)
 

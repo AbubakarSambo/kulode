@@ -447,14 +447,36 @@ describe('Sidebar', () => {
     expect(screen.queryByText('AI Chat')).not.toBeInTheDocument()
   })
 
-  it('keeps the restaurant menu unchanged for a restaurant org with invoicing', () => {
+  it('gives a restaurant org with invoicing a restaurant-first menu with no look-alike names', () => {
     mockUseAuthStore.mockReturnValue({ ...adminUser, organization: { enabledModules: 'BOTH', posMode: 'RESTAURANT' } })
     mockUseSubscription.mockReturnValue({ hasRequiredPlan: () => true })
 
     renderSidebar()
 
-    expect(screen.getByText('Floor Operations')).toBeInTheDocument()
-    expect(screen.getByText('Customers')).toBeInTheDocument()
-    expect(screen.queryByText('Shop')).not.toBeInTheDocument()
+    for (const heading of ['Restaurant', 'Menu & Stock', 'Money', 'Invoicing', 'Reports', 'Setup']) {
+      expect(screen.getByText(heading)).toBeInTheDocument()
+    }
+    for (const name of ['Dashboard', 'Invoice Overview', 'Till Payments', 'Invoice Payments', 'Sales Report', 'Business Reports', 'Sales AI Chat', 'Invoice AI Chat', 'Customers', 'Clients']) {
+      expect(screen.getByText(name)).toBeInTheDocument()
+    }
+    expect(screen.queryByText('Payments')).not.toBeInTheDocument()
+    expect(screen.queryByText('AI Chat')).not.toBeInTheDocument()
+    expect(screen.queryByText('Configuration')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('link')[0]).toHaveAttribute('href', '/pos/dashboard')
+    for (const name of ['Users', 'Settings', 'Billing & Plans']) {
+      expect(screen.getByText(name)).toBeInTheDocument()
+    }
+  })
+
+  it('shows a waiter in a restaurant org with invoicing only their own pages', () => {
+    mockUseAuthStore.mockReturnValue({ ...adminUser, roles: ['WAITER'], organization: { enabledModules: 'BOTH' } })
+    mockUseSubscription.mockReturnValue({ hasRequiredPlan: () => true })
+
+    renderSidebar()
+
+    expect(screen.getByText('Sell')).toBeInTheDocument()
+    for (const hidden of ['Money', 'Invoicing', 'Setup', 'Invoices', 'Settings']) {
+      expect(screen.queryByText(hidden)).not.toBeInTheDocument()
+    }
   })
 })
