@@ -80,6 +80,10 @@ export const PERMISSIONS = {
   LEADERBOARD_VIEW: WAITER_UP,
   LEADERBOARD_AMOUNTS_ALL: MANAGER_UP,
   LEADERBOARD_CONFIGURE: ADMINS,
+  // Tips held for waiters: see the owed report and record payouts (a payout below supervisor
+  // level also needs a supervisor's PIN — see TipsService), and change the presets/on-off switch.
+  TIPS_MANAGE: [...CASHIER_UP, ...LEGACY],
+  TIPS_CONFIGURE: ADMINS,
   // Phone-number collection. Anyone on the floor can save a number (and earns the credit); only a
   // supervisor+ can key in paper/QR-form numbers on someone else's behalf ("Collected by"); a
   // manager+ can revoke a credit; only an admin sets up collection periods and targets.

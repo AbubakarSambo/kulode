@@ -22,6 +22,8 @@ function createMockPrisma() {
       aggregate: jest.fn().mockResolvedValue({ _sum: { amount: 0 } }),
     },
     order: { aggregate: jest.fn() },
+    tip: { groupBy: jest.fn().mockResolvedValue([]) },
+    tipLedgerEntry: { aggregate: jest.fn().mockResolvedValue({ _sum: { amount: null } }) },
     // close() looks the org up to decide whether to send the WhatsApp shift summary; no org
     // means no summary, which keeps these tests focused on the shift itself.
     organization: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -333,6 +335,70 @@ describe('ShiftsService', () => {
           countedCash: 127800,
           variance: -200,
         }),
+      });
+    });
+
+    it('expects card tips in the card row, without counting them as takings in the report', async () => {
+      prisma.shift.findFirst.mockResolvedValue(shiftWith({ openingFloat: 20000 }));
+      prisma.payment.groupBy.mockResolvedValue([
+        { paymentMethod: 'CASH', _sum: { amount: 10000 } },
+        { paymentMethod: 'Card (MP)', _sum: { amount: 23500 } },
+      ]);
+      prisma.tip.groupBy.mockResolvedValue([
+        { paymentMethod: 'Card (MP)', _sum: { amount: 3000 } },
+        // A tip whose bill was paid on another method earlier in the day still has a row to land in.
+        { paymentMethod: 'MONIEPOINT_TRANSFER', _sum: { amount: 1000 } },
+      ]);
+      prisma.shift.update.mockResolvedValue(shiftWith({ status: 'CLOSED' }));
+      prisma.shift.findFirst.mockResolvedValueOnce(shiftWith({ openingFloat: 20000 })).mockResolvedValueOnce(
+        shiftWith({ status: 'CLOSED' }),
+      );
+
+      await service.close(ORG_ID, SHIFT_ID, USER_ID, { countedCash: 30000 });
+
+      const rows = prisma.shiftPaymentBreakdown.createMany.mock.calls[0][0].data;
+      // Counted defaults to expected for non-cash, so tips never show up as a false variance.
+      expect(rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ paymentMethod: 'Card (MP)', expectedAmount: 26500, countedAmount: 26500, variance: 0 }),
+          expect.objectContaining({ paymentMethod: 'MONIEPOINT_TRANSFER', expectedAmount: 1000, variance: 0 }),
+          expect.objectContaining({ paymentMethod: 'CASH', expectedAmount: 30000 }),
+        ]),
+      );
+    });
+
+    it('shows the close form the tips in each method and the total held', async () => {
+      prisma.shift.findFirst.mockResolvedValue(shiftWith({ openingFloat: 20000 }));
+      prisma.payment.groupBy.mockResolvedValue([{ paymentMethod: 'Card (MP)', _sum: { amount: 23500 } }]);
+      prisma.tip.groupBy.mockResolvedValue([{ paymentMethod: 'Card (MP)', _sum: { amount: 3000 } }]);
+
+      const result = await service.previewClose(ORG_ID, SHIFT_ID);
+
+      expect(result.breakdown).toEqual([
+        { paymentMethod: 'CASH', expectedAmount: 0 },
+        { paymentMethod: 'Card (MP)', expectedAmount: 26500 },
+      ]);
+      expect(result.tipsHeld).toBe(3000);
+    });
+
+    it('expects less cash in the drawer after tips were paid out of the till', async () => {
+      prisma.shift.findFirst.mockResolvedValue(shiftWith({ openingFloat: 20000 }));
+      prisma.payment.groupBy.mockResolvedValue([{ paymentMethod: 'CASH', _sum: { amount: 108000 } }]);
+      prisma.tipLedgerEntry.aggregate.mockResolvedValue({ _sum: { amount: -18000 } });
+      prisma.shift.update.mockResolvedValue(shiftWith({ status: 'CLOSED' }));
+      prisma.shift.findFirst.mockResolvedValueOnce(shiftWith({ openingFloat: 20000 })).mockResolvedValueOnce(
+        shiftWith({ status: 'CLOSED' }),
+      );
+
+      // 20,000 float + 108,000 cash sales - 18,000 paid to Amina = 110,000 — counting exactly that is no shortage.
+      await service.close(ORG_ID, SHIFT_ID, USER_ID, { countedCash: 110000 });
+
+      expect(prisma.tipLedgerEntry.aggregate).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ type: 'PAYOUT', paidFrom: 'CASH_DRAWER' }) }),
+      );
+      expect(prisma.shift.update).toHaveBeenCalledWith({
+        where: { id: SHIFT_ID },
+        data: expect.objectContaining({ expectedCash: 110000, variance: 0 }),
       });
     });
 

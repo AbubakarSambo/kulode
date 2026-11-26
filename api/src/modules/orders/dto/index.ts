@@ -18,3 +18,4 @@ export { PrintBillPreviewDto } from './print-bill-preview.dto';
 export { RedeemRewardDto } from './redeem-reward.dto';
 export { ApplyMemberDiscountDto } from './member-discount.dto';
 export { EmailReceiptDto } from './email-receipt.dto';
+export { SetPendingTipDto } from './set-pending-tip.dto';

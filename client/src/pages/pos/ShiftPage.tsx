@@ -262,6 +262,11 @@ export function ShiftPage() {
                       <p className="text-xs font-semibold text-muted-foreground">
                         Other Payment Methods (defaults to expected — edit to note a discrepancy)
                       </p>
+                      {!!closePreview?.tipsHeld && closePreview.tipsHeld > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Includes {formatCurrency(closePreview.tipsHeld)} in tips held for staff — that money is in these accounts but isn’t takings.
+                        </p>
+                      )}
                       {nonCashBreakdown.map((row) => (
                         <div key={row.paymentMethod} className="flex items-center justify-between gap-3">
                           <Label className="flex-1 text-sm font-normal">{row.paymentMethod}</Label>

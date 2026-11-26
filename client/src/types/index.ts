@@ -613,6 +613,8 @@ export interface Order {
   vatAmount: number
   entertainmentTaxAmount: number
   serviceChargeAmount: number
+  /** A tip the guest said they'll add when paying on the Moniepoint terminal / by transfer. 0 = none. */
+  pendingTipAmount?: number | string
   discountType: 'PERCENTAGE' | 'FIXED'
   discountPercent: number
   discountAmount: number

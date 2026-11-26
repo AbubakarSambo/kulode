@@ -25,11 +25,13 @@ import {
   ApplyDiscountDto,
   ReassignOrderPaymentDto,
   PrintBillPreviewDto,
+  SetPendingTipDto,
 } from './dto';
 import { creditOrderSpendSafe, reverseOrderSpend } from '../loyalty/loyalty.earn';
 import { loyaltyReceipt } from '../loyalty/loyalty.receipt';
 import { discountReasonWith, memberDiscountFor, stripMemberLabel } from '../loyalty/loyalty.discount';
-import { paginate, runIdempotent, resolvePayment, hasPermission, APPROVER_PIN_ROLES, businessDateFor } from '../../common';
+import { paginate, runIdempotent, resolvePayment, hasPermission, APPROVER_PIN_ROLES, businessDateFor, isTipEligibleMethod, tipNeedsConfirmation } from '../../common';
+import { recordTip, voidTipsForOrder } from '../tips/tips.ledger';
 
 const OPEN_STATUSES: OrderStatus[] = [OrderStatus.OPEN, OrderStatus.IN_KITCHEN, OrderStatus.READY];
 // CLOSED_UNPAID means "a waiter marked this ready for payment, a cashier hasn't taken it yet" —
@@ -1446,6 +1448,8 @@ export class OrdersService {
       }
       // Rewards redeemed on a voided order go back to the member.
       await this.restoreRewards(tx, { orderId: id });
+      // A partly-paid bill may already hold a card/transfer tip — voiding the bill voids it too.
+      await voidTipsForOrder(tx, organizationId, id, actor.id);
 
       return tx.order.findUniqueOrThrow({ where: { id }, include: this.orderInclude });
     });
@@ -1825,6 +1829,25 @@ export class OrdersService {
     const rawAmountPaid = Math.round((toNumber(order.amountPaid) + amount) * 100) / 100;
     const { amountPaid: newAmountPaid, isComplete: isFinalPayment, writeOff } = resolvePayment(rawAmountPaid, toNumber(order.total));
 
+    // A tip is its own money: held for the waiter, outside the bill and every sales figure. Checked
+    // up front so a rejected tip never leaves a half-recorded payment behind.
+    const tipAmount = dto.tipAmount && dto.tipAmount > 0 ? Math.round(dto.tipAmount * 100) / 100 : 0;
+    if (tipAmount > 0) {
+      if (nothingToPay) throw new BadRequestException('There is nothing to pay on this order, so no tip can be added');
+      if (!isTipEligibleMethod(dto.paymentMethod)) {
+        throw new BadRequestException('Tips can only be added to card or transfer payments');
+      }
+      const tipOrg = await this.prisma.organization.findUnique({ where: { id: organizationId }, select: { tipsEnabled: true } });
+      if (!tipOrg?.tipsEnabled) throw new BadRequestException('Tipping is not turned on for this organization');
+      if (!dto.tipConfirmed && tipNeedsConfirmation(tipAmount, toNumber(order.total))) {
+        throw new BadRequestException({
+          statusCode: 400,
+          code: 'TIP_CONFIRMATION_REQUIRED',
+          message: 'This is an unusually large tip — confirm it with the guest first',
+        });
+      }
+    }
+
     const closed = await runIdempotent(this.prisma, organizationId, 'ORDER_CLOSE', clientRequestId, async (tx) => {
       // Conditional update guards against a concurrent close/cancel racing past the check above —
       // only an order still in a payable status actually transitions, so double-submits (e.g. a
@@ -1834,9 +1857,14 @@ export class OrdersService {
       // ready; only the payment that actually finishes covering the total closes it out.
       const result = await tx.order.updateMany({
         where: { id, organizationId, status: { in: PAYABLE_STATUSES } },
-        data: isFinalPayment
-          ? { amountPaid: newAmountPaid, status: 'CLOSED_PAID', closedAt: new Date() }
-          : { amountPaid: newAmountPaid, status: 'CLOSED_UNPAID' },
+        data: {
+          ...(isFinalPayment
+            ? { amountPaid: newAmountPaid, status: 'CLOSED_PAID' as const, closedAt: new Date() }
+            : { amountPaid: newAmountPaid, status: 'CLOSED_UNPAID' as const }),
+          // A tip promised for the terminal/transfer is spent once the order closes, or once this
+          // tender carries a tip of its own — never left behind to attach to some later payment.
+          ...((isFinalPayment || tipAmount > 0) && { pendingTipAmount: 0 }),
+        },
       });
       if (result.count === 0) {
         throw new BadRequestException('Order was already closed or cancelled');
@@ -1859,6 +1887,17 @@ export class OrdersService {
                   : dto.notes,
             },
           });
+
+      if (tipAmount > 0) {
+        await recordTip(tx, {
+          organizationId,
+          orderId: id,
+          waiterId: order.waiterId,
+          paymentMethod: dto.paymentMethod,
+          amount: tipAmount,
+          recordedById: userId,
+        });
+      }
 
       if (payment && dto.paymentMethod === 'WALLET') {
         // order.customerId presence was validated before entering runIdempotent.
@@ -1924,6 +1963,38 @@ export class OrdersService {
       if (loyalty) return { ...closed, loyalty };
     }
     return closed;
+  }
+
+  /**
+   * Notes a tip the guest has said they will add when they pay on the Moniepoint terminal or by
+   * transfer. Those payments close the order from a webhook with no cashier tap to carry the tip,
+   * so it has to be known beforehand: the webhook then expects bill + this amount and records the
+   * tip when it matches. 0 clears it. Nothing is held until the money actually arrives.
+   */
+  async setPendingTip(organizationId: string, id: string, dto: SetPendingTipDto) {
+    const order = await this.prisma.order.findFirst({ where: { id, organizationId } });
+    if (!order) throw new NotFoundException('Order not found');
+    if (!PAYABLE_STATUSES.includes(order.status)) {
+      throw new BadRequestException(`Cannot add a tip to a ${order.status.toLowerCase()} order`);
+    }
+    const amount = Math.round(dto.amount * 100) / 100;
+    if (amount > 0) {
+      const org = await this.prisma.organization.findUnique({ where: { id: organizationId }, select: { tipsEnabled: true } });
+      if (!org?.tipsEnabled) throw new BadRequestException('Tipping is not turned on for this organization');
+      if (!dto.tipConfirmed && tipNeedsConfirmation(amount, toNumber(order.total))) {
+        throw new BadRequestException({
+          statusCode: 400,
+          code: 'TIP_CONFIRMATION_REQUIRED',
+          message: 'This is an unusually large tip — confirm it with the guest first',
+        });
+      }
+    }
+    const updated = await this.prisma.order.update({
+      where: { id },
+      data: { pendingTipAmount: amount },
+      include: this.orderInclude,
+    });
+    return updated;
   }
 
   // Sends the bill to the org's bill printer(s) through the print agent. `queued: false` means
@@ -2015,6 +2086,12 @@ export class OrdersService {
     });
     if (!order) throw new NotFoundException('Order not found');
 
+    const tipSum = await this.prisma.tip.aggregate({
+      where: { orderId: id, organizationId, status: 'ACTIVE' },
+      _sum: { amount: true },
+    });
+    const tipTotal = toNumber(tipSum._sum.amount ?? 0);
+
     // Printed on the receipt for a loyalty member; a failure here must never stop a receipt printing.
     const loyalty = await loyaltyReceipt(this.prisma, organizationId, order.customerId).catch(() => null);
 
@@ -2059,6 +2136,9 @@ export class OrdersService {
       serviceChargeApplied: order.serviceChargeApplied,
       serviceChargeRate: toNumber(order.organization.serviceChargeRate),
       serviceChargeAmount: toNumber(order.serviceChargeAmount),
+      // Shown as its own line and never folded into total/VAT/service charge. Active tips only,
+      // so a voided one disappears from the receipt.
+      tipAmount: tipTotal,
       payments: order.payments.map((p) => ({
         amount: toNumber(p.amount),
         paymentMethod: p.paymentMethod,

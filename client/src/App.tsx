@@ -89,6 +89,7 @@ const KitchenTicketsPage = lazyPage(() => import('@/pages/kitchen/KitchenTickets
 const DrinksTicketsPage = lazyPage(() => import('@/pages/kitchen/DrinksTicketsPage'), 'DrinksTicketsPage')
 const PosReportsPage = lazyPage(() => import('@/pages/pos/PosReportsPage'), 'PosReportsPage')
 const LeaderboardPage = lazyPage(() => import('@/pages/pos/LeaderboardPage'), 'LeaderboardPage')
+const TipsPage = lazyPage(() => import('@/pages/pos/TipsPage'), 'TipsPage')
 const PosPaymentsPage = lazyPage(() => import('@/pages/pos/PosPaymentsPage'), 'PosPaymentsPage')
 const UnreconciledTransfersPage = lazyPage(() => import('@/pages/pos/UnreconciledTransfersPage'), 'UnreconciledTransfersPage')
 const PosAiChatPage = lazyPage(() => import('@/pages/pos/PosAiChatPage'), 'PosAiChatPage')
@@ -299,6 +300,9 @@ function App() {
                 </Route>
                 <Route element={<ProtectedRoute allowedRoles={PERMISSIONS.LEADERBOARD_VIEW} />}>
                   <Route path="/pos/leaderboard" element={<LeaderboardPage />} />
+                </Route>
+                <Route element={<ProtectedRoute allowedRoles={PERMISSIONS.TIPS_MANAGE} />}>
+                  <Route path="/pos/tips" element={<TipsPage />} />
                 </Route>
                 <Route element={<ProtectedRoute allowedRoles={PERMISSIONS.LOYALTY_REPORT} />}>
                   <Route path="/pos/loyalty" element={<LoyaltyReportPage />} />

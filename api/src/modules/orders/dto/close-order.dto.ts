@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { IsBoolean, IsEmail, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
 export class CloseOrderDto {
   @ApiProperty({ description: 'Name of an active PaymentType for this org, or the reserved "PAYSTACK"/"WALLET"' })
@@ -39,4 +39,20 @@ export class CloseOrderDto {
   @IsOptional()
   @IsUUID()
   clientRequestId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      "A tip the guest is adding on top of this tender, in Naira. Card and transfer payments only. It is held for the order's waiter and is never part of the bill, VAT, service charge or `amount`.",
+  })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  tipAmount?: number;
+
+  @ApiPropertyOptional({
+    description: 'Set once the guest has confirmed an unusually large tip (over ₦20,000 or over half the bill).',
+  })
+  @IsOptional()
+  @IsBoolean()
+  tipConfirmed?: boolean;
 }

@@ -82,10 +82,10 @@ export const moniepointApi = {
     })
     return response.data.data
   },
-  assignUnreconciledTransfer: async (id: string, orderId: string) => {
+  assignUnreconciledTransfer: async (id: string, orderId: string, options?: { excessAsTip?: boolean; tipConfirmed?: boolean }) => {
     const response = await apiClient.post<ApiResponse<MoniepointUnreconciledTransfer>>(
       `/moniepoint-unreconciled-transfers/${id}/assign`,
-      { orderId },
+      { orderId, ...options },
     )
     return response.data.data
   },

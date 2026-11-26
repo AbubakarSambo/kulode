@@ -161,8 +161,17 @@ export class ShiftsService {
       throw new BadRequestException('Shift is already closed');
     }
 
-    const breakdown = await this.paymentBreakdownDuringShift(organizationId, shift.openedAt, new Date());
-    return { openingFloat: toNumber(shift.openingFloat), breakdown };
+    const now = new Date();
+    const sales = await this.paymentBreakdownDuringShift(organizationId, shift.openedAt, now);
+    const tips = await this.tipsHeldDuringShift(organizationId, shift.openedAt, now);
+    const tipPayoutsFromTill = await this.tipPayoutsFromTill(organizationId, shift.openedAt, now);
+    return {
+      openingFloat: toNumber(shift.openingFloat),
+      // What each method should hold, tips included — the close form pre-fills counted amounts from it.
+      breakdown: this.withTips(sales, tips),
+      tipsHeld: Math.round([...tips.values()].reduce((a, b) => a + b, 0) * 100) / 100,
+      tipPayoutsFromTill,
+    };
   }
 
   async open(organizationId: string, userId: string, dto: OpenShiftDto) {
@@ -252,6 +261,41 @@ export class ShiftsService {
     return breakdown;
   }
 
+  // Card/transfer tips collected during the shift, by the payment method they came in on. That money
+  // really did land on the terminal / in the bank, so the till's non-cash reconciliation has to
+  // expect it — but it is held for waiters, not takings, so it stays out of the sales-side figures
+  // (paymentBreakdownDuringShift, and the "collected" lines of the boss report built from it).
+  private async tipsHeldDuringShift(organizationId: string, openedAt: Date, until: Date) {
+    const rows = await this.prisma.tip.groupBy({
+      by: ['paymentMethod'],
+      where: { organizationId, status: 'ACTIVE', createdAt: { gte: openedAt, lte: until } },
+      _sum: { amount: true },
+    });
+    return new Map(rows.map((r) => [r.paymentMethod, toNumber(r._sum.amount ?? 0)]));
+  }
+
+  // The reconciliation view of the breakdown: takings plus the tips that came in on each method.
+  private withTips(breakdown: Array<{ paymentMethod: string; expectedAmount: number }>, tips: Map<string, number>) {
+    const rows = breakdown.map((b) => ({ ...b, expectedAmount: b.expectedAmount + (tips.get(b.paymentMethod) ?? 0) }));
+    for (const [paymentMethod, amount] of tips) {
+      if (!rows.some((r) => r.paymentMethod === paymentMethod)) rows.push({ paymentMethod, expectedAmount: amount });
+    }
+    return rows.map((r) => ({ ...r, expectedAmount: Math.round(r.expectedAmount * 100) / 100 }));
+  }
+
+  // Cash taken out of the drawer during the shift to pay waiters their card/transfer tips. The
+  // drawer expects less cash because of it — without this, paying out tips from the till would show
+  // up as a shortage at close. Kept out of paymentBreakdownDuringShift because that feeds the
+  // "collected" figures in the shift report, and a payout isn't a collection.
+  private async tipPayoutsFromTill(organizationId: string, openedAt: Date, until: Date) {
+    const sum = await this.prisma.tipLedgerEntry.aggregate({
+      where: { organizationId, type: 'PAYOUT', paidFrom: 'CASH_DRAWER', createdAt: { gte: openedAt, lte: until } },
+      _sum: { amount: true },
+    });
+    // Payout entries are stored negative.
+    return Math.abs(toNumber(sum._sum.amount ?? 0));
+  }
+
   async close(organizationId: string, id: string, userId: string, dto: CloseShiftDto) {
     const shift = await this.prisma.shift.findFirst({ where: { id, organizationId } });
     if (!shift) throw new NotFoundException('Shift not found');
@@ -263,10 +307,12 @@ export class ShiftsService {
     const breakdown = await this.paymentBreakdownDuringShift(organizationId, shift.openedAt, closedAt);
 
     const cashTaken = breakdown.find((b) => b.paymentMethod === 'CASH')?.expectedAmount ?? 0;
-    const expectedCash = toNumber(shift.openingFloat) + cashTaken;
+    const tipPayouts = await this.tipPayoutsFromTill(organizationId, shift.openedAt, closedAt);
+    const expectedCash = toNumber(shift.openingFloat) + cashTaken - tipPayouts;
     const variance = dto.countedCash - expectedCash;
 
-    const breakdownRows = breakdown.map(({ paymentMethod, expectedAmount }) => {
+    const tipsHeld = await this.tipsHeldDuringShift(organizationId, shift.openedAt, closedAt);
+    const breakdownRows = this.withTips(breakdown, tipsHeld).map(({ paymentMethod, expectedAmount }) => {
       const isCash = paymentMethod === 'CASH';
       // countedCash is the full till count (float + cash taken), matching expectedCash.
       const countedAmount = isCash ? dto.countedCash : dto.countedAmounts?.[paymentMethod] ?? expectedAmount;

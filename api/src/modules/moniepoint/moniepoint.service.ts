@@ -14,7 +14,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { WalletService } from '../wallet/wallet.service';
-import { encryptSecret, decryptSecret, resolvePayment } from '../../common';
+import { encryptSecret, decryptSecret, resolvePayment, matchPaymentToOrder, tipNeedsConfirmation } from '../../common';
+import { recordTip } from '../tips/tips.ledger';
 import { SetupMoniepointDto } from './dto';
 
 // Confirmed from Moniepoint's "Webhooks" developer docs. Purchases specifically — see
@@ -483,9 +484,20 @@ export class MoniepointService {
       include: { table: { select: { name: true } } },
     });
     const amountKobo = Math.round(amount * 100);
-    const matches = candidates.filter(
-      (o) => Math.abs(Math.round((Number(o.total) - Number(o.amountPaid)) * 100) - amountKobo) <= AMOUNT_MATCH_TOLERANCE_KOBO,
-    );
+    // An order also matches when the guest said they'd tip and this is bill + that tip — the tip
+    // rides along in `tipFor` so the matched order can record it. Bill-alone wins when both fit.
+    const tipFor = new Map<string, number>();
+    const matches = candidates.filter((o) => {
+      const result = matchPaymentToOrder(
+        Math.round((Number(o.total) - Number(o.amountPaid)) * 100),
+        Math.round(Number(o.pendingTipAmount) * 100),
+        amountKobo,
+        AMOUNT_MATCH_TOLERANCE_KOBO,
+        organization.tipsEnabled,
+      );
+      if (result.matches && result.tip > 0) tipFor.set(o.id, result.tip);
+      return result.matches;
+    });
     // Table name (falling back to the order source, e.g. "Hotel Room Service") plus the
     // outstanding balance — an order has no human-facing short code, only a UUID `id`, so this is
     // what actually lets a human reviewing matchReason tell two ambiguous candidates apart.
@@ -540,7 +552,8 @@ export class MoniepointService {
 
     const order = matches[0];
     const paymentMethod = source === 'TRANSFER' ? 'MONIEPOINT_TRANSFER' : 'MONIEPOINT_POS';
-    await this.closeOrderForAutoMatch(organization.id, order, amount, transactionReference, paymentMethod);
+    const tipAmount = tipFor.get(order.id) ?? 0;
+    await this.closeOrderForAutoMatch(organization.id, order, amount, transactionReference, paymentMethod, undefined, tipAmount);
     this.analytics?.capture(organization.id, 'moniepoint_payment_reconciled', { source, amount, auto: true });
 
     this.logger.log(`${label} of ₦${amount} auto-reconciled to order ${order.id} for org ${organization.id} (ref ${transactionReference ?? 'none'})`);
@@ -553,12 +566,22 @@ export class MoniepointService {
   // have no user to attribute it to.
   private async closeOrderForAutoMatch(
     organizationId: string,
-    order: { id: string; total: Prisma.Decimal | number | string; amountPaid: Prisma.Decimal | number | string; tableId: string | null },
-    amount: number,
+    order: {
+      id: string;
+      total: Prisma.Decimal | number | string;
+      amountPaid: Prisma.Decimal | number | string;
+      tableId: string | null;
+      waiterId?: string | null;
+    },
+    received: number,
     transactionReference: string | undefined,
     paymentMethod: string,
     recordedById?: string,
+    // The part of `received` that is a guest's tip rather than the bill. It is held for the order's
+    // waiter and kept out of the Payment, the order's amountPaid and the write-off tolerance.
+    tipAmount = 0,
   ) {
+    const amount = Math.round((received - tipAmount) * 100) / 100;
     // Mirrors OrdersService.closeWithPayment's semantics exactly — amountPaid ACCUMULATES on top of
     // whatever's already been recorded (e.g. a prior partial cash payment), and the order only
     // actually closes once that total covers the bill; a transfer that's merely part of a split
@@ -584,6 +607,19 @@ export class MoniepointService {
           ? { amountPaid: newAmountPaid, status: 'CLOSED_PAID', closedAt: new Date() }
           : { amountPaid: newAmountPaid, status: 'CLOSED_UNPAID' },
       });
+
+      // Only once the payment actually landed on a payable order — a payment that arrived after the
+      // order was already closed is flagged for review below and must not also mint a tip.
+      if (tipAmount > 0 && result.count > 0) {
+        await recordTip(tx, {
+          organizationId,
+          orderId: order.id,
+          waiterId: order.waiterId ?? null,
+          paymentMethod,
+          amount: tipAmount,
+          recordedById: recordedById ?? null,
+        });
+      }
 
       await tx.payment.create({
         data: {
@@ -638,7 +674,15 @@ export class MoniepointService {
     });
   }
 
-  async assignUnreconciledTransfer(organizationId: string, id: string, orderId: string, userId: string) {
+  async assignUnreconciledTransfer(
+    organizationId: string,
+    id: string,
+    orderId: string,
+    userId: string,
+    // For a guest who simply sent more than the bill: the extra is recorded as a tip for the order's
+    // waiter instead of being left as an unexplained overpayment on the order.
+    options: { excessAsTip?: boolean; tipConfirmed?: boolean } = {},
+  ) {
     const transfer = await this.prisma.moniepointUnreconciledTransfer.findFirst({ where: { id, organizationId } });
     if (!transfer) {
       throw new NotFoundException('Unreconciled transfer not found');
@@ -653,7 +697,39 @@ export class MoniepointService {
     }
 
     const paymentMethod = transfer.source === 'CARD' ? 'MONIEPOINT_POS' : 'MONIEPOINT_TRANSFER';
-    await this.closeOrderForAutoMatch(organizationId, order, Number(transfer.amount), transfer.transactionReference ?? undefined, paymentMethod, userId);
+
+    let tipAmount = 0;
+    if (options.excessAsTip) {
+      const org = await this.prisma.organization.findUnique({ where: { id: organizationId }, select: { tipsEnabled: true } });
+      if (!org?.tipsEnabled) throw new BadRequestException('Tipping is not turned on for this organization');
+      if (!PAYABLE_STATUSES.includes(order.status)) {
+        throw new BadRequestException(`Cannot add a tip to a ${order.status.toLowerCase()} order`);
+      }
+      const due = Math.round((Number(order.total) - Number(order.amountPaid)) * 100);
+      const excessKobo = Math.round(Number(transfer.amount) * 100) - due;
+      // An excess within the matching tolerance is just rounding on the bill, not a tip.
+      if (excessKobo <= AMOUNT_MATCH_TOLERANCE_KOBO) {
+        throw new BadRequestException('This transfer is not more than the amount due, so there is no tip to record');
+      }
+      tipAmount = excessKobo / 100;
+      if (!options.tipConfirmed && tipNeedsConfirmation(tipAmount, Number(order.total))) {
+        throw new BadRequestException({
+          statusCode: 400,
+          code: 'TIP_CONFIRMATION_REQUIRED',
+          message: 'This would be an unusually large tip — confirm it with the guest first',
+        });
+      }
+    }
+
+    await this.closeOrderForAutoMatch(
+      organizationId,
+      order,
+      Number(transfer.amount),
+      transfer.transactionReference ?? undefined,
+      paymentMethod,
+      userId,
+      tipAmount,
+    );
 
     return this.prisma.moniepointUnreconciledTransfer.update({
       where: { id },

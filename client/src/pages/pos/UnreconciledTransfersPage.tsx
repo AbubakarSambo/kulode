@@ -6,7 +6,9 @@ import { BankIcon } from '@hugeicons/core-free-icons'
 import { Header } from '@/components/layout'
 import { Badge, Button, Card, CardContent, EmptyState, SearchableSelect, Select, Textarea } from '@/components/ui'
 import { Modal } from '@/components/shared/Modal'
-import { ordersApi, customersApi } from '@/api'
+import { ConfirmDialog } from '@/components/ui/dialog'
+import { tipNeedsConfirmation } from '@/lib/tips'
+import { ordersApi, customersApi, tipsApi } from '@/api'
 import { moniepointApi } from '@/api/moniepoint'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
 import type { MoniepointUnreconciledTransfer } from '@/api/moniepoint'
@@ -26,6 +28,9 @@ export function UnreconciledTransfersPage() {
   const [customerSearch, setCustomerSearch] = useState('')
   const [walletNotes, setWalletNotes] = useState('')
   const [ignoreNotes, setIgnoreNotes] = useState('')
+  // For a guest who sent more than the bill: record the extra as a tip for the order's waiter.
+  const [excessAsTip, setExcessAsTip] = useState(false)
+  const [confirmTipOpen, setConfirmTipOpen] = useState(false)
 
   // Every open/close of these modals resets the picker state, including the server-side search.
   // SearchableSelect clears its own text box on select but deliberately leaves the caller's search
@@ -36,6 +41,8 @@ export function UnreconciledTransfersPage() {
     setAssignTarget(t)
     setSelectedOrderId('')
     setOrderSearch('')
+    setExcessAsTip(false)
+    setConfirmTipOpen(false)
   }
   const openWallet = (t: MoniepointUnreconciledTransfer | null) => {
     setWalletTarget(t)
@@ -59,6 +66,15 @@ export function UnreconciledTransfersPage() {
       }),
     enabled: !!assignTarget,
   })
+  const { data: tipSettings } = useQuery({ queryKey: ['tip-settings'], queryFn: tipsApi.settings, enabled: !!assignTarget })
+  // How far the transfer overshoots the picked order's bill — only a real overshoot (past the ₦50
+  // matching slack the server also uses) can be a tip.
+  const pickedOrder = (ordersPage?.data ?? []).find((o) => o.id === selectedOrderId)
+  const excess = assignTarget && pickedOrder
+    ? Math.round((Number(assignTarget.amount) - (Number(pickedOrder.total) - Number(pickedOrder.amountPaid))) * 100) / 100
+    : 0
+  const canTipExcess = !!tipSettings?.enabled && excess > 50
+  const tipForWaiter = pickedOrder?.waiter ? `${pickedOrder.waiter.firstName} ${pickedOrder.waiter.lastName}`.trim() : null
   const orderOptions = (ordersPage?.data ?? []).map((o) => ({
     id: o.id,
     label: `${o.table?.name ?? o.source} — ${formatCurrency(Number(o.total) - Number(o.amountPaid))} due`,
@@ -75,9 +91,11 @@ export function UnreconciledTransfersPage() {
   }))
 
   const assignMutation = useMutation({
-    mutationFn: ({ id, orderId }: { id: string; orderId: string }) => moniepointApi.assignUnreconciledTransfer(id, orderId),
-    onSuccess: () => {
-      toast.success('Transfer applied to order')
+    mutationFn: ({ id, orderId, tip }: { id: string; orderId: string; tip?: { excessAsTip: boolean; tipConfirmed?: boolean } }) =>
+      moniepointApi.assignUnreconciledTransfer(id, orderId, tip),
+    onSuccess: (_r, vars) => {
+      toast.success(vars.tip?.excessAsTip ? 'Transfer applied — the extra is held as a tip' : 'Transfer applied to order')
+      queryClient.invalidateQueries({ queryKey: ['tips-owed'] })
       queryClient.invalidateQueries({ queryKey: ['moniepoint-unreconciled-transfers'] })
       openAssign(null)
     },
@@ -194,16 +212,49 @@ export function UnreconciledTransfersPage() {
             onSearchChange={setOrderSearch}
             placeholder="Search open orders by table…"
           />
+          {canTipExcess && (
+            <label className="flex items-start gap-2 rounded-xl border border-border p-3 text-sm">
+              <input
+                type="checkbox"
+                checked={excessAsTip}
+                onChange={(e) => setExcessAsTip(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300"
+              />
+              <span>
+                <span className="font-medium text-foreground">Record the extra {formatCurrency(excess)} as a tip</span>
+                <span className="block text-xs text-muted-foreground">
+                  The guest sent more than the bill. The bill is marked paid and the extra is held for {tipForWaiter ?? 'whoever the manager assigns'}.
+                </span>
+              </span>
+            </label>
+          )}
           <Button
             className="w-full"
             disabled={!selectedOrderId}
             isLoading={assignMutation.isPending}
-            onClick={() => assignTarget && assignMutation.mutate({ id: assignTarget.id, orderId: selectedOrderId })}
+            onClick={() => {
+              if (!assignTarget) return
+              const asTip = canTipExcess && excessAsTip
+              if (asTip && pickedOrder && tipNeedsConfirmation(excess, Number(pickedOrder.total))) setConfirmTipOpen(true)
+              else assignMutation.mutate({ id: assignTarget.id, orderId: selectedOrderId, tip: asTip ? { excessAsTip: true } : undefined })
+            }}
           >
             Apply
           </Button>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={confirmTipOpen}
+        onClose={() => setConfirmTipOpen(false)}
+        onConfirm={() => {
+          setConfirmTipOpen(false)
+          if (assignTarget) assignMutation.mutate({ id: assignTarget.id, orderId: selectedOrderId, tip: { excessAsTip: true, tipConfirmed: true } })
+        }}
+        title="Confirm this tip"
+        description={`This records ${formatCurrency(excess)} as a tip on a ${formatCurrency(Number(pickedOrder?.total ?? 0))} bill. Is that right?`}
+        confirmText="Yes, record the tip"
+      />
 
       <Modal isOpen={!!walletTarget} onClose={() => openWallet(null)} title="Credit Customer Wallet">
         <div className="space-y-4">

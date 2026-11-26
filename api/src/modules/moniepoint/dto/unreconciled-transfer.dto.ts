@@ -1,11 +1,21 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class AssignUnreconciledTransferDto {
   @ApiProperty({ description: 'The order this transfer should be applied to' })
   @IsNotEmpty()
   @IsUUID()
   orderId: string;
+
+  @ApiPropertyOptional({ description: 'Record whatever the transfer is over the amount due as a tip for the order\'s waiter' })
+  @IsOptional()
+  @IsBoolean()
+  excessAsTip?: boolean;
+
+  @ApiPropertyOptional({ description: 'Set once an unusually large tip (over ₦20,000 or half the bill) has been confirmed' })
+  @IsOptional()
+  @IsBoolean()
+  tipConfirmed?: boolean;
 }
 
 export class IgnoreUnreconciledTransferDto {
