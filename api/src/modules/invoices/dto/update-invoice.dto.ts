@@ -31,6 +31,11 @@ export class UpdateInvoiceItemDto {
   @IsUUID()
   inventoryItemId?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  menuItemId?: string;
+
   @ApiPropertyOptional({ example: 'Carpet cleaning - living room' })
   @IsOptional()
   @IsString()

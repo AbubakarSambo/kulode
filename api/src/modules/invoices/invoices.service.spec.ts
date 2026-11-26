@@ -22,6 +22,7 @@ function createMockPrisma() {
       findMany: jest.fn(),
       update: jest.fn(),
     },
+    menuItem: { findMany: jest.fn() },
     invoiceItem: {
       deleteMany: jest.fn(),
       createMany: jest.fn(),
@@ -314,5 +315,32 @@ describe('InvoicesService — invoice limit enforcement', () => {
     expect(gte.getDate()).toBe(1);
     expect(gte.getHours()).toBe(0);
     expect(gte.getMinutes()).toBe(0);
+  });
+
+  // ─── Restaurant menu items ───────────────────────────────────────────────
+
+  const dishDto = { ...baseCreateDto, items: [{ menuItemId: 'dish', inventoryItemId: 'sent-by-client', quantity: 3, unitPrice: 100 }] };
+
+  it.each([
+    ['linked to one stock item', { inventoryItemId: 'coke', ingredients: [] }, 'coke'],
+    ['with a recipe', { inventoryItemId: 'coke', ingredients: [{ id: 'r' }] }, undefined],
+    ['with no stock link', { inventoryItemId: null, ingredients: [] }, undefined],
+  ])('takes the stock link of a dish %s from the menu, not the request', async (_name, menuItem, expected) => {
+    setupHappyPathMocks(prisma, orgWith({ isGrandfathered: true }));
+    prisma.menuItem.findMany.mockResolvedValue([{ id: 'dish', ...menuItem }]);
+
+    await service.create(ORG_ID, USER_ID, dishDto as any);
+
+    const [line] = prisma.invoice.create.mock.calls[0][0].data.items.create;
+    expect(line.menuItemId).toBe('dish');
+    expect(line.inventoryItemId).toBe(expected);
+  });
+
+  it('rejects a dish that is not on this organization’s menu', async () => {
+    setupHappyPathMocks(prisma, orgWith({ isGrandfathered: true }));
+    prisma.menuItem.findMany.mockResolvedValue([]);
+
+    await expect(service.create(ORG_ID, USER_ID, dishDto as any)).rejects.toThrow('Menu item not found');
+    expect(prisma.invoice.create).not.toHaveBeenCalled();
   });
 });

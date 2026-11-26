@@ -41,6 +41,11 @@ export class CreateInvoiceItemDto {
   @IsUUID()
   inventoryItemId?: string;
 
+  @ApiPropertyOptional({ description: 'Restaurant menu item; its stock link is resolved server-side' })
+  @IsOptional()
+  @IsUUID()
+  menuItemId?: string;
+
   @ApiPropertyOptional({ example: 'Carpet cleaning - living room' })
   @IsOptional()
   @IsString()

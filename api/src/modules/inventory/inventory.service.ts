@@ -11,6 +11,11 @@ import { parseCsv } from '../../common/csv';
 
 type TransactionClient = Prisma.TransactionClient;
 
+// Mark the stock movements an invoice's recipe dishes created, so a payment reversal puts back
+// exactly what came off even if the recipe has changed since
+const INVOICE_RECIPE_DEDUCTED = 'Menu recipe - invoice paid';
+const INVOICE_RECIPE_RESTORED = 'Menu recipe - payment reversed';
+
 function toNumber(val: Prisma.Decimal | number): number {
   return typeof val === 'number' ? val : Number(val);
 }
@@ -461,6 +466,48 @@ export class InventoryService {
         },
       });
     }
+
+    await this.deductRecipesForInvoice(tx, invoiceId, organizationId);
+  }
+
+  // Dishes with a recipe on a paid invoice. Nothing is reserved for these beforehand. Like
+  // deductRecipeForOrderItem, stock stops at zero rather than blocking the payment.
+  private async deductRecipesForInvoice(tx: TransactionClient, invoiceId: string, organizationId: string) {
+    const dishLines = await tx.invoiceItem.findMany({
+      where: { invoiceId, menuItemId: { not: null }, inventoryItemId: null },
+      include: { menuItem: { select: { ingredients: true } } },
+    });
+
+    const needed = new Map<string, number>();
+    for (const line of dishLines) {
+      for (const ingredient of line.menuItem?.ingredients ?? []) {
+        const quantity = toNumber(ingredient.quantityPerUnit) * toNumber(line.quantity);
+        needed.set(ingredient.inventoryItemId, (needed.get(ingredient.inventoryItemId) ?? 0) + quantity);
+      }
+    }
+
+    for (const [inventoryItemId, quantity] of needed) {
+      const inventoryItem = await tx.inventoryItem.findFirst({ where: { id: inventoryItemId, organizationId } });
+      if (!inventoryItem) continue;
+
+      const onHandBefore = toNumber(inventoryItem.onHandQuantity);
+      // Stock is held to 2 decimal places; round first so the movement records what was stored
+      const onHandAfter = Math.max(0, Math.round((onHandBefore - quantity) * 100) / 100);
+
+      await tx.inventoryItem.update({ where: { id: inventoryItemId }, data: { onHandQuantity: onHandAfter } });
+      await tx.stockMovement.create({
+        data: {
+          organizationId,
+          inventoryItemId,
+          invoiceId,
+          type: 'INVOICE_DEDUCTED',
+          quantity: Math.round((onHandAfter - onHandBefore) * 100) / 100,
+          onHandBefore,
+          onHandAfter,
+          notes: INVOICE_RECIPE_DEDUCTED,
+        },
+      });
+    }
   }
 
   async deductForOrder(
@@ -630,5 +677,45 @@ export class InventoryService {
         },
       });
     }
+
+    await this.restoreRecipesForInvoice(tx, invoiceId, organizationId);
   }
+
+  // Puts back the net of what this invoice's recipe movements took, across any pay/reverse cycles
+  private async restoreRecipesForInvoice(tx: TransactionClient, invoiceId: string, organizationId: string) {
+    const movements = await tx.stockMovement.findMany({
+      where: { invoiceId, organizationId, notes: { in: [INVOICE_RECIPE_DEDUCTED, INVOICE_RECIPE_RESTORED] } },
+    });
+
+    const net = new Map<string, number>();
+    for (const movement of movements) {
+      net.set(movement.inventoryItemId, (net.get(movement.inventoryItemId) ?? 0) + toNumber(movement.quantity));
+    }
+
+    for (const [inventoryItemId, change] of net) {
+      const quantity = Math.round(-change * 100) / 100;
+      if (quantity <= 0) continue;
+
+      const inventoryItem = await tx.inventoryItem.findFirst({ where: { id: inventoryItemId, organizationId } });
+      if (!inventoryItem) continue;
+
+      const onHandBefore = toNumber(inventoryItem.onHandQuantity);
+      const onHandAfter = Math.round((onHandBefore + quantity) * 100) / 100;
+
+      await tx.inventoryItem.update({ where: { id: inventoryItemId }, data: { onHandQuantity: onHandAfter } });
+      await tx.stockMovement.create({
+        data: {
+          organizationId,
+          inventoryItemId,
+          invoiceId,
+          type: 'ADJUSTMENT',
+          quantity,
+          onHandBefore,
+          onHandAfter,
+          notes: INVOICE_RECIPE_RESTORED,
+        },
+      });
+    }
+  }
+
 }
